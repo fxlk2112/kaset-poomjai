@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#15803d">
+  <title>เกษตรภูมิใจ v52 — ระบบจัดการฟาร์มอัจฉริยะ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌾</text></svg>">
+</head>
+<body>
+  <div id="app">
+
+    <!-- ====== Top bar ====== -->
+    <header class="topbar">
+      <div class="topbar-row">
+        <div class="brand">
+          <span class="brand-logo">🌾</span>
+          <div class="brand-text">
+            <div class="brand-name">เกษตรภูมิใจ <span class="v-badge">v52</span></div>
+            <div class="brand-sub">ระบบจัดการฟาร์มอัจฉริยะ</div>
+          </div>
+        </div>
+        <button class="btn btn-ghost-light btn-tour" id="tourBtn" title="แนะนำระบบ">
+          <span>✨</span> แนะนำระบบ
+        </button>
+      </div>
+      <div class="role-switch" id="roleSwitch" role="tablist" aria-label="โหมดการใช้งาน"></div>
+    </header>
+
+    <!-- ====== Main view ====== -->
+    <main id="view" class="view"></main>
+
+    <!-- ====== Bottom navigation ====== -->
+    <nav class="bottomnav" id="bottomNav"></nav>
+
+    <!-- ====== Side-docked FAB ====== -->
+    <div class="fab-dock" id="fabDock">
+      <div class="fab-drawer" id="fabDrawer">
+        <button class="fab-item" data-action="harvest"><span>📦</span> บันทึกเก็บเกี่ยว</button>
+        <button class="fab-item" data-action="expense"><span>🌱</span> บันทึกใส่ปุ๋ย / จ่าย</button>
+        <button class="fab-item" data-action="task"><span>✅</span> เพิ่มงานทั่วไป</button>
+      </div>
+      <button class="fab" id="fabBtn" aria-label="ปุ่มลัด"><span class="fab-icon">+</span></button>
+    </div>
+
+    <!-- ====== Modal & overlays ====== -->
+    <div id="modalRoot"></div>
+    <div id="toast" class="toast" hidden></div>
+    <div id="tourOverlay" class="tour-overlay" hidden></div>
+
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
