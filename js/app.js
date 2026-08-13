@@ -72,7 +72,7 @@ function taskRowHtml(t, opts) {
 }
 
 /* ปฏิทินงาน — ใช้ร่วมกันทั้งหน้าแรกและหน้าปฏิทิน */
-function calendarCellsHtml() {
+function calendarCellsHtml(compact) {
   const { y, m, sel } = cal;
   const firstDow = new Date(y, m, 1).getDay();
   const dim = new Date(y, m + 1, 0).getDate();
@@ -87,14 +87,19 @@ function calendarCellsHtml() {
     /* จุดบอกสถานะ: เสร็จ=เขียว แผน=เหลือง เลยกำหนด=แดง */
     const dotCls = ds === "done" ? "dot-green" : ds === "overdue" ? "dot-red" : ds ? "dot-amber" : "";
     const dots = ds ? `<span class="dots"><i class="${dotCls}"></i></span>` : "";
-    /* ตัวอย่างชื่องานแรกของวันนั้น เพื่อให้เห็นว่ามีงานอะไร */
-    const tip = ds ? `<span class="cal-tip t-${ds}">${esc(dayTasks[0].title.slice(0, 8))}</span>` : "";
+    /* ชื่อเสียงานในช่องวัน: ปฏิทินใหญ่แสดง 2 รายการ (เห็นงานได้เลย) / ปฏิทินกะทัดรัดหน้าแรกแสดงแค่จุด */
+    const maxTips = compact ? 0 : 2;
+    const tips = dayTasks.slice(0, maxTips).map(t => {
+      const st = taskStatusOf(t);
+      return `<span class="cal-tip t-${st}">${esc(t.title)}</span>`;
+    }).join("");
+    const more = (!compact && dayTasks.length > maxTips) ? `<span class="cal-more">+${dayTasks.length - maxTips}</span>` : "";
     const cls = [
       inMonth ? "" : "other",
       dateStr === today ? "today" : "",
       dateStr === sel ? "selected" : ""
     ].join(" ");
-    cells += `<button class="cal-day ${cls}" onclick="App.pickDay('${dateStr || ""}')">${inMonth ? dayNum : ""}${dots}${tip}</button>`;
+    cells += `<button class="cal-day ${cls}" onclick="App.pickDay('${dateStr || ""}')">${inMonth ? dayNum : ""}${dots}${tips}${more}</button>`;
   }
   return cells;
 }
@@ -110,7 +115,7 @@ function calCardHtml(compact) {
       </div>
       <div class="cal-grid">
         ${THAI_DAYS.map(d => `<div class="cal-dow">${d}</div>`).join("")}
-        ${calendarCellsHtml()}
+        ${calendarCellsHtml(compact)}
       </div>
       <div class="legend">
         <span><i class="dot-green"></i> เสร็จ</span>
@@ -206,16 +211,16 @@ function renderHome() {
   const tomorrow = addDaysISO(today, 1);
   const tToday = tasksOn(S, today);
   const tTomorrow = tasksOn(S, tomorrow);
-  /* งานวันนี้ + พรุ่งนี้ (เรียง: วันนี้ก่อน แล้วงานที่ยังไม่เสร็จก่อน) */
-  const todays = [...tToday, ...tTomorrow]
+  /* งานที่ต้องทำเร็วๆ นี้: วันนี้ + พรุ่งนี้ — ถ้าพรุ่งนี้ไม่มีงาน ให้ดึงงานถัดไปที่จะถึงมาแทน */
+  const soon = tTomorrow.length ? [] : [...S.tasks]
+    .filter(t => taskStatusOf(t) === "planned" && t.date > tomorrow)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 3);
+  const todays = [...tToday, ...tTomorrow, ...soon]
     .sort((a, b) => a.date.localeCompare(b.date) || (a.status === "done" ? 1 : 0) - (b.status === "done" ? 1 : 0));
   const doneToday = tToday.filter(t => t.status === "done").length;
   const todayPct = tToday.length ? Math.round(doneToday / tToday.length * 100) : 0;
   const overdue = S.tasks.filter(t => taskStatusOf(t) === "overdue");
-  /* งานถัดไปถัดจากพรุ่งนี้ (ใช้เมื่อไม่มีงานวันนี้/พรุ่งนี้) */
-  const nextTask = [...S.tasks]
-    .filter(t => t.status === "planned" && t.date > tomorrow)
-    .sort((a, b) => a.date.localeCompare(b.date))[0];
   const recent = [...S.tasks].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
   const selDate = cal.sel || today;
   const selTasks = tasksOn(S, selDate).sort((a, b) => (a.status === "done" ? 1 : 0) - (b.status === "done" ? 1 : 0));
@@ -317,18 +322,14 @@ function renderHome() {
 
     <div class="home-flow">
       <section class="sec-tasks">
-        <div class="section-title">งานวันนี้ / พรุ่งนี้ ${todays.length ? `<span class="badge badge-amber">${todays.length} รายการ</span>` : ""}</div>
+        <div class="section-title">งานที่ต้องทำเร็วๆ นี้ ${todays.length ? `<span class="badge badge-amber">${todays.length} รายการ</span>` : ""}</div>
         <div class="card">
           ${todays.length === 0 ? `
             <div class="empty">
               <div class="e-ico">🎉</div>
-              <div class="e-title">ไม่มีงานวันนี้ / พรุ่งนี้</div>
-              ${nextTask ? `
-                <div class="muted">งานถัดไป: <b>${esc(nextTask.title)}</b> · ${nextTask.date}</div>
-                <button class="btn btn-primary btn-sm mt-8" onclick="App.modalTask('${nextTask.date}')">＋ เพิ่มงานวันที่ ${nextTask.date}</button>`
-              : `
-                <div class="muted">จดงานหรือกดตรวจแปลงได้เลย</div>
-                <button class="btn btn-primary btn-sm mt-8" onclick="App.modalTask('${today}')">＋ เพิ่มงานวันนี้</button>`}
+              <div class="e-title">ไม่มีงานที่ต้องทำเร็วๆ นี้</div>
+              <div class="muted">จดงานหรือกดตรวจแปลงได้เลย</div>
+              <button class="btn btn-primary btn-sm mt-8" onclick="App.modalTask('${today}')">＋ เพิ่มงานวันนี้</button>
             </div>` : ""}
           ${todays.map(t => taskRowHtml(t, { showDate: t.date !== today })).join("")}
           ${overdue.length ? `
