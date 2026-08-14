@@ -19,14 +19,17 @@
       <div class="topbar-row">
         <div class="brand">
           <img class="brand-logo" id="brandLogo" src="logo.jpg" alt="FARMULTIMATE SOLUTIONS" onerror="this.style.display='none';document.getElementById('brandLogoFallback').style.display='inline'">
-          <span class="brand-logo" id="brandLogoFallback" style="display:none">🌾</span>
+          <span class="brand-logo" id="brandLogoFallback" style="display:none">FUS</span>
           <div class="brand-text">
-            <div class="brand-name">FARMULTIMATE SOLUTIONS <span class="v-badge">v52</span></div>
-            <div class="brand-sub">ระบบจัดการฟาร์มอัจฉริยะ</div>
+            <div class="brand-name"><span id="brandNameTxt">FARMULTIMATE SOLUTIONS</span> <span class="v-badge">v52</span></div>
+            <div class="brand-sub" id="brandSubTxt">ระบบจัดการฟาร์มอัจฉริยะ</div>
           </div>
         </div>
         <button class="btn btn-ghost-light btn-tour" id="tourBtn" title="แนะนำระบบ">
-          <span>✨</span> แนะนำระบบ
+          <span class="btn-ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></span> แนะนำระบบ
+        </button>
+        <button class="btn btn-ghost-light btn-tour" id="editBtn" style="display:none" title="แก้ไขเว็บ (ผู้ดูแล)">
+          <span class="btn-ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></span> แก้ไข
         </button>
       </div>
       <div class="role-switch" id="roleSwitch" role="tablist" aria-label="โหมดการใช้งาน"></div>
@@ -41,9 +44,9 @@
     <!-- ====== Side-docked FAB ====== -->
     <div class="fab-dock" id="fabDock">
       <div class="fab-drawer" id="fabDrawer">
-        <button class="fab-item" data-action="harvest"><span>📦</span> บันทึกเก็บเกี่ยว</button>
-        <button class="fab-item" data-action="expense"><span>🌱</span> บันทึกใส่ปุ๋ย / จ่าย</button>
-        <button class="fab-item" data-action="task"><span>✅</span> เพิ่มงานทั่วไป</button>
+        <button class="fab-item" data-action="harvest"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span> บันทึกเก็บเกี่ยว</button>
+        <button class="fab-item" data-action="expense"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg></span> บันทึกใส่ปุ๋ย / จ่าย</button>
+        <button class="fab-item" data-action="task"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span> เพิ่มงานทั่วไป</button>
       </div>
       <button class="fab" id="fabBtn" aria-label="ปุ่มลัด"><span class="fab-icon">+</span></button>
     </div>

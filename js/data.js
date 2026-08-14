@@ -41,7 +41,7 @@ const TYPE_LABELS = {
   work: "งานประจำ", fertilize: "ใส่ปุ๋ย", harvest: "เก็บเกี่ยว",
   water: "รดน้ำ", inspect: "ตรวจแปลง", expense: "ค่าใช้จ่าย"
 };
-const TYPE_ICONS = { work: "🔧", fertilize: "🌱", harvest: "📦", water: "💧", inspect: "🔍", expense: "💰" };
+const TYPE_ICONS = { work: "wrench", fertilize: "leaf", harvest: "box", water: "droplet", inspect: "search", expense: "dollar" };
 
 /* หมวดต้นทุน — ใช้จัดกลุ่มกราฟวงกลมต้นทุนเชิงลึก */
 const COST_CATS = [
@@ -118,6 +118,11 @@ function seed() {
   return {
     version: 52,
     role: "general",
+    /* ---- โหมดแก้ไขเว็บ (ผู้ดูแล) ---- */
+    adminPass: "",            // รหัสผ่านผู้ดูแล — ว่าง = ยังไม่ได้ตั้ง (ตั้งครั้งแรกได้ที่หน้าตั้งค่า)
+    texts: {},                // คำที่ผู้ดูแลแก้ เช่น { brandName: "..." } — ชนะค่าเริ่มต้น
+    homeOrder: ["cal", "tasks", "profit", "activity"], // ลำดับ section หน้าแรก
+    customMenus: [],          // เมนูที่ผู้ดูแลเพิ่มในหน้าเพิ่มเติม [{ id, ico, name, desc, target }]
     plots: [
       { id: "p1", name: "แปลง A", crop: "ข้าวโพดหวาน", sizeRai: 25, lat: 14.9823, lng: 100.4582, status: "active" },
       { id: "p2", name: "แปลง B", crop: "ข้าวนาปี", sizeRai: 40, lat: 14.9750, lng: 100.4711, status: "active" },
@@ -126,13 +131,13 @@ function seed() {
       { id: "p5", name: "แปลง E", crop: "อ้อย", sizeRai: 30, lat: 14.9694, lng: 100.4850, status: "inactive" },
     ],
     stock: [
-      { id: "s1", name: "ปุ๋ยเคมี สูตร 46-0-0", unit: "ถุง", qty: 120, avgCost: 890 },
-      { id: "s2", name: "ปุ๋ยอินทรีย์", unit: "ถุง", qty: 60, avgCost: 350 },
-      { id: "s3", name: "ยาฆ่าแมลง (คลอร์ไพริฟอส)", unit: "ขวด", qty: 24, avgCost: 620 },
-      { id: "s4", name: "เมล็ดข้าวโพดหวาน", unit: "ถุง", qty: 15, avgCost: 1250 },
-      { id: "s5", name: "เมล็ดพันธุ์ข้าว กข15", unit: "ถุง", qty: 30, avgCost: 980 },
-      { id: "s6", name: "น้ำมันดีเซล", unit: "ลิตร", qty: 300, avgCost: 34.5 },
-      { id: "s7", name: "สารเร่งการเจริญเติบโต", unit: "ขวด", qty: 10, avgCost: 480 },
+      { id: "s1", name: "ปุ๋ยเคมี สูตร 46-0-0", unit: "ถุง", qty: 120, avgCost: 890, openQty: 0 },
+      { id: "s2", name: "ปุ๋ยอินทรีย์", unit: "ถุง", qty: 60, avgCost: 350, openQty: 0 },
+      { id: "s3", name: "ยาฆ่าแมลง (คลอร์ไพริฟอส)", unit: "ขวด", qty: 24, avgCost: 620, openQty: 0 },
+      { id: "s4", name: "เมล็ดข้าวโพดหวาน", unit: "ถุง", qty: 15, avgCost: 1250, openQty: 0 },
+      { id: "s5", name: "เมล็ดพันธุ์ข้าว กข15", unit: "ถุง", qty: 30, avgCost: 980, openQty: 0 },
+      { id: "s6", name: "น้ำมันดีเซล", unit: "ลิตร", qty: 300, avgCost: 34.5, openQty: 0 },
+      { id: "s7", name: "สารเร่งการเจริญเติบโต", unit: "ขวด", qty: 10, avgCost: 480, openQty: 0 },
     ],
     equipment: [
       { id: "e1", name: "รถแทรกเตอร์", type: "เครื่องจักร", purchaseDate: "2019-03-15", cost: 1850000, lifespan: 15 },
@@ -169,6 +174,7 @@ function loadState() {
       const s = JSON.parse(raw);
       if (s && s.version === 52) {
         ensureTaskIds(s);
+        ensureDefaults(s);
         saveState(s);
         return s;
       }
@@ -181,6 +187,17 @@ function loadState() {
 /* งานที่ยังไม่มี id (ข้อมูลเก่า) ให้สร้าง id ใหม่ — จำเป็นสำหรับการติ๊กถูก/ลบงาน */
 function ensureTaskIds(s) {
   (s.tasks || []).forEach(t => { if (!t.id) t.id = uid(); });
+}
+/* เติมค่าเริ่มต้นสำหรับฟิลด์โหมดแก้ไขเว็บ — รองรับข้อมูลที่บันทึกไว้จากเวอร์ชันก่อน */
+function ensureDefaults(s) {
+  if (typeof s.adminPass !== "string") s.adminPass = "";
+  s.texts = s.texts || {};
+  if (!Array.isArray(s.homeOrder) || s.homeOrder.length !== 4) s.homeOrder = ["cal", "tasks", "profit", "activity"];
+  s.customMenus = s.customMenus || [];
+  /* ฟิลด์สต็อกใช้งานแล้ว (openQty) — ของที่เบิกมาเปิดใช้แล้วยังไม่หมด */
+  (s.stock || []).forEach(x => {
+    if (typeof x.openQty !== "number" || isNaN(x.openQty)) x.openQty = 0;
+  });
 }
 function saveState(s) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (e) { /* storage full / blocked */ }
@@ -198,7 +215,7 @@ function activeCycles(s) {
   return s.cycles.filter(c => c.status === "active");
 }
 function totalStockValue(s) {
-  return s.stock.reduce((a, x) => a + x.qty * x.avgCost, 0);
+  return s.stock.reduce((a, x) => a + (x.qty + (x.openQty || 0)) * x.avgCost, 0);
 }
 
 /* เฉพาะงานที่ "เสร็จ" เท่านั้นที่นับเป็นรายได้/ต้นทุน */
@@ -274,39 +291,96 @@ function addTask(s, t) {
   t.qty = Number(t.qty) || 0;
   t.cost = Number(t.cost) || 0;
   t.revenue = Number(t.revenue) || 0;
+  t.createdAt = Date.now(); // เวลาเพิ่มงาน — ใช้เรียง "กิจกรรมล่าสุด"
   // ถ้าผูกกับรอบแต่ไม่ระบุแปลง ให้ดึงแปลงจากรอบนั้นมา
   if (t.cycleId && !t.plotId) {
     const c = cycleById(s, t.cycleId);
     if (c) t.plotId = c.plotId;
   }
   if (!t.costCat && t.cost > 0) t.costCat = defaultCostCat(t.type);
-  // ตัดสต็อกอัตโนมัติเมื่อใช้ของ
-  if (t.stockId && t.qty > 0) {
+  applyStockUse(s, t);
+  s.tasks.push(t);
+  return t;
+}
+/* ตัดสต็อกอัตโนมัติเมื่อใช้ของ (รองรับหลายรายการ costItems)
+   หลักการ: ใช้ของที่เบิกมาเปิดแล้ว (openQty) ก่อน แล้วเบิกจากสต็อกหลักปัดขึ้นเป็นหน่วยเต็ม
+   เช่น ใช้ 3.5 ถุง, openQty=0 → เบิก 4 ถุงจากหลัก, ใช้ 3.5 → เศษ 0.5 เข้า openQty
+   เก็บ log (stockLog) ไว้ในงาน เพื่อให้คืนสต็อกได้แม่นยำเมื่อแก้ไข/ลบงาน */
+function applyStockUse(s, t) {
+  if (t.costItems && t.costItems.length) {
+    let total = 0;
+    t.stockLog = [];
+    t.costItems.forEach(ci => {
+      total += Number(ci.totalCost) || 0;
+      if (ci.stockId && ci.qty > 0) {
+        const item = stockById(s, ci.stockId);
+        if (item) {
+          let need = Number(ci.qty) || 0;
+          item.openQty = Number(item.openQty) || 0;
+          const beforeMain = item.qty, beforeOpen = item.openQty;
+          // 1) ใช้ของที่เปิดใช้แล้วก่อน
+          const fromOpen = Math.min(item.openQty, need);
+          item.openQty -= fromOpen;
+          need -= fromOpen;
+          // 2) เบิกจากสต็อกหลักเป็นหน่วยเต็ม (ปัดขึ้น)
+          let openAdded = 0;
+          if (need > 0) {
+            const withdraw = Math.ceil(need);
+            item.qty = Math.max(0, item.qty - withdraw);
+            // เศษที่เบิกเกิน (เช่น 4-3.5=0.5) เก็บเป็นของที่เปิดใช้แล้ว
+            openAdded = Math.max(0, withdraw - need);
+            item.openQty += openAdded;
+          }
+          t.stockLog.push({
+            stockId: ci.stockId,
+            qty: Number(ci.qty) || 0,
+            mainWithdrawn: beforeMain - item.qty,   // เบิกจากหลักไปเท่าไหร่
+            openUsed: beforeOpen - (item.openQty - openAdded), // ใช้ openQty ไปเท่าไหร่
+            openAdded                                    // เศษที่เพิ่มเข้า openQty
+          });
+          if (!ci.totalCost) ci.totalCost = Math.round(ci.qty * item.avgCost);
+        }
+      }
+    });
+    t.cost = Math.round(total);
+    // สรุปยอดจากรายการแรก (เข้ากันได้กับโค้ดเดิมที่อ่าน t.stockId/t.qty)
+    const first = t.costItems.find(ci => ci.stockId) || t.costItems[0];
+    if (first) {
+      t.stockId = first.stockId || null;
+      t.qty = Number(first.qty) || 0;
+      t.unit = first.unit || "";
+      t.costCat = first.category || t.costCat;
+    }
+  } else if (t.stockId && t.qty > 0) {
     const item = stockById(s, t.stockId);
     if (item) {
       item.qty = Math.max(0, item.qty - t.qty);
       if (!t.cost) t.cost = Math.round(t.qty * item.avgCost);
     }
+    t.stockLog = [{ stockId: t.stockId, qty: t.qty, mainWithdrawn: t.qty, openUsed: 0, openAdded: 0 }];
+  } else {
+    t.stockLog = [];
   }
-  s.tasks.push(t);
-  return t;
 }
 function toggleTaskDone(s, taskId) {
   const t = s.tasks.find(x => x.id === taskId);
   if (!t) return;
   t.status = t.status === "done" ? "planned" : "done";
+  t.updatedAt = Date.now(); // เวลาทำเสร็จ/ยกเลิก — ใช้เรียงกิจกรรมล่าสุด
 }
 function updateTaskStatus(s, taskId, status) {
   const t = s.tasks.find(x => x.id === taskId);
   if (t) t.status = status;
 }
 
-/* Weighted-average stock receive */
+/* Weighted-average stock receive — สต็อกหลักรับเป็นจำนวนเต็มเท่านั้น */
 function receiveStock(s, id, qty, price) {
   const item = stockById(s, id);
   if (!item) return;
   qty = Number(qty) || 0;
   price = Number(price) || 0;
+  if (qty <= 0) return;
+  qty = Math.floor(qty); // ปัดเศษทิ้ง — หลักเก็บเต็มหน่วยเท่านั้น
   if (qty <= 0) return;
   const totalCost = item.qty * item.avgCost + qty * price;
   item.qty += qty;
@@ -316,6 +390,29 @@ function deductStock(s, id, qty) {
   const item = stockById(s, id);
   if (!item) return;
   item.qty = Math.max(0, item.qty - (Number(qty) || 0));
+}
+
+/* คืนสต็อกที่งานเบิกไป (ย้อนกลับ addTask) — ใช้ตอนแก้ไขลดจำนวน / ลบงานที่ยังไม่ได้ใช้ของ
+   รองรับงานที่ไม่มี stockLog (ข้อมูลเก่า) โดยประมาณจาก costItems */
+function restockTask(s, t) {
+  const logs = t.stockLog && t.stockLog.length ? t.stockLog : (t.costItems || []).map(ci => ({
+    stockId: ci.stockId,
+    qty: Number(ci.qty) || 0,
+    mainWithdrawn: Math.ceil(Number(ci.qty) || 0),
+    openUsed: 0,
+    openAdded: Math.max(0, Math.ceil(Number(ci.qty) || 0) - (Number(ci.qty) || 0))
+  }));
+  logs.forEach(log => {
+    if (!log.stockId) return;
+    const item = stockById(s, log.stockId);
+    if (!item) return;
+    item.openQty = Number(item.openQty) || 0;
+    // คืนหลักตามที่เบิกไป
+    item.qty += log.mainWithdrawn || 0;
+    // ย้อน openQty: เอาส่วนที่งานนี้เพิ่มเข้า (openAdded) ออก และคืนส่วนที่ใช้ไป (openUsed)
+    item.openQty = Math.max(0, item.openQty - (log.openAdded || 0) + (log.openUsed || 0));
+  });
+  t.stockLog = [];
 }
 
 /* Task status per date: done / planned / overdue */
