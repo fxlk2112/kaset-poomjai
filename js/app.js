@@ -825,7 +825,7 @@ function renderSettings() {
       <div class="row">
         <div class="plot-emoji">🌾</div>
         <div class="grow">
-          <div class="plot-name">เกษตรภูมิใจ v52</div>
+          <div class="plot-name">FARMULTIMATE SOLUTIONS v52</div>
           <div class="muted">ระบบจัดการฟาร์มอัจฉริยะ · ออกแบบเป็นเว็บคอมพิวเตอร์ ใช้งานง่ายทั้งจอใหญ่และจอเล็ก</div>
         </div>
       </div>
