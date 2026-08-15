@@ -2005,10 +2005,15 @@ function openModal(html) {
   const bd = root.querySelector(".modal-backdrop");
   bd.addEventListener("click", e => { if (e.target === bd) closeModal(); });
   lockBodyScroll();
+  /* ซ่อนปุ่มลัด (FAB) ระหว่างเปิด modal — กันกด/เลื่อนตรงมุมขวาล่างไปโดนพื้นหลัง */
+  const fd = document.getElementById("fabDock");
+  if (fd) fd.style.visibility = "hidden";
 }
 function closeModal() {
   document.getElementById("modalRoot").innerHTML = "";
   unlockBodyScroll();
+  const fd = document.getElementById("fabDock");
+  if (fd) fd.style.visibility = "";
 }
 function confirmModal(title, text, onOk) {
   openModal(`

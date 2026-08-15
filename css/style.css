@@ -271,13 +271,13 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .cal-head .cal-title { font-weight: 800; font-size: 1rem; }
 .cal-nav { display: flex; gap: 6px; }
 .cal-nav button { width: 34px; height: 34px; border-radius: 10px; background: var(--green-soft); color: var(--green-dark); font-weight: 800; font-size: 1rem; }
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .cal-dow { text-align: center; font-size: .68rem; font-weight: 700; color: var(--muted); padding: 4px 0; }
 .cal-day {
   position: relative; border-radius: 10px; background: #f8faf9;
   border: 1px solid var(--line);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  font-size: .85rem; font-weight: 600; min-height: 58px; padding: 3px 2px;
+  font-size: .85rem; font-weight: 600; height: 58px; overflow: hidden; padding: 3px 2px;
   transition: transform .15s, box-shadow .15s, background .15s, border-color .15s;
 }
 @media (hover: hover) { .cal-day:hover { background: var(--green-light); } }
@@ -551,7 +551,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 
 /* ============ Modal (bottom sheet) ============ */
 .modal-backdrop {
-  position: fixed; inset: 0; background: rgba(15, 23, 42, .5); z-index: 60;
+  position: fixed; inset: 0; background: rgba(15, 23, 42, .5); z-index: 70;
   display: flex; align-items: flex-end; justify-content: center; animation: fadeIn .18s ease;
 }
 .modal {
@@ -1087,7 +1087,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 /* ปฏิทินขนาดกะทัดรัดบนหน้าแรก */
 .cal-sm .cal-head { margin-bottom: 8px; }
 .cal-sm .cal-head .cal-title { font-size: .92rem; }
-.cal-sm .cal-grid { gap: 4px; }
+.cal-sm .cal-grid { gap: 4px; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .cal-sm .cal-dow { font-size: .66rem; padding: 3px 0; }
 .cal-sm .cal-day {
   height: 40px;
