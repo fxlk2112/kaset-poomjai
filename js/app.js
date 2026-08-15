@@ -8,6 +8,16 @@
 /* ---------------- state & bootstrap ---------------- */
 const S = loadState();
 let route = { view: "home", tab: "plots" };
+/* จำหน้าล่าสุดไว้ (sessionStorage — รีเฟรชแล้วอยู่หน้าเดิม ไม่กลับหน้าแรก, เปิดแท็บใหม่เริ่มหน้าแรกปกติ) */
+const ROUTE_STORE = "kaset-route-v1";
+function saveRoute() {
+  try {
+    const o = { view: route.view, tab: route.tab };
+    if (route.plotId) o.plotId = route.plotId;
+    if (route.cycleId) o.cycleId = route.cycleId;
+    sessionStorage.setItem(ROUTE_STORE, JSON.stringify(o));
+  } catch (e) {}
+}
 let plotTaskCycle = "";   // กรองงาน/กิจกรรมของแปลงตามรอบการปลูก ("" = ทั้งหมด, "__none__" = ไม่มีรอบ)
 let cal = { y: new Date().getFullYear(), m: new Date().getMonth(), sel: todayISO() };
 
@@ -324,9 +334,12 @@ function render() {
   };
   const viewChanged = lastView !== route.view;
   lastView = route.view;
+  saveRoute();
   /* ปิดแอนิเมชันตอน re-render ในหน้าเดิม (กันกระพริบ) */
   v.classList.toggle("no-anim", !viewChanged);
   v.innerHTML = (views[route.view] || renderHome)();
+  /* หลังวาดหน้า — ดึงสภาพอากาศของแปลง (เฉพาะหน้ารายละเอียดแปลง) */
+  if (route.view === "plotDetail") renderPlotWeather();
   /* เลื่อนกลับหัวหน้าเฉพาะตอนเปลี่ยนหน้า (เช่น กดเมนู) — ถ้าแค่ re-render ในหน้าเดิม (กดวันปฏิทิน/กรอง/ติ๊กงาน)
      ต้องไม่กระโดดขึ้นบน กันบัคหน้าเด้ง */
   if (viewChanged) {
@@ -639,7 +652,7 @@ function renderPlots() {
         </div>
         <div class="meta-grid">
           <div class="meta-box"><div class="lb">ขนาดพื้นที่</div><div class="vl">${fmtNum(p.sizeRai)} ไร่</div></div>
-          <div class="meta-box"><div class="lb">พิกัด GPS</div><div class="vl" style="font-size:.72rem">${p.lat}, ${p.lng}</div></div>
+          <div class="meta-box"><div class="lb">พิกัด GPS</div><div class="vl" style="font-size:.72rem"><a class="gps-link" href="${mapLink(p.lat, p.lng)}" target="_blank" rel="noopener">${ic("map")} ${p.lat}, ${p.lng}</a></div></div>
           <div class="meta-box"><div class="lb">รอบล่าสุด</div><div class="vl" style="font-size:.78rem">${c ? esc(c.plant) : "—"}</div></div>
           <div class="meta-box"><div class="lb">อายุรอบ</div><div class="vl">${c ? ageDays(c.startDate) + " วัน" : "—"}</div></div>
         </div>
@@ -679,7 +692,10 @@ function renderPlots() {
           <div class="meta-box"><div class="lb">กำไร/ขาดทุน</div><div class="vl ${fin.net >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(fin.net)} บาท</div></div>
           <div class="meta-box"><div class="lb">สถานะ</div><div class="vl" style="font-size:.78rem">${fin.revenue > 0 ? "มีผลผลิตแล้ว" : "รอผลผลิต"}</div></div>
         </div>
-        ${c.status === "active" ? `<button class="btn btn-sm btn-ghost mt-12" onclick="event.stopPropagation();App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : `<button class="btn btn-sm btn-outline mt-12" onclick="event.stopPropagation();App.reopenCycle('${c.id}')">${ic("refresh")} เปิดรอบอีกครั้ง</button>`}
+        <div class="actions-row" style="margin-top:10px">
+          <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();App.modalCycle('${c.plotId}', '${c.id}')">${ic("pencil")} แก้ไขรอบ</button>
+          ${c.status === "active" ? `<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : `<button class="btn btn-sm btn-outline" onclick="event.stopPropagation();App.reopenCycle('${c.id}')">${ic("refresh")} เปิดรอบอีกครั้ง</button>`}
+        </div>
         <div class="cycle-open-hint">${ic("chevron")} ดู ${n} กิจกรรมของรอบนี้</div>
       </div>`;
     }).join("")}
@@ -695,6 +711,137 @@ function renderPlots() {
 App.plotsTab = function (tab) { route.tab = tab; render(); };
 App.goCycles = function () { route.view = "plots"; route.tab = "cycles"; render(); };
 App.goPlots = function () { route.view = "plots"; route.tab = "plots"; render(); };
+
+/* ---- ลิงก์แผนที่ Google จากพิกัด GPS (กดแล้วเปิดแผนที่ตำแหน่งแปลงได้เลย) ---- */
+function mapLink(lat, lng) {
+  return "https://www.google.com/maps?q=" + encodeURIComponent(String(lat)) + "," + encodeURIComponent(String(lng));
+}
+
+/* ---- สภาพอากาศรายแปลง (Open-Meteo — ฟรี ไม่ต้องใช้คีย์ ไม่ต้องสมัคร) ---- */
+/* แคช 30 นาที เก็บใน localStorage — รีเฟรชหน้าแล้วตัวเลขคงที่ ไม่เปลี่ยนทุกครั้ง */
+const WEATHER_TTL = 30 * 60 * 1000;
+const WEATHER_STORE = "kaset-weather-cache-v2";
+function weatherCacheLoad() {
+  try { const raw = localStorage.getItem(WEATHER_STORE); if (raw) return JSON.parse(raw) || {}; } catch (e) {}
+  return {};
+}
+function weatherCacheSave() {
+  try { localStorage.setItem(WEATHER_STORE, JSON.stringify(WEATHER_CACHE)); } catch (e) {}
+}
+let WEATHER_CACHE = weatherCacheLoad();
+/* การ์ดสภาพอากาศของแปลง — แสดง loading ก่อน แล้ว renderPlotWeather() ไปดึงข้อมูลจริงมาเติม */
+function plotWeatherCard(p) {
+  const hasCoords = p && Number(p.lat) && Number(p.lng);
+  return `
+    <div class="section-title">สภาพอากาศแปลงนี้ <span class="muted" style="font-size:.72rem;font-weight:600">จากพิกัด GPS</span></div>
+    <div class="card weather-card" id="weatherCard">
+      ${hasCoords ? `<div class="weather-loading">${ic("pin")} กำลังดึงสภาพอากาศของ ${esc(p.name)}...</div>`
+        : `<div class="weather-note">${ic("pin")} ยังไม่มีพิกัด GPS ของแปลงนี้ — กด "แก้ไขแปลง" แล้วปักหมุด เพื่อดูสภาพอากาศ</div>`}
+    </div>`;
+}
+/* รหัสสภาพอากาศ WMO ของ Open-Meteo -> [คำอธิบายไทย, อีโมจิ] */
+const OM_CODES = {
+  0: ["ท้องฟ้าแจ่มใส", "☀️"], 1: ["ฟ้าใสบางส่วน", "🌤️"], 2: ["มีเมฆบางส่วน", "⛅"], 3: ["มีเมฆมาก", "☁️"],
+  45: ["มีหมอก", "🌫️"], 48: ["หมอก/น้ำค้างแข็ง", "🌫️"],
+  51: ["ฝนปรอยเล็กน้อย", "🌦️"], 53: ["ฝนปรอยปานกลาง", "🌦️"], 55: ["ฝนปรอยหนาแน่น", "🌧️"], 56: ["ฝนเยือกแข็งปรอย", "🌧️"], 57: ["ฝนเยือกแข็งปรอยหนา", "🌧️"],
+  61: ["ฝนเล็กน้อย", "🌧️"], 63: ["ฝนปานกลาง", "🌧️"], 65: ["ฝนหนัก", "🌧️"], 66: ["ฝนเยือกแข็ง", "🌧️"], 67: ["ฝนเยือกแข็งหนัก", "🌧️"],
+  71: ["หิมะเล็กน้อย", "❄️"], 73: ["หิมะปานกลาง", "❄️"], 75: ["หิมะหนัก", "❄️"], 77: ["เกล็ดหิมะ", "🌨️"],
+  80: ["ฝนโปรยเล็กน้อย", "🌦️"], 81: ["ฝนโปรยปานกลาง", "🌧️"], 82: ["ฝนโปรยหนัก", "⛈️"], 85: ["หิมะโปรยเล็กน้อย", "🌨️"], 86: ["หิมะโปรยหนัก", "❄️"],
+  95: ["พายุฟ้าคะนอง", "⛈️"], 96: ["พายุฟ้าคะนอง + ลูกเห็บ", "⛈️"], 99: ["พายุรุนแรง + ลูกเห็บ", "⛈️"]
+};
+function omCodeInfo(code) { const w = OM_CODES[code]; return w ? w : ["อากาศแปรปรวน", "🌡️"]; }
+/* ดึงข้อมูลจาก Open-Meteo (ECMWF IFS — แบบจำลองที่แม่นที่สุดในโลก) แล้วเติมลงการ์ด (แคช 30 นาที ตามพิกัด) */
+function renderPlotWeather() {
+  const el = document.getElementById("weatherCard");
+  if (!el) return;
+  const p = plotById(S, route.plotId);
+  if (!p || !Number(p.lat) || !Number(p.lng)) return;
+  const ckey = p.id + "|" + p.lat + "," + p.lng;
+  const hit = WEATHER_CACHE[ckey];
+  if (hit && Date.now() - hit.t < WEATHER_TTL) { el.innerHTML = hit.html; fillWeatherAddress(p); return; }
+  el.innerHTML = `<div class="weather-loading">${ic("pin")} กำลังดึงสภาพอากาศของ ${esc(p.name)}...</div>`;
+  /* Open-Meteo — ฟรี ไม่ต้องใช้คีย์ · ECMWF IFS = แบบจำลองที่แม่นที่สุดในโลก */
+  const url = "https://api.open-meteo.com/v1/forecast?latitude=" + p.lat + "&longitude=" + p.lng +
+    "&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m" +
+    "&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code" +
+    "&timezone=auto&models=ecmwf_ifs025";
+  fetch(url)
+    .then(r => { if (!r.ok) throw new Error("om status " + r.status); return r.json(); })
+    .then(om => {
+      if (!om || !om.current || !om.daily) throw new Error("empty");
+      const c = om.current;
+      const d = om.daily;
+      const [cond, emoji] = omCodeInfo(c.weather_code);
+      /* แสดงทศนิยม 1 ตำแหน่ง (ไม่ปัดเลขทิ้ง — เช่น 31.4°C) */
+      const fmt1 = n => (n == null ? "—" : (Math.round(Number(n) * 10) / 10).toFixed(1).replace(/\.0$/, ""));
+      const days = (d.time || []).slice(0, 5).map((day, i) => {
+        const [dc, de] = omCodeInfo(d.weather_code[i]);
+        return `<div class="wday">
+      <div class="wday-name">${THAI_DAYS[new Date(day + "T12:00:00").getDay()]}</div>
+      <div class="wday-emoji">${de}</div>
+      <div class="wday-temp">${fmt1(d.temperature_2m_max[i])}°/${fmt1(d.temperature_2m_min[i])}°</div>
+      <div class="wday-rain">ฝน ${fmt1(d.precipitation_sum[i])} มม.</div>
+    </div>`;
+      }).join("");
+      const timeStr = c.time ? String(c.time).slice(11, 16) : "";
+      const html = `
+      <div class="weather-top">
+        <div>
+          <div class="weather-loc">${ic("pin")} ${esc(p.name)}<span class="weather-addr"></span></div>
+          <div class="weather-updated">🌍 Open-Meteo · ECMWF — ข้อมูลล่าสุด ${timeStr} · อัปเดตอัตโนมัติทุก 30 นาที</div>
+        </div>
+        <a class="weather-map" href="${mapLink(p.lat, p.lng)}" target="_blank" rel="noopener">${ic("map")} แผนที่</a>
+      </div>
+      <div class="weather-now">
+        <span class="weather-emoji">${emoji}</span>
+        <div>
+          <div class="weather-temp">${fmt1(c.temperature_2m)}°C</div>
+          <div class="weather-cond">${cond}</div>
+        </div>
+      </div>
+      <div class="weather-chips">
+        <span>💧 ความชื้น ${fmt1(c.relative_humidity_2m)}%</span>
+        <span>🌧️ ฝน ${fmt1(c.precipitation)} มม.</span>
+        <span>💨 ลม ${fmt1(c.wind_speed_10m)} m/s</span>
+      </div>
+      <div class="weather-days">${days}</div>`;
+      WEATHER_CACHE[ckey] = { t: Date.now(), html };
+      weatherCacheSave();
+      el.innerHTML = html;
+      fillWeatherAddress(p);
+    })
+    .catch(() => {
+      el.innerHTML = `<div class="weather-note">${ic("alert")} ดึงข้อมูลสภาพอากาศไม่ได้ (ตรวจสอบอินเทอร์เน็ต) — ลองใหม่อีกครั้งภายหลัง</div>`;
+    });
+}
+/* ---- ที่อยู่/อำเภอจากพิกัด (Nominatim/OpenStreetMap — ฟรี ไม่ต้องใช้คีย์) ---- */
+const GEO_CACHE = {};
+function reverseGeocode(p) {
+  const gkey = p.lat + "," + p.lng;
+  const hit = GEO_CACHE[gkey];
+  if (hit && Date.now() - hit.t < 86400000) return Promise.resolve(hit.name);
+  return fetch("https://nominatim.openstreetmap.org/reverse?lat=" + p.lat + "&lon=" + p.lng + "&format=json&accept-language=th")
+    .then(r => { if (!r.ok) throw new Error("geo"); return r.json(); })
+    .then(j => {
+      const a = j.address || {};
+      const parts = [a.county, a.province, a.city].filter(Boolean);
+      const name = parts.length ? parts.join(", ") : "";
+      GEO_CACHE[gkey] = { t: Date.now(), name };
+      return name;
+    })
+    .catch(() => "");
+}
+/* เติมชื่อที่อยู่ (อำเภอ/จังหวัด) ลงการ์ด — โหลดทีหลัง ไม่บล็อกข้อมูลอากาศ */
+function fillWeatherAddress(p) {
+  const s = document.querySelector("#weatherCard .weather-addr");
+  if (!s) return;
+  reverseGeocode(p).then(name => { if (s && name) s.textContent = " · 📍 " + name; });
+}
+/* รีเฟรชสภาพอากาศอัตโนมัติทุก 10 นาที (จริงๆ อัปเดตทุก 30 นาทีตาม TTL แคช) —
+   ขณะอยู่หน้ารายละเอียดแปลง ไม่ต้องกดรีเฟรชเอง และเลขไม่เปลี่ยนทุกครั้งที่รีเฟรช */
+setInterval(() => {
+  if (route.view === "plotDetail" && document.getElementById("weatherCard")) renderPlotWeather();
+}, 600000);
 
 /* ---------------- Plot detail ---------------- */
 function renderPlotDetail() {
@@ -722,7 +869,7 @@ function renderPlotDetail() {
       </div>
       <div class="meta-grid">
         <div class="meta-box"><div class="lb">ขนาดพื้นที่</div><div class="vl">${fmtNum(p.sizeRai)} ไร่</div></div>
-        <div class="meta-box"><div class="lb">พิกัด GPS</div><div class="vl" style="font-size:.72rem">${p.lat}, ${p.lng}</div></div>
+        <div class="meta-box"><div class="lb">พิกัด GPS</div><div class="vl" style="font-size:.72rem"><a class="gps-link" href="${mapLink(p.lat, p.lng)}" target="_blank" rel="noopener">${ic("map")} ${p.lat}, ${p.lng}</a></div></div>
         <div class="meta-box"><div class="lb">รอบที่กำลังปลูก</div><div class="vl" style="font-size:.78rem">${activeCycle ? esc(activeCycle.plant) : "—"}</div></div>
         <div class="meta-box"><div class="lb">จำนวนรอบ</div><div class="vl">${cycles.length} รอบ</div></div>
       </div>
@@ -732,6 +879,8 @@ function renderPlotDetail() {
         <button class="btn btn-sm btn-primary" onclick="App.modalTask(todayISO(), { plotId: '${p.id}' })">${ic("plus")} เพิ่มกิจกรรม</button>
       </div>
     </div>
+
+    ${plotWeatherCard(p)}
 
     <div class="section-title">กำไร/ขาดทุนของแปลงนี้</div>
     <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none">
@@ -767,7 +916,10 @@ function renderPlotDetail() {
           <div class="meta-box"><div class="lb">กำไร/ขาดทุน</div><div class="vl ${cf.net >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(cf.net)} บาท</div></div>
           <div class="meta-box"><div class="lb">สถานะ</div><div class="vl" style="font-size:.78rem">${cf.revenue > 0 ? "มีผลผลิตแล้ว" : "รอผลผลิต"}</div></div>
         </div>
-        ${c.status === "active" ? `<button class="btn btn-sm btn-ghost mt-12" onclick="event.stopPropagation();App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : `<button class="btn btn-sm btn-outline mt-12" onclick="event.stopPropagation();App.reopenCycle('${c.id}')">${ic("refresh")} เปิดรอบอีกครั้ง</button>`}
+        <div class="actions-row" style="margin-top:10px">
+          <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();App.modalCycle('${c.plotId}', '${c.id}')">${ic("pencil")} แก้ไขรอบ</button>
+          ${c.status === "active" ? `<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : `<button class="btn btn-sm btn-outline" onclick="event.stopPropagation();App.reopenCycle('${c.id}')">${ic("refresh")} เปิดรอบอีกครั้ง</button>`}
+        </div>
         <div class="cycle-open-hint">${ic("chevron")} ดู ${n} กิจกรรมของรอบนี้</div>
       </div>`;
     }).join("")}
@@ -916,6 +1068,7 @@ function renderCycleDetail() {
       </div>
       <div class="actions-row">
         ${c.status === "active" ? `<button class="btn btn-sm btn-primary" onclick="App.modalTask(todayISO(), { cycleId: '${c.id}' })">${ic("plus")} เพิ่มกิจกรรม</button>` : ""}
+        <button class="btn btn-sm btn-ghost" onclick="App.modalCycle('${c.plotId}', '${c.id}')">${ic("pencil")} แก้ไขรอบ</button>
         ${c.status === "active" ? `<button class="btn btn-sm btn-ghost" onclick="App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : `<button class="btn btn-sm btn-outline" onclick="App.reopenCycle('${c.id}')">${ic("refresh")} เปิดรอบการปลูกอีกครั้ง</button>`}
       </div>
     </div>
@@ -1674,10 +1827,15 @@ function renderSettings() {
       </div>`).join("")}
       <button class="btn btn-primary btn-block mt-8" onclick="App.modalCostCat()">${ic("plus")} เพิ่มหมวดต้นทุน</button>
     </div>
+    <div class="section-title">${ic("droplet")} สภาพอากาศรายแปลง (Open-Meteo)</div>
+    <div class="card">
+      <div class="muted" style="font-size:.76rem;margin-bottom:10px">สภาพอากาศของแต่ละแปลงดึงจาก <b>Open-Meteo</b> (แบบจำลอง ECMWF IFS ของยุโรป — แบบจำลองที่แม่นที่สุดในโลก) ตามพิกัด GPS ที่ปักหมุด — <b>ฟรี ไม่ต้องใช้คีย์ ไม่ต้องสมัคร</b></div>
+      <div class="muted" style="font-size:.72rem">🌍 แหล่งข้อมูล: open-meteo.com · อัปเดตข้อมูลทุก ~15 นาที · แสดงผลแคช 30 นาที (เลขนิ่ง ไม่กระโดดเมื่อรีเฟรช)</div>
+    </div>
     ${editorHtml}
     <button class="btn btn-ghost btn-block" onclick="App.startTour()">${ic("compass")} แนะนำระบบ (Tour) อีกครั้ง</button>
     <button class="btn btn-danger-soft btn-block mt-8" onclick="App.resetData()">${ic("refresh")} รีเซ็ตข้อมูลทั้งหมด</button>
-    <div class="muted mt-8" style="font-size:.7rem;text-align:center">ระบบจะเชื่อมข้อมูลสภาพอากาศและ IoT จริงในเวอร์ชันถัดไป</div>`;
+    <div class="muted mt-8" style="font-size:.7rem;text-align:center">สภาพอากาศรายแปลงจาก Open-Meteo (ECMWF) — ฟรี ไม่ต้องใช้คีย์ · IoT จริงในเวอร์ชันถัดไป</div>`;
 }
 /* เครื่องมือแก้ไข (ใช้ทั้งในหน้าตั้งค่า และ modal จากปุ่ม ✏️ แก้ไขหัวเว็บ) */
 function adminToolsHtml() {
@@ -1995,6 +2153,8 @@ function openModal(html) {
 }
 function closeModal() {
   document.getElementById("modalRoot").innerHTML = "";
+  /* ล้างแผนที่ปักหมุด (Leaflet) ตอนปิด modal — กันค้าง/รั่ว */
+  if (pickMap) { pickMap.remove(); pickMap = null; pickMarker = null; }
   unlockBodyScroll();
   const fd = document.getElementById("fabDock");
   if (fd) fd.style.visibility = "";
@@ -2053,12 +2213,14 @@ App.modalPlot = function (id) {
       <div class="field">
         <label>พิกัด GPS (ปักหมุด)</label>
         <div class="row" style="gap:8px">
-          <input id="f_lat" type="number" step="0.0001" value="${lat}" style="flex:1" placeholder="ละติจูด">
-          <input id="f_lng" type="number" step="0.0001" value="${lng}" style="flex:1" placeholder="ลองจิจูด">
+          <input id="f_lat" type="text" inputmode="decimal" value="${lat}" style="flex:1" placeholder="ละติจูด">
+          <input id="f_lng" type="text" inputmode="decimal" value="${lng}" style="flex:1" placeholder="ลองจิจูด">
         </div>
-        <div class="hint">ระบบจะใช้พิกัดนี้ดึงข้อมูลสภาพอากาศในอนาคต</div>
+        <div class="hint">ใช้พิกัดนี้ดึงสภาพอากาศรายแปลง (Open-Meteo) — ควรปักหมุดให้ตรงแปลงเพื่อให้ข้อมูลแม่นยำ</div>
         <button type="button" class="btn btn-sm btn-ghost mt-8" onclick="App.useGps()">${ic("pin")} ใช้ตำแหน่งจริงของฉัน</button>
       </div>
+      <div class="pick-hint">${ic("pin")} หรือ<b>แตะ/ลากหมุดบนแผนที่</b>เพื่อปักหมุดตำแหน่งแปลง</div>
+      <div class="plot-pick-map" id="pickMap"></div>
       <div class="gps-box" id="gpsPreview"></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
@@ -2069,23 +2231,51 @@ App.modalPlot = function (id) {
     const la = parseFloat(document.getElementById("f_lat").value) || 14.9823;
     const ln = parseFloat(document.getElementById("f_lng").value) || 100.4582;
     document.getElementById("gpsPreview").innerHTML =
-      `<div class="gps-coords">${ic("pin")} ${la.toFixed(4)}, ${ln.toFixed(4)}</div>
-       <div class="muted" style="font-size:.7rem">ตัวอย่างแผนที่ — ระบบจะเชื่อมแผนที่จริงในเวอร์ชันถัดไป</div>`;
+      `<div class="gps-coords">${ic("pin")} ${la.toFixed(6)}, ${ln.toFixed(6)}</div>
+       <a class="btn btn-sm btn-outline mt-8" href="${mapLink(la, ln)}" target="_blank" rel="noopener">${ic("map")} เปิดแผนที่ Google Maps</a>`;
   };
   ["f_lat", "f_lng"].forEach(n => {
     const el = document.getElementById(n);
     el.addEventListener("input", update);
   });
   update();
+  initPickMap();
 };
+/* ---- แผนที่ปักหมุด (Leaflet + OpenStreetMap — ฟรี ไม่ต้องใช้คีย์) ---- */
+let pickMap = null, pickMarker = null;
+/* สร้าง/ย้ายแผนที่ไปยังพิกัดปัจจุบันในฟอร์ม */
+function initPickMap() {
+  const el = document.getElementById("pickMap");
+  if (!el || typeof L === "undefined") return;
+  const la = parseFloat(document.getElementById("f_lat").value) || 14.9823;
+  const ln = parseFloat(document.getElementById("f_lng").value) || 100.4582;
+  if (!pickMap) {
+    pickMap = L.map(el, { scrollWheelZoom: false }).setView([la, ln], 16);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(pickMap);
+    pickMarker = L.marker([la, ln], { draggable: true }).addTo(pickMap);
+    pickMap.on("click", e => { pickMarker.setLatLng(e.latlng); setPickCoords(e.latlng.lat, e.latlng.lng); });
+    pickMarker.on("dragend", () => { const p = pickMarker.getLatLng(); setPickCoords(p.lat, p.lng); });
+  } else {
+    pickMap.setView([la, ln], 16);
+    pickMarker.setLatLng([la, ln]);
+  }
+  /* รอ modal แสดงเสร็จก่อนวัดขนาด (กันแผนที่เบี้ยว/จอว่าง) */
+  setTimeout(() => { if (pickMap) pickMap.invalidateSize(); }, 350);
+}
+/* เขียนพิกัดจากหมุดลงช่องกรอก + อัปเดตพรีวิว */
+function setPickCoords(lat, lng) {
+  const fl = document.getElementById("f_lat");
+  const fn = document.getElementById("f_lng");
+  if (fl) { fl.value = Number(lat).toFixed(6); fl.dispatchEvent(new Event("input")); }
+  if (fn) { fn.value = Number(lng).toFixed(6); fn.dispatchEvent(new Event("input")); }
+}
 App.useGps = function () {
   if (!navigator.geolocation) { toast("เบราว์เซอร์นี้ไม่รองรับ GPS"); return; }
   toast("กำลังระบุตำแหน่ง...");
   navigator.geolocation.getCurrentPosition(
     pos => {
-      document.getElementById("f_lat").value = pos.coords.latitude.toFixed(6);
-      document.getElementById("f_lng").value = pos.coords.longitude.toFixed(6);
-      document.getElementById("f_lat").dispatchEvent(new Event("input"));
+      setPickCoords(pos.coords.latitude, pos.coords.longitude);
+      if (pickMap) pickMap.setView([pos.coords.latitude, pos.coords.longitude], 16);
       toast("ปักหมุดตำแหน่งปัจจุบันแล้ว");
     },
     () => toast("ไม่สามารถระบุตำแหน่งได้ (อนุญาตการเข้าถึงตำแหน่งก่อน)"),
@@ -2116,34 +2306,44 @@ App.submitPlot = function (e, id) {
 };
 
 /* ---- cycle form ---- */
-App.modalCycle = function (plotId) {
+App.modalCycle = function (plotId, cycleId) {
+  const c = cycleId ? cycleById(S, cycleId) : null;
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
-    <h3>เริ่มรอบการปลูกใหม่</h3>
-    <div class="modal-sub">ข้อมูลทุกอย่างจะถูกจัดเก็บแยกตามรอบนี้ ระบบเริ่มนับอายุและติดตามต้นทุนทันที</div>
-    <form onsubmit="return App.submitCycle(event)">
+    <h3>${c ? "แก้ไขรอบการปลูก" : "เริ่มรอบการปลูกใหม่"}</h3>
+    <div class="modal-sub">${c ? "แก้ไขชื่อพืช และวันเริ่มปลูก — อายุและรอบจะคำนวณใหม่ตามวันที่ที่แก้" : "ข้อมูลทุกอย่างจะถูกจัดเก็บแยกตามรอบนี้ ระบบเริ่มนับอายุและติดตามต้นทุนทันที"}</div>
+    <form onsubmit="return App.submitCycle(event, '${c ? c.id : ""}')">
       <div class="field"><label>แปลง *</label><select id="f_plot" required>
-        ${S.plots.map(p => `<option value="${p.id}" ${p.id === plotId ? "selected" : ""}>${esc(p.name)} — ${fmtNum(p.sizeRai)} ไร่</option>`).join("")}
+        ${S.plots.map(p => `<option value="${p.id}" ${(c ? c.plotId : plotId) === p.id ? "selected" : ""}>${esc(p.name)} — ${fmtNum(p.sizeRai)} ไร่</option>`).join("")}
       </select></div>
-      <div class="field"><label>ชื่อพืช / รอบ *</label><input id="f_plant" placeholder="เช่น ข้าวโพด รุ่น 1/66 แปลง A" required></div>
-      <div class="field"><label>วันที่เริ่ม *</label><input id="f_start" type="date" value="${todayISO()}" required></div>
+      <div class="field"><label>ชื่อพืช / รอบ *</label><input id="f_plant" value="${c ? esc(c.plant) : ""}" placeholder="เช่น ข้าวโพด รุ่น 1/66 แปลง A" required></div>
+      <div class="field"><label>วันที่เริ่ม *</label><input id="f_start" type="date" value="${c ? c.startDate : todayISO()}" required></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
-        <button type="submit" class="btn btn-primary">เริ่มปลูก</button>
+        <button type="submit" class="btn btn-primary">${c ? "บันทึกการแก้ไข" : "เริ่มปลูก"}</button>
       </div>
     </form>`);
 };
-App.submitCycle = function (e) {
+App.submitCycle = function (e, cycleId) {
   e.preventDefault();
   const plotId = document.getElementById("f_plot").value;
   const plant = document.getElementById("f_plant").value.trim();
   const start = document.getElementById("f_start").value;
   if (!plant) return false;
-  S.cycles.push({ id: uid(), plotId, plant, startDate: start, status: "active" });
-  saveState(S);
-  closeModal();
-  render();
-  toast("เริ่มรอบปลูกแล้ว");
+  if (cycleId) {
+    const c = cycleById(S, cycleId);
+    if (c) { c.plotId = plotId; c.plant = plant; c.startDate = start; }
+    saveState(S);
+    closeModal();
+    render();
+    toast("บันทึกการแก้ไขรอบแล้ว");
+  } else {
+    S.cycles.push({ id: uid(), plotId, plant, startDate: start, status: "active" });
+    saveState(S);
+    closeModal();
+    render();
+    toast("เริ่มรอบปลูกแล้ว");
+  }
   return false;
 };
 
@@ -2676,7 +2876,6 @@ App.modalTask = function (date, preset) {
   const title = editing ? editing.title : (preset.title || "");
   const d = editing ? editing.date : (date || todayISO());
   const status = editing ? (editing.status === "done" ? "done" : "planned") : "planned";
-  const actCycles = activeCycles(S);
   const hasCost = editing ? (editing.cost > 0 || !!editing.stockId) : false;
   const hasHarvest = editing ? editing.revenue > 0 : false;
   const stockItem = editing && editing.stockId ? stockById(S, editing.stockId) : null;
@@ -2694,11 +2893,11 @@ App.modalTask = function (date, preset) {
         </select></div>
       </div>
       <div class="field"><label>ชื่องาน *</label><input id="t_title" value="${esc(title)}" placeholder="เช่น ใส่ปุ๋ยครั้งที่ 2" required></div>
-      <div class="field"><label>เลือกพืช / แปลง</label><select id="t_cycle">
-        <option value="">-- เลือกรายการ --</option>
-        ${actCycles.map(c => { const p = plotById(S, c.plotId); return `<option value="${c.id}" ${editing && editing.cycleId === c.id ? "selected" : ""}>${esc(c.plant)} / ${p ? esc(p.name) : ""}</option>`; }).join("")}
-      </select>
-      <div class="hint">เลือกรอบที่กำลังดำเนินการ — รายรับ/ต้นทุนจะเข้ารอบและแปลงนั้นทันที</div></div>
+      <div class="form-row-2">
+        <div class="field"><label>แปลง</label><select id="t_plot" onchange="App.taskPlotChange()"></select></div>
+        <div class="field"><label>พืช / รอบ</label><select id="t_cycle" disabled></select></div>
+      </div>
+      <div class="hint" style="margin-top:-6px">เลือกแปลงก่อน แล้วเลือกรอบที่กำลังดำเนินการ — รายรับ/ต้นทุนจะเข้ารอบและแปลงนั้นทันที</div>
       <div class="field"><label>ประเภทกิจกรรม</label><select id="t_type">
         ${Object.keys(TYPE_LABELS).map(k => `<option value="${k}" ${k === type ? "selected" : ""}>${TYPE_LABELS[k]}</option>`).join("")}
       </select></div>
@@ -2746,16 +2945,56 @@ App.modalTask = function (date, preset) {
     taskCostItems = [{ category: defaultCostCat(type), stockId: "", name: "", qty: "", unit: "", unitCost: "", totalCost: 0 }];
   }
   App.costRender();
-  // ทางลัดจากปุ่ม "เพิ่มกิจกรรม" ของแปลง -> เลือกรอบของแปลงนั้น
-  if (!editing && preset.plotId) {
-    const c = actCycles.find(x => x.plotId === preset.plotId);
-    if (c) document.getElementById("t_cycle").value = c.id;
+  /* เติม dropdown แปลง + พืช/รอบ (เลือกแปลงก่อน แล้วเลือกพืชของแปลงนั้น)
+     รองรับทางลัด: ปุ่มเพิ่มกิจกรรมของแปลง/รอบ จะเลือกแปลงและรอบให้อัตโนมัติ */
+  const initTaskPlotCycle = () => {
+    const plotSel = document.getElementById("t_plot");
+    const cycSel = document.getElementById("t_cycle");
+    if (!plotSel || !cycSel) return;
+    let selCycleId = editing ? editing.cycleId : (preset.cycleId || "");
+    let selPlotId = "";
+    if (selCycleId) {
+      const cc = cycleById(S, selCycleId);
+      if (cc) selPlotId = cc.plotId;
+    } else if (preset.plotId) {
+      selPlotId = preset.plotId;
+      const first = S.cycles.find(c => c.plotId === preset.plotId && c.status === "active");
+      if (first) selCycleId = first.id; // ทางลัดจากปุ่มของแปลง -> เลือกรอบที่กำลังดำเนินการให้อัตโนมัติ
+      else selCycleId = "__none__"; // แปลงนี้ยังไม่มีการปลูกรอบไหน -> เลือก "ยังไม่ปลูกอะไร" ให้อัตโนมัติ
+    }
+    const plots = S.plots.slice();
+    if (selPlotId && !plots.some(p => p.id === selPlotId)) {
+      const cc = cycleById(S, selCycleId);
+      plots.unshift({ id: cc ? cc.plotId : selPlotId, name: "(แปลงถูกลบ)" });
+    }
+    plotSel.innerHTML = '<option value="">-- เลือกแปลง --</option>' +
+      plots.map(p => `<option value="${p.id}" ${p.id === selPlotId ? "selected" : ""}>${esc(p.name)}</option>`).join("");
+    /* รอบของแปลงที่เลือก: รอบที่กำลังดำเนินการ + รอบเดิมของงานที่กำลังแก้ไข (กันรอบปิดแล้วหาย)
+       + ตัวเลือก "ยังไม่ปลูกอะไร" สำหรับแปลงที่ยังไม่ได้ปลูก — ต้นทุนจะเข้ารวมที่แปลง */
+    const cycles = S.cycles.filter(c => c.plotId === selPlotId && (c.status === "active" || c.id === selCycleId));
+    cycSel.innerHTML = '<option value="">-- เลือกพืช / รอบ --</option>' +
+      cycles.map(c => `<option value="${c.id}" ${c.id === selCycleId ? "selected" : ""}>${esc(c.plant)}</option>`).join("") +
+      `<option value="__none__" ${selCycleId === "__none__" ? "selected" : ""}>ยังไม่ปลูกอะไร (ต้นทุนเข้ารวมแปลงนี้)</option>`;
+    cycSel.disabled = !selPlotId;
+  };
+  initTaskPlotCycle();
+};
+/* เมื่อเปลี่ยนแปลง -> โหลดเฉพาะพืช/รอบของแปลงนั้น (ทีละ 1: แปลงก่อน แล้วค่อยเลือกรอบ) */
+App.taskPlotChange = function () {
+  const plotSel = document.getElementById("t_plot");
+  const cycSel = document.getElementById("t_cycle");
+  if (!plotSel || !cycSel) return;
+  const pid = plotSel.value;
+  if (!pid) {
+    cycSel.innerHTML = '<option value="">-- เลือกแปลงก่อน --</option>';
+    cycSel.disabled = true;
+    return;
   }
-  // ทางลัดจากปุ่ม "เพิ่มกิจกรรม" ของรอบการปลูก -> เลือกรอบนั้น
-  if (!editing && preset.cycleId) {
-    const sel = document.getElementById("t_cycle");
-    if (sel.querySelector(`option[value="${preset.cycleId}"]`)) sel.value = preset.cycleId;
-  }
+  const cycles = S.cycles.filter(c => c.plotId === pid && c.status === "active");
+  cycSel.innerHTML = '<option value="">-- เลือกพืช / รอบ --</option>' +
+    cycles.map(c => `<option value="${c.id}">${esc(c.plant)}</option>`).join("") +
+    '<option value="__none__">ยังไม่ปลูกอะไร (ต้นทุนเข้ารวมแปลงนี้)</option>';
+  cycSel.disabled = false;
 };
 App.submitTask = function (e, editId) {
   e.preventDefault();
@@ -2789,20 +3028,31 @@ App.submitTask = function (e, editId) {
     }
   }
   const totalCost = costItems.reduce((a, it) => a + it.totalCost, 0);
+  const tPlot = document.getElementById("t_plot").value || null;
+  const tCycleRaw = document.getElementById("t_cycle").value || "";
+  /* "ยังไม่ปลูกอะไร" = ไม่ผูกกับรอบ แต่ยังเข้ารวมต้นทุนของแปลงที่เลือก */
+  const tCycle = tCycleRaw === "__none__" ? null : (tCycleRaw || null);
+  const tRevenue = useHarvest ? Math.round(hqty * hprice) || 0 : 0;
+  /* กันข้อมูลหาย: ถ้ามีต้นทุนหรือรายได้แต่ยังไม่เลือกแปลง -> บล็อกไม่ให้บันทึก
+     (งานที่ไม่มีแปลง ต้นทุน/รายได้จะไม่เข้ารอบหรือแปลงไหนเลย) */
+  if ((totalCost > 0 || tRevenue > 0) && !tPlot) {
+    toast("ต้องเลือกแปลงก่อน — ต้นทุน/รายได้จะไม่เข้ารอบไหน");
+    return false;
+  }
   const data = {
     title,
     type: document.getElementById("t_type").value,
     date: document.getElementById("t_date").value,
     status: document.getElementById("t_status").value,
-    cycleId: document.getElementById("t_cycle").value || null,
-    plotId: null,
+    cycleId: tCycle,
+    plotId: tPlot,
     costItems: useCost ? costItems : [],
     costCat: useCost && costItems.length ? costItems[0].category : null,
     stockId: useCost && costItems.length ? (costItems.find(it => it.stockId) || costItems[0]).stockId : null,
     qty: useCost && costItems.length ? (costItems.find(it => it.stockId) || costItems[0]).qty : 0,
     unit: useCost && costItems.length ? (costItems.find(it => it.stockId) || costItems[0]).unit : "",
     cost: useCost ? totalCost : 0,
-    revenue: useHarvest ? Math.round(hqty * hprice) || 0 : 0,
+    revenue: tRevenue,
     harvestQty: useHarvest ? hqty : 0,
     harvestUnitPrice: useHarvest ? hprice : 0,
     finishCycle: useHarvest && document.getElementById("t_finishcycle").checked,
@@ -3074,4 +3324,14 @@ function drawCharts() {
 /* ---------------- init ---------------- */
 const editBtn = document.getElementById("editBtn");
 if (editBtn) editBtn.addEventListener("click", () => App.openEditor());
+/* คืนค่าหน้าล่าสุดหลังรีเฟรช (จาก sessionStorage) — ถ้าไม่มี หรือหน้าไม่ถูกต้องกับโหมด ระบบจะคืนค่าให้เอง */
+try {
+  const saved = JSON.parse(sessionStorage.getItem(ROUTE_STORE) || "null");
+  if (saved && saved.view) {
+    route.view = saved.view;
+    if (saved.tab) route.tab = saved.tab;
+    if (saved.plotId) route.plotId = saved.plotId;
+    if (saved.cycleId) route.cycleId = saved.cycleId;
+  }
+} catch (e) {}
 render();
