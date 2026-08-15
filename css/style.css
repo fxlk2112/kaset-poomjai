@@ -573,9 +573,21 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   background: #fbfcfb;
   transition: border-color .18s, background .18s, box-shadow .18s;
 }
-/* ช่องวันที่ (type=date) บางเบราว์เซอร์ (เช่น Firefox) บังคับความกว้างขั้นต่ำตามค่าเริ่มต้น ทำให้ยาวกว่าช่องข้างๆ
-   — บังคับให้ย่อได้เท่ากับช่องอื่น (min-width:0 + width:100% จากด้านบน) */
+/* ช่องวันที่ (type=date) — ปัญหาเฉพาะบางเบราว์เซอร์:
+   1) Firefox/iOS บังคับความกว้างขั้นต่ำตามค่าเริ่มต้น + iOS มี min-width ภายในของตัวเอง
+      → min-width:0 + max-width:100% ให้ย่อได้เท่ากับช่องอื่น (ใช้คู่กับ .form-row-2 ที่เป็น minmax(0,1fr))
+   2) Safari/iOS เติม padding ภายใน (shadow DOM ของช่องวัน/เดือน/ปี) ทำให้ช่องสูง-ยาวไม่เท่ากับช่องอื่น
+      → ลบ padding นั้นออก ให้สัดส่วนเท่ากับช่องกรอกทั่วไป */
 .field input[type="date"] { min-width: 0; max-width: 100%; }
+.field input[type="date"]::-webkit-datetime-edit,
+.field input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+.field input[type="date"]::-webkit-datetime-edit-text,
+.field input[type="date"]::-webkit-datetime-edit-day-field,
+.field input[type="date"]::-webkit-datetime-edit-month-field,
+.field input[type="date"]::-webkit-datetime-edit-year-field {
+  padding: 0;
+}
+.field input[type="date"]::-webkit-inner-spin-button { height: auto; }
 .field input:focus, .field select:focus, .field textarea:focus {
   border-color: var(--green); background: #fff;
   box-shadow: 0 0 0 3px rgba(22, 163, 74, .12);
@@ -586,7 +598,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .modal-actions .btn { flex: 1; }
 
 /* ============ ฟอร์มเพิ่มกิจกรรม (แบบ Farm Command) ============ */
-.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* ใช้ minmax(0,1fr) แทน 1fr — ป้องกันคอลัมน์ถูกดันกว้างตามขนาดเนื้อหาขั้นต่ำของช่อง (เช่น input[type=date] บน iOS Safari มี min-content กว้างกว่า)
+   ทำให้ 2 ช่องในแถวเท่ากันเสมอ */
+.form-row-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .option-box {
   display: flex; align-items: center; gap: 10px;
   border: 1px solid var(--line); background: var(--green-soft); border-radius: 10px;
