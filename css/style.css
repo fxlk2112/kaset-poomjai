@@ -573,6 +573,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   background: #fbfcfb;
   transition: border-color .18s, background .18s, box-shadow .18s;
 }
+/* ช่องวันที่ (type=date) บางเบราว์เซอร์ (เช่น Firefox) บังคับความกว้างขั้นต่ำตามค่าเริ่มต้น ทำให้ยาวกว่าช่องข้างๆ
+   — บังคับให้ย่อได้เท่ากับช่องอื่น (min-width:0 + width:100% จากด้านบน) */
+.field input[type="date"] { min-width: 0; max-width: 100%; }
 .field input:focus, .field select:focus, .field textarea:focus {
   border-color: var(--green); background: #fff;
   box-shadow: 0 0 0 3px rgba(22, 163, 74, .12);
