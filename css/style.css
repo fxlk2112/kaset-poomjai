@@ -512,6 +512,19 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 /* Stock / equipment rows */
 .stock-qty { font-size: 1.35rem; font-weight: 800; color: var(--green-dark); line-height: 1.1; }
 .stock-qty small { font-size: .72rem; font-weight: 600; color: var(--muted); }
+.stock-qty.out { color: #ef4444; }
+.stock-card-out { background: #fef2f2; border-color: #fecaca; }
+.stock-out-badge {
+  display: inline-flex; align-items: center; gap: 3px; margin-left: 6px;
+  background: #ef4444; color: #fff; font-size: .62rem; font-weight: 800;
+  padding: 2px 8px; border-radius: 999px; vertical-align: middle; white-space: nowrap;
+}
+.stock-out-badge .ic { width: .72em; height: .72em; }
+.stock-out {
+  display: flex; align-items: center; gap: 5px; margin-top: 4px;
+  font-size: .72rem; font-weight: 700; color: #dc2626;
+}
+.stock-out .ic { width: .9em; height: .9em; flex-shrink: 0; }
 
 /* ============ Switch (IoT) ============ */
 .switch { position: relative; width: 48px; height: 28px; border-radius: 999px; background: #cbd5d1; transition: background .18s; flex-shrink: 0; }
@@ -648,6 +661,28 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .plot-profit:active { opacity: .7; }
 .clickable { cursor: pointer; }
 .clickable:active { opacity: .75; }
+
+/* ============ Cycle cards (กดเข้ารอบการปลูก -> ดูงาน/กิจกรรมของรอบ) ============ */
+.cycle-card { cursor: pointer; }
+.cycle-open-hint {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line);
+  color: var(--green); font-size: .78rem; font-weight: 700;
+}
+.cycle-open-hint .ic { width: .95em; height: .95em; }
+
+/* งานที่ยังไม่ผูกกับรอบการปลูก — ป้าย + เลือกผูกได้จากหน้าแปลง */
+.task-nocycle {
+  display: inline-block; background: #fef3c7; color: #92400e;
+  font-size: .66rem; font-weight: 700; padding: 1px 8px; border-radius: 20px; vertical-align: 1px;
+}
+.task-cycle-assign {
+  width: 100%; margin-top: 6px; padding: 7px 10px; font-size: .78rem;
+  background: #fff; border: 1.5px dashed var(--green); border-radius: 10px; color: var(--text); outline: 0;
+}
+.task-cycle-assign:focus { border-color: var(--green); border-style: solid; }
+/* รายการงานในวันที่เลือกจากปฏิทินรายรอบ */
+.cycle-cal-day { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
 
 /* ============ Empty state ============ */
 .empty { text-align: center; padding: 30px 16px; color: var(--muted); }
@@ -1036,6 +1071,17 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 @media (hover: hover) { .cal-nav:hover { background: var(--green-light); } }
 .cal-nav:active { transform: scale(.92); }
+
+/* ปุ่ม "วันนี้" — กระโดดกลับวันที่ปัจจุบัน (ทุกปฏิทิน) */
+.cal-today {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 12px; border-radius: 20px;
+  background: var(--green); color: #fff; font-size: .72rem; font-weight: 700;
+  transition: background .15s, transform .12s;
+}
+.cal-today .ic { width: .9em; height: .9em; }
+@media (hover: hover) { .cal-today:hover { background: var(--green-dark); } }
+.cal-today:active { transform: scale(.94); }
 
 /* ปฏิทินขนาดกะทัดรัดบนหน้าแรก */
 .cal-sm .cal-head { margin-bottom: 8px; }
