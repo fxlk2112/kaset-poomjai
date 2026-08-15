@@ -105,6 +105,8 @@ const ICONS = {
   wrench: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
   leaf: '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>',
   droplet: '<path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>',
+  spray: '<rect x="7" y="9" width="10" height="13" rx="2"/><path d="M10 9V6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3"/><line x1="12" y1="5" x2="12" y2="3"/><line x1="15" y1="5" x2="18" y2="5"/>',
+  calculator: '<rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="11" x2="8.01" y2="11"/><line x1="12" y1="11" x2="12.01" y2="11"/><line x1="16" y1="11" x2="16.01" y2="11"/><line x1="8" y1="15" x2="8.01" y2="15"/><line x1="12" y1="15" x2="12.01" y2="15"/><line x1="16" y1="15" x2="16.01" y2="15"/><line x1="8" y1="19" x2="8.01" y2="19"/><line x1="12" y1="19" x2="12.01" y2="19"/><line x1="16" y1="19" x2="16.01" y2="19"/>',
   search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
   pencil: '<path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/>',
   trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
@@ -114,6 +116,10 @@ const ICONS = {
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   check: '<polyline points="20 6 9 17 4 12"/>',
   down: '<line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
   minus: '<line x1="5" y1="12" x2="19" y2="12"/>',
   eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
   wifi: '<path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>',
@@ -782,7 +788,8 @@ App.toggleTask = function (id) {
 
 /* ---------------- Stock ---------------- */
 let stockFilter = "all"; // all | sealed | opened
-let stockQuery = "";    // คำค้นหาชื่อ/หน่วย
+let stockQuery = "";    // คำค้นหาชื่อ/หน่วย/หมวด
+let stockCat = "";      // หมวดสินค้าที่กรอง ("" = ทั้งหมด, "__none__" = ไม่มีหมวด)
 /* HTML รายการสต็อก (กรองตามแท็บ + คำค้น) — แยกเป็นฟังก์ชันเพื่ออัปเดตเฉพาะส่วนนี้ ไม่ rebuild ทั้งหน้า */
 function stockListHtml() {
   const q = stockQuery.trim().toLowerCase();
@@ -790,19 +797,25 @@ function stockListHtml() {
     const open = Number(x.openQty) || 0;
     if (stockFilter === "sealed" && open > 0) return false;
     if (stockFilter === "opened" && open <= 0) return false;
-    if (q && !(x.name.toLowerCase().includes(q) || x.unit.toLowerCase().includes(q))) return false;
+    if (stockCat === "__none__" && x.category) return false;
+    if (stockCat && stockCat !== "__none__" && x.category !== stockCat) return false;
+    if (q && !(x.name.toLowerCase().includes(q) || x.unit.toLowerCase().includes(q) || (x.category || "").toLowerCase().includes(q))) return false;
     return true;
   });
-  const emptyHtml = list.length === 0 ? `<div class="card"><div class="empty"><div class="e-ico">${ic("box")}</div><div class="e-title">${q ? "ไม่พบรายการที่ค้นหา" : (stockFilter === "sealed" ? "ไม่มีของที่ยังไม่เปิดใช้" : "ไม่มีของที่เปิดใช้แล้ว")}</div><div class="muted">${q ? "ลองค้นด้วยชื่ออื่น" : (stockFilter === "opened" ? "เมื่อใช้ของไม่หมด จะมีของเหลือจากการเปิดใช้ที่นี่" : "")}</div></div></div>` : "";
+  const emptyTitle = q ? "ไม่พบรายการที่ค้นหา" : (stockCat ? "ไม่มีของในหมวดนี้" : (stockFilter === "sealed" ? "ไม่มีของที่ยังไม่เปิดใช้" : "ไม่มีของที่เปิดใช้แล้ว"));
+  const emptySub = q ? "ลองค้นด้วยชื่ออื่น" : (stockCat ? "ลองเลือกหมวดอื่น หรือกด 'ทุกหมวดสินค้า'" : (stockFilter === "opened" ? "เมื่อใช้ของไม่หมด จะมีของเหลือจากการเปิดใช้ที่นี่" : ""));
+  const emptyHtml = list.length === 0 ? `<div class="card"><div class="empty"><div class="e-ico">${ic("box")}</div><div class="e-title">${emptyTitle}</div>${emptySub ? `<div class="muted">${emptySub}</div>` : ""}</div></div>` : "";
   const grid = `<div class="card-grid">
     ${list.map(x => {
       const open = Number(x.openQty) || 0;
       return `
       <div class="card">
         <div class="row">
-          <div class="plot-emoji">${ic("box")}</div>
+          <div class="stock-thumb" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${firstStockPhoto(x) ? `<img src="${esc(stockPhotoSrc({ photo: firstStockPhoto(x) }))}" alt="" loading="lazy" onerror="this.remove()">` : ic("box")}</div>
           <div class="grow">
-            <div class="plot-name">${esc(x.name)}</div>
+            <div class="plot-name" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${esc(x.name)} <span class="stock-detail-hint">${ic("info")}</span> ${x.category ? `<span class="stock-cat">${esc(x.category)}</span>` : ""} ${x.size ? `<span class="stock-size">${esc(x.size)}</span>` : ""}</div>
+            ${x.generic ? `<div class="muted">ชื่อสามัญ: ${esc(x.generic)}</div>` : ""}
+            ${x.supplier ? `<div class="muted">บริษัทจำหน่าย: ${esc(x.supplier)}</div>` : ""}
             <div class="muted">ต้นทุนถัวเฉลี่ย ${fmtMoney(x.avgCost)} บาท/${x.unit}</div>
             ${open > 0 ? `<div class="stock-open">${ic("unlock")} เหลือจากการเปิดใช้ ${fmtNum(open)} ${esc(x.unit)} — ใช้ได้ก่อน</div>` : `<div class="stock-sealed">${ic("lock")} ยังไม่เปิดใช้</div>`}
           </div>
@@ -810,7 +823,9 @@ function stockListHtml() {
         </div>
         <div class="row row-between mt-8">
           <div class="muted">มูลค่ารวม <span class="bold">${fmtMoney((x.qty + open) * x.avgCost)} บาท</span>${open > 0 ? `<span class="muted" style="font-size:.66rem"> (รวมของที่เหลือจากการเปิดใช้)</span>` : ""}</div>
-          <div style="display:flex;gap:6px">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-sm btn-ghost" onclick="App.stockDetail('${x.id}')">${ic("info")} รายละเอียด</button>
+            <button class="btn btn-sm btn-ghost" onclick="App.modalStock('${x.id}')" title="แก้ไขรายการ">${ic("pencil")}</button>
             <button class="btn btn-sm btn-primary" onclick="App.modalReceive('${x.id}')">${ic("down")} รับของเข้า</button>
             <button class="btn btn-sm btn-outline" onclick="App.modalDeduct('${x.id}')">${ic("minus")} ตัดสต็อก</button>
             <button class="btn btn-sm btn-danger-soft" onclick="App.deleteStock('${x.id}')">${ic("trash")}</button>
@@ -825,6 +840,9 @@ function renderStock() {
   const total = totalStockValue(S);
   const openedCount = S.stock.filter(x => (Number(x.openQty) || 0) > 0).length;
   const sealedCount = S.stock.length - openedCount;
+  /* นับจำนวนต่อหมวด (ใช้ใน dropdown กรอง) */
+  const catCounts = {};
+  S.stock.forEach(x => { const c = x.category || "__none__"; catCounts[c] = (catCounts[c] || 0) + 1; });
   const tab = (key, label, count) =>
     `<button class="chip ${stockFilter === key ? "chip-active" : ""}" onclick="App.stockFilter('${key}')">${label} ${count ? `<span class="badge">${count}</span>` : ""}</button>`;
   return `
@@ -839,12 +857,21 @@ function renderStock() {
     </div>
     <div class="row row-between section-title" data-tkey="stockTitle">
       <span>${T("stockTitle")} (${S.stock.length})</span>
-      <button class="btn btn-primary btn-sm" onclick="App.modalStock()">${ic("plus")} เพิ่มรายการ</button>
+      <div class="row" style="gap:6px">
+        <button class="btn btn-sm btn-ghost" onclick="App.importProducts()">${ic("upload")} นำเข้าสินค้า</button>
+        <button class="btn btn-primary btn-sm" onclick="App.modalStock()">${ic("plus")} เพิ่มรายการ</button>
+      </div>
     </div>
     <div class="stock-tabs">
       ${tab("all", "ทั้งหมด", S.stock.length)}
       ${tab("sealed", "ยังไม่เปิดใช้", sealedCount)}
       ${tab("opened", "เปิดใช้แล้ว", openedCount)}
+    </div>
+    <div class="stock-cat-wrap">
+      <select class="stock-cat-select" id="stockCatSelect" onchange="App.stockCatFilter(this.value)" aria-label="กรองหมวดสินค้า">
+        <option value="">ทุกหมวดสินค้า (${S.stock.length})</option>
+        ${Object.keys(catCounts).sort((a, b) => a === "__none__" ? 1 : b === "__none__" ? -1 : a.localeCompare(b, "th")).map(c => `<option value="${esc(c)}" ${stockCat === c ? "selected" : ""}>${c === "__none__" ? "(ไม่มีหมวด)" : esc(c)} (${catCounts[c]})</option>`).join("")}
+      </select>
     </div>
     <div class="stock-search">
       ${ic("search")}
@@ -856,6 +883,10 @@ function renderStock() {
 }
 App.stockFilter = function (key) {
   stockFilter = key;
+  rerender();
+};
+App.stockCatFilter = function (v) {
+  stockCat = v;
   rerender();
 };
 /* พิมพ์ค้นหา -> อัปเดตเฉพาะรายการ (ไม่ rebuild ทั้งหน้า = focus ไม่หลุด พิมพ์ต่อเนื่องได้) */
@@ -873,6 +904,287 @@ App.deleteStock = function (id) {
     render();
     toast("ลบรายการแล้ว");
   });
+};
+
+/* ---------------- รายละเอียดสินค้า (กดที่การ์ดสต็อก) ---------------- */
+App.stockDetail = function (id) {
+  const x = stockById(S, id);
+  if (!x) return;
+  const open = Number(x.openQty) || 0;
+  const photos = stockPhotos(x);
+  const row = (k, v) => v ? `<div class="sd-row"><span class="k">${k}</span><span class="bold">${v}</span></div>` : "";
+  const stripHtml = photos.length
+    ? `<div class="sd-strip">${photos.map((p, i) => `<div class="sd-strip-item"><img src="${esc(stockPhotoSrc({ photo: p }))}" alt="" loading="lazy" onclick="App.viewPhoto('${x.id}', ${i})" onerror="this.remove()"><button class="sd-strip-x" onclick="event.stopPropagation();App.stockPhotoRemoveOne('${x.id}', ${i})" title="ลบรูปนี้">✕</button></div>`).join("")}</div>`
+    : `<div class="sd-no-photo">${ic("image")} ยังไม่มีรูป — กดเพิ่มรูปด้านล่าง</div>`;
+  openModal(`
+    <div class="sd-head">
+      <div>
+        <h3 style="margin:0">${esc(x.name)}</h3>
+        <div class="modal-sub">${x.category ? esc(x.category) : "ไม่มีหมวด"}${x.unit ? ` · ${esc(x.unit)}` : ""}</div>
+      </div>
+    </div>
+    ${stripHtml}
+    <div class="sd-photo-actions">
+      <button class="btn btn-sm btn-ghost" onclick="App.stockPhoto('${x.id}')">${ic("camera")} เพิ่มรูป${photos.length ? ` (${photos.length})` : ""}</button>
+    </div>
+    <div class="sd-rows">
+      ${row("ชื่อสามัญ", x.generic)}
+      ${row("หมวดสินค้า", x.category)}
+      ${row("ขนาด", x.size)}
+      ${row("หน่วยนับ", x.unit)}
+      ${row("บริษัทจำหน่าย", x.supplier)}
+      <div class="sd-row"><span class="k">ในสต็อก</span><span class="bold">${fmtNum(x.qty)} ${esc(x.unit)}${open > 0 ? ` <span class="stock-open" style="display:inline">+ เปิดใช้แล้ว ${fmtNum(open)} ${esc(x.unit)}</span>` : ""}</span></div>
+      <div class="sd-row"><span class="k">ต้นทุนถัวเฉลี่ย</span><span class="bold">${fmtMoney(x.avgCost)} บาท/${esc(x.unit)}</span></div>
+      <div class="sd-row"><span class="k">มูลค่ารวม</span><span class="bold">${fmtMoney((x.qty + open) * x.avgCost)} บาท</span></div>
+    </div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="App.modalReceive('${x.id}')">${ic("down")} รับของเข้า</button>
+      <button class="btn btn-outline" onclick="App.modalDeduct('${x.id}')">${ic("minus")} ตัดสต็อก</button>
+      <button class="btn btn-ghost" onclick="App.modalStock('${x.id}')">${ic("pencil")} แก้ไข</button>
+      <button class="btn btn-danger-soft" onclick="App.deleteStock('${x.id}')">${ic("trash")} ลบ</button>
+    </div>`);
+};
+/* ย่อรูปอัตโนมัติ (กัน localStorage เต็ม) แล้วคืนเป็น data URL */
+function downscaleImage(file, maxSide, quality) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      const s = Math.min(1, maxSide / Math.max(w, h));
+      w = Math.max(1, Math.round(w * s));
+      h = Math.max(1, Math.round(h * s));
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      cv.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(cv.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")); };
+    img.src = url;
+  });
+}
+App.stockPhoto = function (id) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.multiple = true; // เลือกได้หลายรูปในครั้งเดียว
+  input.style.display = "none";
+  document.body.appendChild(input);
+  input.onchange = async () => {
+    const files = input.files ? [...input.files] : [];
+    input.remove();
+    if (!files.length) return;
+    const x = stockById(S, id);
+    if (!x) return;
+    if (!Array.isArray(x.photos)) x.photos = x.photo ? [x.photo] : [];
+    try {
+      let ok = 0;
+      for (const f of files) {
+        x.photos.push(await downscaleImage(f, 480, 0.68));
+        ok++;
+      }
+      x.photo = x.photos[0] || "";
+      saveState(S);
+      render(); // อัปเดตการ์ดด้านหลังทันที (ไม่ต้องรีเฟรช)
+      App.stockDetail(id);
+      toast(ok > 1 ? `เพิ่ม ${ok} รูปแล้ว` : "เพิ่มรูปแล้ว");
+    } catch (e) { toast("อ่านรูปไม่สำเร็จ — ลองไฟล์ JPG/PNG"); console.error(e); }
+  };
+  input.click();
+};
+App.stockPhotoRemoveOne = function (id, idx) {
+  const x = stockById(S, id);
+  if (!x || !Array.isArray(x.photos)) return;
+  x.photos.splice(idx, 1);
+  x.photo = x.photos[0] || "";
+  saveState(S);
+  render(); // อัปเดตการ์ดด้านหลังทันที (ไม่ต้องรีเฟรช)
+  App.stockDetail(id);
+  toast("ลบรูปแล้ว");
+};
+/* ดูภาพใหญ่ (lightbox) — กดที่รูปในป๊อปอัป */
+let lightboxEl = null;
+App.viewPhoto = function (id, idx) {
+  const photos = stockPhotos(stockById(S, id));
+  if (!photos.length) return;
+  const n = photos.length;
+  const cur = ((idx % n) + n) % n;
+  if (!lightboxEl) {
+    lightboxEl = document.createElement("div");
+    lightboxEl.id = "lightbox";
+    document.body.appendChild(lightboxEl);
+  }
+  lightboxEl.innerHTML = `
+    <div class="lightbox-backdrop" onclick="App.closeLightbox()">
+      <button class="lightbox-x" onclick="App.closeLightbox()">✕</button>
+      ${n > 1 ? `<button class="lightbox-nav prev" onclick="event.stopPropagation();App.viewPhoto('${id}',${cur - 1})">‹</button>
+      <button class="lightbox-nav next" onclick="event.stopPropagation();App.viewPhoto('${id}',${cur + 1})">›</button>` : ""}
+      <img src="${esc(stockPhotoSrc({ photo: photos[cur] }))}" alt="" onclick="event.stopPropagation()">
+      ${n > 1 ? `<div class="lightbox-count">${cur + 1} / ${n}</div>` : ""}
+    </div>`;
+};
+App.closeLightbox = function () {
+  if (lightboxEl) lightboxEl.innerHTML = "";
+};
+
+/* ---------------- นำเข้าสินค้าจากไฟล์ Excel (.xlsx) ---------------- */
+/* อ่าน ZIP (Central Directory) แล้วคลาย entry ที่บีบอัดด้วย DecompressionStream */
+async function zipEntries(u8) {
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  let eocd = -1;
+  for (let i = u8.length - 22; i >= Math.max(0, u8.length - 66000); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error("ไฟล์ไม่ใช่ ZIP (.xlsx)");
+  const count = dv.getUint16(eocd + 10, true);
+  let off = dv.getUint32(eocd + 16, true);
+  const dec = new TextDecoder();
+  const map = {};
+  for (let n = 0; n < count; n++) {
+    if (dv.getUint32(off, true) !== 0x02014b50) break;
+    const method = dv.getUint16(off + 10, true);
+    const csize = dv.getUint32(off + 20, true);
+    const nlen = dv.getUint16(off + 28, true);
+    const xlen = dv.getUint16(off + 30, true);
+    const clen = dv.getUint16(off + 32, true);
+    const lho = dv.getUint32(off + 42, true);
+    const name = dec.decode(new Uint8Array(u8.buffer, u8.byteOffset + off + 46, nlen));
+    map[name] = { method, csize, lho };
+    off += 46 + nlen + xlen + clen;
+  }
+  return map;
+}
+async function zipRead(u8, entry) {
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  const lho = entry.lho;
+  const nlen = dv.getUint16(lho + 26, true);
+  const xlen = dv.getUint16(lho + 28, true);
+  const start = lho + 30 + nlen + xlen;
+  const data = new Uint8Array(u8.buffer, u8.byteOffset + start, entry.csize);
+  if (entry.method === 0) return data;
+  if (typeof DecompressionStream === "undefined") throw new Error("เบราว์เซอร์นี้ไม่รองรับการอ่าน .xlsx — ลองใช้ Chrome");
+  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+function xlsxCellText(cell, shared) {
+  const t = cell.getAttribute("t") || "";
+  if (t === "inlineStr") {
+    const ts = cell.getElementsByTagName("t");
+    let s = "";
+    for (let i = 0; i < ts.length; i++) s += ts[i].textContent;
+    return s;
+  }
+  const v = cell.getElementsByTagName("v")[0];
+  if (!v) return "";
+  if (t === "s") { const i = Number(v.textContent); return shared[i] || ""; }
+  return v.textContent;
+}
+/* แยกคอลัมน์จากไฟล์ .xlsx -> รายการสินค้า {name, generic, category, size, unit, supplier} */
+async function parseXlsxProducts(file) {
+  const u8 = new Uint8Array(await file.arrayBuffer());
+  const entries = await zipEntries(u8);
+  const read = async (name) => {
+    const e = entries[name];
+    return e ? new TextDecoder().decode(await zipRead(u8, e)) : null;
+  };
+  const wbXml = await read("xl/workbook.xml");
+  const relsXml = await read("xl/_rels/workbook.xml.rels");
+  if (!wbXml || !relsXml) throw new Error("ไฟล์ .xlsx ไม่สมบูรณ์");
+  const wb = new DOMParser().parseFromString(wbXml, "application/xml");
+  const sheetEl = wb.getElementsByTagName("sheet")[0];
+  const sheetName = sheetEl ? sheetEl.getAttribute("name") || "" : "";
+  const rid = sheetEl ? sheetEl.getAttribute("r:id") : "";
+  let target = "";
+  const rels = new DOMParser().parseFromString(relsXml, "application/xml").getElementsByTagName("Relationship");
+  for (let i = 0; i < rels.length; i++) {
+    if (rels[i].getAttribute("Id") === rid) { target = rels[i].getAttribute("Target") || ""; break; }
+  }
+  if (!target) throw new Error("ไม่พบชีตข้อมูลในไฟล์");
+  const t2 = target.replace(/^\//, "");
+  const sheetPath = t2.startsWith("xl/") ? t2 : "xl/" + t2.replace(/^\.?\//, "");
+  const sheetXml = await read(sheetPath);
+  if (!sheetXml) throw new Error("ไม่พบชีตข้อมูลในไฟล์");
+  /* sharedStrings (ถ้ามี) */
+  const shared = [];
+  const ssXml = await read("xl/sharedStrings.xml");
+  if (ssXml) {
+    const sis = new DOMParser().parseFromString(ssXml, "application/xml").getElementsByTagName("si");
+    for (let i = 0; i < sis.length; i++) {
+      const ts = sis[i].getElementsByTagName("t");
+      let s = "";
+      for (let j = 0; j < ts.length; j++) s += ts[j].textContent;
+      shared.push(s);
+    }
+  }
+  const sheet = new DOMParser().parseFromString(sheetXml, "application/xml");
+  const rows = sheet.getElementsByTagName("row");
+  const grid = [];
+  for (let r = 0; r < rows.length; r++) {
+    const cells = rows[r].getElementsByTagName("c");
+    const rowArr = [];
+    for (let c = 0; c < cells.length; c++) {
+      const col = (cells[c].getAttribute("r") || "").replace(/[0-9]+$/, "");
+      let idx = 0;
+      for (let k = 0; k < col.length; k++) idx = idx * 26 + (col.charCodeAt(k) - 64);
+      rowArr[idx - 1] = xlsxCellText(cells[c], shared);
+    }
+    grid.push(rowArr);
+  }
+  /* หาแถวหัวตาราง (มีคอลัมน์ "ชื่อสินค้า") */
+  let hi = -1;
+  for (let i = 0; i < grid.length; i++) {
+    if (grid[i].some(v => String(v || "").includes("ชื่อสินค้า"))) { hi = i; break; }
+  }
+  if (hi < 0) throw new Error("ไม่พบคอลัมน์ 'ชื่อสินค้า' ในไฟล์");
+  const headers = grid[hi].map(h => String(h || "").trim());
+  const findCol = (key) => {
+    const i = headers.findIndex(h => h.includes(key));
+    return i >= 0 ? i : -1;
+  };
+  const iName = findCol("ชื่อสินค้า"), iGeneric = findCol("ชื่อสามัญ"), iCat = findCol("หมวดสินค้า"),
+        iUnit = findCol("หน่วยนับ"), iSize = findCol("ขนาดสินค้า"), iSupp = findCol("บริษัทจำหน่าย"),
+        iPhoto = findCol("รูปถ่าย");
+  const products = [];
+  for (let r = hi + 1; r < grid.length; r++) {
+    const row = grid[r];
+    const name = String(row[iName] || "").trim();
+    if (!name) continue;
+    products.push({
+      name,
+      generic: String(row[iGeneric] || "").trim(),
+      category: String(row[iCat] || "").trim(),
+      size: String(row[iSize] || "").trim(),
+      unit: String(row[iUnit] || "").trim() || "ชิ้น",
+      supplier: String(row[iSupp] || "").trim(),
+      photo: String(row[iPhoto] || "").trim()
+    });
+  }
+  return { products, sheetName };
+}
+App.importProducts = function () {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  input.style.display = "none";
+  document.body.appendChild(input);
+  input.onchange = async () => {
+    const file = input.files && input.files[0];
+    input.remove();
+    if (!file) return;
+    try {
+      const { products, sheetName } = await parseXlsxProducts(file);
+      if (!products.length) { toast("ไม่พบรายการสินค้าในไฟล์"); return; }
+      const { added, skipped } = mergeStockProducts(S, products);
+      saveState(S);
+      render();
+      toast(`นำเข้าสินค้าแล้ว ${added} รายการ${skipped ? ` (ข้าม ${skipped} รายการที่ซ้ำ)` : ""}${sheetName ? ` จากชีต "${sheetName}"` : ""}`);
+    } catch (err) {
+      toast("อ่านไฟล์ไม่สำเร็จ: " + (err && err.message ? err.message : "ไฟล์ไม่ใช่ .xlsx"));
+      console.error(err);
+    }
+  };
+  input.click();
 };
 
 /* ---------------- Planner / calendar ---------------- */
@@ -1131,6 +1443,23 @@ function renderSettings() {
       <div class="row row-between mt-8"><span class="muted">โหมดเริ่มต้น</span><span class="small bold">${ROLE_META[S.role].label}</span></div>
       <div class="row row-between mt-8"><span class="muted">เวอร์ชัน</span><span class="small bold">v${S.version}</span></div>
     </div>
+    <div class="section-title">${ic("save")} สำรองข้อมูล (Export / Import)</div>
+    <div class="card">
+      <div class="muted" style="font-size:.76rem;margin-bottom:10px">ดาวน์โหลดข้อมูลทั้งหมด (งาน / สต็อก / แปลง / ค่าใช้จ่าย) เป็นไฟล์ .json เพื่อสำรอง หรือนำเข้าไฟล์สำรองกลับมาใช้งาน — ข้อมูลบันทึกในเบราว์เซอร์เท่านั้น</div>
+      <button class="btn btn-primary btn-block" onclick="App.exportData()">${ic("download")} ดาวน์โหลดข้อมูล (.json)</button>
+      <button class="btn btn-ghost btn-block mt-8" onclick="App.importData()">${ic("upload")} นำเข้าข้อมูล (.json)</button>
+    </div>
+    <div class="section-title">${ic("dollar")} หมวดต้นทุน</div>
+    <div class="card">
+      <div class="muted" style="font-size:.76rem;margin-bottom:10px">หมวดที่ใช้ใน dropdown "หมวดหมู่" ของฟอร์มงานและกราฟต้นทุน — เพิ่มหมวดเองได้ตามธุรกิจของคุณ</div>
+      ${allCostCats(S).map(c => `
+      <div class="ed-row">
+        <span class="cc-dot" style="background:${esc(c.color)}"></span>
+        <span class="grow">${esc(c.label)}</span>
+        ${c.custom ? `<button class="btn btn-sm btn-danger-soft" onclick="App.deleteCostCat('${c.key}')" title="ลบหมวดนี้">${ic("trash")}</button>` : ""}
+      </div>`).join("")}
+      <button class="btn btn-primary btn-block mt-8" onclick="App.modalCostCat()">${ic("plus")} เพิ่มหมวดต้นทุน</button>
+    </div>
     ${editorHtml}
     <button class="btn btn-ghost btn-block" onclick="App.startTour()">${ic("compass")} แนะนำระบบ (Tour) อีกครั้ง</button>
     <button class="btn btn-danger-soft btn-block mt-8" onclick="App.resetData()">${ic("refresh")} รีเซ็ตข้อมูลทั้งหมด</button>
@@ -1285,6 +1614,116 @@ App.goTarget = function (target) {
   if (!target) return;
   if (/^https?:\/\//i.test(target)) { window.open(target, "_blank"); return; }
   App.nav(target);
+};
+
+/* ---------------- หมวดต้นทุนที่เพิ่มเอง (หน้า ตั้งค่า) ---------------- */
+let ccColor = "#16a34a";
+const COST_COLOR_CHOICES = ["#16a34a", "#2563eb", "#0ea5e9", "#059669", "#f97316", "#f59e0b", "#8b5cf6", "#64748b", "#06b6d4", "#e11d48", "#7c3aed", "#334155"];
+App.modalCostCat = function () {
+  ccColor = "#16a34a";
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("plus")} เพิ่มหมวดต้นทุน</h3>
+    <div class="modal-sub">หมวดจะแสดงใน dropdown "หมวดหมู่" ของฟอร์มงาน และกราฟต้นทุนในหน้าวิเคราะห์</div>
+    <div class="field"><label>ชื่อหมวด *</label><input id="cc_name" placeholder="เช่น ค่าขนส่งผลผลิต" maxlength="40"></div>
+    <div class="field"><label>สี</label>
+      <div class="cc-colors">
+        ${COST_COLOR_CHOICES.map(c => `<button type="button" class="cc-swatch ${c === ccColor ? "sel" : ""}" data-c="${c}" style="background:${c}" onclick="App.costCatColor('${c}')" aria-label="เลือกสี ${c}"></button>`).join("")}
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="App.saveCostCat()">${ic("save")} เพิ่มหมวด</button>
+    </div>`);
+  const inp = document.getElementById("cc_name");
+  if (inp) inp.focus();
+};
+App.costCatColor = function (c) {
+  ccColor = c;
+  document.querySelectorAll(".cc-swatch").forEach(el => el.classList.toggle("sel", el.dataset.c === c));
+};
+App.saveCostCat = function () {
+  const name = (document.getElementById("cc_name").value || "").trim();
+  if (!name) { toast("กรอกชื่อหมวดก่อน"); return; }
+  if (allCostCats(S).some(c => c.label === name)) { toast("มีหมวดนี้อยู่แล้ว"); return; }
+  S.customCostCats = S.customCostCats || [];
+  S.customCostCats.push({ key: "cc" + Date.now().toString(36), label: name, color: ccColor });
+  saveState(S);
+  closeModal();
+  render();
+  toast("เพิ่มหมวดต้นทุนแล้ว");
+};
+App.deleteCostCat = function (key) {
+  const cat = (S.customCostCats || []).find(c => c.key === key);
+  if (!cat) return;
+  App.confirm(`ลบหมวด "${cat.label}"?`, "งานที่ใช้หมวดนี้จะถูกเปลี่ยนเป็น 'ค่าใช้จ่ายอื่นๆ' ต้องการดำเนินการต่อหรือไม่?", () => {
+    S.customCostCats = (S.customCostCats || []).filter(c => c.key !== key);
+    /* ย้ายงานที่ผูกหมวดที่ลบไปเป็น "อื่นๆ" */
+    S.tasks.forEach(t => {
+      if (t.costCat === key) t.costCat = "other";
+      (t.costItems || []).forEach(ci => { if (ci.category === key) ci.category = "other"; });
+    });
+    saveState(S);
+    render();
+    toast("ลบหมวดต้นทุนแล้ว");
+  });
+};
+
+/* ---------------- Export / Import ข้อมูล ---------------- */
+App.exportData = function () {
+  const payload = {
+    app: "kaset-poomjai",
+    type: "backup",
+    version: S.version,
+    exportedAt: new Date().toISOString(),
+    data: JSON.parse(JSON.stringify(S)) // คัดลอกลึก — ข้อมูลทั้งหมด (แปลง/สต็อก/งาน/ค่าใช้จ่าย/รอบ/อุปกรณ์)
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "kaset-poomjai-backup-" + todayISO() + ".json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast(`ดาวน์โหลดข้อมูลแล้ว (${S.plots.length} แปลง / ${S.stock.length} รายการสต็อก / ${S.tasks.length} งาน)`);
+};
+App.importData = function () {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json,application/json";
+  input.style.display = "none";
+  document.body.appendChild(input);
+  input.addEventListener("change", () => {
+    const file = input.files && input.files[0];
+    input.remove();
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let obj;
+      try {
+        obj = JSON.parse(reader.result);
+      } catch (e) {
+        toast("ไฟล์ไม่ใช่ JSON ที่ถูกต้อง");
+        return;
+      }
+      const payload = obj && obj.type === "backup" && obj.data ? obj.data : obj;
+      if (!payload || !Array.isArray(payload.tasks) || !Array.isArray(payload.plots) || !Array.isArray(payload.stock)) {
+        toast("ไฟล์นี้ไม่ใช่ข้อมูลสำรองของระบบ");
+        return;
+      }
+      App.confirm("นำเข้าข้อมูล?", "ข้อมูลปัจจุบันจะถูกแทนที่ด้วยข้อมูลจากไฟล์นี้ทั้งหมด ต้องการดำเนินการต่อหรือไม่?", () => {
+        payload.version = S.version; // ใช้เวอร์ชันระบบปัจจุบันเสมอ
+        ensureTaskIds(payload);
+        ensureDefaults(payload);
+        saveState(payload);
+        location.reload();
+      });
+    };
+    reader.readAsText(file);
+  });
+  input.click();
 };
 
 App.resetData = function () {
@@ -1476,37 +1915,55 @@ App.submitCycle = function (e) {
 };
 
 /* ---- stock forms ---- */
-App.modalStock = function () {
+App.modalStock = function (id) {
+  const x = id ? stockById(S, id) : null;
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
-    <h3>เพิ่มรายการวัสดุ</h3>
-    <div class="modal-sub">เช่น ปุ๋ย ยา เมล็ดพันธุ์ พร้อมหน่วยนับ</div>
-    <form onsubmit="return App.submitStock(event)">
-      <div class="field"><label>ชื่อสินค้า *</label><input id="s_name" placeholder="เช่น ปุ๋ยเคมี สูตร 46-0-0" required></div>
-      <div class="field"><label>หน่วยนับ *</label><input id="s_unit" placeholder="เช่น ถุง / ขวด / ลิตร / กิโลกรัม" required></div>
-      <div class="field"><label>จำนวนเริ่มต้น</label><input id="s_qty" type="number" min="0" step="1" value="0">
+    <h3>${x ? "แก้ไขรายการวัสดุ" : "เพิ่มรายการวัสดุ"}</h3>
+    <div class="modal-sub">${x ? "ปรับข้อมูลรายการวัสดุ" : "เช่น ปุ๋ย ยา เมล็ดพันธุ์ พร้อมหน่วยนับ"}</div>
+    <form onsubmit="return App.submitStock(event, '${x ? x.id : ""}')">
+      <div class="field"><label>ชื่อสินค้า *</label><input id="s_name" value="${x ? esc(x.name) : ""}" placeholder="เช่น ปุ๋ยเคมี สูตร 46-0-0" required></div>
+      <div class="field"><label>ขนาดสินค้า</label><input id="s_size" value="${x ? esc(x.size || "") : ""}" placeholder="เช่น 50 กก. / 5 ลิตร / 1,000 ซีซี"></div>
+      <div class="field"><label>หมวดสินค้า</label>
+        <select id="s_category">
+          <option value="">-- ไม่มีหมวด --</option>
+          ${STOCK_CATS.map(c => `<option value="${esc(c)}" ${x && x.category === c ? "selected" : ""}>${esc(c)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field"><label>หน่วยนับ *</label><input id="s_unit" list="stockUnitList" value="${x ? esc(x.unit) : ""}" placeholder="เลือกจากรายการหรือพิมพ์เอง เช่น ถุง / ขวด / ลิตร" required>
+        <datalist id="stockUnitList">${STOCK_UNITS.map(u => `<option value="${esc(u)}">`).join("")}</datalist>
+      </div>
+      <div class="field"><label>จำนวนเริ่มต้น</label><input id="s_qty" type="number" min="0" step="1" value="${x ? x.qty : 0}">
         <div class="hint">สต็อกหลักเก็บเป็นจำนวนเต็ม (ถุง/ขวดเต็ม) — ของที่ใช้ไม่หมดจะไปเป็น "ของเหลือจากการเปิดใช้" อัตโนมัติ</div></div>
-      <div class="field"><label>ต้นทุนต่อหน่วย (บาท)</label><input id="s_price" type="number" min="0" step="0.5" value="0"></div>
+      <div class="field"><label>ต้นทุนต่อหน่วย (บาท)</label><input id="s_price" type="number" min="0" step="0.5" value="${x ? x.avgCost : 0}"></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
-        <button type="submit" class="btn btn-primary">เพิ่มรายการ</button>
+        <button type="submit" class="btn btn-primary">${x ? "บันทึกการแก้ไข" : "เพิ่มรายการ"}</button>
       </div>
     </form>`);
 };
-App.submitStock = function (e) {
+App.submitStock = function (e, editId) {
   e.preventDefault();
   const name = document.getElementById("s_name").value.trim();
   const unit = document.getElementById("s_unit").value.trim();
   if (!name || !unit) return false;
-  S.stock.push({
-    id: uid(), name, unit,
+  const data = {
+    name, unit,
+    category: document.getElementById("s_category").value,
+    size: (document.getElementById("s_size").value || "").trim(),
     qty: Number(document.getElementById("s_qty").value) || 0,
     avgCost: Number(document.getElementById("s_price").value) || 0
-  });
+  };
+  if (editId) {
+    const x = stockById(S, editId);
+    if (x) Object.assign(x, data);
+  } else {
+    S.stock.push({ id: uid(), ...data, openQty: 0 });
+  }
   saveState(S);
   closeModal();
   render();
-  toast("เพิ่มรายการวัสดุแล้ว");
+  toast(editId ? "บันทึกการแก้ไขแล้ว" : "เพิ่มรายการวัสดุแล้ว");
   return false;
 };
 App.modalReceive = function (id) {
@@ -1634,7 +2091,7 @@ App.viewTask = function (id) {
         const meta = [];
         if (si) meta.push("จากสต็อก");
         if (it.qty) meta.push(fmtNum(it.qty) + (it.unit ? " " + it.unit : ""));
-        const cat = COST_CAT_MAP[it.category];
+        const cat = costCatMap(S)[it.category];
         if (cat) meta.push(cat.label);
         return `<div class="td-cost-row"><span>${esc(name)} ${meta.length ? `<span class="muted" style="font-size:.68rem">${esc(meta.join(" · "))}</span>` : ""}</span><b>${fmtMoney(it.totalCost)}</b></div>`;
       }).join("")}
@@ -1688,10 +2145,12 @@ function stockPickItemsHtml(i) {
   if (!list.length) return `<div class="muted" style="font-size:.72rem;padding:6px 2px">ไม่พบรายการที่ค้นหา</div>`;
   return list.map(x => {
     const open = Number(x.openQty) || 0;
+    const avail = (Number(x.qty) || 0) + open;
+    const out = avail <= 0; // ของหมด -> แถบแดง + กดไม่ได้
     const sel = it.stockId === x.id;
     const sub = open > 0 ? `หลัก ${fmtNum(x.qty)} + เหลือเปิด ${fmtNum(open)} ${esc(x.unit)}` : `คงเหลือ ${fmtNum(x.qty)} ${esc(x.unit)}`;
-    return `<button type="button" class="stock-pick-item ${sel ? "selected" : ""}" onclick="App.costSet(${i}, 'stockId', '${x.id}')">
-      <span class="sp-name">${esc(x.name)}</span><span class="sp-sub">${sub}</span>
+    return `<button type="button" class="stock-pick-item ${sel ? "selected" : ""} ${out ? "out" : ""}" onclick="App.costSet(${i}, 'stockId', '${x.id}')">
+      <span class="sp-name">${esc(x.name)}</span>${out ? `<span class="sp-out">ยาหมด</span>` : `<span class="sp-sub">${sub}</span>`}
     </button>`;
   }).join("");
 }
@@ -1727,7 +2186,7 @@ App.costRender = function () {
       </div>
       <div class="form-row-2">
         <div class="field"><label>หมวดหมู่</label><select onchange="App.costSet(${i}, 'category', this.value)">
-          ${COST_CATS.map(c => `<option value="${c.key}" ${(it.category || "other") === c.key ? "selected" : ""}>${c.label}</option>`).join("")}
+          ${allCostCats(S).map(c => `<option value="${c.key}" ${(it.category || "other") === c.key ? "selected" : ""}>${c.label}</option>`).join("")}
         </select></div>
         <div class="field"><label>ตัดจากสต็อก (ถ้ามี)</label>
           <div class="stock-picker">
@@ -1737,6 +2196,7 @@ App.costRender = function () {
           <div class="hint">ใช้ของที่เหลือจากการเปิดใช้ก่อน แล้วเบิกจากหลักเป็นหน่วยเต็ม (ปัดขึ้น) เศษเป็นของเหลือ</div>
         </div>
       </div>
+      ${it.stockId ? calcBoxHtml(i, it) : ""}
       <div class="field"><label>ชื่อรายการ / รายละเอียด</label>
         <input class="ci-name" value="${esc(it.name || "")}" placeholder="เช่น ค่าน้ำมัน, ยาจากร้านนอกสต็อก" oninput="App.costSet(${i}, 'name', this.value)">
       </div>
@@ -1748,8 +2208,138 @@ App.costRender = function () {
         <div class="field"><label>ราคาต่อหน่วย</label><input class="ci-price" type="number" min="0" step="0.01" value="${it.unitCost || ""}" ${it.stockId ? "readonly" : ""} oninput="App.costSet(${i}, 'unitCost', this.value)"></div>
         <div class="field"><label>รวมเป็นเงิน</label><input class="ci-total" type="number" readonly value="${it.totalCost || ""}"></div>
       </div>
+      <div class="ci-warn" id="ciWarn_${i}" hidden></div>
     </div>`).join("");
   App.costSum();
+  taskCostItems.forEach((it, i) => {
+    checkStockWarn(i, it, document.querySelector(`[data-ci="${i}"]`));
+    /* รีเฟรชผลลัพธ์คำนวณ (เช่น หลังกรอกขนาดสินค้าแล้ว rebuild) */
+    if (it.stockId && ((Number(it.calcArea) || 0) > 0 || (Number(it.calcRate) || 0) > 0)) {
+      App.costCalcInput(i, "unit", it.calcUnit);
+    }
+  });
+};
+/* ---- คำนวณการใช้ตามพื้นที่ (เช่น ฉีดยา 4 ไร่ × 100 ซีซี/ไร่ = 0.4 ขวด) ---- */
+function calcRateUnits(st) {
+  const sz = st ? parseStockSize(st.size) : null;
+  const fam = sz ? sizeFamily(sz.unit) : null;
+  if (fam === "volume") return [{ label: "ซีซี", value: "ซีซี" }, { label: "มล.", value: "มล" }, { label: "ลิตร", value: "ลิตร" }];
+  if (fam === "mass") return [{ label: "กรัม", value: "กรัม" }, { label: "กก.", value: "กก" }];
+  return [{ label: (st && st.unit) || "หน่วย", value: (st && st.unit) || "" }];
+}
+function defaultCalcUnit(st) {
+  const fam = st ? sizeFamily(parseStockSize(st.size) && parseStockSize(st.size).unit) : null;
+  if (fam === "volume") return "ซีซี";
+  if (fam === "mass") return "กก";
+  return st ? st.unit : "";
+}
+function unitLabel(u) {
+  return ({ "ซีซี": "ซีซี", "มล": "มล.", "ลิตร": "ลิตร", "กรัม": "กรัม", "กก": "กก." })[u] || u;
+}
+/* คำนวณจำนวนที่ใช้ (หน่วยสต็อก) จากพื้นที่+อัตรา — คืน null ถ้ายังกรอกไม่ครบหรือหน่วยไม่ตรง */
+function computeStockUsage(i) {
+  const it = taskCostItems[i];
+  if (!it || !it.stockId) return null;
+  const st = stockById(S, it.stockId);
+  if (!st) return null;
+  const area = Number(it.calcArea) || 0;
+  const rate = Number(it.calcRate) || 0;
+  if (area <= 0 || rate <= 0) return null;
+  const rateUnit = it.calcUnit || defaultCalcUnit(st);
+  const rateLabel = unitLabel(rateUnit);
+  const sz = parseStockSize(st.size);
+  if (sz) {
+    const fam = sizeFamily(sz.unit);
+    if (!fam || fam !== sizeFamily(rateUnit)) return null; // ขนาดเป็น กก. แต่เลือก ซีซี -> คำนวณไม่ได้
+    const totalBase = area * rate * unitToBase(rateUnit);
+    const totalInSizeUnit = totalBase / unitToBase(sz.unit);
+    const qty = totalInSizeUnit / sz.amount;
+    return {
+      qty, unit: st.unit,
+      totalTxt: `${fmtNum(area)} ไร่ × ${fmtNum(rate)} ${rateLabel}/ไร่ = ${fmtNum(totalInSizeUnit)} ${sz.unit}`,
+      summary: `${st.name}: ${fmtNum(area)} ไร่ × ${fmtNum(rate)} ${rateLabel}/ไร่ = ${fmtNum(qty)} ${st.unit}`
+    };
+  }
+  // ไม่มีขนาดสินค้า -> อัตราเป็นหน่วยสต็อกตรงๆ (เช่น 0.25 ขวด/ไร่)
+  const qty = area * rate;
+  return {
+    qty, unit: st.unit,
+    totalTxt: `${fmtNum(area)} ไร่ × ${fmtNum(rate)} ${rateLabel}/ไร่`,
+    summary: `${st.name}: ${fmtNum(area)} ไร่ × ${fmtNum(rate)} ${rateLabel}/ไร่ = ${fmtNum(qty)} ${st.unit}`
+  };
+}
+/* กล่องคำนวณ (แสดงเมื่อเลือกรายการสต็อกแล้ว) */
+function calcBoxHtml(i, it) {
+  const st = stockById(S, it.stockId);
+  if (!st) return "";
+  const sz = parseStockSize(st.size);
+  const known = !!sz && !!sizeFamily(sz.unit); // รู้ขนาดแล้ว (เช่น 1,000 ซีซี/ขวด)
+  const units = calcRateUnits(st);
+  const cur = it.calcUnit || defaultCalcUnit(st);
+  return `
+    <div class="calc-box" id="calcBox_${i}">
+      <div class="calc-title">${ic("calculator")} คำนวณการใช้ตามพื้นที่</div>
+      ${known
+        ? `<div class="hint" style="margin-bottom:6px">ขนาด ${esc(st.size)} / 1 ${esc(st.unit)} — แก้ได้ที่หน้า สต็อก</div>`
+        : `
+      <div class="row" style="gap:6px;margin-bottom:8px">
+        <div class="grow field" style="margin:0"><label>ขนาดต่อ 1 ${esc(st.unit)}</label><input class="ci-szamt" type="number" min="0" step="0.1" value="${it.calcSizeAmt || ""}" placeholder="เช่น 1,000" oninput="App.costCalcSize(${i}, this.value)"></div>
+        <div class="field" style="margin:0"><label>หน่วย</label><select class="ci-szunit" onchange="App.costCalcSize(${i}, null, this.value)">
+          ${[["ซีซี", "ซีซี"], ["มล.", "มล"], ["ลิตร", "ลิตร"], ["กรัม", "กรัม"], ["กก.", "กก"]].map(u => `<option value="${u[1]}" ${(it.calcSizeUnit || "ซีซี") === u[1] ? "selected" : ""}>${u[0]}</option>`).join("")}
+        </select></div>
+      </div>`}
+      <div class="form-row-2">
+        <div class="field"><label>พื้นที่ (ไร่)</label><input class="ci-area" type="number" min="0" step="0.25" value="${it.calcArea || ""}" placeholder="เช่น 4" oninput="App.costCalcInput(${i}, 'area', this.value)"></div>
+        <div class="field"><label>ใช้ต่อไร่</label>
+          <div class="row" style="gap:6px">
+            <input class="ci-rate" type="number" min="0" step="0.1" value="${it.calcRate || ""}" placeholder="เช่น 100" style="flex:1" oninput="App.costCalcInput(${i}, 'rate', this.value)">
+            <select class="ci-ratunit" style="width:auto;flex-shrink:0" onchange="App.costCalcInput(${i}, 'unit', this.value)">
+              ${units.map(u => `<option value="${esc(u.value)}" ${cur === u.value ? "selected" : ""}>${esc(u.label)}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="calc-result" id="calcResult_${i}"><div class="hint">กรอกพื้นที่และอัตราใช้เพื่อคำนวณจำนวนที่ใช้ — จำนวนจะถูกกรอกและตัดสต็อกอัตโนมัติ</div></div>
+    </div>`;
+}
+App.costCalcInput = function (i, field, value) {
+  const it = taskCostItems[i];
+  if (!it) return;
+  if (field === "area") it.calcArea = value;
+  else if (field === "rate") it.calcRate = value;
+  else it.calcUnit = value;
+  const r = computeStockUsage(i);
+  const res = document.getElementById("calcResult_" + i);
+  if (res) {
+    res.innerHTML = r && r.qty > 0
+      ? `<b>${esc(r.totalTxt)} = <span class="calc-amt">${fmtNum(r.qty)} ${esc(r.unit)}</span></b><div class="hint">${esc(r.summary)}</div>`
+      : `<div class="hint">กรอกพื้นที่และอัตราใช้เพื่อคำนวณจำนวนที่ใช้ — จำนวนจะถูกกรอกและตัดสต็อกอัตโนมัติ</div>`;
+  }
+  if (r && r.qty > 0) {
+    it.qty = r.qty;
+    it.unit = r.unit;
+    App.costSet(i, "qty", r.qty);
+  }
+};
+/* กรอกขนาดสินค้าที่กล่องคำนวณ (กรณีสินค้ายังไม่ตั้งขนาด) — บันทึกให้สต็อกอัตโนมัติ */
+App.costCalcSize = function (i, amt, unit) {
+  const it = taskCostItems[i];
+  if (!it || !it.stockId) return;
+  const st = stockById(S, it.stockId);
+  if (!st) return;
+  if (amt !== null && amt !== undefined) it.calcSizeAmt = amt;
+  if (unit) it.calcSizeUnit = unit;
+  const val = Number(it.calcSizeAmt) || 0;
+  const sizeUnit = it.calcSizeUnit || "ซีซี"; // ค่าเริ่มต้น ซีซี
+  if (val > 0) {
+    st.size = fmtNum(val) + " " + unitLabel(sizeUnit);
+    saveState(S);
+    it.calcSizeAmt = ""; it.calcSizeUnit = "";
+    App.costRender();
+    toast(`บันทึกขนาด "${st.size}" ให้ ${st.name} แล้ว — ครั้งหน้าคำนวณได้เลย`);
+  } else {
+    App.costCalcInput(i, "unit", it.calcUnit); // อัปเดตข้อความผลลัพธ์
+  }
 };
 /* เพิ่มรายการว่าง */
 App.costAdd = function () {
@@ -1764,37 +2354,56 @@ App.costRemove = function (i) {
 App.costSet = function (i, field, value) {
   const it = taskCostItems[i];
   if (!it) return;
-  it[field] = value;
-  const row = document.querySelector(`[data-ci="${i}"]`);
-  // เลือกสต็อก -> ดึงราคาถัวเฉลี่ย + หน่วยมาให้อัตโนมัติ + ราคาเป็น read-only
+  /* บล็อกการเลือกของที่หมดสต็อก (qty + openQty = 0) ก่อนตั้งค่า */
   if (field === "stockId" && value) {
-    const item = stockById(S, value);
-    if (item) {
-      it.unitCost = item.avgCost.toFixed(2);
-      if (!it.unit) it.unit = item.unit;
-      if (!it.name) it.name = item.name;
-    }
-    if (row) {
-      const priceEl = row.querySelector(".ci-price");
-      priceEl.readOnly = !!it.stockId;
-      priceEl.value = it.unitCost || "";
-      if (!row.querySelector(".ci-unit").value) row.querySelector(".ci-unit").value = it.unit || "";
-      if (!row.querySelector(".ci-name").value) row.querySelector(".ci-name").value = it.name || "";
-      // อัปเดต highlight ใน picker (รายการที่เลือก)
-      const listEl = document.getElementById("stockPickList_" + i);
-      if (listEl) listEl.innerHTML = stockPickItemsHtml(i);
-    }
-  } else if (field === "stockId" && !value) {
-    if (row) {
-      row.querySelector(".ci-price").readOnly = false;
-      const listEl = document.getElementById("stockPickList_" + i);
-      if (listEl) listEl.innerHTML = stockPickItemsHtml(i);
+    const chk = stockById(S, value);
+    if (chk && (Number(chk.qty) || 0) + (Number(chk.openQty) || 0) <= 0) {
+      toast(`"${chk.name}" หมดแล้ว — ไม่มีเหลือในสต็อก (ถ้าซื้อนอกสต็อกใช้ช่อง "ชื่อรายการ" แทนได้)`);
+      return;
     }
   }
+  it[field] = value;
+  /* เลือก/ยกเลิกรายการสต็อก -> ตั้งค่าเริ่มต้น + rebuild แถว (แสดง/ซ่อนกล่องคำนวณ ปัก highlight) */
+  if (field === "stockId") {
+    if (value) {
+      const item = stockById(S, value);
+      if (item) {
+        it.unitCost = item.avgCost.toFixed(2);
+        if (!it.unit) it.unit = item.unit;
+        if (!it.name) it.name = item.name;
+        it.calcUnit = defaultCalcUnit(item);
+      }
+      it.calcArea = ""; it.calcRate = ""; // เริ่มคำนวณใหม่เมื่อเปลี่ยนรายการ
+    } else {
+      it.unitCost = ""; it.calcUnit = ""; it.calcArea = ""; it.calcRate = "";
+    }
+    it.totalCost = Math.round((Number(it.qty) || 0) * (Number(it.unitCost) || 0));
+    App.costRender();
+    return;
+  }
+  const row = document.querySelector(`[data-ci="${i}"]`);
   it.totalCost = Math.round((Number(it.qty) || 0) * (Number(it.unitCost) || 0));
   if (row) row.querySelector(".ci-total").value = it.totalCost || "";
   App.costSum();
+  checkStockWarn(i, it, row);
 };
+/* เตือนเมื่อกรอกจำนวนเกินของในสต็อก (หรือเลือกของที่หมดแล้ว) */
+function checkStockWarn(i, it, row) {
+  const warn = document.getElementById("ciWarn_" + i);
+  if (!warn) return;
+  let msg = "";
+  if (it.stockId) {
+    const st = stockById(S, it.stockId);
+    if (st) {
+      const avail = (Number(st.qty) || 0) + (Number(st.openQty) || 0);
+      const need = Number(it.qty) || 0;
+      if (avail <= 0) msg = `"${st.name}" หมดแล้ว — ไม่มี ${st.unit} เหลือในสต็อก`;
+      else if (need > avail) msg = `จำนวนเกินของในสต็อก — เหลือแค่ ${fmtNum(avail)} ${st.unit}`;
+    }
+  }
+  warn.textContent = msg;
+  warn.hidden = !msg;
+}
 /* อัปเดตยอดรวมต้นทุนทั้งหมด */
 App.costSum = function () {
   const total = taskCostItems.reduce((a, it) => a + (Number(it.totalCost) || 0), 0);
@@ -1911,6 +2520,17 @@ App.submitTask = function (e, editId) {
       totalCost: Math.round((Number(it.qty) || 0) * (Number(it.unitCost) || 0))
     }))
     .filter(it => it.name || it.stockId || it.qty > 0 || it.unitCost > 0);
+  /* ตรวจจำนวนกับสต็อกก่อนบันทึก — กันกรอกเกินของที่มี (เช่น ยาหมดแล้วใส่จำนวนอีก) */
+  for (const it of costItems) {
+    if (!it.stockId || !it.qty) continue;
+    const st = stockById(S, it.stockId);
+    if (!st) continue;
+    const avail = (Number(st.qty) || 0) + (Number(st.openQty) || 0);
+    if (it.qty > avail) {
+      toast(`"${st.name}" มีในสต็อกแค่ ${fmtNum(avail)} ${st.unit} — กรอกจำนวนใหม่`);
+      return false;
+    }
+  }
   const totalCost = costItems.reduce((a, it) => a + it.totalCost, 0);
   const data = {
     title,
@@ -1931,6 +2551,19 @@ App.submitTask = function (e, editId) {
     finishCycle: useHarvest && document.getElementById("t_finishcycle").checked,
     note: document.getElementById("t_note").value.trim()
   };
+  /* เขียนสรุปการคำนวณ (เช่น ฉีดยา 4 ไร่ × 100 ซีซี/ไร่ = 0.4 ขวด) ลงในบันทึกอัตโนมัติ */
+  const calcLines = [];
+  taskCostItems.forEach((it, idx) => {
+    if (it.stockId && (Number(it.calcArea) || 0) > 0 && (Number(it.calcRate) || 0) > 0) {
+      const r = computeStockUsage(idx);
+      if (r && r.summary && !calcLines.includes(r.summary)) calcLines.push(r.summary);
+    }
+  });
+  if (calcLines.length) {
+    const cur = data.note ? data.note.split("\n") : [];
+    calcLines.forEach(l => { if (!cur.includes(l)) cur.push(l); });
+    data.note = cur.join("\n");
+  }
   const existing = editId ? S.tasks.find(x => x.id === editId) : null;
   /* บันทึกงาน (ใหม่ หรือแก้ไข) — คืนค่าและปิด modal */
   const commit = (restocked) => {
@@ -2110,10 +2743,14 @@ App.startTour = function () {
   ov.innerHTML = `<div class="tour-dim"></div><div class="tour-bubble"></div>`;
   const dim = ov.querySelector(".tour-dim");
   const bubble = ov.querySelector(".tour-bubble");
+  /* กดปุ่มใน bubble ต้องไม่ทะลุไป trigger การกดผ่าน overlay */
+  bubble.addEventListener("click", e => e.stopPropagation());
   function step(i) {
     const st = TOUR_STEPS[i];
     const el = document.querySelector(st.sel);
-    if (!el) { next(); return; }
+    if (!el) { App.tourGo(i + 1); return; }
+    /* เลื่อน element ให้อยู่ในจอถ้าจำเป็น (element ที่ fixed เช่น bottomNav/FAB จะไม่เลื่อน) */
+    if (st.scroll !== false) el.scrollIntoView({ block: "nearest", behavior: "auto" });
     const r = el.getBoundingClientRect();
     dim.style.left = r.left + "px";
     dim.style.top = r.top + "px";
@@ -2128,17 +2765,21 @@ App.startTour = function () {
         ${i > 0 ? `<button class="btn btn-sm btn-ghost" onclick="App.tourGo(${i - 1})">← ก่อนหน้า</button>` : ""}
         <button class="btn btn-sm btn-primary" onclick="App.tourGo(${i + 1})">${i === TOUR_STEPS.length - 1 ? "เสร็จสิ้น ✓" : "ถัดไป →"}</button>
       </div>`;
-    // place bubble
-    const vw = window.innerWidth;
-    let left = Math.max(8, Math.min(r.left, vw - 316));
+    // place bubble — ให้อยู่ในจอเสมอ: ถ้าข้างล่างไม่พอให้พลิกไปข้างบน (เช่น #bottomNav อยู่ขอบล่าง)
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const bh = bubble.offsetHeight, bw = bubble.offsetWidth;
+    let left = Math.max(8, Math.min(r.left, vw - bw - 8));
     let top;
-    if (st.pos === "below") top = r.bottom + 12;
-    else if (st.pos === "above") top = r.top - bubble.offsetHeight - 12;
-    else top = r.top;
-    if (top < 10) top = r.bottom + 12;
+    const fitsBelow = r.bottom + bh + 16 <= vh;
+    const fitsAbove = r.top - bh - 12 >= 8;
+    if (st.pos === "above") top = fitsAbove ? r.top - bh - 12 : r.bottom + 12;
+    else if (st.pos === "below") top = fitsBelow ? r.bottom + 12 : r.top - bh - 12;
+    else top = r.top + Math.max(0, (r.height - bh) / 2); // left/right → จัดกลางแนวตั้ง
+    top = Math.max(8, Math.min(top, vh - bh - 8));
     bubble.style.left = left + "px";
     bubble.style.top = top + "px";
-    ov.onclick = null;
+    // กดที่ไหนก็ไปขั้นถัดไป (ขั้นสุดท้าย = จบทัวร์) — กัน bubble ติดค้าง
+    ov.onclick = () => App.tourGo(idx + 1);
   }
   App.tourGo = function (i) {
     if (i >= TOUR_STEPS.length || i < 0) { App.tourEnd(); return; }
