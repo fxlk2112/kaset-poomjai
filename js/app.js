@@ -595,7 +595,7 @@ function renderHome() {
         const p = plotById(S, c.plotId);
         const fin = cycleFinance(S, c.id);
         return `
-        <div class="row-line">
+        <div class="row-line" onclick="App.openCycle('${c.id}')" role="button" tabindex="0" style="cursor:pointer" title="กดดูงาน/กิจกรรมของรอบนี้">
           <span class="plot-emoji sm">${cropEmoji(c.plant)}</span>
           <div class="grow">
             <div class="bold" style="font-size:.88rem">${esc(c.plant)}</div>
@@ -605,6 +605,7 @@ function renderHome() {
             <div class="bold ${fin.net >= 0 ? "price-trend-up" : "price-trend-down"}" style="font-size:.82rem">${fmtMoney(fin.net)}</div>
             <div class="muted" style="font-size:.66rem">กำไร/ขาดทุน</div>
           </div>
+          <span class="muted" style="font-size:1.05rem;margin-left:8px">›</span>
         </div>`;
       }).join("")}
       <button class="btn btn-ghost btn-block mt-12" onclick="App.goCycles()">${ic("plus")} เริ่มปลูกพืชใหม่</button>
@@ -678,7 +679,7 @@ function renderPlots() {
           <div class="meta-box"><div class="lb">กำไร/ขาดทุน</div><div class="vl ${fin.net >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(fin.net)} บาท</div></div>
           <div class="meta-box"><div class="lb">สถานะ</div><div class="vl" style="font-size:.78rem">${fin.revenue > 0 ? "มีผลผลิตแล้ว" : "รอผลผลิต"}</div></div>
         </div>
-        ${c.status === "active" ? `<button class="btn btn-sm btn-ghost mt-12" onclick="event.stopPropagation();App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : ""}
+        ${c.status === "active" ? `<button class="btn btn-sm btn-ghost mt-12" onclick="event.stopPropagation();App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : `<button class="btn btn-sm btn-outline mt-12" onclick="event.stopPropagation();App.reopenCycle('${c.id}')">${ic("refresh")} เปิดรอบอีกครั้ง</button>`}
         <div class="cycle-open-hint">${ic("chevron")} ดู ${n} กิจกรรมของรอบนี้</div>
       </div>`;
     }).join("")}
@@ -766,7 +767,7 @@ function renderPlotDetail() {
           <div class="meta-box"><div class="lb">กำไร/ขาดทุน</div><div class="vl ${cf.net >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(cf.net)} บาท</div></div>
           <div class="meta-box"><div class="lb">สถานะ</div><div class="vl" style="font-size:.78rem">${cf.revenue > 0 ? "มีผลผลิตแล้ว" : "รอผลผลิต"}</div></div>
         </div>
-        ${c.status === "active" ? `<button class="btn btn-sm btn-ghost mt-12" onclick="event.stopPropagation();App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : ""}
+        ${c.status === "active" ? `<button class="btn btn-sm btn-ghost mt-12" onclick="event.stopPropagation();App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : `<button class="btn btn-sm btn-outline mt-12" onclick="event.stopPropagation();App.reopenCycle('${c.id}')">${ic("refresh")} เปิดรอบอีกครั้ง</button>`}
         <div class="cycle-open-hint">${ic("chevron")} ดู ${n} กิจกรรมของรอบนี้</div>
       </div>`;
     }).join("")}
@@ -915,7 +916,7 @@ function renderCycleDetail() {
       </div>
       <div class="actions-row">
         ${c.status === "active" ? `<button class="btn btn-sm btn-primary" onclick="App.modalTask(todayISO(), { cycleId: '${c.id}' })">${ic("plus")} เพิ่มกิจกรรม</button>` : ""}
-        ${c.status === "active" ? `<button class="btn btn-sm btn-ghost" onclick="App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : ""}
+        ${c.status === "active" ? `<button class="btn btn-sm btn-ghost" onclick="App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : `<button class="btn btn-sm btn-outline" onclick="App.reopenCycle('${c.id}')">${ic("refresh")} เปิดรอบการปลูกอีกครั้ง</button>`}
       </div>
     </div>
 
@@ -944,11 +945,22 @@ App.openCycle = function (id) {
   render();
 };
 App.completeCycle = function (id) {
+  App.confirm("ปิดรอบการปลูก?", "รอบนี้จะถูกปิดและไม่สามารถเพิ่มกิจกรรมได้ — ถ้าปิดผิดสามารถกดเปิดรอบอีกครั้งได้ภายหลัง", () => {
+    const c = cycleById(S, id);
+    if (c) c.status = "done";
+    saveState(S);
+    rerender();
+    toast("ปิดรอบการปลูกเรียบร้อย");
+  });
+};
+/* เปิดรอบการปลูกที่ปิดไปแล้วกลับมาเป็นกำลังปลูกอีกครั้ง (กันกดปิดผิดแล้วแก้อะไรไม่ได้) */
+App.reopenCycle = function (id) {
   const c = cycleById(S, id);
-  if (c) c.status = "done";
+  if (!c) return;
+  c.status = "active";
   saveState(S);
   rerender();
-  toast("ปิดรอบการปลูกเรียบร้อย");
+  toast(`เปิดรอบ "${c.plant}" กลับมาแล้ว`);
 };
 
 App.deletePlot = function (id) {
