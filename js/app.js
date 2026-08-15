@@ -1972,32 +1972,16 @@ function renderMore() {
 
 /* ---------------- Modals ---------------- */
 /* ล็อกการเลื่อนพื้นหลังตอนเปิด modal — กันพื้นหลังเลื่อนตาม/จอกระตุกบนมือถือ
-   วิธี: จำตำแหน่ง scroll ไว้ แล้วตรึง body (position:fixed) พอปิด modal คืนตำแหน่งเดิม
-   (ถ้าแค่ overflow:hidden บน iOS มือถือจะยังเลื่อนได้และหน้าจะเด้งไปหัวหน้า) */
-let scrollLockY = null;
+   ใช้ overflow:hidden บน html+body: ปลอดภัยกว่า position:fixed เพราะ
+   1) ตำแหน่งเลื่อนเดิมคงอยู่เอง ไม่เด้งไปหัวหน้า 2) ไม่มี state ค้าง (ปิด modal แล้วเลื่อนได้เสมอ)
+   3) ไม่มีบั๊ก iOS ตอนคีย์บอร์ดเด้งขึ้น (position:fixed + คีย์บอร์ด ทำให้หน้าไถ่/ค้างเลื่อนไม่ได้) */
 function lockBodyScroll() {
-  if (scrollLockY !== null) return;
-  scrollLockY = window.scrollY;
-  const b = document.body;
-  b.style.position = "fixed";
-  b.style.top = `-${scrollLockY}px`;
-  b.style.left = "0";
-  b.style.right = "0";
-  b.style.width = "100%";
-  b.style.overflow = "hidden";
+  document.documentElement.style.overflow = "hidden";
+  document.body.style.overflow = "hidden";
 }
 function unlockBodyScroll() {
-  if (scrollLockY === null) return;
-  const y = scrollLockY;
-  scrollLockY = null;
-  const b = document.body;
-  b.style.position = "";
-  b.style.top = "";
-  b.style.left = "";
-  b.style.right = "";
-  b.style.width = "";
-  b.style.overflow = "";
-  window.scrollTo(0, y);
+  document.documentElement.style.overflow = "";
+  document.body.style.overflow = "";
 }
 function openModal(html) {
   const root = document.getElementById("modalRoot");
