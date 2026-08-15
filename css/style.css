@@ -556,7 +556,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 .modal {
   background: #fff;
-  width: 100%; max-width: var(--maxw); max-height: 88vh; overflow-y: auto;
+  width: 100%; max-width: var(--maxw); max-height: 88vh; max-height: 88dvh; overflow-y: auto;
   border-radius: 20px 20px 0 0; padding: 18px 18px calc(20px + env(safe-area-inset-bottom));
   box-shadow: 0 -8px 30px rgba(16, 60, 32, .12);
   animation: slideUp .28s cubic-bezier(.22, .8, .3, 1);
@@ -863,6 +863,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
     width: 100%;
     max-width: 620px;
     max-height: 88vh;
+    max-height: 88dvh;
     border-radius: 16px;
     padding: 22px 24px 26px;
     box-shadow: 0 24px 60px rgba(15, 23, 42, .28);

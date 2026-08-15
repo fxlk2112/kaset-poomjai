@@ -1002,7 +1002,7 @@ function stockListHtml() {
     if (stockFilter === "opened" && open <= 0) return false;
     if (stockCat === "__none__" && x.category) return false;
     if (stockCat && stockCat !== "__none__" && x.category !== stockCat) return false;
-    if (q && !(x.name.toLowerCase().includes(q) || x.unit.toLowerCase().includes(q) || (x.category || "").toLowerCase().includes(q))) return false;
+    if (q && !(x.name.toLowerCase().includes(q) || x.unit.toLowerCase().includes(q) || (x.category || "").toLowerCase().includes(q) || (x.generic || "").toLowerCase().includes(q) || (x.supplier || "").toLowerCase().includes(q))) return false;
     return true;
   });
   const emptyTitle = q ? "ไม่พบรายการที่ค้นหา" : (stockCat ? "ไม่มีของในหมวดนี้" : (stockFilter === "has" ? "ยังไม่มีของในสต็อก" : (stockFilter === "out" ? "ไม่มีของที่หมด" : (stockFilter === "sealed" ? "ไม่มีของที่ยังไม่เปิดใช้" : "ไม่มีของที่เปิดใช้แล้ว"))));
@@ -1971,14 +1971,44 @@ function renderMore() {
 }
 
 /* ---------------- Modals ---------------- */
+/* ล็อกการเลื่อนพื้นหลังตอนเปิด modal — กันพื้นหลังเลื่อนตาม/จอกระตุกบนมือถือ
+   วิธี: จำตำแหน่ง scroll ไว้ แล้วตรึง body (position:fixed) พอปิด modal คืนตำแหน่งเดิม
+   (ถ้าแค่ overflow:hidden บน iOS มือถือจะยังเลื่อนได้และหน้าจะเด้งไปหัวหน้า) */
+let scrollLockY = null;
+function lockBodyScroll() {
+  if (scrollLockY !== null) return;
+  scrollLockY = window.scrollY;
+  const b = document.body;
+  b.style.position = "fixed";
+  b.style.top = `-${scrollLockY}px`;
+  b.style.left = "0";
+  b.style.right = "0";
+  b.style.width = "100%";
+  b.style.overflow = "hidden";
+}
+function unlockBodyScroll() {
+  if (scrollLockY === null) return;
+  const y = scrollLockY;
+  scrollLockY = null;
+  const b = document.body;
+  b.style.position = "";
+  b.style.top = "";
+  b.style.left = "";
+  b.style.right = "";
+  b.style.width = "";
+  b.style.overflow = "";
+  window.scrollTo(0, y);
+}
 function openModal(html) {
   const root = document.getElementById("modalRoot");
   root.innerHTML = `<div class="modal-backdrop"><div class="modal">${html}</div></div>`;
   const bd = root.querySelector(".modal-backdrop");
   bd.addEventListener("click", e => { if (e.target === bd) closeModal(); });
+  lockBodyScroll();
 }
 function closeModal() {
   document.getElementById("modalRoot").innerHTML = "";
+  unlockBodyScroll();
 }
 function confirmModal(title, text, onOk) {
   openModal(`
@@ -2129,6 +2159,14 @@ App.submitCycle = function (e) {
 };
 
 /* ---- stock forms ---- */
+/* รายชื่อบริษัท/ผู้จำหน่ายที่เคยใช้ — จากสต็อกปัจจุบัน + ฐานข้อมูลสินค้า FLYTECH
+   ใช้เป็นตัวเลือกค้นหา (datalist) ในฟอร์มเพิ่ม/แก้ไข */
+function stockSuppliers() {
+  const set = new Set();
+  (S.stock || []).forEach(x => { const v = String(x.supplier || "").trim(); if (v) set.add(v); });
+  (typeof FLYTECH_MASTER !== "undefined" ? FLYTECH_MASTER : []).forEach(p => { const v = String(p.supplier || "").trim(); if (v) set.add(v); });
+  return [...set].sort((a, b) => a.localeCompare(b, "th"));
+}
 App.modalStock = function (id) {
   const x = id ? stockById(S, id) : null;
   openModal(`
@@ -2137,6 +2175,7 @@ App.modalStock = function (id) {
     <div class="modal-sub">${x ? "ปรับข้อมูลรายการวัสดุ" : "เช่น ปุ๋ย ยา เมล็ดพันธุ์ พร้อมหน่วยนับ"}</div>
     <form onsubmit="return App.submitStock(event, '${x ? x.id : ""}')">
       <div class="field"><label>ชื่อสินค้า *</label><input id="s_name" value="${x ? esc(x.name) : ""}" placeholder="เช่น ปุ๋ยเคมี สูตร 46-0-0" required></div>
+      <div class="field"><label>ชื่อสามัญ (สารออกฤทธิ์ / สูตร)</label><input id="s_generic" value="${x ? esc(x.generic || "") : ""}" placeholder="เช่น ไกลโฟเซต-ไอโซโพรพิลแอมโมเนียม หรือ 46-0-0"></div>
       <div class="field"><label>ขนาดสินค้า</label><input id="s_size" value="${x ? esc(x.size || "") : ""}" placeholder="เช่น 50 กก. / 5 ลิตร / 1,000 ซีซี"></div>
       <div class="field"><label>หมวดสินค้า</label>
         <select id="s_category">
@@ -2146,6 +2185,9 @@ App.modalStock = function (id) {
       </div>
       <div class="field"><label>หน่วยนับ *</label><input id="s_unit" list="stockUnitList" value="${x ? esc(x.unit) : ""}" placeholder="เลือกจากรายการหรือพิมพ์เอง เช่น ถุง / ขวด / ลิตร" required>
         <datalist id="stockUnitList">${STOCK_UNITS.map(u => `<option value="${esc(u)}">`).join("")}</datalist>
+      </div>
+      <div class="field"><label>บริษัท / ผู้จำหน่าย</label><input id="s_supplier" list="stockSupplierList" value="${x ? esc(x.supplier || "") : ""}" placeholder="พิมพ์ค้นหา เช่น ซินเจนทา / บาก้า / โกลบอล ครอปส์">
+        <datalist id="stockSupplierList">${stockSuppliers().map(s => `<option value="${esc(s)}">`).join("")}</datalist>
       </div>
       <div class="field"><label>จำนวนเริ่มต้น</label><input id="s_qty" type="number" min="0" step="1" value="${x ? x.qty : 0}">
         <div class="hint">สต็อกหลักเก็บเป็นจำนวนเต็ม (ถุง/ขวดเต็ม) — ของที่ใช้ไม่หมดจะไปเป็น "ของเหลือจากการเปิดใช้" อัตโนมัติ</div></div>
@@ -2163,8 +2205,10 @@ App.submitStock = function (e, editId) {
   if (!name || !unit) return false;
   const data = {
     name, unit,
+    generic: (document.getElementById("s_generic").value || "").trim(),
     category: document.getElementById("s_category").value,
     size: (document.getElementById("s_size").value || "").trim(),
+    supplier: (document.getElementById("s_supplier").value || "").trim(),
     qty: Number(document.getElementById("s_qty").value) || 0,
     avgCost: Number(document.getElementById("s_price").value) || 0
   };
