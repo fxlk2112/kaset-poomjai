@@ -842,8 +842,24 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   flex-shrink: 0;
 }
 .plot-cycle-body { padding: 10px 14px 14px; border-top: 1px dashed var(--line); }
-.plot-cycle-body .cycle-card { margin-bottom: 10px; }
-.plot-cycle-body .cycle-card:last-child { margin-bottom: 0; }
+/* การ์ดรอบในกลุ่มแปลง: มือถือ 1 ใบ/แถว, จอพอ (≥640px) 2 ใบ/แถว — กันการ์ดยืดยาวเกิน */
+.cycle-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+/* สรุปต้นทุนรายหมวด (หน้ารายละเอียดรอบ): 2 หมวดต่อแถว */
+.cc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.cc-box {
+  background: var(--green-soft); border-radius: var(--radius-sm); padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
+}
+.cc-box .cc-label { font-size: .68rem; color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: 5px; }
+.cc-box .cc-val { font-size: .86rem; font-weight: 800; }
+/* แถบตัวกรองหน้ารอบการปลูก: ค้นหาชื่อแปลง/พืช + chips สถานะ */
+.cycle-filter { padding: 12px 14px; }
+.cycle-filter > input {
+  width: 100%; padding: 9px 11px; border: 1.5px solid var(--line); border-radius: 8px;
+  background: #fff; font-size: .8rem;
+}
+.cycle-filter > input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(22, 163, 74, .12); outline: 0; }
+.cycle-filter .stock-tabs { margin: 10px 0 0; }
 .cycle-card { cursor: pointer; }
 .cycle-open-hint {
   display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -921,6 +937,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 @media (min-width: 640px) {
   .modal-backdrop { align-items: center; }
   .modal { border-radius: 22px; max-height: 85vh; }
+  .cycle-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* Scrollbar cleanup */

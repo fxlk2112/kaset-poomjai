@@ -20,6 +20,7 @@ function saveRoute() {
 }
 let plotTaskCycle = "";   // กรองงาน/กิจกรรมของแปลงตามรอบการปลูก ("" = ทั้งหมด, "__none__" = ไม่มีรอบ)
 let collapsedCycles = {}; // หน้ารอบการปลูก: แปลงที่กดย่อไว้ (plotId -> true) กันหน้ายาวเกิน
+let cycleFilter = { q: "", status: "all" }; // ตัวกรองหน้ารอบการปลูก: q=ค้นหา (ชื่อแปลง/พืช), status=all|active|idle
 let cal = { y: new Date().getFullYear(), m: new Date().getMonth(), sel: todayISO() };
 
 /* ---------------- โหมดแก้ไขเว็บ: คำที่แก้ไขได้ ----------------
@@ -750,15 +751,34 @@ function renderPlots() {
         <div class="cycle-open-hint">${ic("chevron")} ดู ${n} กิจกรรมของรอบนี้</div>
       </div>`;
   };
-  /* กลุ่มแปลง: เรียงแปลงที่มีรอบก่อน (ตามจำนวนรอบมากสุด) แล้วแปลงที่ยังไม่มีรอบ */
-  const plotGroups = [...S.plots]
+  /* กลุ่มแปลง: เรียงตามชื่อแปลง (พจนานุกรมไทย) แล้วกรองตามคำค้น/สถานะ */
+  const allGroups = [...S.plots]
     .map(p => ({ p, cs: cycles.filter(c => c.plotId === p.id) }))
-    .sort((a, b) => b.cs.length - a.cs.length);
+    .sort((a, b) => a.p.name.localeCompare(b.p.name, "th"));
+  const cycleQ = cycleFilter.q.trim().toLowerCase();
+  const plotGroups = allGroups.filter(g => {
+    if (cycleQ && !g.p.name.toLowerCase().includes(cycleQ) && !g.cs.some(c => (c.plant || "").toLowerCase().includes(cycleQ))) return false;
+    const hasActive = g.cs.some(c => c.status === "active");
+    if (cycleFilter.status === "active" && !hasActive) return false;
+    if (cycleFilter.status === "idle" && hasActive) return false;
+    return true;
+  });
+  const cntActive = allGroups.filter(g => g.cs.some(c => c.status === "active")).length;
   const cyclesTab = `
     <div class="row row-between">
       <div class="bold" style="font-size:1.02rem" data-tkey="cyclesTitle">${T("cyclesTitle")} ${cycles.filter(c => c.status === "active").length} รอบ</div>
       <button class="btn btn-primary btn-sm" onclick="App.modalCycle()">${ic("plus")} เริ่มปลูก</button>
     </div>
+    <div class="card cycle-filter">
+      <input id="cycleFilterQ" type="text" placeholder="ค้นหาชื่อแปลงหรือพืชที่ปลูก..." value="${esc(cycleFilter.q)}" oninput="App.cycleFilterQ(this.value)">
+      <div class="stock-tabs">
+        <button class="chip ${cycleFilter.status === "all" ? "chip-active" : ""}" onclick="App.cycleFilterStatus('all')">ทั้งหมด <span class="badge">${allGroups.length}</span></button>
+        <button class="chip ${cycleFilter.status === "active" ? "chip-active" : ""}" onclick="App.cycleFilterStatus('active')">กำลังปลูก <span class="badge">${cntActive}</span></button>
+        <button class="chip ${cycleFilter.status === "idle" ? "chip-active" : ""}" onclick="App.cycleFilterStatus('idle')">ว่าง <span class="badge">${allGroups.length - cntActive}</span></button>
+        ${cycleQ ? `<button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="App.cycleFilterClear()">${ic("refresh")} ล้างตัวกรอง</button>` : ""}
+      </div>
+    </div>
+    ${plotGroups.length === 0 ? `<div class="empty"><div class="e-ico">${ic("search")}</div><div class="e-title">ไม่พบแปลงที่ตรงกับตัวกรอง</div><div class="muted">ลองเปลี่ยนคำค้นหรือสถานะ</div><button class="btn btn-ghost btn-block mt-8" onclick="App.cycleFilterClear()">${ic("refresh")} ล้างตัวกรอง</button></div>` : ""}
     ${plotGroups.map(({ p, cs }) => {
       const isCollapsed = collapsedCycles[p.id];
       const act = cs.filter(c => c.status === "active").length;
@@ -775,7 +795,7 @@ function renderPlots() {
         ${isCollapsed ? "" : `
         <div class="plot-cycle-body">
           ${cs.length === 0 ? `<div class="muted" style="text-align:center;padding:12px">ยังไม่มีรอบการปลูก — <button class="btn btn-sm btn-primary" onclick="App.modalCycle('${p.id}')">${ic("plus")} เริ่มปลูก</button></div>`
-            : cs.map(cycleCardHtml).join("")}
+            : `<div class="cycle-grid">${cs.map(cycleCardHtml).join("")}</div>`}
         </div>`}
       </div>`;
     }).join("")}
@@ -796,6 +816,19 @@ App.togglePlotCycles = function (plotId) {
   collapsedCycles[plotId] = !collapsedCycles[plotId];
   rerender();
 };
+/* ตัวกรองหน้ารอบการปลูก: ค้นหาชื่อแปลง/พืช — re-render แล้วคืนโฟกัสกลับช่องค้นหา (กันพิมพ์ต่อไม่ได้) */
+App.cycleFilterQ = function (v) {
+  cycleFilter.q = v;
+  const pos = (document.getElementById("cycleFilterQ") || {}).selectionStart;
+  rerender();
+  const el = document.getElementById("cycleFilterQ");
+  if (el) {
+    el.focus();
+    if (pos != null) { try { el.setSelectionRange(pos, pos); } catch (e) {} }
+  }
+};
+App.cycleFilterStatus = function (st) { cycleFilter.status = st; rerender(); };
+App.cycleFilterClear = function () { cycleFilter = { q: "", status: "all" }; rerender(); };
 
 /* ---- ลิงก์แผนที่ Google จากพิกัด GPS (กดแล้วเปิดแผนที่ตำแหน่งแปลงได้เลย) ---- */
 function mapLink(lat, lng) {
@@ -1130,7 +1163,7 @@ function renderCycleDetail() {
   const catRows = Object.keys(costByCat).sort((a, b) => costByCat[b] - costByCat[a]).map(k => {
     const cat = cmap[k];
     const color = (cat && cat.color) || "#64748b";
-    return `<div class="sd-row"><span class="k"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};margin-right:6px"></i>${esc(cat ? cat.label : "อื่นๆ")}</span><span class="bold">${fmtMoney(costByCat[k])} บาท</span></div>`;
+    return `<div class="cc-box"><div class="cc-label"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${color};flex-shrink:0"></i>${esc(cat ? cat.label : "อื่นๆ")}</div><div class="cc-val">${fmtMoney(costByCat[k])} บาท</div></div>`;
   }).join("");
   return `
     <div class="row" style="margin-bottom:10px">
@@ -1162,7 +1195,7 @@ function renderCycleDetail() {
 
     <div class="section-title">สรุปต้นทุนรายหมวด ${totalCost > 0 ? `<span class="muted" style="font-size:.75rem;font-weight:600">รวม ${fmtMoney(totalCost)} บาท</span>` : ""}</div>
     <div class="card">
-      ${catRows ? `<div class="sd-rows">${catRows}</div>` : `<div class="muted" style="text-align:center;padding:8px">ยังไม่มีต้นทุนในรอบนี้</div>`}
+      ${catRows ? `<div class="cc-grid">${catRows}</div>` : `<div class="muted" style="text-align:center;padding:8px">ยังไม่มีต้นทุนในรอบนี้</div>`}
     </div>
 
     <div class="section-title">งาน/กิจกรรมของรอบนี้ (${tasks.length})</div>
