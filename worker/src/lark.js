@@ -133,11 +133,10 @@ async function batchUpdate(env, rows) {
 async function batchDelete(env, recordIds) {
   const appToken = need(env, "LARK_APP_TOKEN");
   const tableId = await resolveTable(env);
-  for (let i = 0; i < recordIds.length; i += BATCH) {
-    await lark(env, "/bitable/v1/apps/" + appToken + "/tables/" + tableId + "/records/batch_delete", {
-      method: "DELETE",
-      body: JSON.stringify({ records: recordIds.slice(i, i + BATCH) })
-    });
+  /* ลบทีละตัว — batch_delete ของ Lark คืน RecordIdNotFound ทั้งที่ id ถูกต้อง (บั๊กฝั่ง Lark)
+     การลบเกิดขึ้นน้อย (เฉพาะรายการที่ถูกลบในแอป) ลบทีละตัวปลอดภัยกว่า */
+  for (const rid of recordIds) {
+    await lark(env, "/bitable/v1/apps/" + appToken + "/tables/" + tableId + "/records/" + rid, { method: "DELETE" });
   }
 }
 
