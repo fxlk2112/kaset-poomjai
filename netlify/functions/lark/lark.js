@@ -26,6 +26,33 @@ function need(name) {
   return v;
 }
 
+/* หา table_id: ใช้จาก env LARK_TABLE_ID ถ้าไม่ตั้ง ให้เลือกตารางแรกของ Base อัตโนมัติ */
+async function resolveTable() {
+  const appToken = need("LARK_APP_TOKEN");
+  if (process.env.LARK_TABLE_ID) return process.env.LARK_TABLE_ID;
+  const d = await lark("/bitable/v1/apps/" + appToken + "/tables?page_size=100");
+  const items = d.items || [];
+  if (!items.length) throw new Error("Base นี้ยังไม่มีตาราง — สร้างตารางใน Base ก่อน");
+  return items[0].table_id;
+}
+
+/* เช็คว่ามีคอลัมน์ครบ (type/id/json/updated_at) — ถ้าขาดสร้างให้อัตโนมัติ */
+async function ensureFields(tableId) {
+  const appToken = need("LARK_APP_TOKEN");
+  const d = await lark("/bitable/v1/apps/" + appToken + "/tables/" + tableId + "/fields?page_size=100");
+  const have = new Set((d.items || []).map(f => f.field_name));
+  /* type 1 = ข้อความ, 2 = ตัวเลข */
+  const want = [{ n: "type", t: 1 }, { n: "id", t: 1 }, { n: "json", t: 1 }, { n: "updated_at", t: 2 }];
+  for (const f of want) {
+    if (!have.has(f.n)) {
+      await lark("/bitable/v1/apps/" + appToken + "/tables/" + tableId + "/fields", {
+        method: "POST",
+        body: JSON.stringify({ field_name: f.n, type: f.t })
+      });
+    }
+  }
+}
+
 /* ขอ tenant_access_token (อายุ ~2 ชม.) — แคชไว้ใน memory */
 async function tenantToken() {
   if (cachedToken.v && Date.now() < cachedToken.exp) return cachedToken.v;
@@ -70,7 +97,8 @@ function fields(rec) {
 /* list ทั้งหมด (แบ่งหน้า) แล้วคืน array ของ { record_id, type, id, json, updated_at } */
 async function listAll() {
   const appToken = need("LARK_APP_TOKEN");
-  const tableId = need("LARK_TABLE_ID");
+  const tableId = await resolveTable();
+  await ensureFields(tableId);
   const out = [];
   let pageToken = "";
   do {
@@ -85,7 +113,7 @@ async function listAll() {
 /* สร้าง record ใหม่เป็นกลุ่ม (ไม่เกิน BATCH ต่อครั้ง) */
 async function batchCreate(records) {
   const appToken = need("LARK_APP_TOKEN");
-  const tableId = need("LARK_TABLE_ID");
+  const tableId = await resolveTable();
   for (let i = 0; i < records.length; i += BATCH) {
     const chunk = records.slice(i, i + BATCH);
     await lark("/bitable/v1/apps/" + appToken + "/tables/" + tableId + "/records/batch_create", {
@@ -98,7 +126,7 @@ async function batchCreate(records) {
 /* อัปเดต record เดิมเป็นกลุ่ม */
 async function batchUpdate(rows) {
   const appToken = need("LARK_APP_TOKEN");
-  const tableId = need("LARK_TABLE_ID");
+  const tableId = await resolveTable();
   for (let i = 0; i < rows.length; i += BATCH) {
     const chunk = rows.slice(i, i + BATCH);
     await lark("/bitable/v1/apps/" + appToken + "/tables/" + tableId + "/records/batch_update", {
@@ -111,7 +139,7 @@ async function batchUpdate(rows) {
 /* ลบ record ที่ไม่อยู่ในแอปแล้ว */
 async function batchDelete(recordIds) {
   const appToken = need("LARK_APP_TOKEN");
-  const tableId = need("LARK_TABLE_ID");
+  const tableId = await resolveTable();
   for (let i = 0; i < recordIds.length; i += BATCH) {
     const chunk = recordIds.slice(i, i + BATCH);
     await lark("/bitable/v1/apps/" + appToken + "/tables/" + tableId + "/records/batch_delete", {
@@ -161,8 +189,10 @@ async function doPull() {
 
 async function doStatus() {
   await tenantToken(); // ตรวจว่า credential ใช้ได้
+  const tableId = await resolveTable();
+  await ensureFields(tableId);
   const list = await listAll();
-  return { ok: true, records: list.length };
+  return { ok: true, table_id: tableId, records: list.length };
 }
 
 exports.handler = async (event) => {
