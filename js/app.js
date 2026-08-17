@@ -1647,6 +1647,13 @@ function renderSettings() {
       <button class="btn btn-primary btn-block" onclick="App.exportData()">${ic("download")} ดาวน์โหลดข้อมูล (.json)</button>
       <button class="btn btn-ghost btn-block mt-8" onclick="App.importData()">${ic("upload")} นำเข้าข้อมูล (.json)</button>
     </div>
+    <div class="section-title">${ic("upload")} ซิงก์กับ Lark Base <span class="badge badge-blue">สำรองออนไลน์</span></div>
+    <div class="card">
+      <div class="muted" style="font-size:.76rem;margin-bottom:10px">สำรอง/กู้คืนข้อมูลทั้งหมดไปยัง <b>Lark Base</b> ผ่าน Netlify Function — App Secret เก็บไว้ฝั่ง Netlify ไม่หลุดไปหน้าเว็บ ใช้ได้จากทุกเครื่องที่ล็อกอินเว็บนี้</div>
+      <button class="btn btn-primary btn-block" onclick="App.larkTest()">${ic("wifi")} ทดสอบการเชื่อมต่อ</button>
+      <button class="btn btn-outline btn-block mt-8" onclick="App.larkPush()">${ic("upload")} อัปโหลดข้อมูลไป Lark Base</button>
+      <button class="btn btn-ghost btn-block mt-8" onclick="App.larkPull()">${ic("download")} ดาวน์โหลดข้อมูลจาก Lark Base</button>
+    </div>
     <div class="section-title">${ic("dollar")} หมวดต้นทุน</div>
     <div class="card">
       <div class="muted" style="font-size:.76rem;margin-bottom:10px">หมวดที่ใช้ใน dropdown "หมวดหมู่" ของฟอร์มงานและกราฟต้นทุน — เพิ่มหมวดเองได้ตามธุรกิจของคุณ</div>
