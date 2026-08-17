@@ -382,6 +382,7 @@ function render() {
   attachPens();
 
   updateNotifBadge();
+  maybeWarnStorage();
 }
 
 App.nav = function (key) {
@@ -402,6 +403,18 @@ function rerender() {
   const sy = window.scrollY;
   render();
   requestAnimationFrame(() => window.scrollTo(0, sy));
+}
+/* เตือนเมื่อพื้นที่เก็บข้อมูลใกล้เต็ม (โชว์ครั้งเดียวต่อเซสชัน) */
+let warnedStorageFull = false;
+function maybeWarnStorage() {
+  if (warnedStorageFull) return;
+  const { pct } = storageHealthInfo();
+  if (pct >= 80) {
+    warnedStorageFull = true;
+    setTimeout(function () {
+      try { toast("⚠️ พื้นที่เก็บข้อมูลใกล้เต็ม (" + pct + "%) — ไปที่ ตั้งค่า เพื่อสำรอง/จัดการพื้นที่"); } catch (e) {}
+    }, 1200);
+  }
 }
 
 /* ---------------- Dashboard ---------------- */
@@ -1646,6 +1659,15 @@ function renderSettings() {
       <div class="muted" style="font-size:.76rem;margin-bottom:10px">ดาวน์โหลดข้อมูลทั้งหมด (งาน / สต็อก / แปลง / ค่าใช้จ่าย) เป็นไฟล์ .json เพื่อสำรอง หรือนำเข้าไฟล์สำรองกลับมาใช้งาน — ข้อมูลบันทึกในเบราว์เซอร์เท่านั้น</div>
       <button class="btn btn-primary btn-block" onclick="App.exportData()">${ic("download")} ดาวน์โหลดข้อมูล (.json)</button>
       <button class="btn btn-ghost btn-block mt-8" onclick="App.importData()">${ic("upload")} นำเข้าข้อมูล (.json)</button>
+    </div>
+    <div class="section-title">${ic("alert")} พื้นที่เก็บข้อมูลในเครื่อง</div>
+    <div class="card">
+      ${(() => { const st = storageHealthInfo(); return `
+      <div class="row row-between"><span class="muted">ใช้ไป</span><span class="bold">${(st.used / 1048576).toFixed(2)} MB / ~5 MB (${st.pct}%)</span></div>
+      <div class="storage-bar"><div class="storage-bar-fill ${st.pct >= 80 ? "warn" : ""}" style="width:${st.pct}%"></div></div>
+      ${st.pct >= 80 ? `<div class="muted" style="color:var(--red);font-size:.76rem;margin-top:6px">${ic("alert")} พื้นที่ใกล้เต็ม — ลบรูปสินค้าที่ไม่ใช้ หรือสำรองข้อมูลไว้ (ไฟล์ .json / ซิงก์ Lark Base)</div>` : `<div class="muted" style="font-size:.72rem;margin-top:6px">${ic("info")} ข้อมูลบันทึกในเบราว์เซอร์เท่านั้น — สำรองข้อมูลเป็นประจำ (ดาวน์โหลด .json หรือซิงก์ Lark Base ด้านล่าง)</div>`}
+      ${storageSaveFailed ? `<div class="muted" style="color:var(--red);font-size:.76rem;margin-top:6px">${ic("alert")} ข้อมูลล่าสุดบันทึกไม่สำเร็จ (พื้นที่เต็ม) — ลบรูปสินค้า/สำรองข้อมูลด่วน</div>` : ""}
+      `; })()}
     </div>
     <div class="section-title">${ic("upload")} ซิงก์กับ Lark Base <span class="badge badge-blue">สำรองออนไลน์</span></div>
     <div class="card">

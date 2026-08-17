@@ -487,8 +487,37 @@ function ensureDefaults(s) {
     if (!c.round) c.round = ++plotCyclesMap[k];
   });
 }
+/* ---------- ตรวจสอบพื้นที่เก็บข้อมูล (localStorage) ----------
+   localStorage มีโควตา ~5MB — เดิมถ้าพื้นที่เต็ม saveState กลืน error เงียบๆ ข้อมูลใหม่หายโดยไม่รู้ตัว
+   ตอนนี้: นับขนาดที่ใช้ + เตือนก่อนเต็ม + แจ้งทันทีเมื่อบันทึกไม่สำเร็จ (โชว์ในหน้าตั้งค่าด้วย) */
+const STORAGE_LIMIT = 5 * 1024 * 1024; // ~5MB (โควตาทั่วไปของเบราว์เซอร์)
+let storageSaveFailed = false;          // save ครั้งล่าสุดพัง (พื้นที่เต็ม)
+function storageUsageBytes() {
+  let total = 0;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      const v = localStorage.getItem(k) || "";
+      total += (k.length + v.length) * 2; // UTF-16 → 2 ไบต์/ตัวอักษร
+    }
+  } catch (e) {}
+  return total;
+}
+function storageHealthInfo() {
+  const used = storageUsageBytes();
+  return { used, pct: Math.min(100, Math.round(used / STORAGE_LIMIT * 100)) };
+}
 function saveState(s) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (e) { /* storage full / blocked */ }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    storageSaveFailed = false;
+  } catch (e) {
+    /* พื้นที่เต็ม/ถูกบล็อก — ต้องเตือนผู้ใช้ ไม่ใช่เงียบๆ ปล่อยข้อมูลหาย */
+    storageSaveFailed = true;
+    setTimeout(function () {
+      try { toast("⚠️ พื้นที่จัดเก็บเต็ม! ข้อมูลล่าสุดอาจไม่ถูกบันทึก — ไปที่ ตั้งค่า เพื่อสำรอง/จัดการพื้นที่"); } catch (e2) {}
+    }, 0);
+  }
 }
 
 /* รหัสสินค้าเดิม (Item Code) จากไฟล์ Excel ของ FLYTECH — ใช้เติมรหัสให้สต็อกที่มีชื่อตรงกัน */
