@@ -295,60 +295,7 @@ const FLYTECH_MASTER = [
 
 /* ---------- seed ---------- */
 function seed() {
-  const tasks = [
-    /* --- แปลง C มันสำปะหลัง (c3) --- */
-    { date: "2026-01-10", title: "ใส่ปุ๋ยครั้งที่ 1 แปลง C", type: "fertilize", status: "done", plotId: "p3", cycleId: "c3", costCat: "fertilizer", qty: 20, cost: 11000, revenue: 0, note: "" },
-    { date: "2026-04-18", title: "ปลูกมันสำปะหลังแปลง C", type: "work", status: "done", plotId: "p3", cycleId: "c3", costCat: "labor", qty: 0, cost: 7000, revenue: 0, note: "" },
-    { date: "2026-05-10", title: "ใส่ปุ๋ยครั้งที่ 1 แปลง C", type: "fertilize", status: "done", plotId: "p3", cycleId: "c3", costCat: "fertilizer", qty: 15, cost: 11500, revenue: 0, note: "" },
-    { date: "2026-06-15", title: "กำจัดวัชพืชแปลง C", type: "work", status: "done", plotId: "p3", cycleId: "c3", costCat: "labor", qty: 0, cost: 6500, revenue: 0, note: "" },
-    { date: "2026-07-20", title: "ใส่ปุ๋ยครั้งที่ 2 แปลง C", type: "fertilize", status: "done", plotId: "p3", cycleId: "c3", costCat: "fertilizer", qty: 14, cost: 12500, revenue: 0, note: "" },
-    { date: "2026-08-08", title: "ตรวจแปลง C", type: "inspect", status: "done", plotId: "p3", cycleId: "c3", costCat: null, qty: 0, cost: 0, revenue: 0, note: "ต้นสมบูรณ์ดี" },
-    { date: "2026-08-11", title: "พ่นยาแปลง C", type: "work", status: "planned", plotId: "p3", cycleId: "c3", costCat: "chemical", qty: 0, cost: 4800, revenue: 0, note: "" },
-
-    /* --- แปลง A ข้าวโพดหวาน (c1) --- */
-    { date: "2026-05-22", title: "หยอดเมล็ดข้าวโพด แปลง A", type: "work", status: "done", plotId: "p1", cycleId: "c1", costCat: "seed", stockId: "s4", qty: 5, cost: 8000, revenue: 0, note: "" },
-    { date: "2026-06-05", title: "ใส่ปุ๋ยครั้งที่ 1 แปลง A", type: "fertilize", status: "done", plotId: "p1", cycleId: "c1", costCat: "fertilizer", stockId: "s1", qty: 14, cost: 12500, revenue: 0, note: "" },
-    { date: "2026-06-20", title: "รดน้ำแปลง A", type: "water", status: "done", plotId: "p1", cycleId: "c1", costCat: null, qty: 0, cost: 0, revenue: 0, note: "" },
-    { date: "2026-07-05", title: "ใส่ปุ๋ยครั้งที่ 2 แปลง A", type: "fertilize", status: "done", plotId: "p1", cycleId: "c1", costCat: "fertilizer", qty: 16, cost: 13800, revenue: 0, note: "" },
-    { date: "2026-07-25", title: "พ่นยาแปลง A", type: "work", status: "done", plotId: "p1", cycleId: "c1", costCat: "chemical", stockId: "s3", qty: 8, cost: 5200, revenue: 0, note: "" },
-    { date: "2026-08-10", title: "รดน้ำแปลง A", type: "water", status: "done", plotId: "p1", cycleId: "c1", costCat: null, qty: 0, cost: 0, revenue: 0, note: "" },
-    { date: "2026-08-11", title: "เก็บเกี่ยวข้าวโพดหวาน (รอบ 1)", type: "harvest", status: "done", plotId: "p1", cycleId: "c1", costCat: null, qty: 3000, cost: 0, revenue: 55000, note: "" },
-    { date: "2026-08-12", title: "เก็บเกี่ยวข้าวโพดหวาน (รอบ 2)", type: "harvest", status: "done", plotId: "p1", cycleId: "c1", costCat: null, qty: 2000, cost: 0, revenue: 35000, note: "" },
-    { date: "2026-08-15", title: "ใส่ปุ๋ยครั้งที่ 3 แปลง A", type: "fertilize", status: "planned", plotId: "p1", cycleId: "c1", costCat: "fertilizer", qty: 0, cost: 12000, revenue: 0, note: "" },
-    { date: "2026-08-20", title: "พ่นยากันเชื้อราแปลง A", type: "work", status: "planned", plotId: "p1", cycleId: "c1", costCat: "chemical", qty: 0, cost: 5600, revenue: 0, note: "" },
-
-    /* --- แปลง B ข้าวนาปี (c2) --- */
-    { date: "2026-06-12", title: "หว่านเมล็ดข้าว แปลง B", type: "work", status: "done", plotId: "p2", cycleId: "c2", costCat: "seed", stockId: "s5", qty: 10, cost: 9000, revenue: 0, note: "" },
-    { date: "2026-07-02", title: "ใส่ปุ๋ยครั้งที่ 1 แปลง B", type: "fertilize", status: "done", plotId: "p2", cycleId: "c2", costCat: "fertilizer", stockId: "s1", qty: 17, cost: 15000, revenue: 0, note: "" },
-    { date: "2026-07-20", title: "พ่นยากันหนอนแปลง B", type: "work", status: "done", plotId: "p2", cycleId: "c2", costCat: "chemical", stockId: "s3", qty: 11, cost: 6800, revenue: 0, note: "" },
-    { date: "2026-08-05", title: "ใส่ปุ๋ยครั้งที่ 2 แปลง B", type: "fertilize", status: "done", plotId: "p2", cycleId: "c2", costCat: "fertilizer", qty: 18, cost: 16200, revenue: 0, note: "" },
-    { date: "2026-08-13", title: "ตรวจแปลง B (ข้าวนาปี)", type: "inspect", status: "planned", plotId: "p2", cycleId: "c2", costCat: null, qty: 0, cost: 0, revenue: 0, note: "" },
-
-    /* --- แปลง D ผักสวนครัว รอบ 1/66 (c5 ปิดรอบแล้ว) --- */
-    { date: "2026-02-03", title: "ปลูกผักสวนครัว รอบ 1/66", type: "work", status: "done", plotId: "p4", cycleId: "c5", costCat: "labor", qty: 0, cost: 3500, revenue: 0, note: "" },
-    { date: "2026-02-10", title: "เก็บเกี่ยวผัก รอบ 1", type: "harvest", status: "done", plotId: "p4", cycleId: "c5", costCat: null, qty: 700, cost: 0, revenue: 12000, note: "" },
-    { date: "2026-02-20", title: "ใส่ปุ๋ยอินทรีย์ แปลง D", type: "fertilize", status: "done", plotId: "p4", cycleId: "c5", costCat: "fertilizer", qty: 8, cost: 2600, revenue: 0, note: "" },
-    { date: "2026-02-26", title: "เก็บเกี่ยวผัก รอบ 2", type: "harvest", status: "done", plotId: "p4", cycleId: "c5", costCat: null, qty: 600, cost: 0, revenue: 9800, note: "" },
-    { date: "2026-03-05", title: "เก็บเกี่ยวผัก รอบ 3", type: "harvest", status: "done", plotId: "p4", cycleId: "c5", costCat: null, qty: 650, cost: 0, revenue: 11000, note: "" },
-    { date: "2026-03-18", title: "เก็บเกี่ยวผัก รอบ 4", type: "harvest", status: "done", plotId: "p4", cycleId: "c5", costCat: null, qty: 700, cost: 0, revenue: 13500, note: "" },
-
-    /* --- แปลง D ผักสวนครัว รอบ 2/66 (c6 ปิดรอบแล้ว) --- */
-    { date: "2026-05-02", title: "ปลูกผักสวนครัว รอบ 2/66", type: "work", status: "done", plotId: "p4", cycleId: "c6", costCat: "labor", qty: 0, cost: 3200, revenue: 0, note: "" },
-    { date: "2026-05-12", title: "เก็บเกี่ยวผัก รอบ 1 (2/66)", type: "harvest", status: "done", plotId: "p4", cycleId: "c6", costCat: null, qty: 550, cost: 0, revenue: 9500, note: "" },
-    { date: "2026-05-20", title: "ใส่ปุ๋ยอินทรีย์ รอบ 2/66", type: "fertilize", status: "done", plotId: "p4", cycleId: "c6", costCat: "fertilizer", qty: 7, cost: 2500, revenue: 0, note: "" },
-    { date: "2026-05-28", title: "เก็บเกี่ยวผัก รอบ 2 (2/66)", type: "harvest", status: "done", plotId: "p4", cycleId: "c6", costCat: null, qty: 600, cost: 0, revenue: 10800, note: "" },
-    { date: "2026-06-08", title: "เก็บเกี่ยวผัก รอบ 3 (2/66)", type: "harvest", status: "done", plotId: "p4", cycleId: "c6", costCat: null, qty: 650, cost: 0, revenue: 12400, note: "" },
-
-    /* --- แปลง D ผักสวนครัว รอบ 3 (c4 กำลังปลูก) --- */
-    { date: "2026-07-03", title: "ปลูกผักสวนครัว รอบ 3", type: "work", status: "done", plotId: "p4", cycleId: "c4", costCat: "labor", qty: 0, cost: 3000, revenue: 0, note: "" },
-    { date: "2026-07-15", title: "ใส่ปุ๋ยอินทรีย์ แปลง D", type: "fertilize", status: "done", plotId: "p4", cycleId: "c4", costCat: "fertilizer", stockId: "s2", qty: 8, cost: 2800, revenue: 0, note: "" },
-    { date: "2026-07-25", title: "รดน้ำแปลง D", type: "water", status: "done", plotId: "p4", cycleId: "c4", costCat: null, qty: 0, cost: 0, revenue: 0, note: "" },
-    { date: "2026-08-01", title: "ใส่ปุ๋ยครั้งที่ 2 แปลง D", type: "fertilize", status: "done", plotId: "p4", cycleId: "c4", costCat: "fertilizer", qty: 6, cost: 2400, revenue: 0, note: "" },
-    { date: "2026-08-02", title: "เก็บเกี่ยวผักสวนครัว แปลง D", type: "harvest", status: "done", plotId: "p4", cycleId: "c4", costCat: null, qty: 500, cost: 0, revenue: 8000, note: "ส่งตลาดสด 500 กก." },
-    { date: "2026-08-12", title: "เก็บเกี่ยวผักสวนครัว (รอบ 2)", type: "harvest", status: "done", plotId: "p4", cycleId: "c4", costCat: null, qty: 450, cost: 0, revenue: 7200, note: "" },
-    { date: "2026-08-18", title: "เก็บเกี่ยวผักสวนครัว (รอบ 3)", type: "harvest", status: "planned", plotId: "p4", cycleId: "c4", costCat: null, qty: 0, cost: 0, revenue: 6500, note: "" },
-  ];
-  tasks.forEach(t => { if (!t.id) t.id = uid(); });
+  /* เวอร์ชันเริ่มต้นแบบว่างเปล่า — ไม่มีข้อมูลตัวอย่าง ให้ผู้ใช้กรอกเอง (แปลง/งาน/สต็อก/รอบ/ขาย) */
   return {
     version: 52,
     role: "general",
@@ -358,45 +305,14 @@ function seed() {
     homeOrder: ["cal", "tasks", "profit", "activity"], // ลำดับ section หน้าแรก
     customMenus: [],          // เมนูที่ผู้ดูแลเพิ่มในหน้าเพิ่มเติม [{ id, ico, name, desc, target }]
     customCostCats: [],       // หมวดต้นทุนที่ผู้ใช้เพิ่มเองจากหน้า ตั้งค่า [{ key, label, color }]
-    plots: [
-      { id: "p1", name: "แปลง A", crop: "ข้าวโพดหวาน", sizeRai: 25, lat: 14.9823, lng: 100.4582, status: "active" },
-      { id: "p2", name: "แปลง B", crop: "ข้าวนาปี", sizeRai: 40, lat: 14.9750, lng: 100.4711, status: "active" },
-      { id: "p3", name: "แปลง C", crop: "มันสำปะหลัง", sizeRai: 15, lat: 14.9901, lng: 100.4498, status: "active" },
-      { id: "p4", name: "แปลง D", crop: "ผักสวนครัว", sizeRai: 5, lat: 14.9788, lng: 100.4625, status: "active" },
-      { id: "p5", name: "แปลง E", crop: "อ้อย", sizeRai: 30, lat: 14.9694, lng: 100.4850, status: "inactive" },
-    ],
-    stock: [
-      { id: "s1", name: "ปุ๋ยเคมี สูตร 46-0-0", category: "ปุ๋ยเคมี", size: "50 กก.", unit: "ถุง", qty: 120, avgCost: 890, openQty: 0 },
-      { id: "s2", name: "ปุ๋ยอินทรีย์", category: "ปุ๋ยอินทรีย์", size: "20 กก.", unit: "ถุง", qty: 60, avgCost: 350, openQty: 0 },
-      { id: "s3", name: "ยาฆ่าแมลง (คลอร์ไพริฟอส)", category: "ยากำจัดศัตรูพืช", size: "1,000 ซีซี", unit: "ขวด", qty: 24, avgCost: 620, openQty: 0 },
-      { id: "s4", name: "เมล็ดข้าวโพดหวาน", category: "เมล็ดพันธุ์", size: "1 กก.", unit: "ถุง", qty: 15, avgCost: 1250, openQty: 0 },
-      { id: "s5", name: "เมล็ดพันธุ์ข้าว กข15", category: "เมล็ดพันธุ์", size: "20 กก.", unit: "ถุง", qty: 30, avgCost: 980, openQty: 0 },
-      { id: "s6", name: "น้ำมันดีเซล", category: "", size: "", unit: "ลิตร", qty: 300, avgCost: 34.5, openQty: 0 },
-      { id: "s7", name: "สารเร่งการเจริญเติบโต", category: "อาหารเสริมและฮอร์โมน", size: "1 ลิตร", unit: "ขวด", qty: 10, avgCost: 480, openQty: 0 },
-    ],
-    equipment: [
-      { id: "e1", name: "รถแทรกเตอร์", type: "เครื่องจักร", purchaseDate: "2019-03-15", cost: 1850000, lifespan: 15 },
-      { id: "e2", name: "รถพ่นยา", type: "เครื่องจักร", purchaseDate: "2021-06-01", cost: 450000, lifespan: 10 },
-      { id: "e3", name: "ปั๊มน้ำสูบสูง", type: "อุปกรณ์", purchaseDate: "2022-01-20", cost: 85000, lifespan: 8 },
-      { id: "e4", name: "เครื่องหยอดเมล็ด", type: "เครื่องจักร", purchaseDate: "2020-05-10", cost: 320000, lifespan: 12 },
-      { id: "e5", name: "รถกระบะบรรทุก", type: "ยานพาหนะ", purchaseDate: "2023-02-01", cost: 780000, lifespan: 10 },
-    ],
-    cycles: [
-      { id: "c1", plotId: "p1", plant: "ข้าวโพดหวาน รุ่น 1/66", startDate: "2026-05-20", status: "active" },
-      { id: "c2", plotId: "p2", plant: "ข้าวนาปี รุ่น 1/66", startDate: "2026-06-10", status: "active" },
-      { id: "c3", plotId: "p3", plant: "มันสำปะหลัง รุ่น 1/66", startDate: "2026-04-15", status: "active" },
-      { id: "c4", plotId: "p4", plant: "ผักสวนครัว รอบ 3", startDate: "2026-07-01", status: "active" },
-      { id: "c5", plotId: "p4", plant: "ผักสวนครัว รอบ 1/66", startDate: "2026-02-01", status: "done" },
-      { id: "c6", plotId: "p4", plant: "ผักสวนครัว รอบ 2/66", startDate: "2026-05-01", status: "done" },
-    ],
-    tasks: tasks,
-    valves: [
-      { id: "v1", name: "วาล์วแปลง A (Zone 1)", zone: "Zone 1", state: "off", schedule: [{ start: "05:30", end: "07:30" }] },
-      { id: "v2", name: "วาล์วแปลง B (Zone 2)", zone: "Zone 2", state: "off", schedule: [{ start: "06:00", end: "08:00" }] },
-      { id: "v3", name: "ปั๊มน้ำบาดาล", zone: "Main", state: "on", schedule: [{ start: "05:00", end: "09:00" }] },
-      { id: "v4", name: "วาล์วแปลง D (Zone 3)", zone: "Zone 3", state: "off", schedule: [] },
-    ],
-    workers: { working: 12, resting: 3, leave: 1, total: 16 },
+    plots: [],                // แปลง
+    stock: [],                // สต็อกยา/ปุ๋ย/สินค้า
+    equipment: [],            // อุปกรณ์/เครื่องจักร
+    cycles: [],               // รอบการปลูก
+    tasks: [],                // งาน/กิจกรรม
+    sales: [],                // ใบเสร็จขายสินค้า
+    valves: [],               // วาล์วน้ำ IoT (สาธิต)
+    workers: { working: 0, resting: 0, leave: 0, total: 0 },
     tourDone: false,
     notifDismissed: {}, /* งานที่ปิดการแจ้งเตือนแล้ว (กัน crash ในรอบแรกที่ยังไม่มีข้อมูลเก่า) */
   };
@@ -429,15 +345,7 @@ function ensureTaskIds(s) {
 }
 /* เติมค่าเริ่มต้นสำหรับฟิลด์โหมดแก้ไขเว็บ — รองรับข้อมูลที่บันทึกไว้จากเวอร์ชันก่อน */
 function ensureDefaults(s) {
-/* แทนที่สต็อกด้วยรายการสินค้า FLYTECH (ตามคำขอ: ลบสต็อกเดิม ใส่รายการจริง) — รันครั้งเดียว */
-  if (!s.stockReplacedV1 && FLYTECH_MASTER.length) {
-    s.stock = FLYTECH_MASTER.map(p => ({
-      id: uid(), name: p.name, generic: p.generic || "", category: p.category || "",
-      size: p.size || "", unit: p.unit || "ชิ้น", supplier: p.supplier || "", photo: p.photo || "",
-      qty: 0, openQty: 0, avgCost: 0
-    }));
-    s.stockReplacedV1 = true;
-  }
+  /* หมายเหตุ: เดิมเคยเติมสต็อก FLYTECH อัตโนมัติ — เอาออกแล้ว (เริ่มต้นต้องว่างเปล่า ให้ผู้ใช้กรอกเอง) */
   if (typeof s.adminPass !== "string") s.adminPass = "";
   /* งานที่ผู้ใช้กด "ปิดการแจ้งเตือน" แล้ว (id งาน -> true) — ใช้ในระบบแจ้งเตือนกระดิ่ง */
   s.notifDismissed = s.notifDismissed || {};

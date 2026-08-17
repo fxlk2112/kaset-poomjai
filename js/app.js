@@ -707,6 +707,8 @@ function renderPlots() {
       <button class="btn btn-primary btn-sm" onclick="App.modalPlot()">＋ แปลงใหม่</button>
     </div>
     <div class="muted mt-4" style="font-size:.72rem">${ic("pin")} ปักหมุดพิกัด GPS ทุกแปลง เพื่อให้ระบบดึงข้อมูลสภาพอากาศได้แม่นยำ (เร็วๆ นี้)</div>
+    ${active.length + inactive.length === 0 ? `
+    <div class="card"><div class="empty"><div class="e-ico">${ic("map")}</div><div class="e-title">ยังไม่มีแปลง</div><div class="muted">กด "＋ แปลงใหม่" เพื่อเริ่มต้น</div></div></div>` : ""}
     <div class="card-grid">
     ${[...active, ...inactive].map(p => {
       const c = S.cycles.find(x => x.plotId === p.id && x.status === "active");
@@ -1959,7 +1961,7 @@ App.importData = function () {
 };
 
 App.resetData = function () {
-  App.confirm("รีเซ็ตข้อมูลทั้งหมด?", "ข้อมูลที่บันทึกไว้ทั้งหมดจะกลับไปเป็นข้อมูลตัวอย่าง ต้องการดำเนินการต่อหรือไม่?", () => {
+  App.confirm("รีเซ็ตข้อมูลทั้งหมด?", "ข้อมูลที่บันทึกไว้ทั้งหมดจะถูกล้างให้ว่างเปล่า (เริ่มต้นใหม่ — กรอกเอง) ต้องการดำเนินการต่อหรือไม่?", () => {
     localStorage.removeItem(STORAGE_KEY);
     location.reload();
   });
