@@ -1,0 +1,16 @@
+{
+  "name": "FARMULTIMATE SOLUTIONS — ระบบจัดการฟาร์มและร้านค้า",
+  "short_name": "FarmUltimate",
+  "description": "ระบบจัดการฟาร์มอัจฉริยะ + ร้านขายยา/ปุ๋ย/สินค้าเกษตร พร้อมใบส่งสินค้า",
+  "lang": "th",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f0fdf4",
+  "theme_color": "#16a34a",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

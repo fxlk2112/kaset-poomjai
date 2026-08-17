@@ -3,13 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#15803d">
+  <meta name="theme-color" content="#16a34a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="FarmUltimate">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <title>FARMULTIMATE SOLUTIONS — ระบบจัดการฟาร์มอัจฉริยะ</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/style.css?v=20260818">
+  <link rel="stylesheet" href="css/style.css?v=20260818c">
   <link rel="icon" href="logo.jpg">
 </head>
 <body>
@@ -32,7 +37,12 @@
         <button class="btn btn-ghost-light btn-tour" id="editBtn" style="display:none" title="แก้ไขเว็บ (ผู้ดูแล)">
           <span class="btn-ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></span> แก้ไข
         </button>
+        <button class="btn btn-ghost-light btn-tour notif-btn" id="notifBtn" title="การแจ้งเตือน (ครบกำหนด/เลยกำหนด)">
+          <span class="btn-ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+          <span class="notif-badge" id="notifBadge" hidden></span>
+        </button>
       </div>
+      <div class="notif-panel" id="notifPanel" hidden></div>
       <div class="role-switch" id="roleSwitch" role="tablist" aria-label="โหมดการใช้งาน"></div>
     </header>
 
@@ -48,6 +58,7 @@
         <button class="fab-item" data-action="harvest"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span> บันทึกเก็บเกี่ยว</button>
         <button class="fab-item" data-action="expense"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg></span> บันทึกใส่ปุ๋ย / จ่าย</button>
         <button class="fab-item" data-action="task"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span> เพิ่มงานทั่วไป</button>
+        <button class="fab-item" data-action="sale"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> ขายสินค้า</button>
       </div>
       <button class="fab" id="fabBtn" aria-label="ปุ่มลัด"><span class="fab-icon">+</span></button>
     </div>
@@ -60,8 +71,19 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/data.js?v=20260818"></script>
-  <script src="js/charts.js?v=20260818"></script>
-  <script src="js/app.js?v=20260818"></script>
+  <script src="js/data.js?v=20260818c"></script>
+  <script src="js/charts.js?v=20260818c"></script>
+  <script src="js/notify.js?v=20260818c"></script>
+  <script src="js/stock.js?v=20260818c"></script>
+  <script src="js/sales.js?v=20260818c"></script>
+  <script src="js/app.js?v=20260818c"></script>
+  <!-- ลงทะเบียน Service Worker — เปิดใช้แบบออฟไลน์/ติดตั้งเป็นแอพบนมือถือ (ต้องใช้ผ่าน HTTPS หรือ localhost) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () { /* ไม่บังคับ — ถ้าลงทะเบียนไม่ได้ก็ใช้เว็บปกติ */ });
+      });
+    }
+  </script>
 </body>
 </html>

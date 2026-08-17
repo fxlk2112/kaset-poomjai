@@ -6,6 +6,10 @@
    ============================================================ */
 "use strict";
 
+/* namespace กลางของ UI — ประกาศที่นี่ (โหลดก่อนไฟล์ UI ทั้งหมด) เพื่อให้ไฟล์ที่แยก
+   (notify.js / stock.js / sales.js) เพิ่มฟังก์ชันลง App ได้ตอนโหลด */
+const App = {};
+
 const STORAGE_KEY = "kaset-poomjai-v51";
 
 /* ---------- helpers ---------- */
@@ -26,6 +30,11 @@ function fmtMoney(n) {
 }
 function fmtNum(n) {
   return Number(n || 0).toLocaleString("th-TH");
+}
+/* ปัดจำนวนสต็อกเป็นทศนิยม 4 ตำแหน่ง — กันเลขทศนิยมลอย (เช่น 40-39.98 = 0.020000000000000018)
+   ทำให้นับ/เทียบจำนวนของได้แม่นยำ ไม่บล็อกการกรอกจำนวนที่เท่ากับของที่เหลือพอดี */
+function rndQty(n) {
+  return Math.round((Number(n) || 0) * 1e4) / 1e4;
 }
 function daysBetween(fromISO, toISO) {
   const a = new Date(fromISO), b = new Date(toISO || todayISO());
@@ -111,13 +120,15 @@ function mergeStockProducts(s, products) {
     existing.add(key);
     s.stock.push({
       id: uid(), name,
+      code: String(p.code || "").trim(), // รหัสสินค้าเดิม (จากไฟล์ Excel)
       generic: String(p.generic || p.genericName || "").trim(),
       category: String(p.category || "").trim(),
       size, unit, supplier,
       photo: String(p.photo || p.photoName || "").trim(),
       qty: Number(p.qty) || 0,
       openQty: 0,
-      avgCost: Number(p.avgCost) || 0
+      avgCost: Number(p.avgCost) || 0,
+      salePrice: Number(p.salePrice) || 0 // ราคาขายต่อหน่วย (จากไฟล์ Excel / แก้ไขเอง)
     });
     added++;
   });
@@ -387,6 +398,7 @@ function seed() {
     ],
     workers: { working: 12, resting: 3, leave: 1, total: 16 },
     tourDone: false,
+    notifDismissed: {}, /* งานที่ปิดการแจ้งเตือนแล้ว (กัน crash ในรอบแรกที่ยังไม่มีข้อมูลเก่า) */
   };
 }
 
@@ -396,9 +408,12 @@ function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const s = JSON.parse(raw);
-      if (s && s.version === 52) {
+      if (s && typeof s === "object") {
+        /* ยอมรับข้อมูลทุกเวอร์ชัน — เติมฟิลด์ใหม่ผ่าน ensureDefaults (ไม่ทิ้งข้อมูลผู้ใช้)
+           เวอร์ชันถูกรีเซ็ตเป็นเวอร์ชันปัจจุบันเพื่อให้ saveState ครั้งถัดไปอัปเดตครบ */
         ensureTaskIds(s);
         ensureDefaults(s);
+        s.version = 52;
         saveState(s);
         return s;
       }
@@ -424,6 +439,10 @@ function ensureDefaults(s) {
     s.stockReplacedV1 = true;
   }
   if (typeof s.adminPass !== "string") s.adminPass = "";
+  /* งานที่ผู้ใช้กด "ปิดการแจ้งเตือน" แล้ว (id งาน -> true) — ใช้ในระบบแจ้งเตือนกระดิ่ง */
+  s.notifDismissed = s.notifDismissed || {};
+  /* ประวัติการขายสินค้า (ใบเสร็จรับเงิน) */
+  s.sales = s.sales || [];
   s.texts = s.texts || {};
   if (!Array.isArray(s.homeOrder) || s.homeOrder.length !== 4) s.homeOrder = ["cal", "tasks", "profit", "activity"];
   s.customMenus = s.customMenus || [];
@@ -434,6 +453,9 @@ function ensureDefaults(s) {
   /* ฟิลด์สต็อกใช้งานแล้ว (openQty) — ของที่เบิกมาเปิดใช้แล้วยังไม่หมด */
   (s.stock || []).forEach(x => {
     if (typeof x.openQty !== "number" || isNaN(x.openQty)) x.openQty = 0;
+    /* ปัดเลขทศนิยมลอยที่สะสมจากข้อมูลเก่า (เช่น 0.020000000000000018) ให้เป็นเลขกลม 4 ตำแหน่ง */
+    x.qty = rndQty(x.qty);
+    x.openQty = rndQty(x.openQty);
     if (typeof x.category !== "string") x.category = "";
     if (typeof x.size !== "string") x.size = "";
     if (typeof x.generic !== "string") x.generic = "";
@@ -451,14 +473,42 @@ function ensureDefaults(s) {
       if (ci.category && !cmap[ci.category]) ci.category = "other";
     });
   });
+  /* เติมรหัสสินค้า (code) ให้สต็อกที่ยังไม่มี — แมปตามชื่อจากตารางรหัส FLYTECH */
+  (s.stock || []).forEach(x => {
+    if (typeof x.code !== "string") x.code = "";
+    if (!x.code && x.name && STOCK_CODE_MAP[x.name]) x.code = STOCK_CODE_MAP[x.name];
+  });
+  /* เลขรอบ (round) ของรอบการปลูก — รอบเก่าที่ยังไม่มีเลข ให้เรียงตามวันเริ่มต้น (รอบ 1, 2, 3... ต่อแปลง) */
+  (s.cycles || []).forEach(c => { if (typeof c.round !== "number") c.round = 0; });
+  const plotCyclesMap = {};
+  [...(s.cycles || [])].sort((a, b) => String(a.startDate).localeCompare(String(b.startDate))).forEach(c => {
+    const k = c.plotId;
+    if (!plotCyclesMap[k]) plotCyclesMap[k] = 0;
+    if (!c.round) c.round = ++plotCyclesMap[k];
+  });
 }
 function saveState(s) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (e) { /* storage full / blocked */ }
 }
 
+/* รหัสสินค้าเดิม (Item Code) จากไฟล์ Excel ของ FLYTECH — ใช้เติมรหัสให้สต็อกที่มีชื่อตรงกัน */
+const STOCK_CODE_MAP = {"ฟราสโล-เอ็นพีเค":"00-000L-130","ดาซาโฟล":"00-0000-269","Q-TECH":"00-0000-147","เทกิโม":"BASF-L-023","คอโฟลิรูท":"00-0000-31","แชปเตอร์":"00-0000-089","อิเควชั่น":"00-0000-136","โกลลีเอท":"00-G000-81","ฟิลลัม":"00-G000-82","ไกลโฟเซต48":"00-0000-102","โนว่า":"00-0000-040","วิกโต้":"00-0000-01","วีเซ่":"00-0000-112","วิกเตอร์สเปรย์":"00-0000-101","ปุ๋ยเกล็ดมรกต 13-4-46":"00-0000-228","มิสต้า":"00-0000-111","เอนซิกา":"00-000L-104","แอ็คบิว":"00-0000-04","ไกลโฟเซต 48":"00-0000-82","กลูโฟสลีป":"00-0000-196","เม็กซิโอ้":"00-0000-154","คะน้ายอดไต้หวัน (บางบัวทอง35)":"SDS-S-150","อินล็อค":"00-0000-226","สกอร์":"00-0000-121","ไดออฟ":"00-0000-12","แอมเมท":"00-G000-53","อฟินโต":"00-0000-229","คาซู่":"00-0000-54","โดรนแมทซ์":"00-0000-90","เฟอร์ร่า":"00-0000-168","ซานติส":"PTL-L-103","มิสเตอร์จั๊ม":"00-0000-36","คอนราด":"THP-L-159","โกลวาธอน":"00-G000-86","เอวิด":"00-0000-128","ทีทริส":"00-0000-60","เอสเคเอ็นสเปรย์":"00-0000-182","เบฟอแคน":"00-0000-256","ซูมิ-โรดี้":"00-000L-116","ดูปองท์ อัลทาคอร์":"00-G000-84","เอเทร็ก90 ดับบลิวจี":"SYN-L-026","แอคทาลิค50อีซี":"00-0000-230","โนราโด้":"00-0000-120","โรนัล":"00-G000-85","เบสมอร์":"00-000L-013","เทติก":"xx-xxxx-009","เมคเซนด์ 25%":"00-000L—002","อัลเมโท":"xx-xxxx-011","คิวเรียม":"00-0000-88","ล็อคโกลด์":"00-0000-153","โปรเคลม":"00-0000-142","เพอมิท":"00-0000-167","นาร์ไอร์":"CBC-L-405","เคทีโอนิค":"ART-L-004","เอ็มซีเซท":"SYN-L-085","แซทเทลไลท์ ซีเอส":"00-G000-80","เฟตริลอน เพชร":"SHA-L-061","แทนเนท":"00-0000-93","บาก้ารอน":"00-0000-87","Simodis":"00-0000-253","มอเตอร์เวย์กรีน":"00-0000-22","มาร์แชล25 เอสทีดี":"00-0000-257","เนโช-เอส":"00-0000-149","คิวเวท":"00-0000-264","บาก้าโทรซีน":"00-0000-266","ลีซอส":"00-0000-06","โคเลอร์5 เอสจี(แบบเกล็ด)":"00-0000-189","บาซากราน":"BASF-L-089","ไฮเฟต":"00-0000-250","บีคาโน":"00-0000-10","ซีเลคท์24อีซี":"00-0000-206","วอเตอร์ไฟน์":"00-0000-23","เบรค-ทรู":"00-0000-07","นาร์มิต":"00-0000-03","ไฮครอป-โดรน":"00-0000-08","อีริค":"00-0000-84","โดรนพาเวอร์":"00-0000-89","แร็พอัพ":"00-0000-259","ทูโฟดี หัวเสือ":"00-0000-104","ไทเกอร์นิค":"00-0000-17","ฟรอนเทียร์ พี":"00-0000-132","เมอริสเต็ม":"00-0000-35","เวลปาร์-เค":"BAKA-L-029","ไซฮาโลฟอป-บิวทิล 10":"00-0000-66","บลาสฟูวัน":"00-0000-48","กรีนออน โกร้ท":"00-0000-237","อัลฟีต":"00-0000-078","ไซทรอน มิกซ์":"00-G000-33","โกลสตาร์":"00-0000-190","นอร์ส":"00-0000-187","บีเค ซิเนต":"00-0000-053","เสือฟิต":"00-0000-16","เสือเทรลพลัส":"00-0000-215","โครบ๊อกซิล":"00-0000-081","เรนโกลด์24":"00-0000-197","เบ็น-เท็น":"00-0000-100","เพนดิ ไฮโดรแคป":"00-000L-077","ไตรอะโซฟอส 40% อีซี":"00-0000-217","แบคเคียว":"00-0000-134","ไดควอดไดโบรไมค์":"PHR-L-077","ทีโพล์ พาวเวอร์ แอลดีไอ":"00-0000-252","บีเค แม็กซ์-พรี":"00-0000-29","ปุ๋ย15-15-15 กระต่าย":"00-000F-037","ปุ๋ย16-20-0กระต่าย":"00-0000-039","ปุ๋ยยูเรีย46-0-0 กระต่าย":"00-0000-098","ไรซูม่า":"00-0000-007","ปุ๋ย21-0-0 กระต่ายแดง":"00-G000-96","ยาราเรก้า 18-4-19":"00-G000-88","ยาราเรก้า13-4-25":"00-G000-87","ยารามีร่า 15-15-15":"00-00F-004","ซิโมดิส":"N-L-090","ริดอิท":"CTV-L-006"};
+
 /* ---------- derived helpers ---------- */
 function plotById(s, id) { return s.plots.find(p => p.id === id); }
 function cycleById(s, id) { return s.cycles.find(c => c.id === id); }
+/* เลขรอบถัดไปของแปลงนี้ = จำนวนรอบทั้งหมดของแปลง + 1 (เพิ่มรอบอัตโนมัติ: รอบ 1, รอบ 2, รอบ 3...) */
+function nextCycleRound(s, plotId) {
+  return (s.cycles || []).filter(c => c.plotId === plotId).length + 1;
+}
+/* ชื่อพืชของแปลง — แปลงใหม่ไม่เก็บพืชแล้ว ใช้ชื่อพืชจากรอบที่เริ่มล่าสุด (fallback ชื่อพืชเก่า) */
+function plotCropName(s, p) {
+  if (!p) return "";
+  if (p.crop) return p.crop;
+  const cs = (s.cycles || []).filter(c => c.plotId === p.id);
+  if (!cs.length) return "";
+  return [...cs].sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)))[0].plant || "";
+}
 function stockById(s, id) { return s.stock.find(x => x.id === id); }
 /* รูปสินค้า: data URL / URL ใช้ตรงๆ, ชื่อไฟล์ -> โฟลเดอร์ images/products/ (วางรูปตามชื่อไฟล์จาก Excel ได้) */
 function stockPhotoSrc(x) {
@@ -506,11 +556,18 @@ function plotFinance(s, plotId) {
 function cycleFinance(s, cycleId) {
   return taskFinance(s, t => t.cycleId === cycleId);
 }
-/* กำไรสุทธิปีปัจจุบัน (YTD) — คำนวณจากงานจริง */
-function ytdFinance(s) {
-  const yr = todayISO().slice(0, 4);
+/* กำไรสุทธิของปี (YTD) — คำนวณจากงานจริง (year เป็น CE เช่น 2026; ไม่ระบุ = ปีปัจจุบัน) */
+function ytdFinance(s, year) {
+  const yr = String(year || todayISO().slice(0, 4));
   const fin = taskFinance(s, t => t.date.startsWith(yr));
   return { ...fin, margin: fin.revenue > 0 ? ((fin.revenue - fin.cost) / fin.revenue) * 100 : 0 };
+}
+/* ปีทั้งหมดที่มีข้อมูล (งาน + ขาย) + ปีปัจจุบัน — ใช้สร้างตัวเลือกปีในหน้าการวิเคราะห์ */
+function analyticsYears(s) {
+  const set = new Set([Number(todayISO().slice(0, 4))]);
+  (s.tasks || []).forEach(t => { if (t.date && String(t.date).length >= 4) set.add(Number(String(t.date).slice(0, 4))); });
+  (s.sales || []).forEach(x => { if (x.date && String(x.date).length >= 4) set.add(Number(String(x.date).slice(0, 4))); });
+  return [...set].sort((a, b) => a - b);
 }
 /* กำไรรายเดือนทั้ง 12 เดือนของปี */
 function monthlySeries(s, year) {
@@ -522,33 +579,120 @@ function monthlySeries(s, year) {
   }
   return arr;
 }
-/* กำไร/ขาดทุนตามชนิดพืช — กลุ่มจากแปลง (จากงานจริง) */
-function cropMargins(s) {
-  const map = {};
-  s.plots.forEach(p => {
-    if (!p.crop) return;
-    const fin = plotFinance(s, p.id);
-    if (fin.revenue === 0 && fin.cost === 0) return; // ยังไม่มีการทำกิจกรรม
-    if (!map[p.crop]) map[p.crop] = { crop: p.crop, revenue: 0, cost: 0 };
-    map[p.crop].revenue += fin.revenue;
-    map[p.crop].cost += fin.cost;
-  });
-  return Object.values(map).map(c => ({
-    ...c,
-    margin: c.revenue > 0 ? Math.round(((c.revenue - c.cost) / c.revenue) * 100) : 0
-  }));
+/* ชื่อพืชหลัก — ตัดเลขรอบ/รุ่นออกจากชื่อ เช่น "ข้าวโพดหวาน รุ่น 1/66" -> "ข้าวโพดหวาน"
+   ใช้จัดกลุ่มกำไรตามพืชให้รวมรอบเดียวกันเป็นกลุ่มเดียว */
+function cropBaseName(plant) {
+  return String(plant || "")
+    .replace(/รุ่น\s*\d+(\/\d+)?/g, "")   // รุ่น 1/66, รุ่น 2
+    .replace(/รอบ\s*\d+(\/\d+)?/g, "")    // รอบ 1/66, รอบ 3
+    .replace(/ครั้ง(ที่)?\s*\d+/g, "")      // ครั้งที่ 1
+    .replace(/\d+\/\d+/g, "")             // 1/66
+    .replace(/\s+/g, " ")
+    .trim();
 }
-/* ต้นทุนเชิงลึก — กลุ่มตามหมวดต้นทุนของงาน (รวมหมวดที่ผู้ใช้เพิ่มเอง) */
-function costBreakdown(s) {
+/* กำไร/ขาดทุนตามชนิดพืช — กลุ่มจากรอบการปลูกของแปลง (แปลงใหม่ไม่เก็บพืชแล้ว พืชอยู่ที่รอบ)
+   ใช้ชื่อพืชของรอบที่งานผูกอยู่ (fallback ชื่อพืชเก่าของแปลงสำหรับข้อมูลเดิม; year ไม่ระบุ = ทุกปี)
+   กลุ่มตามชื่อพืชหลัก (ไม่แยกตามเลขรอบ) */
+function cropMargins(s, year) {
+  const map = {};
+  const yr = year ? String(year) : "";
+  doneTasks(s).forEach(t => {
+    if (yr && !t.date.startsWith(yr)) return;
+    if (!t.plotId) return;
+    const p = plotById(s, t.plotId);
+    if (!p) return;
+    /* ชื่อพืช: จากรอบที่งานผูกอยู่ก่อน ถ้าไม่มีรอบใช้ชื่อพืชเก่าของแปลง */
+    let crop = "";
+    if (t.cycleId) {
+      const c = cycleById(s, t.cycleId);
+      if (c) crop = c.plant;
+    }
+    if (!crop) crop = p.crop || "";
+    if (!crop) return;
+    const base = cropBaseName(crop);
+    const key = base || crop;
+    if (!map[key]) map[key] = { crop: base || crop, revenue: 0, cost: 0 };
+    map[key].revenue += t.revenue || 0;
+    map[key].cost += t.cost || 0;
+  });
+  return Object.values(map)
+    .filter(c => c.revenue > 0 || c.cost > 0) // ข้ามชนิดที่ยังไม่มีการทำกิจกรรม
+    .map(c => ({
+      ...c,
+      margin: c.revenue > 0 ? Math.round(((c.revenue - c.cost) / c.revenue) * 100) : 0
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+}
+/* ต้นทุนเชิงลึก — กลุ่มตามหมวดต้นทุนของงาน (รวมหมวดที่ผู้ใช้เพิ่มเอง; year ไม่ระบุ = ทุกปี) */
+function costBreakdown(s, year) {
   const map = {};
   const cmap = costCatMap(s);
+  const yr = year ? String(year) : "";
   doneTasks(s).forEach(t => {
     if (!t.cost) return;
+    if (yr && !t.date.startsWith(yr)) return;
     const key = t.costCat && cmap[t.costCat] ? t.costCat : "other";
     if (!map[key]) map[key] = { label: cmap[key].label, value: 0, color: cmap[key].color };
     map[key].value += t.cost;
   });
   return Object.values(map).sort((a, b) => b.value - a.value);
+}
+/* กำไร/ขาดทุนรายแปลง (ปีนี้) — แยกแต่ละแปลง เรียงจากกำไรมากสุด → ขาดทุนมากสุด
+   ใช้เฉพาะงานที่ทำเสร็จแล้วในปีที่ระบุ (เหมือน ytdFinance) */
+function plotYearProfits(s, year) {
+  const rows = [];
+  s.plots.forEach(p => {
+    const fin = taskFinance(s, t => t.plotId === p.id && t.date.startsWith(year));
+    if (fin.revenue === 0 && fin.cost === 0) return; // ข้ามแปลงที่ยังไม่มีกิจกรรมปีนี้
+    rows.push({
+      plotId: p.id,
+      name: p.name,
+      crop: plotCropName(s, p),
+      revenue: fin.revenue,
+      cost: fin.cost,
+      net: fin.net,
+      margin: fin.revenue > 0 ? (fin.net / fin.revenue) * 100 : 0
+    });
+  });
+  rows.sort((a, b) => b.net - a.net);
+  return rows;
+}
+/* การใช้ยา/สารเคมีรายแปลง (ปีนี้) — ต้นทุนค่าเคมี + รายการยาที่ใช้
+   นับจากงานที่ทำเสร็จแล้วซึ่งมีหมวด chemical (ระดับงานหรือระดับรายการย่อย costItems)
+   เรียงจากแปลงที่ใช้ยามากสุด (ตามต้นทุน) */
+function plotChemUse(s, year) {
+  const map = {};
+  doneTasks(s).forEach(t => {
+    if (!t.plotId || !t.date.startsWith(year)) return;
+    const items = (t.costItems || []).filter(ci => ci.category === "chemical");
+    const isChem = t.costCat === "chemical" || items.length > 0;
+    if (!isChem) return;
+    if (!map[t.plotId]) map[t.plotId] = { plotId: t.plotId, cost: 0, items: {} };
+    const row = map[t.plotId];
+    if (items.length) {
+      /* มีรายการย่อย: นับเฉพาะรายการที่เป็น chemical (ต้นทุน + จำนวน) */
+      items.forEach(ci => {
+        row.cost += Number(ci.totalCost) || 0;
+        const nm = ci.name || (ci.stockId ? (stockById(s, ci.stockId) || {}).name : "") || "อื่นๆ";
+        row.items[nm] = (row.items[nm] || 0) + (Number(ci.qty) || 0);
+      });
+    } else {
+      /* งานเดียวแบบเก่า: ใช้ t.cost + t.stockId/t.qty */
+      row.cost += Number(t.cost) || 0;
+      if (t.stockId) {
+        const st = stockById(s, t.stockId);
+        const nm = (st && st.name) || "อื่นๆ";
+        row.items[nm] = (row.items[nm] || 0) + (Number(t.qty) || 0);
+      }
+    }
+  });
+  return Object.values(map).map(r => ({
+    plotId: r.plotId,
+    name: (plotById(s, r.plotId) || {}).name || "—",
+    crop: plotCropName(s, plotById(s, r.plotId)),
+    cost: r.cost,
+    items: Object.entries(r.items).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([nm, qty]) => ({ name: nm, qty }))
+  })).sort((a, b) => b.cost - a.cost);
 }
 
 /* ---------- mutations ---------- */
@@ -582,21 +726,21 @@ function applyStockUse(s, t) {
       if (ci.stockId && ci.qty > 0) {
         const item = stockById(s, ci.stockId);
         if (item) {
-          let need = Number(ci.qty) || 0;
-          item.openQty = Number(item.openQty) || 0;
+          let need = rndQty(ci.qty);
+          item.openQty = rndQty(item.openQty);
           const beforeMain = item.qty, beforeOpen = item.openQty;
           // 1) ใช้ของที่เปิดใช้แล้วก่อน
           const fromOpen = Math.min(item.openQty, need);
-          item.openQty -= fromOpen;
-          need -= fromOpen;
+          item.openQty = rndQty(item.openQty - fromOpen);
+          need = rndQty(need - fromOpen);
           // 2) เบิกจากสต็อกหลักเป็นหน่วยเต็ม (ปัดขึ้น)
           let openAdded = 0;
           if (need > 0) {
             const withdraw = Math.ceil(need);
             item.qty = Math.max(0, item.qty - withdraw);
             // เศษที่เบิกเกิน (เช่น 4-3.5=0.5) เก็บเป็นของที่เปิดใช้แล้ว
-            openAdded = Math.max(0, withdraw - need);
-            item.openQty += openAdded;
+            openAdded = rndQty(Math.max(0, withdraw - need));
+            item.openQty = rndQty(item.openQty + openAdded);
           }
           t.stockLog.push({
             stockId: ci.stockId,
@@ -634,10 +778,8 @@ function toggleTaskDone(s, taskId) {
   if (!t) return;
   t.status = t.status === "done" ? "planned" : "done";
   t.updatedAt = Date.now(); // เวลาทำเสร็จ/ยกเลิก — ใช้เรียงกิจกรรมล่าสุด
-}
-function updateTaskStatus(s, taskId, status) {
-  const t = s.tasks.find(x => x.id === taskId);
-  if (t) t.status = status;
+  /* งานถูกแก้สถานะ → ให้กลับมาแสดงการแจ้งเตือนใหม่ (ถ้ายังไม่เสร็จ/ยังไม่พ้นกำหนด) */
+  if (s.notifDismissed) delete s.notifDismissed[taskId];
 }
 
 /* Weighted-average stock receive — สต็อกหลักรับเป็นจำนวนเต็มเท่านั้น */
@@ -658,6 +800,198 @@ function deductStock(s, id, qty) {
   if (!item) return;
   item.qty = Math.max(0, item.qty - (Number(qty) || 0));
 }
+/* ---------- การขายสินค้า (ใบเสร็จรับเงิน) ----------
+   กฎการขาย: ขายจากสต็อกหลัก (หน่วยเต็ม) เท่านั้น — ไม่ยุ่งกับของที่เปิดใช้แล้ว (openQty) */
+/* สร้างรายการขายจากข้อมูลฟอร์ม — บังคับจำนวนเต็ม */
+function buildSaleItems(s, data) {
+  const items = (data.items || [])
+    .filter(it => it.stockId && (Number(it.qty) || 0) > 0)
+    .map(it => {
+      const qty = Math.floor(Number(it.qty) || 0); // ขายจำนวนเต็มเท่านั้น
+      const price = Number(it.price) || 0;
+      const x = stockById(s, it.stockId);
+      return {
+        stockId: it.stockId,
+        code: x ? (x.code || x.id) : "", // รหัสสินค้าเดิม ถ้าไม่มีใช้ id สต็อก — แสดงในใบส่งสินค้า
+        name: String(it.name || ""),
+        unit: String(it.unit || "ชิ้น"),
+        qty,
+        price,
+        total: Math.round(qty * price),
+        fromOpen: 0,   // ขายไม่แตะของที่เปิดใช้แล้ว
+        fromMain: qty  // เบิกจากหลักทั้งหมด
+      };
+    });
+  return items;
+}
+/* ตัดสต็อกหลักเป็นหน่วยเต็ม (ไม่ใช้ของที่เปิดใช้แล้ว) */
+function deductSaleItems(s, items) {
+  items.forEach(it => {
+    const x = stockById(s, it.stockId);
+    if (!x) return;
+    x.qty = Math.max(0, (Number(x.qty) || 0) - Math.floor(Number(it.qty) || 0));
+  });
+}
+/* คืนสต็อกหลักตามที่ขายไป (ใช้ตอนยกเลิก/แก้ไขใบเสร็จ) */
+function restockSaleItems(s, items) {
+  items.forEach(it => {
+    const x = stockById(s, it.stockId);
+    if (!x) return;
+    x.qty = (Number(x.qty) || 0) + (Number(it.fromMain) || 0);
+  });
+}
+/* บันทึกการขายใหม่ + ตัดสต็อก */
+function addSale(s, data) {
+  const items = buildSaleItems(s, data);
+  const sale = {
+    id: uid(),
+    no: (s.sales || []).length + 1, // เลขที่ใบเสร็จ (เรียงตามลำดับ)
+    date: data.date || todayISO(),
+    customer: String(data.customer || "").trim(),
+    items,
+    discount: Math.round(Number(data.discount) || 0), // ส่วนลด (บาท)
+    note: String(data.note || "").trim(),
+    payMethod: data.payMethod === "transfer" ? "transfer" : "cash",
+    account: String(data.account || "").trim(),
+    createdAt: Date.now()
+  };
+  deductSaleItems(s, items);
+  s.sales = s.sales || [];
+  s.sales.push(sale);
+  return sale;
+}
+/* แก้ไขใบเสร็จที่มีอยู่ — คืนสต็อกเดิม แล้วตัดใหม่ตามรายการที่แก้ */
+function updateSale(s, saleId, data) {
+  const sale = (s.sales || []).find(x => x.id === saleId);
+  if (!sale) return false;
+  /* 1) คืนสต็อกของรายการเดิม */
+  restockSaleItems(s, sale.items);
+  /* 2) สร้างรายการใหม่ + ตัดสต็อกใหม่ */
+  const items = buildSaleItems(s, data);
+  deductSaleItems(s, items);
+  /* 3) อัปเดตใบเสร็จ (คงเลขที่เดิม) */
+  sale.date = data.date || sale.date;
+  sale.customer = String(data.customer || "").trim();
+  sale.items = items;
+  sale.discount = Math.round(Number(data.discount) || 0);
+  sale.note = String(data.note || "").trim();
+  sale.payMethod = data.payMethod === "transfer" ? "transfer" : "cash";
+  sale.account = String(data.account || "").trim();
+  sale.createdAt = Date.now();
+  return sale;
+}
+/* ยอดรวมของใบเสร็จ (ก่อนหักส่วนลด) */
+function saleTotal(sale) {
+  return (sale.items || []).reduce((a, it) => a + (Number(it.total) || 0), 0);
+}
+/* ยอดสุทธิหลังหักส่วนลด (จำนวนเงินทั้งสิ้น) */
+function saleGrandTotal(sale) {
+  return Math.max(0, saleTotal(sale) - (Number(sale.discount) || 0));
+}
+/* ต้นทุนของสินค้าที่ขายในใบนี้ (ใช้คำนวณกำไร) */
+function saleCost(sale, s) {
+  return (sale.items || []).reduce((a, it) => {
+    const x = stockById(s, it.stockId);
+    return a + (Number(it.qty) || 0) * (x ? x.avgCost : 0);
+  }, 0);
+}
+/* ยกเลิกใบเสร็จ — คืนสต็อกที่ขายไปแล้วลบใบออก */
+function voidSale(s, saleId) {
+  const sale = (s.sales || []).find(x => x.id === saleId);
+  if (!sale) return false;
+  restockSaleItems(s, sale.items);
+  s.sales = (s.sales || []).filter(x => x.id !== saleId);
+  return true;
+}
+/* รายรับจากการขายสินค้าของปี (year ไม่ระบุ = ปีปัจจุบัน) — แยกจากรายรับงานแปลง */
+function salesRevenue(s, year) {
+  const yr = String(year || todayISO().slice(0, 4));
+  return (s.sales || []).filter(x => (x.date || "").startsWith(yr)).reduce((a, x) => a + saleGrandTotal(x), 0);
+}
+/* ยอดขายวันนี้ (ใบเสร็จที่ออกวันนี้) */
+function salesToday(s) {
+  const d = todayISO();
+  return (s.sales || []).filter(x => x.date === d).reduce((a, x) => a + saleGrandTotal(x), 0);
+}
+/* ยอดขายเดือนนี้ */
+function salesMonth(s) {
+  const ym = todayISO().slice(0, 7);
+  return (s.sales || []).filter(x => (x.date || "").startsWith(ym)).reduce((a, x) => a + saleGrandTotal(x), 0);
+}
+/* จำนวนใบเสร็จของปี (year ไม่ระบุ = ปีปัจจุบัน) */
+function salesYearCount(s, year) {
+  const yr = String(year || todayISO().slice(0, 4));
+  return (s.sales || []).filter(x => (x.date || "").startsWith(yr)).length;
+}
+/* ต้นทุนขายของปี (COGS — ราคาทุนของสินค้าที่ขายไป; year ไม่ระบุ = ปีปัจจุบัน) */
+function salesCostYTD(s, year) {
+  const yr = String(year || todayISO().slice(0, 4));
+  return (s.sales || []).filter(x => (x.date || "").startsWith(yr)).reduce((a, x) => a + saleCost(x, s), 0);
+}
+/* กำไรร้านของปี = ยอดขาย − ต้นทุนขาย (แยกจากกำไรแปลง; year ไม่ระบุ = ปีปัจจุบัน) */
+function salesProfitYTD(s, year) {
+  return salesRevenue(s, year) - salesCostYTD(s, year);
+}
+/* มูลค่าสต็อกคงเหลือ (เงินที่จมอยู่ในของคงคลัง) — แยกสต็อกหลัก / ของเหลือเปิดใช้ */
+function stockValue(s) {
+  let main = 0, open = 0;
+  (s.stock || []).forEach(x => {
+    const c = Number(x.avgCost) || 0;
+    main += (Number(x.qty) || 0) * c;
+    open += (Number(x.openQty) || 0) * c;
+  });
+  return { main, open, total: main + open };
+}
+/* ยอดขายรายเดือนทั้ง 12 เดือนของปี (บาทสุทธิหลังหักส่วนลด) */
+function salesMonthlySeries(s, year) {
+  const arr = [];
+  for (let m = 0; m < 12; m++) {
+    const prefix = year + "-" + String(m + 1).padStart(2, "0");
+    const total = (s.sales || []).filter(x => (x.date || "").startsWith(prefix)).reduce((a, x) => a + saleGrandTotal(x), 0);
+    arr.push({ label: THAI_MONTHS_SHORT[m], value: total });
+  }
+  return arr;
+}
+/* สินค้าขายดีปีนี้ — รวมจำนวน/ยอดตามชื่อสินค้า เรียงตามยอดมากสุด */
+function topSaleItems(s, year, n) {
+  const map = {};
+  (s.sales || []).forEach(sl => {
+    if (!(sl.date || "").startsWith(year)) return;
+    (sl.items || []).forEach(it => {
+      const key = String(it.name || "").trim() || "ไม่ระบุ";
+      if (!map[key]) map[key] = { name: key, qty: 0, revenue: 0 };
+      map[key].qty += Number(it.qty) || 0;
+      map[key].revenue += Number(it.total) || 0;
+    });
+  });
+  return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, n || 5);
+}
+/* ลูกค้าที่ซื้อเยอะที่สุดปีนี้ (ยอดรวม/จำนวนครั้ง) */
+function topCustomers(s, year, n) {
+  const map = {};
+  (s.sales || []).forEach(sl => {
+    if (!(sl.date || "").startsWith(year)) return;
+    const name = String(sl.customer || "").trim();
+    if (!name) return;
+    if (!map[name]) map[name] = { name, total: 0, count: 0 };
+    map[name].total += saleGrandTotal(sl);
+    map[name].count++;
+  });
+  return Object.values(map).sort((a, b) => b.total - a.total).slice(0, n || 5);
+}
+/* รายชื่อลูกค้าทั้งหมด (จากใบเสร็จ) — พร้อมยอดซื้อรวม/จำนวนครั้ง/ครั้งล่าสุด */
+function customerList(s) {
+  const map = {};
+  (s.sales || []).forEach(sl => {
+    const name = String(sl.customer || "").trim();
+    if (!name) return;
+    if (!map[name]) map[name] = { name, count: 0, total: 0, last: 0, lastDate: "" };
+    map[name].count++;
+    map[name].total += saleGrandTotal(sl);
+    if ((sl.createdAt || 0) > map[name].last) { map[name].last = sl.createdAt || 0; map[name].lastDate = sl.date || ""; }
+  });
+  return Object.values(map).sort((a, b) => b.last - a.last);
+}
 
 /* คืนสต็อกที่งานเบิกไป (ย้อนกลับ addTask) — ใช้ตอนแก้ไขลดจำนวน / ลบงานที่ยังไม่ได้ใช้ของ
    รองรับงานที่ไม่มี stockLog (ข้อมูลเก่า) โดยประมาณจาก costItems */
@@ -677,7 +1011,7 @@ function restockTask(s, t) {
     // คืนหลักตามที่เบิกไป
     item.qty += log.mainWithdrawn || 0;
     // ย้อน openQty: เอาส่วนที่งานนี้เพิ่มเข้า (openAdded) ออก และคืนส่วนที่ใช้ไป (openUsed)
-    item.openQty = Math.max(0, item.openQty - (log.openAdded || 0) + (log.openUsed || 0));
+    item.openQty = rndQty(Math.max(0, item.openQty - (log.openAdded || 0) + (log.openUsed || 0)));
   });
   t.stockLog = [];
 }
@@ -687,6 +1021,21 @@ function taskStatusOf(t) {
   if (t.status === "done") return "done";
   if (t.date < todayISO()) return "overdue";
   return "planned";
+}
+/* รายการแจ้งเตือน: งานที่ครบกำหนดวันนี้ + งานที่เลยกำหนด (ยังไม่เสร็จ, ยังไม่กดปิด)
+   เรียง: เลยกำหนด ตามวันที่เก่าสุดก่อน / วันนี้ ตามเวลาที่เพิ่มล่าสุดก่อน */
+function notifList(s) {
+  const today = todayISO();
+  const dis = s.notifDismissed || {};
+  const overdue = [], dueToday = [];
+  (s.tasks || []).forEach(t => {
+    if (t.status === "done" || dis[t.id]) return;
+    if (t.date < today) overdue.push(t);
+    else if (t.date === today) dueToday.push(t);
+  });
+  overdue.sort((a, b) => a.date.localeCompare(b.date));
+  dueToday.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  return { overdue, dueToday };
 }
 
 /* Calendar helpers */

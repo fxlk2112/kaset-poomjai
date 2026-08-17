@@ -1,36 +1,60 @@
 /* ============================================================
-   เกษตรภูมิใจ v51 — lightweight SVG charts (no dependencies)
+   เกษตรภูมิใจ v52 — lightweight SVG charts (no dependencies)
+   ปรับสมดุล: กราฟจำกัดขนาดพอดี, แท่งค่าลบวาดจากเส้นศูนย์กลาง,
+   ป้ายค่าย่อ (หมื่น/ล้าน) อ่านง่าย
    ============================================================ */
 "use strict";
 
+/* ย่อตัวเลขสำหรับป้ายกราฟ: 50,000 -> "5 หมื่น", 1,200,000 -> "1.2 ล." */
+function fmtChartVal(v) {
+  const n = Number(v) || 0;
+  const a = Math.abs(n);
+  if (a >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, "") + " ล.";
+  if (a >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, "") + " หมื่น";
+  return fmtNum(n);
+}
+
 const Charts = {
 
-  /* Bar chart. items: [{label, value, color?}] */
+  /* Bar chart. items: [{label, value, color?}]
+     ถ้ามีค่าลบ -> วาดเส้นศูนย์ (baseline) กลาง แท่งบวกขึ้นบน แท่งลบลงล่าง */
   bars(container, items, opts) {
     opts = opts || {};
-    const W = 320, H = 190, padL = 6, padR = 6, padT = 22, padB = 26;
+    const W = 320, H = 200, padL = 8, padR = 8, padT = 26, padB = 28;
     const n = items.length;
-    const max = Math.max(1, ...items.map(i => Math.abs(i.value)));
+    const hasNeg = items.some(i => Number(i.value) < 0);
+    const max = Math.max(1, ...items.map(i => Math.abs(Number(i.value))));
     const slot = (W - padL - padR) / n;
-    const bw = Math.min(34, slot * 0.58);
-    let bars = "";
+    const bw = Math.min(30, slot * 0.58);
+    const plotH = H - padT - padB;
+    const zeroY = hasNeg ? padT + plotH / 2 : H - padB;
+    const scale = hasNeg ? max * 2 : max;
+    let out = "";
+    if (hasNeg) {
+      out += `<line x1="${padL}" y1="${zeroY}" x2="${W - padR}" y2="${zeroY}" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4 3"/>`;
+    }
     items.forEach((it, i) => {
-      const h = (Math.abs(it.value) / max) * (H - padT - padB);
+      const v = Number(it.value) || 0;
+      const h = (Math.abs(v) / scale) * (hasNeg ? plotH / 2 : plotH);
       const x = padL + slot * i + (slot - bw) / 2;
-      const y = H - padB - h;
-      const color = it.color || (it.value >= 0 ? "#16a34a" : "#dc2626");
-      bars += `<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(h, 1.5)}" rx="4" fill="${color}" opacity="0.9"/>`;
-      bars += `<text x="${x + bw / 2}" y="${y - 5}" text-anchor="middle" font-size="9" font-weight="700" fill="#4b5563">${fmtNum(it.value)}</text>`;
-      bars += `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle" font-size="9" fill="#6b7280">${it.label}</text>`;
+      const y = v >= 0 ? zeroY - h : zeroY;
+      const color = it.color || opts.color || (v >= 0 ? "#16a34a" : "#dc2626");
+      out += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(h, 1.5).toFixed(1)}" rx="3" fill="${color}" opacity="0.92"/>`;
+      /* ป้ายค่า: เหนือแท่งบวก / ใต้แท่งลบ (เฉพาะแท่งสูงพอจะไม่ชนกัน) */
+      if (h > 13) {
+        const ly = v >= 0 ? y - 7 : Math.min(zeroY + h + 13, H - 4);
+        out += `<text x="${(x + bw / 2).toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="${v >= 0 ? "#15803d" : "#b91c1c"}">${fmtChartVal(v)}</text>`;
+      }
+      out += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 9}" text-anchor="middle" font-size="9" fill="#6b7280">${it.label}</text>`;
     });
-    container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img"><rect x="${padL}" y="${padT}" width="${W - padL - padR}" height="${H - padT - padB}" fill="none"/>${bars}</svg>`;
+    container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img">${out}</svg>`;
   },
 
-  /* Donut chart. slices: [{label, value, color}] */
+  /* Donut chart. slices: [{label, value, color}] — วงพอดี ไม่ยักษ์ */
   donut(container, slices, opts) {
     opts = opts || {};
     const total = slices.reduce((a, s) => a + s.value, 0) || 1;
-    const W = 220, cx = W / 2, cy = W / 2, r = 78, sw = 30;
+    const W = 200, cx = W / 2, cy = W / 2, r = 70, sw = 26;
     let angle = -90 * Math.PI / 180;
     let paths = "";
     slices.forEach(s => {
@@ -40,13 +64,13 @@ const Charts = {
       const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle);
       const x2 = cx + r * Math.cos(a2), y2 = cy + r * Math.sin(a2);
       if (frac > 0.001) {
-        paths += `<path d="M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}" fill="none" stroke="${s.color}" stroke-width="${sw}"/>`;
+        paths += `<path d="M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="${s.color}" stroke-width="${sw}" stroke-linecap="round"/>`;
       }
       angle = a2;
     });
     const center = opts.centerLabel
-      ? `<text x="${cx}" y="${cy - 4}" text-anchor="middle" font-size="13" font-weight="800" fill="#111827">${opts.centerLabel}</text>
-         <text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="8.5" fill="#6b7280">${opts.centerSub || ""}</text>`
+      ? `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="14" font-weight="800" fill="#111827">${opts.centerLabel}</text>
+         <text x="${cx}" y="${cy + 13}" text-anchor="middle" font-size="9" fill="#6b7280">${opts.centerSub || ""}</text>`
       : "";
     container.innerHTML = `<svg viewBox="0 0 ${W} ${W}" role="img">${paths}${center}</svg>`;
   },

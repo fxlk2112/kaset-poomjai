@@ -92,6 +92,73 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 .role-switch button.active { background: #fff; color: var(--green-deep); font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
 
+/* ============ ใบส่งสินค้า (ขายสินค้า) A4 ============ */
+.receipt {
+  border: 1.5px dashed var(--line); border-radius: 12px; padding: 16px;
+  background: #fff; font-size: .82rem; margin: 10px 0 4px;
+}
+.receipt-head { text-align: center; border-bottom: 2px solid var(--text); padding-bottom: 10px; margin-bottom: 10px; }
+.receipt-brand { font-size: 1.3rem; font-weight: 800; color: var(--text); }
+.receipt-sub { font-size: .72rem; color: var(--muted); }
+.receipt-no { font-size: .9rem; font-weight: 700; margin-top: 6px; }
+.receipt-meta { display: flex; justify-content: space-between; font-size: .86rem; margin-bottom: 10px; }
+.receipt-meta span { color: var(--muted); margin-right: 6px; }
+.receipt-cust, .receipt-date { display: flex; align-items: baseline; gap: 6px; }
+.receipt-cust b, .receipt-date b { white-space: nowrap; }
+.receipt-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.receipt-table th { border: 1px solid var(--text); background: var(--green-soft); text-align: center; padding: 5px 4px; font-size: .74rem; }
+.receipt-table td { border: 1px solid #bbb; padding: 5px 4px; }
+.receipt-empty-row td { border-color: #ddd; height: 20px; }
+.receipt-total { margin-top: 8px; font-size: .86rem; max-width: 320px; margin-left: auto; }
+.receipt-total .row { display: flex; justify-content: space-between; padding: 3px 6px; }
+.receipt-total .receipt-grand { border-top: 2px solid var(--text); font-weight: 800; font-size: .98rem; margin-top: 4px; }
+.receipt-baht { font-size: .76rem; color: var(--muted); padding: 2px 6px 0; }
+.receipt-note { margin-top: 8px; font-size: .76rem; }
+.receipt-note span { color: var(--muted); }
+.receipt-sign { display: flex; justify-content: space-between; margin-top: 30px; text-align: center; gap: 40px; }
+.receipt-sign-label { font-size: .84rem; font-weight: 700; }
+.receipt-sign-line { margin-top: 28px; font-size: .84rem; }
+.receipt-sign-date { font-size: .74rem; color: var(--muted); margin-top: 4px; }
+.receipt-foot { margin-top: 12px; font-size: .72rem; color: var(--muted); text-align: center; }
+
+/* ============ การแจ้งเตือน (กระดิ่ง) ============ */
+.notif-btn { position: relative; }
+.notif-badge {
+  position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px;
+  border-radius: 999px; background: var(--red); color: #fff;
+  font-size: .58rem; font-weight: 800; line-height: 1;
+  display: flex; align-items: center; justify-content: center; padding: 0 4px;
+  border: 2px solid var(--green-deep); box-sizing: border-box;
+}
+.notif-panel {
+  position: fixed; top: calc(var(--topbar-h) + 6px); right: 12px; z-index: 60;
+  width: min(360px, calc(100vw - 24px)); max-height: calc(100vh - var(--topbar-h) - 40px);
+  background: var(--card); border: 1px solid var(--card-border); border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.22); overflow-y: auto; animation: fadeIn .18s ease;
+}
+.notif-head {
+  position: sticky; top: 0; background: var(--card); z-index: 1;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 14px; border-bottom: 1px solid var(--line);
+  font-weight: 800; font-size: .9rem;
+}
+.notif-group h3 {
+  font-size: .7rem; font-weight: 800; color: var(--muted);
+  margin: 10px 14px 2px; letter-spacing: .02em; text-transform: uppercase;
+}
+.notif-row { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+.notif-row:last-child { border-bottom: none; }
+.notif-row:hover { background: var(--green-light); }
+.notif-x {
+  border: 0; background: none; color: var(--muted); font-size: .85rem;
+  width: 24px; height: 24px; border-radius: 50%; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.notif-x:hover { background: var(--red-light); color: var(--red); }
+.notif-empty { text-align: center; padding: 22px 14px; color: var(--muted); font-size: .82rem; }
+/* กัน display ของตัว badge/panel ไปชนกับ attribute hidden */
+.notif-badge[hidden], .notif-panel[hidden] { display: none !important; }
+
 /* ============ View ============ */
 .view { padding: 16px 16px calc(var(--nav-h) + 90px); animation: fadeIn .3s cubic-bezier(.22, .7, .3, 1); }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -258,6 +325,36 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .mt-4 { margin-top: 4px; } .mt-8 { margin-top: 8px; } .mt-12 { margin-top: 12px; }
 
 /* ============ Tabs ============ */
+/* เลือกปีวิเคราะห์: ◀ พ.ศ. 2569 ▶ + chips ปีทั้งหมด */
+.year-nav {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin: 2px 0 8px;
+}
+.year-nav-btn {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--card); border: 1px solid var(--line);
+  color: var(--green-deep); font-size: .8rem; font-weight: 800;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background .15s, transform .12s;
+}
+.year-nav-btn:hover { background: var(--green-soft); }
+.year-nav-btn:active { transform: scale(.92); }
+.year-nav-label {
+  font-size: 1.02rem; font-weight: 800; color: var(--green-deep);
+  min-width: 78px; text-align: center;
+}
+.year-chips {
+  display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+  margin-bottom: 12px;
+}
+.year-chip {
+  padding: 5px 13px; border-radius: 999px; font-size: .8rem; font-weight: 700;
+  background: var(--card); border: 1px solid var(--line); color: var(--muted);
+  transition: background .15s, color .15s, border-color .15s;
+}
+.year-chip.active {
+  background: var(--green); color: #fff; border-color: var(--green);
+}
 .tabs {
   display: flex; background: #eef2ef;
   border: 1px solid var(--line);
@@ -322,9 +419,12 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .task-tag { font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; }
 
 /* ============ Chart blocks ============ */
-.chart-wrap { width: 100%; margin-top: 6px; }
+/* กราฟจำกัดความกว้าง + จัดกลาง ให้สมดุลกับการ์ด (ไม่ยืดเต็มจอบนจอใหญ่) */
+.chart-wrap { width: 100%; max-width: 440px; margin: 6px auto 0; }
 .chart-wrap svg { width: 100%; height: auto; display: block; }
-.legend-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+/* แผนวงกลม (donut) เล็กกว่ากราฟแท่ง — วงพอดี ไม่ยักษ์ */
+.chart-wrap.chart-donut { max-width: 210px; }
+.legend-list { display: flex; flex-direction: column; gap: 6px; margin: 10px auto 0; max-width: 440px; }
 .legend-list .li { display: flex; align-items: center; gap: 8px; font-size: .8rem; }
 .legend-list .li .sw { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
 .legend-list .li .val { margin-left: auto; font-weight: 700; }
@@ -348,6 +448,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   background: var(--green-soft); color: var(--green-dark);
   border-radius: 999px; padding: 2px 8px; vertical-align: 2px; margin-left: 6px;
 }
+/* แถวล่างของการ์ดสต็อก: มูลค่ารวม + ปุ่มจัดการ (แยกคนละบรรทัด ไม่ให้ยาวเกินไปดันปุ่ม) */
+.stock-value { font-size: .72rem; margin-bottom: 8px; }
+.stock-value .bold { font-size: .8rem; }
+.stock-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 /* ป้ายขนาดสินค้า */
 .stock-size {
   display: inline-block; font-size: .62rem; font-weight: 700;
@@ -374,6 +478,13 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .stock-pick-item:hover { background: var(--green-soft); border-color: var(--green-light); }
 .stock-pick-item.selected { background: var(--green-soft); border-color: var(--green); }
 .stock-pick-item .sp-name { font-weight: 700; color: var(--text); }
+/* ปุ่ม ✕ เอารายการที่เลือกอยู่ออก (กดอีกครั้งที่รายการก็ได้) */
+.stock-pick-item .sp-x {
+  margin-left: auto; flex-shrink: 0; width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #fee2e2; color: var(--red); border-radius: 50%;
+  font-size: .72rem; font-weight: 800; line-height: 1;
+}
 .stock-pick-item .sp-sub { font-size: .68rem; color: var(--muted); flex-shrink: 0; }
 .stock-pick-item.selected .sp-name { color: var(--green-deep); }
 /* รายการที่หมดสต็อก → แถบแดง */
@@ -716,6 +827,23 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .clickable:active { opacity: .75; }
 
 /* ============ Cycle cards (กดเข้ารอบการปลูก -> ดูงาน/กิจกรรมของรอบ) ============ */
+/* หน้ารอบการปลูก: กลุ่มแปลง (หัวแปลงกดย่อ/ขยายได้) */
+.plot-cycle-group { padding: 0; overflow: hidden; }
+.plot-cycle-head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; cursor: pointer;
+  background: linear-gradient(135deg, var(--green-soft), transparent);
+  transition: background .15s;
+}
+.plot-cycle-head:active { opacity: .75; }
+.plot-cycle-head .plot-emoji { width: 40px; height: 40px; font-size: 1.2rem; }
+.plot-cycle-chevron {
+  font-size: 1rem; color: var(--muted); transition: transform .18s;
+  flex-shrink: 0;
+}
+.plot-cycle-body { padding: 10px 14px 14px; border-top: 1px dashed var(--line); }
+.plot-cycle-body .cycle-card { margin-bottom: 10px; }
+.plot-cycle-body .cycle-card:last-child { margin-bottom: 0; }
 .cycle-card { cursor: pointer; }
 .cycle-open-hint {
   display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -729,6 +857,34 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   display: inline-block; background: #fef3c7; color: #92400e;
   font-size: .66rem; font-weight: 700; padding: 1px 8px; border-radius: 20px; vertical-align: 1px;
 }
+/* ป้ายแปลงเจ้าของงาน (หน้าแรก/ปฏิทิน) — เห็นทันทีว่างานนี้แปลงไหน */
+.task-plot {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: var(--green-soft); color: var(--green-dark);
+  font-size: .68rem; font-weight: 700; padding: 1px 8px; border-radius: 20px; vertical-align: 1px;
+}
+/* สรุปวัสดุที่ใช้ในงาน — ชื่อ+จำนวน+หน่วย เห็นชัดว่าใช้อะไรไป */
+.task-use { color: var(--green-dark); font-weight: 600; }
+.task-use-more {
+  display: inline-block; background: var(--green-soft); color: var(--green-dark);
+  font-size: .64rem; font-weight: 700; padding: 0 6px; border-radius: 20px; vertical-align: 1px;
+}
+/* เลือกโหมดราคาต่อหน่วยของวัสดุ (ต้นทุน/ราคาขาย/พิมพ์เอง) */
+.ci-pricemode { width: 100%; margin-bottom: 5px; font-size: .78rem; }
+/* อันดับในรายการ Top (สินค้าขายดี / ลูกค้าท็อป) */
+.rank-badge {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--green-soft); color: var(--green-deep);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: .7rem; font-weight: 800;
+}
+.row-line:first-child .rank-badge { background: #fef3c7; color: #92400e; } /* อันดับ 1 เน้นสีเหลือง */
+
+/* เงินในแถวงาน: รายได้ = เขียว, ต้นทุน = แดง */
+.task-money { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; }
+.task-money .ic { width: .95em; height: .95em; }
+.task-money.in { color: var(--green); }
+.task-money.out { color: var(--red); }
 .task-cycle-assign {
   width: 100%; margin-top: 6px; padding: 7px 10px; font-size: .78rem;
   background: #fff; border: 1.5px dashed var(--green); border-radius: 10px; color: var(--text); outline: 0;
@@ -937,8 +1093,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 
   /* empty state / misc sizing */
   .empty { padding: 44px 20px; }
-  .chart-wrap { max-width: 860px; }
-  .legend-list { max-width: 420px; }
+  .chart-wrap { max-width: 480px; }
+  .legend-list { max-width: 480px; }
 
   .more-card { padding: 22px 14px; }
   .more-card .mc-ico { font-size: 2.1rem; }

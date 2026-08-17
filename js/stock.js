@@ -1,0 +1,468 @@
+/* ---------------- Stock ---------------- */
+let stockFilter = "all"; // all | sealed | opened
+let stockQuery = "";    // คำค้นหาชื่อ/หน่วย/หมวด
+let stockCat = "";      // หมวดสินค้าที่กรอง ("" = ทั้งหมด, "__none__" = ไม่มีหมวด)
+/* HTML รายการสต็อก (กรองตามแท็บ + คำค้น) — แยกเป็นฟังก์ชันเพื่ออัปเดตเฉพาะส่วนนี้ ไม่ rebuild ทั้งหน้า */
+function stockListHtml() {
+  const q = stockQuery.trim().toLowerCase();
+  const list = S.stock.filter(x => {
+    const open = Number(x.openQty) || 0;
+    const avail = (Number(x.qty) || 0) + open;
+    if (stockFilter === "has" && avail <= 0) return false;
+    if (stockFilter === "out" && avail > 0) return false;
+    if (stockFilter === "sealed" && open > 0) return false;
+    if (stockFilter === "opened" && open <= 0) return false;
+    if (stockCat === "__none__" && x.category) return false;
+    if (stockCat && stockCat !== "__none__" && x.category !== stockCat) return false;
+    if (q && !(x.name.toLowerCase().includes(q) || (x.code || "").toLowerCase().includes(q) || x.unit.toLowerCase().includes(q) || (x.category || "").toLowerCase().includes(q) || (x.generic || "").toLowerCase().includes(q) || (x.supplier || "").toLowerCase().includes(q))) return false;
+    return true;
+  });
+  const emptyTitle = q ? "ไม่พบรายการที่ค้นหา" : (stockCat ? "ไม่มีของในหมวดนี้" : (stockFilter === "has" ? "ยังไม่มีของในสต็อก" : (stockFilter === "out" ? "ไม่มีของที่หมด" : (stockFilter === "sealed" ? "ไม่มีของที่ยังไม่เปิดใช้" : "ไม่มีของที่เปิดใช้แล้ว"))));
+  const emptySub = q ? "ลองค้นด้วยชื่อ หรือรหัสสินค้า (เช่น 00-0000-269)" : (stockCat ? "ลองเลือกหมวดอื่น หรือกด 'ทุกหมวดสินค้า'" : (stockFilter === "has" ? "กด รับของเข้า เพื่อเพิ่มของเข้าสต็อก" : (stockFilter === "opened" ? "เมื่อใช้ของไม่หมด จะมีของเหลือจากการเปิดใช้ที่นี่" : "")));
+  const emptyHtml = list.length === 0 ? `<div class="card"><div class="empty"><div class="e-ico">${ic("box")}</div><div class="e-title">${emptyTitle}</div>${emptySub ? `<div class="muted">${emptySub}</div>` : ""}</div></div>` : "";
+  const grid = `<div class="card-grid">
+    ${list.map(x => {
+      const open = Number(x.openQty) || 0;
+      const out = (Number(x.qty) || 0) + open <= 0; // ยาหมด
+      return `
+      <div class="card ${out ? "stock-card-out" : ""}">
+        <div class="row">
+          <div class="stock-thumb" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${firstStockPhoto(x) ? `<img src="${esc(stockPhotoSrc({ photo: firstStockPhoto(x) }))}" alt="" loading="lazy" onerror="this.remove()">` : ic("box")}</div>
+          <div class="grow">
+            <div class="plot-name" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${esc(x.name)} ${out ? `<span class="stock-out-badge">${ic("alert")} ยาหมด</span>` : `<span class="stock-detail-hint">${ic("info")}</span>`} ${x.category ? `<span class="stock-cat">${esc(x.category)}</span>` : ""} ${x.size ? `<span class="stock-size">${esc(x.size)}</span>` : ""}</div>
+            ${x.code ? `<div class="muted">รหัส: <b>${esc(x.code)}</b></div>` : ""}
+            ${x.generic ? `<div class="muted">ชื่อสามัญ: ${esc(x.generic)}</div>` : ""}
+            ${x.supplier ? `<div class="muted">บริษัทจำหน่าย: ${esc(x.supplier)}</div>` : ""}
+            <div class="muted">ต้นทุนถัวเฉลี่ย ${fmtMoney(x.avgCost)} บาท/${x.unit}${x.salePrice ? ` · ขาย ${fmtMoney(x.salePrice)} บาท/${x.unit}` : ""}</div>
+            ${out ? `<div class="stock-out">${ic("alert")} ยาหมด — ไม่มีของในสต็อก</div>` : (open > 0 ? `<div class="stock-open">${ic("unlock")} เหลือจากการเปิดใช้ ${fmtNum(open)} ${esc(x.unit)} — ใช้ได้ก่อน</div>` : `<div class="stock-sealed">${ic("lock")} ยังไม่เปิดใช้</div>`)}
+          </div>
+          <div class="stock-qty ${out ? "out" : ""}">${out ? "0" : fmtNum(x.qty)} <small>${esc(x.unit)}</small></div>
+        </div>
+        <div class="mt-8">
+          <div class="muted stock-value">มูลค่ารวม <span class="bold">${fmtMoney((x.qty + open) * x.avgCost)} บาท</span>${open > 0 ? ` <span class="muted">(รวมของเปิดใช้แล้ว)</span>` : ""}</div>
+          <div class="stock-actions">
+            <button class="btn btn-sm btn-ghost" onclick="App.stockDetail('${x.id}')">${ic("info")} รายละเอียด</button>
+            <button class="btn btn-sm btn-ghost" onclick="App.modalStock('${x.id}')" title="แก้ไขรายการ">${ic("pencil")} แก้ไข</button>
+            <button class="btn btn-sm btn-primary" onclick="App.modalReceive('${x.id}')">${ic("down")} รับของเข้า</button>
+            <button class="btn btn-sm btn-outline" onclick="App.modalDeduct('${x.id}')">${ic("minus")} ตัดสต็อก</button>
+            <button class="btn btn-sm btn-danger-soft" onclick="App.deleteStock('${x.id}')">${ic("trash")}</button>
+          </div>
+        </div>
+      </div>`;
+    }).join("")}
+    </div>`;
+  return emptyHtml + grid;
+}
+function renderStock() {
+  const total = totalStockValue(S);
+  const openedCount = S.stock.filter(x => (Number(x.openQty) || 0) > 0).length;
+  const sealedCount = S.stock.length - openedCount;
+  const hasCount = S.stock.filter(x => (Number(x.qty) || 0) + (Number(x.openQty) || 0) > 0).length;
+  const outCount = S.stock.length - hasCount;
+  /* นับจำนวนต่อหมวด (ใช้ใน dropdown กรอง) */
+  const catCounts = {};
+  S.stock.forEach(x => { const c = x.category || "__none__"; catCounts[c] = (catCounts[c] || 0) + 1; });
+  const tab = (key, label, count) =>
+    `<button class="chip ${stockFilter === key ? "chip-active" : ""}" onclick="App.stockFilter('${key}')">${label} ${count ? `<span class="badge">${count}</span>` : ""}</button>`;
+  return `
+    <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none">
+      <div class="row row-between">
+        <div>
+          <div style="font-size:.76rem;opacity:.85">มูลค่าสต็อกทั้งหมด</div>
+          <div class="bold" style="font-size:1.5rem">${fmtMoney(total)} บาท</div>
+        </div>
+        <span style="font-size:2rem;color:#fff">${ic("box")}</span>
+      </div>
+    </div>
+    <div class="row row-between section-title" data-tkey="stockTitle">
+      <span>${T("stockTitle")} (${S.stock.length})</span>
+      <div class="row" style="gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-ghost" onclick="App.importProducts()">${ic("upload")} นำเข้าสินค้า</button>
+        <button class="btn btn-sm btn-outline" onclick="App.saleHistory()" title="ประวัติการขาย">${ic("box")} ประวัติขาย</button>
+        <button class="btn btn-sm btn-outline" onclick="App.customerHistory()" title="ประวัติลูกค้า">${ic("user")} ประวัติลูกค้า</button>
+        <button class="btn btn-sm btn-primary" onclick="App.modalSale()">${ic("dollar")} ขายสินค้า</button>
+        <button class="btn btn-sm btn-ghost" onclick="App.modalStock()">${ic("plus")} เพิ่มรายการ</button>
+      </div>
+    </div>
+    <div class="stock-tabs">
+      ${tab("all", "ทั้งหมด", S.stock.length)}
+      ${tab("has", "มีของ", hasCount)}
+      ${tab("out", "ยาหมด", outCount)}
+      ${tab("sealed", "ยังไม่เปิดใช้", sealedCount)}
+      ${tab("opened", "เปิดใช้แล้ว", openedCount)}
+    </div>
+    <div class="stock-cat-wrap">
+      <select class="stock-cat-select" id="stockCatSelect" onchange="App.stockCatFilter(this.value)" aria-label="กรองหมวดสินค้า">
+        <option value="">ทุกหมวดสินค้า (${S.stock.length})</option>
+        ${Object.keys(catCounts).sort((a, b) => a === "__none__" ? 1 : b === "__none__" ? -1 : a.localeCompare(b, "th")).map(c => `<option value="${esc(c)}" ${stockCat === c ? "selected" : ""}>${c === "__none__" ? "(ไม่มีหมวด)" : esc(c)} (${catCounts[c]})</option>`).join("")}
+      </select>
+    </div>
+    <div class="stock-search">
+      ${ic("search")}
+      <input type="text" id="stockSearchInput" placeholder="ค้นหาปุ๋ย/ยา/เมล็ดพันธุ์..." value="${esc(stockQuery)}" oninput="App.stockSearch(this.value)">
+      ${stockQuery ? `<button class="stock-search-clear" onclick="App.stockSearch('')">✕</button>` : ""}
+    </div>
+    <div id="stockListWrap">${stockListHtml()}</div>
+    <div class="muted" style="font-size:.72rem;text-align:center;padding:6px">${ic("info")} สต็อกหลักเก็บเป็นหน่วยเต็ม · เมื่อใช้ของไม่หมด ของที่เหลือจากการเปิดใช้จะนำไปใช้ก่อนเสมอ · วิธีคิดต้นทุนแบบถัวเฉลี่ยถ่วงน้ำหนัก (Weighted Average)</div>`;
+}
+App.stockFilter = function (key) {
+  stockFilter = key;
+  rerender();
+};
+App.stockCatFilter = function (v) {
+  stockCat = v;
+  rerender();
+};
+/* พิมพ์ค้นหา -> อัปเดตเฉพาะรายการ (ไม่ rebuild ทั้งหน้า = focus ไม่หลุด พิมพ์ต่อเนื่องได้) */
+App.stockSearch = function (v) {
+  stockQuery = v;
+  const wrap = document.getElementById("stockListWrap");
+  if (wrap) wrap.innerHTML = stockListHtml();
+  const clearBtn = document.querySelector(".stock-search-clear");
+  if (clearBtn) clearBtn.style.display = v ? "" : "none";
+};
+App.deleteStock = function (id) {
+  App.confirm("ลบรายการวัสดุ?", "", () => {
+    S.stock = S.stock.filter(x => x.id !== id);
+    saveState(S);
+    rerender();
+    toast("ลบรายการแล้ว");
+  });
+};
+
+/* ---------------- รายละเอียดสินค้า (กดที่การ์ดสต็อก) ---------------- */
+App.stockDetail = function (id) {
+  const x = stockById(S, id);
+  if (!x) return;
+  const open = Number(x.openQty) || 0;
+  const photos = stockPhotos(x);
+  const row = (k, v) => v ? `<div class="sd-row"><span class="k">${k}</span><span class="bold">${v}</span></div>` : "";
+  const stripHtml = photos.length
+    ? `<div class="sd-strip">${photos.map((p, i) => `<div class="sd-strip-item"><img src="${esc(stockPhotoSrc({ photo: p }))}" alt="" loading="lazy" onclick="App.viewPhoto('${x.id}', ${i})" onerror="this.remove()"><button class="sd-strip-x" onclick="event.stopPropagation();App.stockPhotoRemoveOne('${x.id}', ${i})" title="ลบรูปนี้">✕</button></div>`).join("")}</div>`
+    : `<div class="sd-no-photo">${ic("image")} ยังไม่มีรูป — กดเพิ่มรูปด้านล่าง</div>`;
+  openModal(`
+    <div class="sd-head">
+      <div>
+        <h3 style="margin:0">${esc(x.name)}</h3>
+        <div class="modal-sub">${x.category ? esc(x.category) : "ไม่มีหมวด"}${x.unit ? ` · ${esc(x.unit)}` : ""}</div>
+      </div>
+    </div>
+    ${stripHtml}
+    <div class="sd-photo-actions">
+      <button class="btn btn-sm btn-ghost" onclick="App.stockPhoto('${x.id}')">${ic("camera")} เพิ่มรูป${photos.length ? ` (${photos.length})` : ""}</button>
+    </div>
+    <div class="sd-rows">
+      ${row("รหัสสินค้า", x.code)}
+      ${row("ชื่อสามัญ", x.generic)}
+      ${row("หมวดสินค้า", x.category)}
+      ${row("ขนาด", x.size)}
+      ${row("หน่วยนับ", x.unit)}
+      ${row("บริษัทจำหน่าย", x.supplier)}
+      <div class="sd-row"><span class="k">ในสต็อก</span><span class="bold">${fmtNum(x.qty)} ${esc(x.unit)}${open > 0 ? ` <span class="stock-open" style="display:inline">+ เปิดใช้แล้ว ${fmtNum(open)} ${esc(x.unit)}</span>` : ""}</span></div>
+      <div class="sd-row"><span class="k">ต้นทุนถัวเฉลี่ย</span><span class="bold">${fmtMoney(x.avgCost)} บาท/${esc(x.unit)}</span></div>
+      ${row("ราคาขาย", x.salePrice ? `${fmtMoney(x.salePrice)} บาท/${esc(x.unit)}` : "")}
+      ${x.salePrice ? `<div class="sd-row"><span class="k">กำไร/หน่วย</span><span class="bold ${x.salePrice - x.avgCost >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(x.salePrice - x.avgCost)} บาท/${esc(x.unit)}</span></div>` : ""}
+      <div class="sd-row"><span class="k">มูลค่ารวม</span><span class="bold">${fmtMoney((x.qty + open) * x.avgCost)} บาท</span></div>
+    </div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="App.modalReceive('${x.id}')">${ic("down")} รับของเข้า</button>
+      <button class="btn btn-outline" onclick="App.modalDeduct('${x.id}')">${ic("minus")} ตัดสต็อก</button>
+      <button class="btn btn-ghost" onclick="App.modalStock('${x.id}')">${ic("pencil")} แก้ไข</button>
+      <button class="btn btn-danger-soft" onclick="App.deleteStock('${x.id}')">${ic("trash")} ลบ</button>
+    </div>`);
+};
+/* ย่อรูปอัตโนมัติ (กัน localStorage เต็ม) แล้วคืนเป็น data URL */
+function downscaleImage(file, maxSide, quality) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      const s = Math.min(1, maxSide / Math.max(w, h));
+      w = Math.max(1, Math.round(w * s));
+      h = Math.max(1, Math.round(h * s));
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      cv.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(cv.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")); };
+    img.src = url;
+  });
+}
+App.stockPhoto = function (id) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.multiple = true; // เลือกได้หลายรูปในครั้งเดียว
+  input.style.display = "none";
+  document.body.appendChild(input);
+  input.onchange = async () => {
+    const files = input.files ? [...input.files] : [];
+    input.remove();
+    if (!files.length) return;
+    const x = stockById(S, id);
+    if (!x) return;
+    if (!Array.isArray(x.photos)) x.photos = x.photo ? [x.photo] : [];
+    try {
+      let ok = 0;
+      for (const f of files) {
+        x.photos.push(await downscaleImage(f, 480, 0.68));
+        ok++;
+      }
+      x.photo = x.photos[0] || "";
+      saveState(S);
+      render(); // อัปเดตการ์ดด้านหลังทันที (ไม่ต้องรีเฟรช)
+      App.stockDetail(id);
+      toast(ok > 1 ? `เพิ่ม ${ok} รูปแล้ว` : "เพิ่มรูปแล้ว");
+    } catch (e) { toast("อ่านรูปไม่สำเร็จ — ลองไฟล์ JPG/PNG"); console.error(e); }
+  };
+  input.click();
+};
+App.stockPhotoRemoveOne = function (id, idx) {
+  const x = stockById(S, id);
+  if (!x || !Array.isArray(x.photos)) return;
+  x.photos.splice(idx, 1);
+  x.photo = x.photos[0] || "";
+  saveState(S);
+  render(); // อัปเดตการ์ดด้านหลังทันที (ไม่ต้องรีเฟรช)
+  App.stockDetail(id);
+  toast("ลบรูปแล้ว");
+};
+/* ดูภาพใหญ่ (lightbox) — กดที่รูปในป๊อปอัป */
+let lightboxEl = null;
+App.viewPhoto = function (id, idx) {
+  const photos = stockPhotos(stockById(S, id));
+  if (!photos.length) return;
+  const n = photos.length;
+  const cur = ((idx % n) + n) % n;
+  if (!lightboxEl) {
+    lightboxEl = document.createElement("div");
+    lightboxEl.id = "lightbox";
+    document.body.appendChild(lightboxEl);
+  }
+  lightboxEl.innerHTML = `
+    <div class="lightbox-backdrop" onclick="App.closeLightbox()">
+      <button class="lightbox-x" onclick="App.closeLightbox()">✕</button>
+      ${n > 1 ? `<button class="lightbox-nav prev" onclick="event.stopPropagation();App.viewPhoto('${id}',${cur - 1})">‹</button>
+      <button class="lightbox-nav next" onclick="event.stopPropagation();App.viewPhoto('${id}',${cur + 1})">›</button>` : ""}
+      <img src="${esc(stockPhotoSrc({ photo: photos[cur] }))}" alt="" onclick="event.stopPropagation()">
+      ${n > 1 ? `<div class="lightbox-count">${cur + 1} / ${n}</div>` : ""}
+    </div>`;
+};
+App.closeLightbox = function () {
+  if (lightboxEl) lightboxEl.innerHTML = "";
+};
+
+/* ---------------- นำเข้าสินค้าจากไฟล์ Excel (.xlsx) ---------------- */
+/* อ่าน ZIP (Central Directory) แล้วคลาย entry ที่บีบอัดด้วย DecompressionStream */
+async function zipEntries(u8) {
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  let eocd = -1;
+  for (let i = u8.length - 22; i >= Math.max(0, u8.length - 66000); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error("ไฟล์ไม่ใช่ ZIP (.xlsx)");
+  const count = dv.getUint16(eocd + 10, true);
+  let off = dv.getUint32(eocd + 16, true);
+  const dec = new TextDecoder();
+  const map = {};
+  for (let n = 0; n < count; n++) {
+    if (dv.getUint32(off, true) !== 0x02014b50) break;
+    const method = dv.getUint16(off + 10, true);
+    const csize = dv.getUint32(off + 20, true);
+    const nlen = dv.getUint16(off + 28, true);
+    const xlen = dv.getUint16(off + 30, true);
+    const clen = dv.getUint16(off + 32, true);
+    const lho = dv.getUint32(off + 42, true);
+    const name = dec.decode(new Uint8Array(u8.buffer, u8.byteOffset + off + 46, nlen));
+    map[name] = { method, csize, lho };
+    off += 46 + nlen + xlen + clen;
+  }
+  return map;
+}
+async function zipRead(u8, entry) {
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  const lho = entry.lho;
+  const nlen = dv.getUint16(lho + 26, true);
+  const xlen = dv.getUint16(lho + 28, true);
+  const start = lho + 30 + nlen + xlen;
+  const data = new Uint8Array(u8.buffer, u8.byteOffset + start, entry.csize);
+  if (entry.method === 0) return data;
+  if (typeof DecompressionStream === "undefined") throw new Error("เบราว์เซอร์นี้ไม่รองรับการอ่าน .xlsx — ลองใช้ Chrome");
+  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+function xlsxCellText(cell, shared) {
+  const t = cell.getAttribute("t") || "";
+  if (t === "inlineStr") {
+    const ts = cell.getElementsByTagName("t");
+    let s = "";
+    for (let i = 0; i < ts.length; i++) s += ts[i].textContent;
+    return s;
+  }
+  const v = cell.getElementsByTagName("v")[0];
+  if (!v) return "";
+  if (t === "s") { const i = Number(v.textContent); return shared[i] || ""; }
+  return v.textContent;
+}
+/* แยกคอลัมน์จากไฟล์ .xlsx -> รายการสินค้า {name, generic, category, size, unit, supplier} */
+async function parseXlsxProducts(file) {
+  const u8 = new Uint8Array(await file.arrayBuffer());
+  const entries = await zipEntries(u8);
+  const read = async (name) => {
+    const e = entries[name];
+    return e ? new TextDecoder().decode(await zipRead(u8, e)) : null;
+  };
+  const wbXml = await read("xl/workbook.xml");
+  const relsXml = await read("xl/_rels/workbook.xml.rels");
+  if (!wbXml || !relsXml) throw new Error("ไฟล์ .xlsx ไม่สมบูรณ์");
+  const wb = new DOMParser().parseFromString(wbXml, "application/xml");
+  const sheetEl = wb.getElementsByTagName("sheet")[0];
+  const sheetName = sheetEl ? sheetEl.getAttribute("name") || "" : "";
+  const rid = sheetEl ? sheetEl.getAttribute("r:id") : "";
+  let target = "";
+  const rels = new DOMParser().parseFromString(relsXml, "application/xml").getElementsByTagName("Relationship");
+  for (let i = 0; i < rels.length; i++) {
+    if (rels[i].getAttribute("Id") === rid) { target = rels[i].getAttribute("Target") || ""; break; }
+  }
+  if (!target) throw new Error("ไม่พบชีตข้อมูลในไฟล์");
+  const t2 = target.replace(/^\//, "");
+  const sheetPath = t2.startsWith("xl/") ? t2 : "xl/" + t2.replace(/^\.?\//, "");
+  const sheetXml = await read(sheetPath);
+  if (!sheetXml) throw new Error("ไม่พบชีตข้อมูลในไฟล์");
+  /* sharedStrings (ถ้ามี) */
+  const shared = [];
+  const ssXml = await read("xl/sharedStrings.xml");
+  if (ssXml) {
+    const sis = new DOMParser().parseFromString(ssXml, "application/xml").getElementsByTagName("si");
+    for (let i = 0; i < sis.length; i++) {
+      const ts = sis[i].getElementsByTagName("t");
+      let s = "";
+      for (let j = 0; j < ts.length; j++) s += ts[j].textContent;
+      shared.push(s);
+    }
+  }
+  const sheet = new DOMParser().parseFromString(sheetXml, "application/xml");
+  const rows = sheet.getElementsByTagName("row");
+  const grid = [];
+  for (let r = 0; r < rows.length; r++) {
+    const cells = rows[r].getElementsByTagName("c");
+    const rowArr = [];
+    for (let c = 0; c < cells.length; c++) {
+      const col = (cells[c].getAttribute("r") || "").replace(/[0-9]+$/, "");
+      let idx = 0;
+      for (let k = 0; k < col.length; k++) idx = idx * 26 + (col.charCodeAt(k) - 64);
+      rowArr[idx - 1] = xlsxCellText(cells[c], shared);
+    }
+    grid.push(rowArr);
+  }
+  /* หาแถวหัวตาราง (มีคอลัมน์ "ชื่อสินค้า") */
+  let hi = -1;
+  for (let i = 0; i < grid.length; i++) {
+    if (grid[i].some(v => String(v || "").includes("ชื่อสินค้า"))) { hi = i; break; }
+  }
+  if (hi < 0) throw new Error("ไม่พบคอลัมน์ 'ชื่อสินค้า' ในไฟล์");
+  const headers = grid[hi].map(h => String(h || "").trim());
+  const findCol = (key) => {
+    const i = headers.findIndex(h => h.includes(key));
+    return i >= 0 ? i : -1;
+  };
+  const iName = findCol("ชื่อสินค้า"), iCode = findCol("รหัสสินค้า"), iGeneric = findCol("ชื่อสามัญ"), iCat = findCol("หมวดสินค้า"),
+        iUnit = findCol("หน่วยนับ"), iSize = findCol("ขนาดสินค้า"), iSupp = findCol("บริษัทจำหน่าย"),
+        iPhoto = findCol("รูปถ่าย"), iSale = findCol("ราคาขาย");
+  const products = [];
+  /* แปลงตัวเลขจาก Excel: ตัดเครื่องหมายคั่น/สกุลเงิน/ช่องว่างออก */
+  const toNum = v => {
+    const n = parseFloat(String(v == null ? "" : v).replace(/[^\d.\-]/g, ""));
+    return isNaN(n) ? 0 : n;
+  };
+  for (let r = hi + 1; r < grid.length; r++) {
+    const row = grid[r];
+    const name = String(row[iName] || "").trim();
+    if (!name) continue;
+    products.push({
+      name,
+      code: iCode >= 0 ? String(row[iCode] || "").trim() : "",
+      generic: String(row[iGeneric] || "").trim(),
+      category: String(row[iCat] || "").trim(),
+      size: String(row[iSize] || "").trim(),
+      unit: String(row[iUnit] || "").trim() || "ชิ้น",
+      supplier: String(row[iSupp] || "").trim(),
+      photo: String(row[iPhoto] || "").trim(),
+      salePrice: iSale >= 0 ? toNum(row[iSale]) : 0
+    });
+  }
+  return { products, sheetName };
+}
+/* กด "นำเข้าสินค้า" → แสดงวิธีเรียงไฟล์ Excel ก่อน แล้วค่อยเลือกไฟล์ */
+App.importProducts = function () {
+  const req = ["ชื่อสินค้า"];
+  const cols = [
+    ["ชื่อสินค้า", "จำเป็น", "สารกำจัดเพลี้ย ฟลูไดออกโซนิล"],
+    ["รหัสสินค้าเดิม", "ไม่จำเป็น", "00-0000-269"],
+    ["ชื่อสามัญ", "ไม่จำเป็น", "Fluopyram"],
+    ["หมวดสินค้า", "ไม่จำเป็น", "ยากำจัดศัตรูพืช"],
+    ["หน่วยนับ", "ไม่จำเป็น (ว่าง = ชิ้น)", "ขวด"],
+    ["ขนาดสินค้า", "ไม่จำเป็น", "1,000 ซีซี"],
+    ["บริษัทจำหน่าย", "ไม่จำเป็น", "FLYTECH"],
+    ["รูปถ่าย", "ไม่จำเป็น", "photo_123.jpeg"],
+    ["ราคาขาย", "ไม่จำเป็น", "250"],
+  ];
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("upload")} นำเข้าสินค้าจาก Excel</h3>
+    <div class="modal-sub">อ่านคำแนะนำด้านล่าง แล้วกด "เลือกไฟล์ .xlsx" เพื่อนำเข้า</div>
+
+    <div class="bold" style="font-size:.86rem;margin:4px 0 6px">${ic("info")} ข้อกำหนดไฟล์</div>
+    <div class="td-list" style="border:1px solid var(--line);border-radius:10px;padding:2px 10px">
+      <div class="td-row"><span class="td-k">นามสกุล</span><span class="td-v">.xlsx เท่านั้น (Excel 2007+ / Google Sheets) — .xls อ่านไม่ได้</span></div>
+      <div class="td-row"><span class="td-k">ชีต</span><span class="td-v">ระบบอ่านเฉพาะชีตแรก (Sheet 1)</span></div>
+      <div class="td-row"><span class="td-k">หัวตาราง</span><span class="td-v">ต้องมีแถวที่มีคำว่า "${req[0]}" — ข้อมูลเริ่มจากแถวถัดไป</span></div>
+      <div class="td-row"><span class="td-k">สินค้าซ้ำ</span><span class="td-v">ชื่อ+ขนาด+หน่วย+บริษัท ซ้ำ → ข้ามอัตโนมัติ</span></div>
+      <div class="td-row"><span class="td-k">จำนวน</span><span class="td-v">นำเข้าแค่รายการสินค้า — จำนวนคงเหลือเริ่มที่ 0 ต้องไปรับของเข้าก่อน</span></div>
+    </div>
+
+    <div class="bold" style="font-size:.86rem;margin:14px 0 6px">${ic("menu")} คอลัมน์ในหัวตาราง</div>
+    <div class="td-list" style="border:1px solid var(--line);border-radius:10px;padding:2px 10px">
+      ${cols.map(c => `
+        <div class="td-row">
+          <span class="td-k" style="flex-basis:110px">${c[0]}</span>
+          <span class="td-v" style="font-weight:400">${c[1]}${c[1].includes("จำเป็น") ? ` <span class="badge badge-red" style="margin-left:4px">ต้องมี</span>` : ""}</span>
+          <span class="muted" style="font-size:.72rem;text-align:right;flex-shrink:0">${esc(c[2])}</span>
+        </div>`).join("")}
+    </div>
+    <div class="muted" style="font-size:.7rem;margin-top:10px">${ic("image")} รูปถ่าย: ใส่ชื่อไฟล์ แล้ววางรูปไว้ที่โฟลเดอร์ images/products/ (หรือเพิ่มรูปทีหลังได้) · ${ic("dollar")} ราคาขาย: ตัวเลขต่อ 1 หน่วย เช่น 250 = 250 บาท/ขวด · ${ic("info")} รหัสสินค้าเดิม: ใช้รหัสเดียวกับที่เคยใช้ในระบบเดิม</div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="App.pickImportFile()">${ic("upload")} เลือกไฟล์ .xlsx</button>
+    </div>`);
+};
+/* เลือกไฟล์จริงและนำเข้า (เรียกจากปุ่มในหน้าต่างคำแนะนำ) */
+App.pickImportFile = function () {
+  closeModal();
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  input.style.display = "none";
+  document.body.appendChild(input);
+  input.onchange = async () => {
+    const file = input.files && input.files[0];
+    input.remove();
+    if (!file) return;
+    try {
+      const { products, sheetName } = await parseXlsxProducts(file);
+      if (!products.length) { toast("ไม่พบรายการสินค้าในไฟล์"); return; }
+      const { added, skipped } = mergeStockProducts(S, products);
+      saveState(S);
+      render();
+      toast(`นำเข้าสินค้าแล้ว ${added} รายการ${skipped ? ` (ข้าม ${skipped} รายการที่ซ้ำ)` : ""}${sheetName ? ` จากชีต "${sheetName}"` : ""}`);
+    } catch (err) {
+      toast("อ่านไฟล์ไม่สำเร็จ: " + (err && err.message ? err.message : "ไฟล์ไม่ใช่ .xlsx"));
+      console.error(err);
+    }
+  };
+  input.click();
+};
