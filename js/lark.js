@@ -1,7 +1,8 @@
 /* ---------------- ซิงก์ข้อมูลกับ Lark Base (ผ่าน Netlify Function) ----------------
    เรียก /.netlify/functions/lark — App Secret เก็บไว้ฝั่ง Netlify เท่านั้น ไม่หลุดมาเบราว์เซอร์
    ใช้ในหน้าตั้งค่า: ทดสอบการเชื่อมต่อ / อัปโหลด (push) / ดาวน์โหลด (pull) */
-const LARK_FN = "/.netlify/functions/lark";
+/* เรียก Cloudflare Worker (proxy เก็บ App Secret ฝั่ง server) */
+const LARK_FN = "https://farmbackup.carfork123.workers.dev";
 
 /* เรียก Netlify Function — คืน data หรือ throw พร้อมข้อความ */
 async function larkCall(action, body) {
