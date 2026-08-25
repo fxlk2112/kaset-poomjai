@@ -1334,29 +1334,87 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 
 
+
+
 /* ==================== Auth Gate (บังคับล็อกอิน) ==================== */
+html.auth-locked {
+  background: linear-gradient(165deg, #0b3d20 0%, #14532d 40%, #1a7a3e 75%, #2c9a54 100%);
+  min-height: 100%;
+}
+html.auth-locked #app { visibility: hidden; }
 #authGate {
   position: fixed; inset: 0; z-index: 9999;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(160deg, #14532d 0%, #16a34a 55%, #22c55e 100%);
-  padding: 16px;
+  background: linear-gradient(165deg, #0b3d20 0%, #14532d 38%, #1a7a3e 72%, #2c9a54 100%);
+  padding: 18px; overflow-y: auto;
 }
+/* --- ฉากหลัง: พระอาทิตย์ + เนินไร่ 3 ชั้น --- */
+.ag-bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.ag-sun {
+  position: absolute; top: 8%; left: 50%; transform: translateX(-50%);
+  width: min(46vmin, 340px); height: min(46vmin, 340px); border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,214,120,.95) 0%, rgba(255,190,90,.55) 42%, rgba(255,180,80,0) 72%);
+  filter: blur(1px);
+}
+.ag-hills { position: absolute; bottom: -2px; left: 0; width: 100%; height: 44%; }
+.ag-hills .h1 { fill: rgba(255,255,255,.10); }
+.ag-hills .h2 { fill: rgba(16,71,39,.55); }
+.ag-hills .h3 { fill: rgba(9,46,24,.82); }
+@media (prefers-reduced-motion: no-preference) {
+  .ag-sun { animation: agGlow 7s ease-in-out infinite alternate; }
+  .auth-box { animation: agRise .5s cubic-bezier(.2,.8,.25,1) both; }
+}
+@keyframes agGlow { from { opacity: .85; transform: translateX(-50%) scale(1); } to { opacity: 1; transform: translateX(-50%) scale(1.06); } }
+@keyframes agRise { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: translateY(0); } }
+
+/* --- การ์ดล็อกอิน --- */
 .auth-box {
-  width: 100%; max-width: 400px;
-  background: #fff; border-radius: 18px;
-  padding: 26px 22px 20px;
-  box-shadow: 0 24px 60px rgba(0,0,0,.35);
-  max-height: 92vh; overflow-y: auto;
+  position: relative; z-index: 1;
+  width: 100%; max-width: 410px;
+  background: rgba(255,255,255,.97);
+  border-radius: 24px;
+  padding: 28px 24px 22px;
+  box-shadow: 0 30px 70px rgba(4,32,17,.5), inset 0 1px 0 rgba(255,255,255,.9);
+  max-height: calc(100vh - 36px); overflow-y: auto;
+  border: 1px solid rgba(255,255,255,.6);
 }
-.auth-brand { text-align: center; margin-bottom: 14px; }
-.auth-brand img { width: 64px; height: 64px; border-radius: 14px; object-fit: cover; }
-.auth-brand-name { font-weight: 800; font-size: 1.02rem; color: #14532d; letter-spacing: .3px; margin-top: 8px; }
-.auth-brand-sub { font-size: .78rem; color: #6b7280; margin-top: 2px; }
-.auth-tabs { display: flex; gap: 6px; background: var(--green-soft, #f0fdf4); border-radius: 10px; padding: 4px; margin-bottom: 12px; }
+.auth-brand { text-align: center; margin-bottom: 16px; }
+.auth-brand img {
+  width: 68px; height: 68px; border-radius: 16px; object-fit: cover;
+  box-shadow: 0 8px 22px rgba(20,83,45,.35), 0 0 0 3px rgba(255,255,255,.85);
+}
+.auth-brand-name {
+  font-weight: 800; font-size: 1.05rem; color: #123f23;
+  letter-spacing: .4px; margin-top: 10px;
+}
+.auth-brand-sub { font-size: .78rem; color: #6b8f79; margin-top: 3px; }
+.auth-tabs {
+  display: flex; gap: 6px;
+  background: #eef7f0; border-radius: 12px; padding: 4px; margin-bottom: 14px;
+}
 .auth-tabs button {
   flex: 1; border: 0; background: transparent; cursor: pointer;
-  font: inherit; font-weight: 700; font-size: .86rem;
-  padding: 8px 0; border-radius: 8px; color: #374151;
+  font: inherit; font-weight: 700; font-size: .87rem;
+  padding: 9px 0; border-radius: 9px; color: #4b6b58;
+  transition: all .18s ease;
 }
-.auth-tabs button.active { background: #fff; color: var(--green-deep, #166534); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
-.auth-hint { text-align: center; font-size: .7rem; color: #9ca3af; margin-top: 14px; line-height: 1.5; }
+.auth-tabs button.active {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: #fff; box-shadow: 0 4px 12px rgba(21,128,61,.35);
+}
+.ag-submit {
+  margin-top: 14px;
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  box-shadow: 0 8px 20px rgba(21,128,61,.4);
+  font-weight: 700;
+}
+.ag-submit:active { transform: translateY(1px); }
+.auth-hint {
+  text-align: center; font-size: .7rem; color: #93a89b;
+  margin-top: 14px; line-height: 1.55;
+}
+@media (max-width: 420px) {
+  .auth-box { padding: 22px 16px 16px; border-radius: 20px; }
+  .auth-brand-name { font-size: .95rem; }
+}
+

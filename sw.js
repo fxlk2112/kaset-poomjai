@@ -1,7 +1,7 @@
 /* Service Worker — ให้เว็บใช้งานได้แบบออฟไลน์ (ติดตั้งเป็นแอพบนมือถือ)
    วิธี: network-first แล้วเก็บลง cache — เปิดเน็ตอยู่ก็ได้ข้อมูลใหม่เสมอ, ไม่มีเน็ตก็ใช้เวอร์ชันล่าสุดที่เคยโหลด
    ไฟล์จาก CDN/API ภายนอก (Leaflet, Open-Meteo, Nominatim) ไม่ cache — ใช้เน็ตตามปกติ */
-const CACHE = "farmult-v6";
+const CACHE = "farmult-v7";
 
 self.addEventListener("install", () => self.skipWaiting());
 

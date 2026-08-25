@@ -321,6 +321,14 @@ const ROLE_META = {
    (กด nav) แต่จะถูกปิดตอน re-render ในหน้าเดิม เช่น กดวันที่/เปลี่ยนเดือน */
 let lastView = null;
 function render() {
+  /* บังคับล็อกอิน: ยังไม่ล็อกอิน = ไม่วาดหน้าใด ๆ ของแอป (gate ครอบอยู่) */
+  if (typeof Auth !== "undefined" && !Auth.session) {
+    const vn = document.getElementById("view");
+    const nn = document.getElementById("bottomNav");
+    if (vn) vn.innerHTML = "";
+    if (nn) nn.innerHTML = "";
+    return;
+  }
   // role switch
   const rs = document.getElementById("roleSwitch");
   rs.innerHTML = Object.keys(ROLE_META).map(k =>

@@ -22,6 +22,18 @@ const Auth = {
 };
 try { Auth.session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) {}
 
+/* ล็อกทันทีตั้งแต่ไฟล์นี้โหลด (ก่อน app.js render) — เครื่องที่ไม่มีเซสชันจะเห็นแต่หน้าล็อกอิน */
+document.documentElement.classList.toggle("auth-locked", !Auth.session);
+
+/* กันข้อความที่ผู้ใช้เคยแก้ไว้แล้วเพี้ยน (ตัวอักษรที่แสดงไม่ได้) — ลบทิ้งให้ใช้ค่าเริ่มต้น */
+try {
+  if (S && S.texts) {
+    Object.keys(S.texts).forEach(k => {
+      if (typeof S.texts[k] === "string" && /[\uFFFD\u25A1\u25AF]/.test(S.texts[k])) delete S.texts[k];
+    });
+  }
+} catch (e) {}
+
 function authCall(action, extra) {
   return fetch(AUTH_API, {
     method: "POST",
@@ -32,6 +44,8 @@ function authCall(action, extra) {
 
 function setSession(s) {
   Auth.session = s;
+  /* ล็อกทั้งระบบทันทีที่ระดับ DOM — ไม่ต้องรอ gate element */
+  document.documentElement.classList.toggle("auth-locked", !s);
   if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s));
   else localStorage.removeItem(SESSION_KEY);
 }
@@ -193,6 +207,14 @@ Auth.buildGate = function () {
   const el = document.createElement("div");
   el.id = "authGate";
   el.innerHTML = `
+    <div class="ag-bg" aria-hidden="true">
+      <div class="ag-sun"></div>
+      <svg class="ag-hills" viewBox="0 0 1440 420" preserveAspectRatio="none">
+        <path class="h1" d="M0,260 C240,180 420,300 720,240 C1020,180 1200,290 1440,230 L1440,420 L0,420 Z"/>
+        <path class="h2" d="M0,330 C260,270 520,360 820,320 C1120,280 1280,350 1440,310 L1440,420 L0,420 Z"/>
+        <path class="h3" d="M0,385 C300,350 600,400 900,375 C1150,355 1300,395 1440,370 L1440,420 L0,420 Z"/>
+      </svg>
+    </div>
     <div class="auth-box">
       <div class="auth-brand">
         <img src="logo.jpg" alt="" onerror="this.style.display='none'">
@@ -209,8 +231,8 @@ Auth.buildGate = function () {
         <div class="field"><label>ยืนยันรหัสผ่าน</label><input id="g_pass2" type="password" autocomplete="new-password"></div>
         <div class="field"><label>ชื่อ-นามสกุล (ไม่บังคับ)</label><input id="g_name"></div>
       </div>
-      <button class="btn btn-primary btn-block mt-8" id="ag_submit" onclick="Auth.gateSubmit()">${ic("unlock")} ล็อกอิน</button>
-      <div class="auth-hint">ข้อมูลของแต่ละบัญชีแยกกัน และซิงก์ขึ้นคลาวด์อัตโนมัติ<br>เปิดได้ทุกเครื่อง · ใช้แบบออฟไลน์ได้หลังล็อกอิน</div>
+      <button class="btn btn-primary btn-block mt-8 ag-submit" id="ag_submit" onclick="Auth.gateSubmit()">${ic("unlock")} ล็อกอิน</button>
+      <div class="auth-hint">ข้อมูลของแต่ละบัญชีแยกกัน ซิงก์ขึ้นคลาวด์อัตโนมัติ<br>เปิดได้ทุกเครื่อง · ใช้แบบออฟไลน์ได้หลังล็อกอิน</div>
     </div>`;
   document.body.appendChild(el);
   Auth.gateEl = el;
