@@ -482,15 +482,26 @@ App.adminDownloadJson = async function (email) {
   toast("ดาวน์โหลด JSON แล้ว");
 };
 
-/* ---------- ธีม: สว่าง / มืด / ตามระบบ ---------- */
+/* ---------- ธีม: สว่าง / มืด / ตามระบบ / ตามเวลา (18:00-06:00 มืด) ---------- */
 Auth.applyTheme = function () {
   let mode = "system";
   try { mode = localStorage.getItem("farmult-theme") || "system"; } catch (e) {}
-  const dark = mode === "dark" || (mode === "system" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+  let dark;
+  if (mode === "dark") dark = true;
+  else if (mode === "auto") {
+    const h = new Date().getHours();
+    dark = h >= 18 || h < 6; /* 18:00-06:00 = มืด */
+  } else {
+    dark = mode === "system" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
+  }
   if (dark) document.documentElement.setAttribute("data-theme", "dark");
   else document.documentElement.removeAttribute("data-theme");
   return mode;
 };
+/* โหมด "ตามเวลา": เช็กทุกนาที สลับเองเมื่อขึ้น-ตกดิน */
+setInterval(() => {
+  try { if ((localStorage.getItem("farmult-theme") || "system") === "auto") Auth.applyTheme(); } catch (e) {}
+}, 60000);
 Auth.getTheme = function () {
   try { return localStorage.getItem("farmult-theme") || "system"; } catch (e) { return "system"; }
 };
@@ -498,7 +509,7 @@ Auth.setTheme = function (mode) {
   try { localStorage.setItem("farmult-theme", mode); } catch (e) {}
   Auth.applyTheme();
   render();
-  toast(mode === "dark" ? "🌙 โหมดมืด" : mode === "light" ? "☀️ โหมดสว่าง" : "🖥️ ตามระบบ");
+  toast(mode === "dark" ? "🌙 โหมดมืด" : mode === "light" ? "☀️ โหมดสว่าง" : mode === "auto" ? "⏰ สลับเองตามเวลา (มืด 18:00-06:00)" : "🖥️ ตามระบบเครื่อง");
 };
 try {
   if (window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => Auth.applyTheme());
@@ -535,9 +546,10 @@ Auth.fillProfilePanel = function () {
       <button class="btn btn-danger-soft btn-block" onclick="Auth.closeProfile();App.authLogout()">${ic("lock")} ออกจากระบบ</button>
     </div>
     <div class="pp-theme">
-      <button class="${Auth.getTheme() === "light" ? "active" : ""}" onclick="Auth.setTheme('light')" title="โหมดสว่าง">☀️ สว่าง</button>
-      <button class="${Auth.getTheme() === "dark" ? "active" : ""}" onclick="Auth.setTheme('dark')" title="โหมดมืด">🌙 มืด</button>
-      <button class="${Auth.getTheme() === "system" ? "active" : ""}" onclick="Auth.setTheme('system')" title="ตามระบบ">🖥️ ระบบ</button>
+      <button class="${Auth.getTheme() === "light" ? "active" : ""}" onclick="Auth.setTheme('light')" title="โหมดสว่างตลอด">☀️ สว่าง</button>
+      <button class="${Auth.getTheme() === "dark" ? "active" : ""}" onclick="Auth.setTheme('dark')" title="โหมดมืดตลอด">🌙 มืด</button>
+      <button class="${Auth.getTheme() === "system" ? "active" : ""}" onclick="Auth.setTheme('system')" title="ตามค่าที่ตั้งในเครื่อง">🖥️ ระบบ</button>
+      <button class="${Auth.getTheme() === "auto" ? "active" : ""}" onclick="Auth.setTheme('auto')" title="สว่างกลางวัน มืดหลัง 18:00">⏰ เวลา</button>
     </div>`;
 };
 

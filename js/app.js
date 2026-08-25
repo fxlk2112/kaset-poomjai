@@ -1667,7 +1667,7 @@ function renderIoT() {
         ${sys.auto && sys.auto.enabled ? `<span class="badge badge-blue">${ic("clock")} อัตโนมัติ ทุก ${sys.auto.everyDays} วัน · ${sys.auto.time} · ${sys.auto.minutes} นาที</span>` : `<span class="badge badge-gray">ให้น้ำด้วยมือ</span>`}
         ${due ? `<span class="badge badge-amber">${ic("droplet")} ถึงรอบให้น้ำแล้ว</span>` : next ? `<span class="badge badge-green">ครั้งถัดไป ${dateLabel(next)}</span>` : ""}
       </div>
-      <div class="muted" data-wnote="${esc(sys.id)}" style="font-size:.7rem;color:#b45309;margin-top:4px;min-height:0"></div>
+      <div class="muted" data-wnote="${esc(sys.id)}" style="font-size:.7rem;color:var(--amber-text);margin-top:4px;min-height:0"></div>
       <div class="row row-between mt-8">
         <div class="muted" style="font-size:.72rem">ให้น้ำล่าสุด: ${sys.lastWatered ? dateLabel(sys.lastWatered) : "ยังไม่เคย"}</div>
         <div style="display:flex;gap:6px">
