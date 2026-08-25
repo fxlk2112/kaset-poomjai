@@ -1656,6 +1656,7 @@ function renderSettings() {
       <div class="row row-between mt-8"><span class="muted">โหมดเริ่มต้น</span><span class="small bold">${ROLE_META[S.role].label}</span></div>
       <div class="row row-between mt-8"><span class="muted">เวอร์ชัน</span><span class="small bold">v${S.version}</span></div>
     </div>
+    ${typeof Auth !== "undefined" ? Auth.cardHtml() : ""}
     <div class="section-title">${ic("save")} สำรองข้อมูล (Export / Import)</div>
     <div class="card">
       <div class="muted" style="font-size:.76rem;margin-bottom:10px">ดาวน์โหลดข้อมูลทั้งหมด (งาน / สต็อก / แปลง / ค่าใช้จ่าย) เป็นไฟล์ .json เพื่อสำรอง หรือนำเข้าไฟล์สำรองกลับมาใช้งาน — ข้อมูลบันทึกในเบราว์เซอร์เท่านั้น</div>
@@ -1667,17 +1668,18 @@ function renderSettings() {
       ${(() => { const st = storageHealthInfo(); return `
       <div class="row row-between"><span class="muted">ใช้ไป</span><span class="bold">${(st.used / 1048576).toFixed(2)} MB / ~5 MB (${st.pct}%)</span></div>
       <div class="storage-bar"><div class="storage-bar-fill ${st.pct >= 80 ? "warn" : ""}" style="width:${st.pct}%"></div></div>
-      ${st.pct >= 80 ? `<div class="muted" style="color:var(--red);font-size:.76rem;margin-top:6px">${ic("alert")} พื้นที่ใกล้เต็ม — ลบรูปสินค้าที่ไม่ใช้ หรือสำรองข้อมูลไว้ (ไฟล์ .json / ซิงก์ Lark Base)</div>` : `<div class="muted" style="font-size:.72rem;margin-top:6px">${ic("info")} ข้อมูลบันทึกในเบราว์เซอร์เท่านั้น — สำรองข้อมูลเป็นประจำ (ดาวน์โหลด .json หรือซิงก์ Lark Base ด้านล่าง)</div>`}
+      ${st.pct >= 80 ? `<div class="muted" style="color:var(--red);font-size:.76rem;margin-top:6px">${ic("alert")} พื้นที่ใกล้เต็ม — ลบรูปสินค้าที่ไม่ใช้ หรือสำรองข้อมูลไว้ (ไฟล์ .json / ล็อกอินบัญชีเพื่อซิงก์คลาวด์)</div>` : `<div class="muted" style="font-size:.72rem;margin-top:6px">${ic("info")} ข้อมูลบันทึกในเครื่อง และขึ้นคลาวด์อัตโนมัติเมื่อล็อกอินบัญชี — สำรองข้อมูลเป็นประจำ</div>`}
       ${storageSaveFailed ? `<div class="muted" style="color:var(--red);font-size:.76rem;margin-top:6px">${ic("alert")} ข้อมูลล่าสุดบันทึกไม่สำเร็จ (พื้นที่เต็ม) — ลบรูปสินค้า/สำรองข้อมูลด่วน</div>` : ""}
       `; })()}
     </div>
-    <div class="section-title">${ic("upload")} ซิงก์กับ Lark Base <span class="badge badge-blue">สำรองออนไลน์</span></div>
+    ${adminUnlocked() ? `
+    <div class="section-title">${ic("upload")} ซิงก์กับ Lark Base (ผู้ดูแลระบบ) <span class="badge badge-gray">ระดับแอดมิน</span></div>
     <div class="card">
-      <div class="muted" style="font-size:.76rem;margin-bottom:10px">สำรอง/กู้คืนข้อมูลทั้งหมดไปยัง <b>Lark Base</b> ผ่าน Cloudflare Worker — App Secret เก็บไว้ฝั่ง Worker ไม่หลุดไปหน้าเว็บ ใช้ได้จากทุกเครื่องที่ล็อกอินเว็บนี้</div>
+      <div class="muted" style="font-size:.76rem;margin-bottom:10px">สำรอง/กู้คืนข้อมูลทั้งหมดไปยัง <b>Lark Base</b> ผ่าน Cloudflare Worker — App Secret เก็บไว้ฝั่ง Worker ไม่หลุดไปหน้าเว็บ</div>
       <button class="btn btn-primary btn-block" onclick="App.larkTest()">${ic("wifi")} ทดสอบการเชื่อมต่อ</button>
       <button class="btn btn-outline btn-block mt-8" onclick="App.larkPush()">${ic("upload")} อัปโหลดข้อมูลไป Lark Base</button>
       <button class="btn btn-ghost btn-block mt-8" onclick="App.larkPull()">${ic("download")} ดาวน์โหลดข้อมูลจาก Lark Base</button>
-    </div>
+    </div>` : ""}
     <div class="section-title">${ic("dollar")} หมวดต้นทุน</div>
     <div class="card">
       <div class="muted" style="font-size:.76rem;margin-bottom:10px">หมวดที่ใช้ใน dropdown "หมวดหมู่" ของฟอร์มงานและกราฟต้นทุน — เพิ่มหมวดเองได้ตามธุรกิจของคุณ</div>

@@ -183,6 +183,128 @@ async function doStatus(env) {
   return { ok: true, table_id: tableId, records: list.length };
 }
 
+/* ==================== บัญชีผู้ใช้ + ข้อมูลรายบัญชี (D1) ====================
+   register {email,password,name} → {token,email,name}
+   login    {email,password}      → {token,email,name}
+   logout   {token}
+   me       {token}               → {email,name,updated_at}
+   save     {token,data}          → {updated_at}  (data = สถานะทั้งหมดของแอป JSON)
+   load     {token}               → {data,updated_at} | {data:null}
+*/
+const ITERATIONS = 100000;
+const SESSION_DAYS = 30;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function b64(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+function unb64(s) {
+  return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+}
+async function hashPassword(password, saltB64) {
+  const keyMat = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt: unb64(saltB64), iterations: ITERATIONS },
+    keyMat, 256
+  );
+  return "pbkdf2$" + ITERATIONS + "$" + saltB64 + "$" + b64(bits);
+}
+function makeSalt() {
+  return b64(crypto.getRandomValues(new Uint8Array(16)));
+}
+function makeToken() {
+  return [...crypto.getRandomValues(new Uint8Array(32))].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+/* จำกัดความถี่พื้นฐาน (ต่อ isolate): register/login ไม่เกิน 20 ครั้ง/นาที/IP */
+const rateMap = new Map();
+function rateLimit(request) {
+  const ip = request.headers.get("cf-connecting-ip") || "?";
+  const now = Date.now();
+  const e = rateMap.get(ip) || { n: 0, reset: now + 60000 };
+  if (now > e.reset) { e.n = 0; e.reset = now + 60000; }
+  e.n++;
+  rateMap.set(ip, e);
+  if (e.n > 20) throw new Error("พยายามบ่อยเกินไป กรุณารอสักครู่");
+}
+
+async function authUser(env, token) {
+  if (!token) throw new Error("ยังไม่ได้ล็อกอิน");
+  const row = await env.DB.prepare("SELECT s.user_id, u.email, u.name FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?1 AND s.expires_at > ?2")
+    .bind(token, Date.now()).first();
+  if (!row) throw new Error("เซสชันหมดอายุ กรุณาล็อกอินใหม่");
+  /* ต่ออายุแบบ sliding */
+  await env.DB.prepare("UPDATE sessions SET expires_at = ?1 WHERE token = ?2")
+    .bind(Date.now() + SESSION_DAYS * 86400000, token).run();
+  return row;
+}
+
+async function doRegister(env, request, p) {
+  rateLimit(request);
+  const email = String(p.email || "").trim().toLowerCase();
+  const password = String(p.password || "");
+  const name = String(p.name || "").trim().slice(0, 80);
+  if (!EMAIL_RE.test(email)) throw new Error("รูปแบบอีเมลไม่ถูกต้อง");
+  if (password.length < 6) throw new Error("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+  const exists = await env.DB.prepare("SELECT id FROM users WHERE email = ?1").bind(email).first();
+  if (exists) throw new Error("อีเมลนี้ถูกใช้แล้ว");
+  const id = crypto.randomUUID();
+  await env.DB.prepare("INSERT INTO users (id, email, pass_hash, name, created_at) VALUES (?1, ?2, ?3, ?4, ?5)")
+    .bind(id, email, await hashPassword(password, makeSalt()), name, Date.now()).run();
+  const token = makeToken();
+  await env.DB.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?1, ?2, ?3)")
+    .bind(token, id, Date.now() + SESSION_DAYS * 86400000).run();
+  return { token, email, name };
+}
+
+async function doLogin(env, request, p) {
+  rateLimit(request);
+  const email = String(p.email || "").trim().toLowerCase();
+  const password = String(p.password || "");
+  const row = await env.DB.prepare("SELECT id, pass_hash, email, name FROM users WHERE email = ?1").bind(email).first();
+  /* ถ้าไม่พบอีเมล ก็แฮชทึบ ๆ ให้เสียเวลาเท่ากัน กันการเดาว่าอีเมลนี้มีในระบบ */
+  const stored = row ? row.pass_hash : "pbkdf2$" + ITERATIONS + "$" + makeSalt() + "$" + b64(crypto.getRandomValues(new Uint8Array(32)));
+  const parts = stored.split("$");
+  /* hashPassword คืนสตริงเต็ม pbkdf2$iter$salt$hash — เทียบเฉพาะส่วน hash */
+  const testHash = (await hashPassword(password, parts[2])).split("$")[3];
+  if (!row || testHash !== parts[3]) throw new Error("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
+  const token = makeToken();
+  await env.DB.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?1, ?2, ?3)")
+    .bind(token, row.id, Date.now() + SESSION_DAYS * 86400000).run();
+  return { token, email: row.email, name: row.name };
+}
+
+async function doLogout(env, p) {
+  if (p.token) await env.DB.prepare("DELETE FROM sessions WHERE token = ?1").bind(p.token).run();
+  return { loggedOut: true };
+}
+
+async function doMe(env, p) {
+  const u = await authUser(env, p.token);
+  const d = await env.DB.prepare("SELECT updated_at FROM user_data WHERE user_id = ?1").bind(u.user_id).first();
+  return { email: u.email, name: u.name, updated_at: d ? d.updated_at : 0 };
+}
+
+async function doSave(env, p) {
+  const u = await authUser(env, p.token);
+  const data = typeof p.data === "string" ? p.data : JSON.stringify(p.data || {});
+  if (data.length > 900000) throw new Error("ข้อมูลใหญ่เกิน (~0.9MB) — ติดต่อผู้ดูแล");
+  const ts = Number(p.updated_at) || Date.now();
+  await env.DB.prepare(
+    "INSERT INTO user_data (user_id, data, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT(user_id) DO UPDATE SET data = ?2, updated_at = ?3"
+  ).bind(u.user_id, data, ts).run();
+  return { updated_at: ts };
+}
+
+async function doLoad(env, p) {
+  const u = await authUser(env, p.token);
+  const d = await env.DB.prepare("SELECT data, updated_at FROM user_data WHERE user_id = ?1").bind(u.user_id).first();
+  if (!d) return { data: null, updated_at: 0 };
+  let parsed = null;
+  try { parsed = JSON.parse(d.data); } catch (e) { /* ข้อมูลเสียหาย */ }
+  return { data: parsed, updated_at: d.updated_at };
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -194,6 +316,12 @@ export default {
       if (payload.action === "status") data = await doStatus(env);
       else if (payload.action === "push") data = await doPush(env, payload.records || []);
       else if (payload.action === "pull") data = await doPull(env);
+      else if (payload.action === "register") data = await doRegister(env, request, payload);
+      else if (payload.action === "login") data = await doLogin(env, request, payload);
+      else if (payload.action === "logout") data = await doLogout(env, payload);
+      else if (payload.action === "me") data = await doMe(env, payload);
+      else if (payload.action === "save") data = await doSave(env, payload);
+      else if (payload.action === "load") data = await doLoad(env, payload);
       else throw new Error("ไม่รู้จัก action: " + payload.action);
       return json({ ok: true, data });
     } catch (e) {

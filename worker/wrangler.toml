@@ -2,3 +2,8 @@ name = "farmbackup"
 main = "src/lark.js"
 compatibility_date = "2025-01-01"
 workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "farmultimate-db"
+database_id = "a317d078-9c45-433b-82f6-c49cc339c73a"
