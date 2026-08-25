@@ -159,6 +159,29 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 /* กัน display ของตัว badge/panel ไปชนกับ attribute hidden */
 .notif-badge[hidden], .notif-panel[hidden] { display: none !important; }
 
+/* ============ เมนูโปรไฟล์ (มุมขวาบน) ============ */
+.profile-btn { position: relative; }
+.profile-panel {
+  position: fixed; top: calc(var(--topbar-h) + 6px); right: 12px; z-index: 61;
+  width: min(320px, calc(100vw - 24px));
+  background: var(--card); border: 1px solid var(--card-border); border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.22); overflow: hidden; animation: fadeIn .18s ease;
+}
+.profile-panel[hidden] { display: none !important; }
+.pp-head {
+  display: flex; gap: 12px; align-items: center; padding: 14px;
+  border-bottom: 1px solid var(--line); background: var(--green-light);
+}
+.pp-avatar {
+  width: 44px; height: 44px; border-radius: 50%; background: var(--green); color: #fff;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.pp-avatar .ic { width: 22px; height: 22px; }
+.pp-info { min-width: 0; }
+.pp-name { font-weight: 800; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-email { font-size: .72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 2px 0 4px; }
+.pp-actions { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+
 /* ============ View ============ */
 .view { padding: 16px 16px calc(var(--nav-h) + 90px); animation: fadeIn .3s cubic-bezier(.22, .7, .3, 1); }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }

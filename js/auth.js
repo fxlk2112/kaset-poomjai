@@ -317,6 +317,13 @@ Auth.gateSubmit = async function () {
     const i = q(id);
     if (i) i.addEventListener("keydown", e => { if (e.key === "Enter") Auth.gateSubmit(); });
   });
+  /* ปุ่มโปรไฟล์มุมขวาบน + ปิดเมนูเมื่อกดนอก panel */
+  const pb = q("profileBtn");
+  if (pb) pb.addEventListener("click", e => { e.stopPropagation(); Auth.toggleProfile(); });
+  document.addEventListener("click", e => {
+    const p = q("profilePanel");
+    if (p && !p.hidden && !p.contains(e.target)) Auth.closeProfile();
+  });
 })();
 
 /* ---------- ออกจากระบบ / ซิงก์ปุ่มในหน้าตั้งค่า ---------- */
@@ -454,6 +461,37 @@ App.adminDownloadJson = async function (email) {
   toast("ดาวน์โหลด JSON แล้ว");
 };
 
+/* ---------- เมนูโปรไฟล์ (ปุ่มมุมขวาบน) ---------- */
+Auth.closeProfile = function () {
+  const p = document.getElementById("profilePanel");
+  if (p) p.hidden = true;
+};
+Auth.toggleProfile = function () {
+  const p = document.getElementById("profilePanel");
+  if (!p) return;
+  if (p.hidden) { Auth.fillProfilePanel(); p.hidden = false; }
+  else p.hidden = true;
+};
+Auth.fillProfilePanel = function () {
+  const p = document.getElementById("profilePanel");
+  if (!p || !Auth.session) return;
+  const s = Auth.session;
+  p.innerHTML = `
+    <div class="pp-head">
+      <div class="pp-avatar">${ic("user")}</div>
+      <div class="pp-info">
+        <div class="pp-name">${esc(s.name || s.email)}</div>
+        <div class="pp-email">${esc(s.email)}</div>
+        ${s.admin ? `<span class="badge badge-green">ผู้ดูแลระบบ</span>` : ""}
+      </div>
+    </div>
+    <div class="pp-actions">
+      ${s.admin ? `<button class="btn btn-primary btn-block" onclick="Auth.closeProfile();App.adminView()">${ic("user")} ดูข้อมูลทุกบัญชี</button>` : ""}
+      <button class="btn btn-outline btn-block" onclick="Auth.closeProfile();App.authSyncNow()">${ic("refresh")} ซิงก์ขึ้นคลาวด์</button>
+      <button class="btn btn-danger-soft btn-block" onclick="Auth.closeProfile();App.authLogout()">${ic("lock")} ออกจากระบบ</button>
+    </div>`;
+};
+
 /* ---------- UI: การ์ดบัญชีในหน้าตั้งค่า ---------- */
 Auth.cardHtml = function () {
   return `
@@ -462,9 +500,8 @@ Auth.cardHtml = function () {
     ${Auth.session ? `
       <div class="row row-between"><span class="muted">อีเมล</span><span class="small bold">${esc(Auth.session.email)}</span></div>
       ${Auth.session.name ? `<div class="row row-between mt-8"><span class="muted">ชื่อ</span><span class="small bold">${esc(Auth.session.name)}</span></div>` : ""}
-      <div class="muted mt-8" style="font-size:.72rem">${ic("info")} ทุกครั้งที่บันทึกงาน ระบบจะส่งขึ้นคลาวด์ให้อัตโนมัติ</div>
-      ${Auth.session.admin ? `<button class="btn btn-primary btn-block mt-12" onclick="App.adminView()">${ic("user")} ดูข้อมูลทุกบัญชี (แอดมิน)</button>` : ""}
-      <button class="btn ${Auth.session.admin ? "btn-outline" : "btn-primary"} btn-block mt-12" onclick="App.authSyncNow()">${ic("refresh")} ซิงก์ขึ้นคลาวด์ตอนนี้</button>
+      <div class="muted mt-8" style="font-size:.72rem">${ic("info")} ทุกครั้งที่บันทึกงาน ระบบจะส่งขึ้นคลาวด์ให้อัตโนมัติ${Auth.session.admin ? " · เมนูผู้ดูแลระบบอยู่ที่ไอคอนโปรไฟล์มุมขวาบน" : ""}</div>
+      <button class="btn btn-primary btn-block mt-12" onclick="App.authSyncNow()">${ic("refresh")} ซิงก์ขึ้นคลาวด์ตอนนี้</button>
       <button class="btn btn-danger-soft btn-block mt-8" onclick="App.authLogout()">${ic("lock")} ออกจากระบบ</button>
     ` : `
       <div class="field"><label>อีเมล</label><input id="au_email" type="email" autocomplete="email"></div>
