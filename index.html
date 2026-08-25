@@ -11,15 +11,82 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <script>try{if(!localStorage.getItem("farmult-session-v1"))document.documentElement.className+=" auth-locked";}catch(e){}</script>
+  <style>
+    /* ===== Auth Gate (self-contained: ไม่พึ่งไฟล์ CSS อื่น) ===== */
+    html.auth-locked { background: linear-gradient(165deg,#0b3d20 0%,#14532d 40%,#1a7a3e 75%,#2c9a54 100%); min-height:100%; }
+    html.auth-locked #app { visibility: hidden; }
+    #authGate { position: fixed; inset: 0; z-index: 9999; display: none; align-items: center; justify-content: center; background: linear-gradient(165deg,#0b3d20 0%,#14532d 38%,#1a7a3e 72%,#2c9a54 100%); padding: 18px; overflow-y: auto; font-family: "Sarabun","Noto Sans Thai",system-ui,sans-serif; }
+    .ag-bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+    .ag-sun { position: absolute; top: 8%; left: 50%; transform: translateX(-50%); width: min(46vmin,340px); height: min(46vmin,340px); border-radius: 50%; background: radial-gradient(circle, rgba(255,214,120,.95) 0%, rgba(255,190,90,.55) 42%, rgba(255,180,80,0) 72%); }
+    .ag-hills { position: absolute; bottom: -2px; left: 0; width: 100%; height: 44%; }
+    .ag-hills .h1 { fill: rgba(255,255,255,.10); } .ag-hills .h2 { fill: rgba(16,71,39,.55); } .ag-hills .h3 { fill: rgba(9,46,24,.82); }
+    .auth-box { position: relative; z-index: 1; width: 100%; max-width: 410px; background: rgba(255,255,255,.97); border-radius: 24px; padding: 28px 24px 22px; box-shadow: 0 30px 70px rgba(4,32,17,.5); max-height: calc(100vh - 36px); overflow-y: auto; border: 1px solid rgba(255,255,255,.6); box-sizing: border-box; }
+    .auth-brand { text-align: center; margin-bottom: 16px; }
+    .auth-brand img { width: 68px; height: 68px; border-radius: 16px; object-fit: cover; box-shadow: 0 8px 22px rgba(20,83,45,.35), 0 0 0 3px rgba(255,255,255,.85); }
+    .auth-brand-name { font-weight: 800; font-size: 1.05rem; color: #123f23; letter-spacing: .4px; margin-top: 10px; }
+    .auth-brand-sub { font-size: .78rem; color: #6b8f79; margin-top: 3px; }
+    .auth-tabs { display: flex; gap: 6px; background: #eef7f0; border-radius: 12px; padding: 4px; margin-bottom: 14px; }
+    .auth-tabs button { flex: 1; border: 0; background: transparent; cursor: pointer; font: inherit; font-weight: 700; font-size: .87rem; padding: 9px 0; border-radius: 9px; color: #4b6b58; }
+    .auth-tabs button.active { background: linear-gradient(135deg,#16a34a,#15803d); color: #fff; box-shadow: 0 4px 12px rgba(21,128,61,.35); }
+    .ag-field { margin-bottom: 10px; }
+    .ag-field label { display: block; font-size: .78rem; font-weight: 700; color: #374151; margin-bottom: 4px; }
+    .ag-field input { width: 100%; box-sizing: border-box; border: 1.5px solid #d7e5dc; border-radius: 10px; padding: 10px 12px; font: inherit; font-size: .95rem; outline: none; background: #fff; color: #111; }
+    .ag-field input:focus { border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.15); }
+    .ag-submit { width: 100%; border: 0; cursor: pointer; font: inherit; font-weight: 700; font-size: 1rem; color: #fff; background: linear-gradient(135deg,#16a34a,#15803d); padding: 12px 0; border-radius: 12px; margin-top: 10px; box-shadow: 0 8px 20px rgba(21,128,61,.4); }
+    .ag-submit:active { transform: translateY(1px); }
+    .auth-msg { min-height: 20px; font-size: .8rem; color: #dc2626; text-align: center; margin-top: 8px; font-weight: 700; }
+    .auth-hint { text-align: center; font-size: .7rem; color: #93a89b; margin-top: 10px; line-height: 1.55; }
+    .auth-hint a { color: #93a89b; }
+    @media (max-width: 420px) { .auth-box { padding: 22px 16px 16px; border-radius: 20px; } .auth-brand-name { font-size: .95rem; } }
+  </style>
+  <script>
+    function agHardReload(){
+      try{ if(navigator.serviceWorker){ navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); }); } }catch(e){}
+      try{ if(window.caches){ caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); }); } }catch(e){}
+      setTimeout(function(){ location.replace(location.pathname + "?r=" + Date.now()); }, 300);
+    }
+  </script>
   <title>FARMULTIMATE SOLUTIONS — ระบบจัดการฟาร์มอัจฉริยะ</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/style.css?v=20260826e">
+  <link rel="stylesheet" href="css/style.css?v=20260826f">
   <link rel="icon" href="logo.jpg">
 </head>
 <body>
+  <!-- ====== บังคับล็อกอิน (static — ไม่พึ่ง JS ภายนอก) ====== -->
+  <div id="authGate" style="display:none">
+    <div class="ag-bg" aria-hidden="true">
+      <div class="ag-sun"></div>
+      <svg class="ag-hills" viewBox="0 0 1440 420" preserveAspectRatio="none">
+        <path class="h1" d="M0,260 C240,180 420,300 720,240 C1020,180 1200,290 1440,230 L1440,420 L0,420 Z"/>
+        <path class="h2" d="M0,330 C260,270 520,360 820,320 C1120,280 1280,350 1440,310 L1440,420 L0,420 Z"/>
+        <path class="h3" d="M0,385 C300,350 600,400 900,375 C1150,355 1300,395 1440,370 L1440,420 L0,420 Z"/>
+      </svg>
+    </div>
+    <div class="auth-box">
+      <div class="auth-brand">
+        <img src="logo.jpg" alt="" onerror="this.style.display='none'">
+        <div class="auth-brand-name">FARMULTIMATE SOLUTIONS</div>
+        <div class="auth-brand-sub">ระบบจัดการฟาร์มอัจฉริยะ</div>
+      </div>
+      <div class="auth-tabs">
+        <button type="button" id="ag_tab_login" class="active">ล็อกอิน</button>
+        <button type="button" id="ag_tab_reg">สมัครใหม่</button>
+      </div>
+      <div class="ag-field"><label>อีเมล</label><input id="g_email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+      <div class="ag-field"><label>รหัสผ่าน</label><input id="g_pass" type="password" placeholder="อย่างน้อย 6 ตัวอักษร" autocomplete="current-password"></div>
+      <div id="g_reg_extra" style="display:none">
+        <div class="ag-field"><label>ยืนยันรหัสผ่าน</label><input id="g_pass2" type="password" autocomplete="new-password"></div>
+        <div class="ag-field"><label>ชื่อ-นามสกุล (ไม่บังคับ)</label><input id="g_name"></div>
+      </div>
+      <button type="button" class="ag-submit" id="ag_submit">ล็อกอิน</button>
+      <div id="ag_msg" class="auth-msg"></div>
+      <div class="auth-hint">ข้อมูลแยกต่อบัญชี ซิงก์ขึ้นคลาวด์อัตโนมัติ · ใช้แบบออฟไลน์ได้หลังล็อกอิน<br><a href="javascript:void(0)" onclick="agHardReload()">หน้าไม่ปกติ? ล้างแคชแล้วโหลดใหม่</a></div>
+    </div>
+  </div>
+  <script>try{if(!localStorage.getItem("farmult-session-v1")){document.documentElement.className+=" auth-locked";var _ag=document.getElementById("authGate");if(_ag)_ag.style.display="flex";}}catch(e){}</script>
   <div id="app">
 
     <!-- ====== Top bar ====== -->
@@ -68,35 +135,19 @@
     <!-- ====== Modal & overlays ====== -->
     <div id="modalRoot"></div>
     <div id="toast" class="toast" hidden></div>
-  <div id="authGateFallback" hidden><div class="agf-box">FARMULTIMATE SOLUTIONS<br><span>กำลังโหลดหน้าล็อกอิน…</span><button class="agf-btn" onclick="agHardReload()">โหลดใหม่ (ล้างแคชอัตโนมัติ)</button></div></div>
-  <script>
-    function agHardReload(){
-      try{ if(navigator.serviceWorker){ navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); }); } }catch(e){}
-      try{ if(window.caches){ caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); }); } }catch(e){}
-      setTimeout(function(){ location.replace(location.pathname + "?r=" + Date.now()); }, 300);
-    }
-    window.agHardReload = agHardReload;
-    setTimeout(function(){try{
-      if(!localStorage.getItem("farmult-session-v1") && !document.getElementById("authGate")){
-        var f=document.getElementById("authGateFallback"); if(f) f.hidden=false;
-        // ลองยิงโหลด auth.js ซ้ำ (กรณีโหลดตก)
-        setTimeout(function(){ if(!document.getElementById("authGate")){ var s=document.createElement("script"); s.src="js/auth.js?v="+Date.now(); s.onload=function(){ if(f) f.hidden=true; }; document.body.appendChild(s); } },1200);
-      }
-    }catch(e){}},2000);
-  </script>
     <div id="tourOverlay" class="tour-overlay" hidden></div>
 
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/data.js?v=20260826e"></script>
-  <script src="js/charts.js?v=20260826e"></script>
-  <script src="js/notify.js?v=20260826e"></script>
-  <script src="js/stock.js?v=20260826e"></script>
-  <script src="js/sales.js?v=20260826e"></script>
-  <script src="js/lark.js?v=20260826e"></script>
-  <script src="js/auth.js?v=20260826e"></script>
-  <script src="js/app.js?v=20260826e"></script>
+  <script src="js/data.js?v=20260826f"></script>
+  <script src="js/charts.js?v=20260826f"></script>
+  <script src="js/notify.js?v=20260826f"></script>
+  <script src="js/stock.js?v=20260826f"></script>
+  <script src="js/sales.js?v=20260826f"></script>
+  <script src="js/lark.js?v=20260826f"></script>
+  <script src="js/auth.js?v=20260826f"></script>
+  <script src="js/app.js?v=20260826f"></script>
   <!-- ลงทะเบียน Service Worker — เปิดใช้แบบออฟไลน์/ติดตั้งเป็นแอพบนมือถือ (ต้องใช้ผ่าน HTTPS หรือ localhost) -->
   <script>
     if ('serviceWorker' in navigator) {

@@ -152,10 +152,10 @@ Auth.choosePush = function () {
 
 /* ---------- core: สมัคร / ล็อกอิน (ใช้ร่วม gate และหน้าตั้งค่า) ---------- */
 async function coreLogin(email, pw) {
-  if (!email || !pw) { toast("กรอกอีเมลและรหัสผ่านให้ครบ"); return false; }
+  if (!email || !pw) { toast("กรอกอีเมลและรหัสผ่านให้ครบ"); Auth.gateMsg("กรอกอีเมลและรหัสผ่านให้ครบ"); return false; }
   toast("กำลังล็อกอิน...");
   const r = await authCall("login", { email, password: pw });
-  if (!r.ok) { toast(r.error || "ล็อกอินไม่สำเร็จ"); return false; }
+  if (!r.ok) { toast(r.error || "ล็อกอินไม่สำเร็จ"); Auth.gateMsg(r.error || "ล็อกอินไม่สำเร็จ"); return false; }
   setSession({ token: r.data.token, email: r.data.email, name: r.data.name });
   render();
   toast("ล็อกอินสำเร็จ");
@@ -165,10 +165,10 @@ async function coreLogin(email, pw) {
   return true;
 }
 async function coreRegister(email, pw, name) {
-  if (!email || !pw) { toast("กรอกอีเมลและรหัสผ่านให้ครบ"); return false; }
+  if (!email || !pw) { toast("กรอกอีเมลและรหัสผ่านให้ครบ"); Auth.gateMsg("กรอกอีเมลและรหัสผ่านให้ครบ"); return false; }
   toast("กำลังสมัครบัญชี...");
   const r = await authCall("register", { email, password: pw, name });
-  if (!r.ok) { toast(r.error || "สมัครไม่สำเร็จ"); return false; }
+  if (!r.ok) { toast(r.error || "สมัครไม่สำเร็จ"); Auth.gateMsg(r.error || "สมัครไม่สำเร็จ"); return false; }
   setSession({ token: r.data.token, email: r.data.email, name: r.data.name });
   render();
   toast("สมัครสำเร็จ — ข้อมูลเครื่องนี้จะถูกส่งขึ้นคลาวด์");
@@ -192,55 +192,22 @@ App.authRegister = async function () {
   await coreRegister(email, pw, name);
 };
 
-/* ---------- ประตูบังคับล็อกอิน (gate) ---------- */
+/* ---------- ประตูบังคับล็อกอิน (gate) — หน้าล็อกอินเป็น static HTML ใน index.html ----------
+   auth.js หน้าที่แค่: โชว์/ซ่อน + ผูกปุ่ม + เรียก API  (ถ้า auth.js โหลดไม่ได้ gate ยังอยู่เสมอ) */
 Auth.gateEl = null;
 
 Auth.showGate = function () {
-  if (!Auth.gateEl) Auth.buildGate();
-  Auth.gateEl.style.display = "flex";
+  if (!Auth.gateEl) Auth.gateEl = document.getElementById("authGate");
+  if (Auth.gateEl) Auth.gateEl.style.display = "flex";
 };
 Auth.hideGate = function () {
+  if (!Auth.gateEl) Auth.gateEl = document.getElementById("authGate");
   if (Auth.gateEl) Auth.gateEl.style.display = "none";
 };
 
-Auth.buildGate = function () {
-  const el = document.createElement("div");
-  el.id = "authGate";
-  el.innerHTML = `
-    <div class="ag-bg" aria-hidden="true">
-      <div class="ag-sun"></div>
-      <svg class="ag-hills" viewBox="0 0 1440 420" preserveAspectRatio="none">
-        <path class="h1" d="M0,260 C240,180 420,300 720,240 C1020,180 1200,290 1440,230 L1440,420 L0,420 Z"/>
-        <path class="h2" d="M0,330 C260,270 520,360 820,320 C1120,280 1280,350 1440,310 L1440,420 L0,420 Z"/>
-        <path class="h3" d="M0,385 C300,350 600,400 900,375 C1150,355 1300,395 1440,370 L1440,420 L0,420 Z"/>
-      </svg>
-    </div>
-    <div class="auth-box">
-      <div class="auth-brand">
-        <img src="logo.jpg" alt="" onerror="this.style.display='none'">
-        <div class="auth-brand-name">FARMULTIMATE SOLUTIONS</div>
-        <div class="auth-brand-sub">ระบบจัดการฟาร์มอัจฉริยะ</div>
-      </div>
-      <div class="auth-tabs">
-        <button id="ag_tab_login" class="active" onclick="Auth.gateMode('login')">ล็อกอิน</button>
-        <button id="ag_tab_reg" onclick="Auth.gateMode('register')">สมัครใหม่</button>
-      </div>
-      <div class="field"><label>อีเมล</label><input id="g_email" type="email" placeholder="you@example.com" autocomplete="email"></div>
-      <div class="field"><label>รหัสผ่าน</label><input id="g_pass" type="password" placeholder="อย่างน้อย 6 ตัวอักษร" autocomplete="current-password"></div>
-      <div id="g_reg_extra" style="display:none">
-        <div class="field"><label>ยืนยันรหัสผ่าน</label><input id="g_pass2" type="password" autocomplete="new-password"></div>
-        <div class="field"><label>ชื่อ-นามสกุล (ไม่บังคับ)</label><input id="g_name"></div>
-      </div>
-      <button class="btn btn-primary btn-block mt-8 ag-submit" id="ag_submit" onclick="Auth.gateSubmit()">${ic("unlock")} ล็อกอิน</button>
-      <div class="auth-hint">ข้อมูลของแต่ละบัญชีแยกกัน ซิงก์ขึ้นคลาวด์อัตโนมัติ<br>เปิดได้ทุกเครื่อง · ใช้แบบออฟไลน์ได้หลังล็อกอิน</div>
-    </div>`;
-  document.body.appendChild(el);
-  Auth.gateEl = el;
-  /* Enter ในช่องกรอก = กดปุ่ม */
-  ["g_email", "g_pass", "g_pass2", "g_name"].forEach(id => {
-    const inp = el.querySelector("#" + id);
-    if (inp) inp.addEventListener("keydown", e => { if (e.key === "Enter") Auth.gateSubmit(); });
-  });
+Auth.gateMsg = function (msg) {
+  const m = document.getElementById("ag_msg");
+  if (m) m.textContent = msg || "";
 };
 
 Auth.gateMode = function (mode) {
@@ -250,23 +217,42 @@ Auth.gateMode = function (mode) {
   if (tl) tl.classList.toggle("active", mode === "login");
   if (tr) tr.classList.toggle("active", mode === "register");
   if (extra) extra.style.display = mode === "register" ? "" : "none";
-  if (submit) submit.innerHTML = (mode === "register" ? ic("plus") + " สมัครบัญชีใหม่" : ic("unlock") + " ล็อกอิน");
+  if (submit) submit.textContent = (mode === "register" ? "สมัครบัญชีใหม่" : "ล็อกอิน");
+  Auth.gateMsg("");
 };
 
 Auth.gateSubmit = async function () {
   const email = (document.getElementById("g_email")?.value || "").trim();
   const pw = document.getElementById("g_pass")?.value || "";
   if (!Auth._gateMode || Auth._gateMode === "login") {
+    if (!email || !pw) { Auth.gateMsg("กรอกอีเมลและรหัสผ่านให้ครบ"); return; }
+    Auth.gateMsg("กำลังล็อกอิน…");
     await coreLogin(email, pw);
   } else {
     const pw2 = document.getElementById("g_pass2")?.value || "";
     const name = (document.getElementById("g_name")?.value || "").trim();
-    if (!email || !pw) { toast("กรอกอีเมลและรหัสผ่านให้ครบ"); return; }
-    if (pw.length < 6) { toast("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร"); return; }
-    if (pw !== pw2) { toast("รหัสผ่านสองช่องไม่ตรงกัน"); return; }
+    if (!email || !pw) { Auth.gateMsg("กรอกอีเมลและรหัสผ่านให้ครบ"); return; }
+    if (pw.length < 6) { Auth.gateMsg("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร"); return; }
+    if (pw !== pw2) { Auth.gateMsg("รหัสผ่านสองช่องไม่ตรงกัน"); return; }
+    Auth.gateMsg("กำลังสมัครบัญชี…");
     await coreRegister(email, pw, name);
   }
 };
+
+/* ผูกปุ่มของ gate (elements เป็น static HTML — มีอยู่แล้วตอนไฟล์นี้โหลด) */
+(function wireGate() {
+  const q = id => document.getElementById(id);
+  const tl = q("ag_tab_login"), tr = q("ag_tab_reg"), sub = q("ag_submit");
+  if (!tl || !sub) return;
+  Auth._gateMode = "login";
+  tl.addEventListener("click", () => Auth.gateMode("login"));
+  tr.addEventListener("click", () => Auth.gateMode("register"));
+  sub.addEventListener("click", () => Auth.gateSubmit());
+  ["g_email", "g_pass", "g_pass2", "g_name"].forEach(id => {
+    const i = q(id);
+    if (i) i.addEventListener("keydown", e => { if (e.key === "Enter") Auth.gateSubmit(); });
+  });
+})();
 
 /* ---------- ออกจากระบบ / ซิงก์ปุ่มในหน้าตั้งค่า ---------- */
 App.authLogout = function () {
@@ -317,9 +303,9 @@ Auth.cardHtml = function () {
   };
 })();
 
-/* เริ่มระบบ: ไม่มีเซสชัน = โชว์ประตูทันที / มี = ปล่อยเข้า + ตรวจคลาวด์
-   (เลื่อนไป setTimeout เพราะ buildGate ใช้ ic() จาก app.js ที่โหลดทีหลังไฟล์นี้) */
-setTimeout(() => {
-  if (Auth.session) Auth.bootCheck();
-  else Auth.showGate();
-}, 0);
+/* เริ่มระบบ: ไม่มีเซสชัน = โชว์ประตูทันที (static gate — ปลอดภัยแม้ไฟล์อื่นโหลดไม่ครบ) */
+if (Auth.session) {
+  setTimeout(() => Auth.bootCheck(), 400);
+} else {
+  Auth.showGate();
+}
