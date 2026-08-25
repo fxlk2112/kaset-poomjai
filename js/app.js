@@ -2519,6 +2519,38 @@ App.submitPlot = function (e, id) {
 };
 
 /* ---- cycle form ---- */
+/* แผนงานอัตโนมัติ: โชว์สูตรให้ตรวจ/แก้ก่อนยืนยัน (ติ๊กเลือกงาน + แก้วัน/ข้อความได้) */
+App._ppKey = null;
+App.pickPlaybook = function (key) {
+  const inp = document.getElementById("f_plant");
+  if (inp) inp.value = key;
+  App._ppKey = null; /* บังคับวาดใหม่ */
+  App.planPreviewRefresh();
+};
+App.planPreviewRefresh = function () {
+  const box = document.getElementById("planPreview");
+  if (!box) return;
+  const plant = (document.getElementById("f_plant") || {}).value || "";
+  const pb = playbookFor(plant);
+  /* ถ้าสูตรเดิม (คีย์ไม่เปลี่ยน) ไม่วาดใหม่ — คงการแก้ไขของผู้ใช้ไว้ */
+  if (pb && pb.key === App._ppKey && box.querySelector("[data-pp-row]")) return;
+  App._ppKey = pb ? pb.key : null;
+  if (!pb) {
+    box.innerHTML = plant ? `ยังไม่มีสูตรสำเร็จรูปสำหรับ "<b>${esc(plant)}</b>" — จะไม่สร้างงานอัตโนมัติ (กดปุ่มพืชด้านบนเพื่อดูสูตรที่มี)` : `พิมพ์ชื่อพืชข้างบน หรือกดปุ่มพืชด้านบน เพื่อดูแผนงานทั้งฤดู (ติ๊กเลือก/แก้วัน/แก้ข้อความได้ก่อนกดเริ่มปลูก)`;
+    return;
+  }
+  const rows = pb.steps.map((st, i) => `
+    <div style="display:flex;gap:6px;align-items:center;padding:3px 0" data-pp-row="${i}">
+      <input type="checkbox" class="pp-chk" checked style="width:auto" title="สร้างงานนี้">
+      <input type="number" class="pp-day" value="${st.day}" min="0" style="width:64px;padding:4px 6px" title="วันที่หลังปลูก">
+      <input class="pp-title grow" value="${esc((st.warn ? "⚠️ " : "") + st.title)}" style="flex:1;padding:4px 8px">
+    </div>
+    <div class="muted" style="font-size:.68rem;margin:-2px 0 4px 30px;line-height:1.4">${esc(st.note || "")}</div>`).join("");
+  box.innerHTML = `
+    <div class="muted" style="font-size:.74rem;margin-bottom:6px">📋 สูตร <b>${esc(pb.key)}</b> — ${pb.steps.length} งาน · ติ๊ก = สร้าง · แก้วันที่/ข้อความได้ · อิงคำแนะนำกรมวิชาการเกษตร (ปรับตามพื้นที่จริงได้)</div>
+    ${rows}`;
+};
+
 App.modalCycle = function (plotId, cycleId) {
   const c = cycleId ? cycleById(S, cycleId) : null;
   /* เพิ่มรอบอัตโนมัติ: รอบแรก = รอบ 1, รอบที่ 2 = รอบ 2 ... (นับจากรอบทั้งหมดของแปลงนั้น) */
@@ -2532,8 +2564,15 @@ App.modalCycle = function (plotId, cycleId) {
         ${S.plots.map(p => `<option value="${p.id}" ${(c ? c.plotId : plotId) === p.id ? "selected" : ""}>${esc(p.name)} — ${fmtNum(p.sizeRai)} ไร่</option>`).join("")}
       </select></div>
       ${c ? "" : `<div class="field"><label>เลขรอบ (อัตโนมัติ)</label><input id="f_round" type="number" min="1" value="${newRound}"><div class="hint">เพิ่มรอบใหม่ระบบจะนับให้อัตโนมัติ (รอบ 1, รอบ 2...) — แก้ได้ถ้าต้องการ</div></div>`}
-      <div class="field"><label>ชื่อพืช / รอบ *</label><input id="f_plant" value="${c ? esc(c.plant) : ""}" placeholder="เช่น ข้าวโพดหวาน / ข้าวนาปี" required></div>
-      ${c ? "" : `<div class="field"><label><input type="checkbox" id="f_plan" checked style="width:auto;margin-right:6px">${ic("leaf")} สร้างแผนงานอัตโนมัติตามสูตรพืช (ข้าว/ข้าวโพด/มันสำปะหลัง/อ้อย/พริก/แตงโม/มะม่วง/ทุเรียน)</label></div>`}
+      <div class="field"><label>ชื่อพืช / รอบ *</label><input id="f_plant" value="${c ? esc(c.plant) : ""}" placeholder="เช่น ข้าวโพดหวาน / ข้าวนาปี" required onchange="App.planPreviewRefresh()"></div>
+      ${c ? "" : `
+      <div class="field">
+        <label>สูตรแผนดูแลอัตโนมัติ — กดพืชเพื่อดูแผน ตรวจ/แก้ได้ก่อนยืนยัน</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          ${Object.keys(CROP_PLAYBOOKS).map(k => `<button type="button" class="btn btn-sm btn-outline" onclick="App.pickPlaybook('${k}')">${k}</button>`).join("")}
+        </div>
+        <div id="planPreview" class="muted" style="font-size:.76rem">พิมพ์ชื่อพืชข้างบน หรือกดปุ่มพืชด้านบน เพื่อดูแผนงานทั้งฤดู (ติ๊กเลือก/แก้วัน/แก้ข้อความได้ก่อนกดเริ่มปลูก)</div>
+      </div>`}
       <div class="field"><label>วันที่เริ่ม *</label><input id="f_start" type="date" value="${c ? c.startDate : todayISO()}" required></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
@@ -2560,14 +2599,24 @@ App.submitCycle = function (e, cycleId) {
     const round = roundInput ? (Math.max(1, Math.round(Number(roundInput.value) || 0)) || nextCycleRound(S, plotId)) : nextCycleRound(S, plotId);
     const c = { id: uid(), plotId, plant, startDate: start, status: "active", round };
     S.cycles.push(c);
-    /* แผนดูแลอัตโนมัติตามสูตรพืช (checkbox ในฟอร์ม) */
-    const wantPlan = document.getElementById("f_plan");
+    /* สร้างงานจากแผนที่ผู้ใช้ตรวจ/แก้ไว้ในฟอร์ม (ติ๊กเฉพาะขั้นที่เลือก + วัน/ข้อความที่แก้) */
     let made = 0;
-    if (wantPlan && wantPlan.checked) made = generatePlaybookTasks(c);
+    document.querySelectorAll("#planPreview [data-pp-row]").forEach(row => {
+      if (!row.querySelector(".pp-chk").checked) return;
+      const day = Math.max(0, Number(row.querySelector(".pp-day").value) || 0);
+      const title = row.querySelector(".pp-title").value.trim();
+      if (!title) return;
+      S.tasks.push({
+        id: uid(), title, date: addDaysISO(start, day), type: "task",
+        plotId, cycleId: c.id, status: "planned",
+        note: "แผนอัตโนมัติ (วันที่ " + day + " หลังปลูก)", createdAt: Date.now()
+      });
+      made++;
+    });
     saveState(S);
     closeModal();
     render();
-    toast(`เริ่มรอบปลูกแล้ว — รอบที่ ${round}` + (made ? ` · สร้างแผนงานอัตโนมัติ ${made} งาน 📋` : ""));
+    toast(`เริ่มรอบปลูกแล้ว — รอบที่ ${round}` + (made ? ` · สร้างงานตามแผน ${made} งาน 📋` : ""));
   }
   return false;
 };
