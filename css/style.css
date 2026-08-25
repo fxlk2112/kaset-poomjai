@@ -1536,3 +1536,12 @@ html[data-theme="dark"] .hero { background: linear-gradient(135deg, var(--card) 
 html[data-theme="dark"] .chip { background: var(--card); border-color: var(--card-border); color: var(--text); }
 html[data-theme="dark"] .task-check { background: var(--card); border-color: var(--chip); }
 html[data-theme="dark"] .task-row.done .task-check { background: var(--green); border-color: var(--green); color: #fff; }
+
+/* ==================== Dark mode: hero/ความคืบหน้างาน/cal-tip/task-money ==================== */
+html[data-theme="dark"] .hero-greet { color: #d1fae5; }
+html[data-theme="dark"] .hero-progress { background: rgba(255,255,255,.05); }
+html[data-theme="dark"] .hp-num { color: #86efac; }
+html[data-theme="dark"] .chip { color: #86efac; }
+html[data-theme="dark"] .cal-tip.t-planned { color: #fbbf24; }
+html[data-theme="dark"] .task-money.in { color: #4ade80; }
+html[data-theme="dark"] .task-money.out { color: #f87171; }
