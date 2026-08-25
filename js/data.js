@@ -311,7 +311,8 @@ function seed() {
     cycles: [],               // รอบการปลูก
     tasks: [],                // งาน/กิจกรรม
     sales: [],                // ใบเสร็จขายสินค้า
-    valves: [],               // วาล์วน้ำ IoT (สาธิต)
+    valves: [],               // วาล์วน้ำ IoT (โครงเดิม)
+    water: { sources: [], systems: [], logs: [] },  // ระบบน้ำรายแปลง: แหล่งน้ำ / ระบบต่อแปลง / บันทึกให้น้ำ
     workers: { working: 0, resting: 0, leave: 0, total: 0 },
     tourDone: false,
     notifDismissed: {}, /* งานที่ปิดการแจ้งเตือนแล้ว (กัน crash ในรอบแรกที่ยังไม่มีข้อมูลเก่า) */
@@ -351,6 +352,11 @@ function ensureDefaults(s) {
   s.notifDismissed = s.notifDismissed || {};
   /* ประวัติการขายสินค้า (ใบเสร็จรับเงิน) */
   s.sales = s.sales || [];
+  /* ระบบน้ำรายแปลง: แหล่งน้ำ / ระบบต่อแปลง / บันทึกการให้น้ำ */
+  if (!s.water || typeof s.water !== "object") s.water = { sources: [], systems: [], logs: [] };
+  if (!Array.isArray(s.water.sources)) s.water.sources = [];
+  if (!Array.isArray(s.water.systems)) s.water.systems = [];
+  if (!Array.isArray(s.water.logs)) s.water.logs = [];
   s.texts = s.texts || {};
   if (!Array.isArray(s.homeOrder) || s.homeOrder.length !== 4) s.homeOrder = ["cal", "tasks", "profit", "activity"];
   s.customMenus = s.customMenus || [];

@@ -43,7 +43,7 @@ const EDITABLE_TEXTS = [
   { key: "plannerTitle", label: "หน้าปฏิทิน: งานวันที่", def: "งานวันที่" },
   { key: "analyticsTitle", label: "หน้าวิเคราะห์: ภาพรวมปี", def: "ภาพรวมปี" },
   { key: "equipmentTitle", label: "หน้าอุปกรณ์: อุปกรณ์/เครื่องจักร", def: "อุปกรณ์ / เครื่องจักร" },
-  { key: "iotTitle", label: "หน้า IoT: วาล์ว/ปั๊มน้ำ", def: "วาล์ว / ปั๊มน้ำ" },
+  { key: "iotTitle", label: "หน้าระบบน้ำ: ระบบน้ำรายแปลง", def: "ระบบน้ำรายแปลง" },
   { key: "moreTitle", label: "หน้าเพิ่มเติม: เมนูเพิ่มเติม", def: "เมนูเพิ่มเติม" },
   { key: "settingsTitle", label: "หน้าตั้งค่า: ตั้งค่าระบบ", def: "ตั้งค่าระบบ" },
 ];
@@ -1022,6 +1022,8 @@ function renderPlotDetail() {
 
     ${plotWeatherCard(p)}
 
+    ${plotWaterCard(p)}
+
     <div class="section-title">กำไร/ขาดทุนของแปลงนี้</div>
     <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none">
       <div class="row row-between">
@@ -1573,49 +1575,294 @@ App.deleteEquipment = function (id) {
 };
 
 /* ---------------- IoT ---------------- */
-function renderIoT() {
-  return `
-    <div class="card" style="background:linear-gradient(135deg,#1e3a8a,#172554);color:#fff;border:none">
+/* การ์ดระบบน้ำของแปลง (ในหน้ารายละเอียดแปลง) */
+function plotWaterCard(p) {
+  const systems = (S.water.systems || []).filter(x => x.plotId === p.id);
+  if (systems.length === 0) {
+    return `
+    <div class="card" style="border-style:dashed">
       <div class="row">
-        <span style="font-size:2rem;color:#fff">${ic("wifi")}</span>
+        <div class="plot-emoji" style="background:#eff6ff;color:#1d4ed8">${ic("droplet")}</div>
         <div class="grow">
-          <div class="bold" style="font-size:1rem">ระบบควบคุมน้ำ IoT</div>
-          <div style="font-size:.76rem;opacity:.85">สั่งเปิด-ปิดวาล์วจากทุกที่ · รองรับ Valve ID และ Sonoff DIY</div>
+          <div class="bold" style="font-size:.86rem">ระบบน้ำของแปลงนี้</div>
+          <div class="muted" style="font-size:.72rem">ยังไม่มีระบบน้ำ — เพิ่มเพื่อตั้งตารางให้น้ำอัตโนมัติ</div>
+        </div>
+        <button class="btn btn-sm btn-outline" onclick="App.modalWaterSystem()">${ic("plus")} เพิ่ม</button>
+      </div>
+    </div>`;
+  }
+  const today = todayISO();
+  const rows = systems.map(sys => {
+    const next = waterNextDate(sys);
+    const due = next && next <= today;
+    return `
+    <div class="row" style="margin-top:6px">
+      <div class="plot-emoji" style="background:#eff6ff;color:#1d4ed8">${ic("droplet")}</div>
+      <div class="grow">
+        <div class="bold" style="font-size:.86rem">${esc(sys.name)}</div>
+        <div class="muted" style="font-size:.72rem">
+          ${sys.auto && sys.auto.enabled ? `อัตโนมัติ ทุก ${sys.auto.everyDays} วัน · ${esc(sys.auto.time)} · ${sys.auto.minutes} นาที · ` : "ให้น้ำด้วยมือ · "}
+          ล่าสุด ${sys.lastWatered ? dateLabel(sys.lastWatered) : "ยังไม่เคย"}
+        </div>
+      </div>
+      ${due ? `<span class="badge badge-amber">ถึงรอบ</span>` : next ? `<span class="badge badge-green">${dateLabel(next)}</span>` : ""}
+      <button class="btn btn-sm btn-primary" onclick="App.modalWaterNow('${sys.id}')">${ic("droplet")} ให้น้ำ</button>
+    </div>`;
+  }).join("");
+  return `
+  <div class="card">
+    <div class="row row-between" style="margin-bottom:4px">
+      <div class="bold" style="font-size:.86rem">${ic("droplet")} ระบบน้ำของแปลงนี้</div>
+      <button class="btn btn-sm btn-ghost" onclick="App.nav('iot')">เปิดหน้ารวม</button>
+    </div>
+    ${rows}
+    <button class="btn btn-sm btn-ghost btn-block mt-8" onclick="App.modalWaterSystem()">${ic("plus")} เพิ่มระบบน้ำอีกสำหรับแปลงนี้</button>
+  </div>`;
+}
+
+/* ---------------- ระบบน้ำรายแปลง (หน้ารวม) ---------------- */
+function waterNextDate(sys) {
+  if (!sys.auto || !sys.auto.enabled || !sys.lastWatered) return null;
+  return addDaysISO(sys.lastWatered, Number(sys.auto.everyDays) || 1);
+}
+function renderIoT() {
+  const W = S.water;
+  const plotName = id => { const p = plotById(S, id); return p ? p.name : "(แปลงถูกลบ)"; };
+  const today = todayISO();
+
+  /* การ์ดระบบน้ำต่อแปลง */
+  const sysCards = W.systems.map(sys => {
+    const next = waterNextDate(sys);
+    const due = next && next <= today;
+    const src = W.sources.find(x => x.id === sys.sourceId);
+    return `
+    <div class="card">
+      <div class="row">
+        <div class="plot-emoji" style="background:#eff6ff;color:#1d4ed8">${ic("droplet")}</div>
+        <div class="grow">
+          <div class="plot-name">${esc(plotName(sys.plotId))}</div>
+          <div class="muted" style="font-size:.74rem">${esc(sys.name)}${sys.pumpName ? " · ปั๊ม: " + esc(sys.pumpName) : ""}${sys.valveCount ? " · " + sys.valveCount + " วาล์ว" : ""}${src ? " · " + esc(src.name) : ""}</div>
+        </div>
+        <button class="switch ${sys.state === "on" ? "on" : ""}" onclick="App.toggleWater('${sys.id}')" aria-label="สลับเปิดปิด"></button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        ${sys.auto && sys.auto.enabled ? `<span class="badge badge-blue">${ic("clock")} อัตโนมัติ ทุก ${sys.auto.everyDays} วัน · ${sys.auto.time} · ${sys.auto.minutes} นาที</span>` : `<span class="badge badge-gray">ให้น้ำด้วยมือ</span>`}
+        ${due ? `<span class="badge badge-amber">${ic("droplet")} ถึงรอบให้น้ำแล้ว</span>` : next ? `<span class="badge badge-green">ครั้งถัดไป ${dateLabel(next)}</span>` : ""}
+      </div>
+      <div class="row row-between mt-8">
+        <div class="muted" style="font-size:.72rem">ให้น้ำล่าสุด: ${sys.lastWatered ? dateLabel(sys.lastWatered) : "ยังไม่เคย"}</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm btn-primary" onclick="App.modalWaterNow('${sys.id}')">${ic("droplet")} ให้น้ำตอนนี้</button>
+          <button class="btn btn-sm btn-outline" onclick="App.modalWaterSystem('${sys.id}')">${ic("pencil")} ตั้งค่า</button>
+          <button class="btn btn-sm btn-danger-soft" onclick="App.delWaterSystem('${sys.id}')">${ic("trash")}</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+
+  /* แหล่งน้ำ */
+  const srcCards = W.sources.map(src => `
+    <div class="card">
+      <div class="row">
+        <div class="plot-emoji" style="background:#dbeafe;color:#1e40af">${ic("droplet")}</div>
+        <div class="grow">
+          <div class="plot-name">${esc(src.name)}</div>
+          <div class="muted" style="font-size:.74rem">${esc(src.type || "—")}${src.capacityM3 ? " · ความจุ " + fmtNum(src.capacityM3) + " ลบ.ม." : ""}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm btn-outline" onclick="App.modalWaterSource('${src.id}')">${ic("pencil")}</button>
+          <button class="btn btn-sm btn-danger-soft" onclick="App.delWaterSource('${src.id}')">${ic("trash")}</button>
+        </div>
+      </div>
+      <div class="mt-8">
+        <div class="row row-between"><span class="muted" style="font-size:.72rem">ระดับน้ำคงเหลือ</span><span class="bold" style="font-size:.8rem">${Number(src.levelPct) || 0}%</span></div>
+        <div class="hp-bar"><i style="width:${Math.min(100, Number(src.levelPct) || 0)}%;background:linear-gradient(90deg,#38bdf8,#2563eb)"></i></div>
+      </div>
+    </div>`).join("");
+
+  /* บันทึกการให้น้ำ */
+  const sysName = id => { const s = W.systems.find(x => x.id === id); return s ? plotName(s.plotId) : "—"; };
+  const logs = [...W.logs].sort((a, b) => (b.date + (b.time || "")).localeCompare(a.date + (a.time || ""))).slice(0, 12);
+  const logRows = logs.map(l => `
+    <div class="row-line">
+      <span class="task-ico water">${ic("droplet")}</span>
+      <div class="grow">
+        <div class="bold" style="font-size:.84rem">${esc(sysName(l.systemId))}</div>
+        <div class="muted" style="font-size:.7rem">${dateLabel(l.date)} ${l.time || ""} · ${l.minutes || 0} นาที${l.m3 ? " · " + l.m3 + " ลบ.ม." : ""}${l.note ? " · " + esc(l.note) : ""}</div>
+      </div>
+      <button class="btn btn-sm btn-danger-soft" onclick="App.delWaterLog('${l.id}')">${ic("trash")}</button>
+    </div>`).join("");
+
+  return `
+    <div class="card" style="background:linear-gradient(135deg,#1d4ed8,#172554);color:#fff;border:none">
+      <div class="row">
+        <span style="font-size:2rem;color:#fff">${ic("droplet")}</span>
+        <div class="grow">
+          <div class="bold" style="font-size:1rem">ระบบน้ำอัตโนมัติรายแปลง</div>
+          <div style="font-size:.76rem;opacity:.85">ตั้งตารางให้น้ำแยกแต่ละแปลง · บันทึกทุกครั้งที่ให้น้ำ · เห็นภาพรวมในหน้าเดียว</div>
         </div>
       </div>
     </div>
-    <div class="section-title" data-tkey="iotTitle">${T("iotTitle")} (${S.valves.length})</div>
-    <div class="card-grid">
-    ${S.valves.map(v => `
-      <div class="card">
-        <div class="row">
-          <div class="plot-emoji">${ic("droplet")}</div>
-          <div class="grow">
-            <div class="plot-name">${esc(v.name)}</div>
-            <div class="muted">${esc(v.zone)} · ${v.state === "on" ? `<span class="badge badge-green">เปิดอยู่</span>` : `<span class="badge badge-gray">ปิด</span>`}</div>
-          </div>
-          <button class="switch ${v.state === "on" ? "on" : ""}" onclick="App.toggleValve('${v.id}')" aria-label="สลับเปิดปิด"></button>
-        </div>
-        <div class="row row-between mt-8">
-          <div class="grow">
-            <div class="muted" style="font-size:.72rem">กำหนดการทำงาน</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
-              ${v.schedule.length === 0 ? `<span class="muted" style="font-size:.74rem">ยังไม่มีกำหนดการ</span>` : v.schedule.map(s => `<span class="badge badge-blue">${ic("clock")} ${s.start}–${s.end}</span>`).join("")}
-            </div>
-          </div>
-          <button class="btn btn-sm btn-outline" onclick="App.modalValve('${v.id}')">${ic("clock")} ตั้งเวลา</button>
-        </div>
-      </div>`).join("")}
+
+    <div class="row row-between">
+      <div class="bold" style="font-size:1.02rem" data-tkey="iotTitle">${T("iotTitle")} (${W.systems.length})</div>
+      <button class="btn btn-primary btn-sm" onclick="App.modalWaterSystem()">${ic("plus")} เพิ่มระบบน้ำให้แปลง</button>
     </div>
-    <div class="muted" style="font-size:.72rem;text-align:center;padding:6px">${ic("gear")} ตั้งเวลาล่วงหน้า (Schedule) หรือควบคุมตามปริมาณน้ำ (Volume Control) — เร็วๆ นี้</div>`;
+    ${W.systems.length === 0 ? `<div class="card"><div class="empty"><div class="e-ico">${ic("droplet")}</div><div class="e-title">ยังไม่มีระบบน้ำ</div><div class="muted">กด "เพิ่มระบบน้ำให้แปลง" เลือกแปลง ตั้งตารางให้น้ำอัตโนมัติได้เลย</div></div></div>` : ""}
+    <div class="card-grid">${sysCards}</div>
+
+    <div class="row row-between">
+      <div class="bold" style="font-size:1.02rem">แหล่งน้ำ (${W.sources.length})</div>
+      <button class="btn btn-primary btn-sm" onclick="App.modalWaterSource()">${ic("plus")} เพิ่มแหล่งน้ำ</button>
+    </div>
+    ${W.sources.length === 0 ? `<div class="card"><div class="muted" style="text-align:center;padding:8px;font-size:.8rem">ยังไม่มีแหล่งน้ำ — เพิ่มบ่อ/บาดาล/ประปา เพื่อบันทึกระดับน้ำ</div></div>` : `<div class="card-grid">${srcCards}</div>`}
+
+    <div class="section-title">${ic("clock")} บันทึกการให้น้ำล่าสุด</div>
+    <div class="card">
+      ${logs.length === 0 ? `<div class="muted" style="text-align:center;padding:8px;font-size:.8rem">ยังไม่มีบันทึก — กด "ให้น้ำตอนนี้" ที่การ์ดแปลงเพื่อบันทึก</div>` : logRows}
+    </div>`;
 }
-App.toggleValve = function (id) {
-  const v = S.valves.find(x => x.id === id);
-  if (!v) return;
-  v.state = v.state === "on" ? "off" : "on";
+
+/* สลับสวิตช์วาล์วของระบบน้ำ (จำลอง — เผื่อต่อ IoT จริงภายหลัง) */
+App.toggleWater = function (id) {
+  const sys = (S.water.systems || []).find(x => x.id === id);
+  if (!sys) return;
+  sys.state = sys.state === "on" ? "off" : "on";
   saveState(S);
   render();
-  toast(v.state === "on" ? `เปิด ${v.name}` : `ปิด ${v.name}`);
+  toast(sys.state === "on" ? "เปิดวาล์วแล้ว (จำลอง)" : "ปิดวาล์วแล้ว");
+};
+
+/* ฟอร์ม: เพิ่ม/แก้ไขระบบน้ำของแปลง */
+App.modalWaterSystem = function (id) {
+  const W = S.water;
+  const sys = id ? W.systems.find(x => x.id === id) : null;
+  if (S.plots.length === 0) { toast("ยังไม่มีแปลง — ไปหน้าแปลงเพื่อเพิ่มแปลงก่อน"); return; }
+  const opt = (arr, sel) => arr.map(x => `<option value="${esc(x.id)}" ${x.id === sel ? "selected" : ""}>${esc(x.name || x.label)}</option>`).join("");
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("droplet")} ${sys ? "แก้ไขระบบน้ำ" : "เพิ่มระบบน้ำให้แปลง"}</h3>
+    <div class="field"><label>แปลง *</label><select id="ws_plot">${opt(S.plots, sys ? sys.plotId : (S.plots[0] || {}).id)}</select></div>
+    <div class="field"><label>ชื่อระบบ</label><input id="ws_name" placeholder="เช่น ระบบสปริงเกลอร์ / ระบบน้ำหยด" value="${esc(sys ? sys.name : "")}"></div>
+    <div class="field"><label>แหล่งน้ำ</label><select id="ws_source"><option value="">— ไม่ระบุ —</option>${opt(W.sources, sys ? sys.sourceId : "")}</select></div>
+    <div class="field"><label>ชื่อปั๊มน้ำ</label><input id="ws_pump" placeholder="เช่น ปั๊ม 1.5 HP" value="${esc(sys ? sys.pumpName || "" : "")}"></div>
+    <div class="field"><label>จำนวนวาล์ว/โซน</label><input id="ws_valves" type="number" min="0" value="${sys ? sys.valveCount || 0 : 1}"></div>
+    <div class="field"><label><input type="checkbox" id="ws_auto" ${sys && sys.auto && sys.auto.enabled ? "checked" : ""} style="width:auto;margin-right:6px">เปิดตารางให้น้ำอัตโนมัติ</label></div>
+    <div style="display:flex;gap:8px">
+      <div class="field grow"><label>ทุกกี่วัน</label><input id="ws_days" type="number" min="1" value="${sys && sys.auto ? sys.auto.everyDays : 2}"></div>
+      <div class="field grow"><label>เวลา</label><input id="ws_time" type="time" value="${sys && sys.auto ? sys.auto.time : "06:00"}"></div>
+      <div class="field grow"><label>นาน (นาที)</label><input id="ws_min" type="number" min="1" value="${sys && sys.auto ? sys.auto.minutes : 30}"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="App.saveWaterSystem('${id || ""}')">${ic("save")} บันทึก</button>
+    </div>`);
+};
+App.saveWaterSystem = function (id) {
+  const g = x => (document.getElementById(x) || {}).value || "";
+  const plotId = g("ws_plot");
+  if (!plotId) { toast("เลือกแปลงก่อน"); return; }
+  const sys = id ? (S.water.systems.find(x => x.id === id) || {}) : { id: uid(), state: "off", lastWatered: null, createdAt: Date.now() };
+  sys.plotId = plotId;
+  sys.name = g("ws_name").trim() || ("ระบบน้ำ" + (S.plots.find(p => p.id === plotId) ? " " + S.plots.find(p => p.id === plotId).name : ""));
+  sys.sourceId = g("ws_source") || "";
+  sys.pumpName = g("ws_pump").trim();
+  sys.valveCount = Number(g("ws_valves")) || 0;
+  sys.auto = {
+    enabled: document.getElementById("ws_auto").checked,
+    everyDays: Number(g("ws_days")) || 2,
+    time: g("ws_time") || "06:00",
+    minutes: Number(g("ws_min")) || 30
+  };
+  if (!id) S.water.systems.push(sys);
+  saveState(S);
+  closeModal();
+  render();
+  toast(id ? "บันทึกระบบน้ำแล้ว" : "เพิ่มระบบน้ำแล้ว");
+};
+App.delWaterSystem = function (id) {
+  App.confirm("ลบระบบน้ำนี้?", "บันทึกการให้น้ำของระบบนี้จะถูกลบด้วย", () => {
+    S.water.systems = S.water.systems.filter(x => x.id !== id);
+    S.water.logs = S.water.logs.filter(l => l.systemId !== id);
+    saveState(S); render(); toast("ลบแล้ว");
+  });
+};
+
+/* ฟอร์ม: แหล่งน้ำ */
+App.modalWaterSource = function (id) {
+  const src = id ? S.water.sources.find(x => x.id === id) : null;
+  const types = ["บ่อพักน้ำ", "น้ำบาดาล", "ประปา", "คลอง/แม่น้ำ", "ฝน"];
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("droplet")} ${src ? "แก้ไขแหล่งน้ำ" : "เพิ่มแหล่งน้ำ"}</h3>
+    <div class="field"><label>ชื่อ *</label><input id="wsrc_name" placeholder="เช่น บ่อพักน้ำใหญ่" value="${esc(src ? src.name : "")}"></div>
+    <div class="field"><label>ประเภท</label><select id="wsrc_type">${types.map(t => `<option ${src && src.type === t ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+    <div style="display:flex;gap:8px">
+      <div class="field grow"><label>ความจุ (ลบ.ม.)</label><input id="wsrc_cap" type="number" min="0" value="${src ? src.capacityM3 || "" : ""}"></div>
+      <div class="field grow"><label>ระดับน้ำ (%)</label><input id="wsrc_lvl" type="number" min="0" max="100" value="${src ? src.levelPct || "" : ""}"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="App.saveWaterSource('${id || ""}')">${ic("save")} บันทึก</button>
+    </div>`);
+};
+App.saveWaterSource = function (id) {
+  const name = (document.getElementById("wsrc_name").value || "").trim();
+  if (!name) { toast("กรอกชื่อแหล่งน้ำ"); return; }
+  const src = id ? (S.water.sources.find(x => x.id === id) || {}) : { id: uid() };
+  src.name = name;
+  src.type = document.getElementById("wsrc_type").value;
+  src.capacityM3 = Number(document.getElementById("wsrc_cap").value) || 0;
+  src.levelPct = Math.max(0, Math.min(100, Number(document.getElementById("wsrc_lvl").value) || 0));
+  if (!id) S.water.sources.push(src);
+  saveState(S);
+  closeModal();
+  render();
+  toast("บันทึกแหล่งน้ำแล้ว");
+};
+App.delWaterSource = function (id) {
+  App.confirm("ลบแหล่งน้ำนี้?", "ระบบน้ำที่ผูกกับแหล่งนี้จะไม่ระบุแหล่งน้ำ (ข้อมูลอื่นไม่หาย)", () => {
+    S.water.sources = S.water.sources.filter(x => x.id !== id);
+    S.water.systems.forEach(sys => { if (sys.sourceId === id) sys.sourceId = ""; });
+    saveState(S); render(); toast("ลบแล้ว");
+  });
+};
+
+/* บันทึกให้น้ำตอนนี้ */
+App.modalWaterNow = function (sysId) {
+  const sys = S.water.systems.find(x => x.id === sysId);
+  if (!sys) return;
+  const defMin = sys.auto && sys.auto.enabled ? sys.auto.minutes : 30;
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("droplet")} บันทึกให้น้ำ</h3>
+    <div class="modal-sub">แปลง: ${esc((plotById(S, sys.plotId) || {}).name || "-")} · วันนี้ ${dateLabel(todayISO())}</div>
+    <div style="display:flex;gap:8px">
+      <div class="field grow"><label>นาน (นาที)</label><input id="wn_min" type="number" min="1" value="${defMin}"></div>
+      <div class="field grow"><label>ปริมาณ (ลบ.ม.) — ไม่บังคับ</label><input id="wn_m3" type="number" min="0" step="0.1"></div>
+    </div>
+    <div class="field"><label>โน้ต</label><input id="wn_note" placeholder="เช่น ให้น้ำเช้า / ฝนตกเล็กน้อย"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="App.saveWaterNow('${sysId}')">${ic("save")} บันทึกการให้น้ำ</button>
+    </div>`);
+};
+App.saveWaterNow = function (sysId) {
+  const sys = S.water.systems.find(x => x.id === sysId);
+  if (!sys) return;
+  const minutes = Number((document.getElementById("wn_min") || {}).value) || 0;
+  const m3 = Number((document.getElementById("wn_m3") || {}).value) || 0;
+  const note = ((document.getElementById("wn_note") || {}).value || "").trim();
+  S.water.logs.push({ id: uid(), systemId: sysId, date: todayISO(), time: new Date().toTimeString().slice(0, 5), minutes, m3, note });
+  sys.lastWatered = todayISO();
+  saveState(S);
+  closeModal();
+  render();
+  toast("บันทึกการให้น้ำแล้ว 💧");
+};
+App.delWaterLog = function (id) {
+  S.water.logs = S.water.logs.filter(l => l.id !== id);
+  saveState(S); render(); toast("ลบบันทึกแล้ว");
 };
 
 /* ---------------- Settings ---------------- */
@@ -1983,7 +2230,7 @@ function renderMore() {
     <div class="section-title" data-tkey="moreTitle">${T("moreTitle")}</div>
     <div class="more-grid">
       <button class="more-card" onclick="App.nav('equipment')"><span class="mc-ico">${ic("truck")}</span><span class="mc-name">จัดการอุปกรณ์</span><span class="mc-desc">เครื่องจักร ค่าเสื่อมราคา ซ่อมบำรุง</span></button>
-      <button class="more-card" onclick="App.nav('iot')"><span class="mc-ico">${ic("wifi")}</span><span class="mc-name">ควบคุมน้ำ IoT</span><span class="mc-desc">วาล์ว ปั๊ม ตั้งเวลาอัตโนมัติ</span></button>
+      <button class="more-card" onclick="App.nav('iot')"><span class="mc-ico">${ic("droplet")}</span><span class="mc-name">ระบบน้ำอัตโนมัติ</span><span class="mc-desc">แยกตามแปลง · ตารางให้น้ำ · บันทึกการให้น้ำ</span></button>
       <button class="more-card" onclick="App.nav('settings')"><span class="mc-ico">${ic("gear")}</span><span class="mc-name">ตั้งค่า</span><span class="mc-desc">ข้อมูลระบบ รีเซ็ต ทัวร์</span></button>
       <button class="more-card" onclick="App.startTour()"><span class="mc-ico">${ic("compass")}</span><span class="mc-name">แนะนำระบบ</span><span class="mc-desc">ทัวร์หน้าจอทีละขั้นตอน</span></button>
       ${(S.customMenus || []).map(m => `
