@@ -24,4 +24,4 @@ jobs:
           wranglerVersion: "4"
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy "$RUNNER_TEMP/site-stage" --project-name=kaset-poomjai --branch=master --commit-dirty=true
+          command: pages deploy "$RUNNER_TEMP/site-stage" --project-name=farmultimate-solutions --branch=master --commit-dirty=true

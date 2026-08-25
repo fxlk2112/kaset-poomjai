@@ -9,4 +9,4 @@ robocopy $root $stage /E /NFL /NDL /NJH /NJS /NP `
   /XD .git .github .freebuff .wrangler .netlify node_modules worker netlify `
   /XF .gitignore .assetsignore deploy.ps1 | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy failed: $LASTEXITCODE" }
-wrangler pages deploy $stage --project-name=kaset-poomjai --branch=master --commit-dirty=true
+wrangler pages deploy $stage --project-name=farmultimate-solutions --branch=master --commit-dirty=true
