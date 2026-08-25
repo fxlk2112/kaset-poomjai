@@ -2539,7 +2539,13 @@ function initPickMap() {
   const ln = parseFloat(document.getElementById("f_lng").value) || 100.4582;
   if (!pickMap) {
     pickMap = L.map(el, { scrollWheelZoom: false }).setView([la, ln], 16);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(pickMap);
+    /* โหมดมืด = ใช้ tile สีเข้ม (CARTO) — กันแผนที่ขาวโพลนตอนกลางคืน */
+    const darkMap = document.documentElement.getAttribute("data-theme") === "dark";
+    if (darkMap) {
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19, attribution: "© OpenStreetMap © CARTO" }).addTo(pickMap);
+    } else {
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(pickMap);
+    }
     pickMarker = L.marker([la, ln], { draggable: true }).addTo(pickMap);
     pickMap.on("click", e => { pickMarker.setLatLng(e.latlng); setPickCoords(e.latlng.lat, e.latlng.lng); });
     pickMarker.on("dragend", () => { const p = pickMarker.getLatLng(); setPickCoords(p.lat, p.lng); });

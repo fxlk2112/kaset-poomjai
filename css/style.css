@@ -1545,3 +1545,11 @@ html[data-theme="dark"] .chip { color: #86efac; }
 html[data-theme="dark"] .cal-tip.t-planned { color: #fbbf24; }
 html[data-theme="dark"] .task-money.in { color: #4ade80; }
 html[data-theme="dark"] .task-money.out { color: #f87171; }
+
+/* ==================== Dark mode: แผนที่/การ์ดยาหมด/แท็บวิเคราะห์ ==================== */
+html[data-theme="dark"] .stock-card-out { background: #2a1515; border-color: #5b2020; }
+html[data-theme="dark"] .leaflet-tile { filter: brightness(.92); }
+html[data-theme="dark"] .leaflet-control-attribution { background: rgba(20,30,25,.8); color: var(--muted); }
+html[data-theme="dark"] .leaflet-control-attribution a { color: #86efac; }
+/* แท็บ active หน้าวิเคราะห์: เม็ดเขียวแบรนด์ (เดิมเม็ดสีอ่อนดูเหมือนกล่องขาว) */
+html[data-theme="dark"] .tabs button.active { background: var(--green); color: #fff; box-shadow: 0 4px 12px rgba(22,163,74,.35); }
