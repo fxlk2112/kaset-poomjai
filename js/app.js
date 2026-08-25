@@ -337,7 +337,7 @@ function render() {
 
   // keep route valid for role (sub-views group under their parent nav item)
   const keys = visibleNav().map(n => n.key);
-  const VIEW_GROUP = { equipment: "more", iot: "more", settings: "more", plotDetail: "plots", cycleDetail: "plots" };
+  const VIEW_GROUP = { equipment: "more", iot: "more", settings: "more", prices: "more", plotDetail: "plots", cycleDetail: "plots" };
   const navKey = VIEW_GROUP[route.view] || route.view;
   if (!keys.includes(navKey)) {
     route.view = keys.includes("home") ? "home" : keys[0];
@@ -357,7 +357,8 @@ function render() {
     home: renderHome, plots: renderPlots, stock: renderStock,
     planner: renderPlanner, analytics: renderAnalytics, more: renderMore,
     equipment: renderEquipment, iot: renderIoT, settings: renderSettings,
-    plotDetail: renderPlotDetail, cycleDetail: renderCycleDetail
+    plotDetail: renderPlotDetail, cycleDetail: renderCycleDetail,
+    prices: renderPrices
   };
   const viewChanged = lastView !== route.view;
   lastView = route.view;
@@ -369,6 +370,8 @@ function render() {
   if (route.view === "plotDetail") renderPlotWeather();
   /* หน้าระบบน้ำ: ดึงโน้ตล่าสุดจากเซิร์ฟเวอร์ (ข้ามรอบเพราะฝน ฯลฯ) */
   if (route.view === "iot" && typeof App.waterPullStatus === "function") App.waterPullStatus();
+  /* หน้าราคาตลาด: ฝังวิดเจ็ตราคารายวัน */
+  if (route.view === "prices" && typeof App.mountRakaWidget === "function") App.mountRakaWidget();
   /* เลื่อนกลับหัวหน้าเฉพาะตอนเปลี่ยนหน้า (เช่น กดเมนู) — ถ้าแค่ re-render ในหน้าเดิม (กดวันปฏิทิน/กรอง/ติ๊กงาน)
      ต้องไม่กระโดดขึ้นบน กันบัคหน้าเด้ง */
   if (viewChanged) {
@@ -1954,6 +1957,78 @@ App.delWaterLog = function (id) {
   saveState(S); render(); toast("ลบบันทึกแล้ว");
 };
 
+/* ---------------- ราคาตลาดวันนี้ (ข้อมูลจริงจาก สศก. + ตลาดไท) ---------------- */
+function renderPrices() {
+  const cached = App._marketPrices;
+  const cards = cached ? cached.products.map(p => {
+    const same = p.min === p.max;
+    const detail = p.markets.map(m => esc(m.market) + " (" + esc(m.province) + ") = " + fmtNum(m.price) + " " + esc(p.unit)).join("<br>");
+    return `
+    <details class="card" style="padding:12px 14px">
+      <summary style="cursor:pointer;list-style:none">
+        <div class="row">
+          <div class="plot-emoji" style="background:#fef9c3;color:#a16207">${ic("dollar")}</div>
+          <div class="grow">
+            <div class="bold" style="font-size:.86rem">${esc(p.product)}</div>
+            <div class="muted" style="font-size:.72rem">${esc(p.category)} · ${p.count} จุดรับซื้อ · ${dateLabel(p.date)}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="bold price-trend-up" style="font-size:.92rem">${fmtNum(p.min)}${same ? "" : "-" + fmtNum(p.max)}</div>
+            <div class="muted" style="font-size:.68rem">${esc(p.unit)}</div>
+          </div>
+        </div>
+      </summary>
+      <div class="muted" style="font-size:.76rem;margin-top:8px;border-top:1px solid var(--line);padding-top:8px;line-height:1.7">${detail}</div>
+    </details>`;
+  }).join("") : `
+    <div class="card"><div class="empty"><div class="e-ico">${ic("dollar")}</div><div class="e-title">กดปุ่มด้านล่างเพื่อดึงราคาล่าสุด</div><div class="muted">ข้อมูลจริงจาก API สศก. (ศูนย์ข้อมูลเกษตรแห่งชาติ) — ราคารับซื้อรายวัน ณ ตลาดสำคัญทั่วประเทศ</div></div></div>`;
+  return `
+    <div class="row row-between">
+      <div class="bold" style="font-size:1.02rem">ราคารับซื้อรายวัน <span class="badge badge-green">ข้อมูลจริง สศก.</span></div>
+      <button class="btn btn-primary btn-sm" onclick="App.loadMarketPrices()">${ic("refresh")} ${cached ? "รีเฟรช" : "ดึงราคาล่าสุด"}</button>
+    </div>
+    ${cached ? `<div class="muted" style="font-size:.72rem;margin-bottom:8px">ข้อมูลวันที่ ${dateLabel(cached.date)} · ${cached.products.length} สินค้า — กดการ์ดเพื่อดูราคาแยกตามตลาด</div>` : ""}
+    <div class="card-grid">${cards}</div>
+
+    <div class="section-title">ราคาสินค้าเกษตรรายวัน (วิดเจ็ตอัปเดตอัตโนมัติ)</div>
+    <div class="card" id="rakaWidget"><div class="muted" style="font-size:.76rem;text-align:center;padding:6px">กำลังโหลดตารางราคา...</div></div>
+
+    <div class="section-title">แหล่งราคาทางการ (กดเปิดเว็บ)</div>
+    <div class="card">
+      <div class="row-line" onclick="window.open('https://talaadthai.com/products','_blank')" role="button">
+        <span class="task-ico" style="background:#dcfce7;color:#166534">${ic("dollar")}</span>
+        <div class="grow"><div class="bold" style="font-size:.84rem">ตลาดไท — ราคาผักผลไม้ขายส่งรายวัน</div><div class="muted" style="font-size:.7rem">ราคาผักสดรายวัน (คะน้า ผักกาด และอื่น ๆ) — ที่มาข้อมูลจริงจากตลาดไท</div></div>
+        <span class="task-arrow">${ic("chevron")}</span>
+      </div>
+      <div class="row-line" onclick="window.open('https://pricelist.dit.go.th/main.php','_blank')" role="button">
+        <span class="task-ico" style="background:#dbeafe;color:#1e40af">${ic("dollar")}</span>
+        <div class="grow"><div class="bold" style="font-size:.84rem">กรมการค้าภายใน — ราคาขายปลีก/ขายส่ง</div><div class="muted" style="font-size:.7rem">ราคาสินค้าเกษตรทางการรายวัน รวมตลาดดำหม้อ ตลาดบ้านเด่น</div></div>
+        <span class="task-arrow">${ic("chevron")}</span>
+      </div>
+      <div class="muted mt-8" style="font-size:.7rem">${ic("info")} หมายเหตุ: ราคาผักสดรายวันยังไม่มี API เปิดเผย — ดูจากลิงก์ทางการด้านบน หรือดูราคาขายจริงของคุณเองจากใบเสร็จในหน้า "ขายสินค้า"</div>
+    </div>`;
+}
+/* โหลดราคาจาก Worker (proxy กัน CORS) + ฝังวิดเจ็ตราคา */
+App.loadMarketPrices = async function () {
+  toast("กำลังดึงราคาล่าสุดจาก สศก...");
+  try {
+    const r = await authCall("market_prices", {});
+    if (!r.ok) { toast("ดึงราคาไม่สำเร็จ: " + (r.error || "")); return; }
+    App._marketPrices = r.data;
+    render();
+  } catch (e) { toast("เชื่อมต่อไม่ได้"); }
+};
+/* ฝังวิดเจ็ต rakakaset (script แบบ dynamic — innerHTML ไม่รัน script เอง) */
+App.mountRakaWidget = function () {
+  const el = document.getElementById("rakaWidget");
+  if (!el || el.dataset.mounted) return;
+  el.dataset.mounted = "1";
+  el.innerHTML = "";
+  const s = document.createElement("script");
+  s.src = "https://rakakaset.com/widgets/table.js";
+  el.appendChild(s);
+};
+
 /* ---------------- Settings ---------------- */
 const ADMIN_LS = "fus_admin_unlocked";
 function adminUnlocked() { return sessionStorage.getItem(ADMIN_LS) === "1"; }
@@ -2319,6 +2394,7 @@ function renderMore() {
     <div class="section-title" data-tkey="moreTitle">${T("moreTitle")}</div>
     <div class="more-grid">
       <button class="more-card" onclick="App.nav('equipment')"><span class="mc-ico">${ic("truck")}</span><span class="mc-name">จัดการอุปกรณ์</span><span class="mc-desc">เครื่องจักร ค่าเสื่อมราคา ซ่อมบำรุง</span></button>
+      <button class="more-card" onclick="App.nav('prices')"><span class="mc-ico">${ic("dollar")}</span><span class="mc-name">ราคาตลาดวันนี้</span><span class="mc-desc">ราคาจริงจาก สศก. + ตลาดไท</span></button>
       <button class="more-card" onclick="App.nav('iot')"><span class="mc-ico">${ic("droplet")}</span><span class="mc-name">ระบบน้ำอัตโนมัติ</span><span class="mc-desc">แยกตามแปลง · ตารางให้น้ำ · บันทึกการให้น้ำ</span></button>
       <button class="more-card" onclick="App.nav('settings')"><span class="mc-ico">${ic("gear")}</span><span class="mc-name">ตั้งค่า</span><span class="mc-desc">ข้อมูลระบบ รีเซ็ต ทัวร์</span></button>
       <button class="more-card" onclick="App.startTour()"><span class="mc-ico">${ic("compass")}</span><span class="mc-name">แนะนำระบบ</span><span class="mc-desc">ทัวร์หน้าจอทีละขั้นตอน</span></button>

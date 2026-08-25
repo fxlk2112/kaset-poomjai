@@ -283,6 +283,44 @@ async function doAdminGet(env, p) {
   return { email: row.email, name: row.name, updated_at: row.updated_at || 0, data };
 }
 
+/* ---------- ราคาตลาดจริงจาก API สศก. (NABC) — ราคารับซื้อรายวัน ณ ตลาดสำคัญ ---------- */
+async function doMarketPrices(env, p) {
+  for (let off = 1; off <= 5; off++) {
+    const d = new Date(Date.now() - off * 86400000).toISOString().slice(0, 10);
+    try {
+      const r = await fetch("https://agriapi.nabc.go.th/api/daily-prices/date?date=" + d + "&page=1");
+      const j = await r.json();
+      if (!(j && j.success && j.data && j.data.length)) continue;
+      let all = j.data.slice();
+      const total = (j.pagination && j.pagination.total) || all.length;
+      const limit = (j.pagination && j.pagination.limit) || 50;
+      const pages = Math.ceil(total / limit);
+      for (let pg = 2; pg <= Math.min(pages, 10); pg++) {
+        const r2 = await fetch("https://agriapi.nabc.go.th/api/daily-prices/date?date=" + d + "&page=" + pg);
+        const j2 = await r2.json();
+        if (j2 && j2.success && j2.data) all = all.concat(j2.data);
+      }
+      const byProduct = {};
+      all.forEach(x => {
+        const k = x.product_category + "|" + x.product_name + "|" + x.unit;
+        if (!byProduct[k]) byProduct[k] = { category: x.product_category, product: x.product_name, unit: x.unit, markets: [] };
+        byProduct[k].markets.push({ market: x.market_name, province: x.province, price: x.day_price });
+      });
+      const products = Object.values(byProduct).map(g => {
+        const prices = g.markets.map(m => Number(m.price)).filter(v => !isNaN(v));
+        return {
+          category: g.category, product: g.product, unit: g.unit,
+          min: prices.length ? Math.min(...prices) : 0,
+          max: prices.length ? Math.max(...prices) : 0,
+          count: g.markets.length, date: d, markets: g.markets
+        };
+      }).sort((a, b) => a.category.localeCompare(b.category, "th") || a.product.localeCompare(b.product, "th"));
+      return { date: d, products };
+    } catch (e) { /* ลองวันก่อนหน้า */ }
+  }
+  throw new Error("ไม่พบข้อมูลราคาล่าสุดจาก สศก.");
+}
+
 /* ==================== ระบบน้ำ IoT ====================
    แอป:  water_sync  (ส่งรายการระบบน้ำ+ตารางขึ้นเซิร์ฟเวอร์)
          water_status (อ่านสถานะจริงล่าสุด)
@@ -499,6 +537,7 @@ export default {
       else if (payload.action === "water_keys") data = await doWaterKeys(env, payload);
       else if (payload.action === "water_poll") data = await doWaterPoll(env, payload);
       else if (payload.action === "water_report") data = await doWaterReport(env, payload);
+      else if (payload.action === "market_prices") data = await doMarketPrices(env, payload);
       else throw new Error("ไม่รู้จัก action: " + payload.action);
       return json({ ok: true, data });
     } catch (e) {
