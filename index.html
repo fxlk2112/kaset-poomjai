@@ -7,15 +7,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="FarmUltimate">
-    <meta name="description" content="FARMULTIMATE SOLUTIONS โ€” เธฃเธฐเธเธเธเธฑเธ”เธเธฒเธฃเธเธฒเธฃเนเธกเธญเธฑเธเธเธฃเธดเธขเธฐ: เธเธฑเธเธ—เธถเธเนเธเธฅเธ/เธฃเธญเธเธเธฅเธนเธ/เธเธฒเธ/เน€เธเนเธเน€เธเธตเนเธขเธง, เธชเธ•เนเธญเธเธงเธฑเธชเธ”เธธ, เธเธฒเธขเธเธฃเนเธญเธกเนเธเธชเนเธเธชเธดเธเธเนเธฒ, เธชเธ เธฒเธเธญเธฒเธเธฒเธจเธฃเธฒเธขเนเธเธฅเธ โ€” เนเธเนเนเธ”เนเธ—เธฑเนเธเธญเธญเธเนเธฅเธเนเนเธฅเธฐเธญเธญเธเนเธฅเธเน">
+    <meta name="description" content="FARMULTIMATE SOLUTIONS — ระบบจัดการฟาร์มอัจฉริยะ: บันทึกแปลง/รอบปลูก/งาน/เก็บเกี่ยว, สต็อกวัสดุ, ขายพร้อมใบส่งสินค้า, สภาพอากาศรายแปลง — ใช้ได้ทั้งออนไลน์และออฟไลน์">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <title>FARMULTIMATE SOLUTIONS โ€” เธฃเธฐเธเธเธเธฑเธ”เธเธฒเธฃเธเธฒเธฃเนเธกเธญเธฑเธเธเธฃเธดเธขเธฐ</title>
+  <script>try{if(!localStorage.getItem("farmult-session-v1"))document.documentElement.className+=" auth-locked";}catch(e){}</script>
+  <title>FARMULTIMATE SOLUTIONS — ระบบจัดการฟาร์มอัจฉริยะ</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/style.css?v=20260826c">
+  <link rel="stylesheet" href="css/style.css?v=20260826d">
   <link rel="icon" href="logo.jpg">
 </head>
 <body>
@@ -29,22 +30,22 @@
           <span class="brand-logo" id="brandLogoFallback" style="display:none">FUS</span>
           <div class="brand-text">
             <div class="brand-name"><span id="brandNameTxt">FARMULTIMATE SOLUTIONS</span> <span class="v-badge">v52</span></div>
-            <div class="brand-sub" id="brandSubTxt">เธฃเธฐเธเธเธเธฑเธ”เธเธฒเธฃเธเธฒเธฃเนเธกเธญเธฑเธเธเธฃเธดเธขเธฐ</div>
+            <div class="brand-sub" id="brandSubTxt">ระบบจัดการฟาร์มอัจฉริยะ</div>
           </div>
         </div>
-        <button class="btn btn-ghost-light btn-tour" id="tourBtn" title="เนเธเธฐเธเธณเธฃเธฐเธเธ">
-          <span class="btn-ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></span> เนเธเธฐเธเธณเธฃเธฐเธเธ
+        <button class="btn btn-ghost-light btn-tour" id="tourBtn" title="แนะนำระบบ">
+          <span class="btn-ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></span> แนะนำระบบ
         </button>
-        <button class="btn btn-ghost-light btn-tour" id="editBtn" style="display:none" title="เนเธเนเนเธเน€เธงเนเธ (เธเธนเนเธ”เธนเนเธฅ)">
-          <span class="btn-ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></span> เนเธเนเนเธ
+        <button class="btn btn-ghost-light btn-tour" id="editBtn" style="display:none" title="แก้ไขเว็บ (ผู้ดูแล)">
+          <span class="btn-ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></span> แก้ไข
         </button>
-        <button class="btn btn-ghost-light btn-tour notif-btn" id="notifBtn" title="เธเธฒเธฃเนเธเนเธเน€เธ•เธทเธญเธ (เธเธฃเธเธเธณเธซเธเธ”/เน€เธฅเธขเธเธณเธซเธเธ”)">
+        <button class="btn btn-ghost-light btn-tour notif-btn" id="notifBtn" title="การแจ้งเตือน (ครบกำหนด/เลยกำหนด)">
           <span class="btn-ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
           <span class="notif-badge" id="notifBadge" hidden></span>
         </button>
       </div>
       <div class="notif-panel" id="notifPanel" hidden></div>
-      <div class="role-switch" id="roleSwitch" role="tablist" aria-label="เนเธซเธกเธ”เธเธฒเธฃเนเธเนเธเธฒเธ"></div>
+      <div class="role-switch" id="roleSwitch" role="tablist" aria-label="โหมดการใช้งาน"></div>
     </header>
 
     <!-- ====== Main view ====== -->
@@ -56,35 +57,37 @@
     <!-- ====== Side-docked FAB ====== -->
     <div class="fab-dock" id="fabDock">
       <div class="fab-drawer" id="fabDrawer">
-        <button class="fab-item" data-action="harvest"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span> เธเธฑเธเธ—เธถเธเน€เธเนเธเน€เธเธตเนเธขเธง</button>
-        <button class="fab-item" data-action="expense"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg></span> เธเธฑเธเธ—เธถเธเนเธชเนเธเธธเนเธข / เธเนเธฒเธข</button>
-        <button class="fab-item" data-action="task"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span> เน€เธเธดเนเธกเธเธฒเธเธ—เธฑเนเธงเนเธ</button>
-        <button class="fab-item" data-action="sale"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> เธเธฒเธขเธชเธดเธเธเนเธฒ</button>
+        <button class="fab-item" data-action="harvest"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span> บันทึกเก็บเกี่ยว</button>
+        <button class="fab-item" data-action="expense"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg></span> บันทึกใส่ปุ๋ย / จ่าย</button>
+        <button class="fab-item" data-action="task"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span> เพิ่มงานทั่วไป</button>
+        <button class="fab-item" data-action="sale"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> ขายสินค้า</button>
       </div>
-      <button class="fab" id="fabBtn" aria-label="เธเธธเนเธกเธฅเธฑเธ”"><span class="fab-icon">+</span></button>
+      <button class="fab" id="fabBtn" aria-label="ปุ่มลัด"><span class="fab-icon">+</span></button>
     </div>
 
     <!-- ====== Modal & overlays ====== -->
     <div id="modalRoot"></div>
     <div id="toast" class="toast" hidden></div>
+  <div id="authGateFallback" hidden><div class="agf-box">FARMULTIMATE SOLUTIONS<br><span>กำลังโหลดหน้าล็อกอิน… ตรวจอินเทอร์เน็ตแล้วรีเฟรชอีกครั้ง</span></div></div>
+  <script>setTimeout(function(){try{if(!localStorage.getItem("farmult-session-v1")&&!document.getElementById("authGate")){var f=document.getElementById("authGateFallback");if(f)f.hidden=false;}}catch(e){}},2500);</script>
     <div id="tourOverlay" class="tour-overlay" hidden></div>
 
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/data.js?v=20260826c"></script>
-  <script src="js/charts.js?v=20260826c"></script>
-  <script src="js/notify.js?v=20260826c"></script>
-  <script src="js/stock.js?v=20260826c"></script>
-  <script src="js/sales.js?v=20260826c"></script>
-  <script src="js/lark.js?v=20260826c"></script>
-  <script src="js/auth.js?v=20260826c"></script>
-  <script src="js/app.js?v=20260826c"></script>
-  <!-- เธฅเธเธ—เธฐเน€เธเธตเธขเธ Service Worker โ€” เน€เธเธดเธ”เนเธเนเนเธเธเธญเธญเธเนเธฅเธเน/เธ•เธดเธ”เธ•เธฑเนเธเน€เธเนเธเนเธญเธเธเธเธกเธทเธญเธ–เธทเธญ (เธ•เนเธญเธเนเธเนเธเนเธฒเธ HTTPS เธซเธฃเธทเธญ localhost) -->
+  <script src="js/data.js?v=20260826d"></script>
+  <script src="js/charts.js?v=20260826d"></script>
+  <script src="js/notify.js?v=20260826d"></script>
+  <script src="js/stock.js?v=20260826d"></script>
+  <script src="js/sales.js?v=20260826d"></script>
+  <script src="js/lark.js?v=20260826d"></script>
+  <script src="js/auth.js?v=20260826d"></script>
+  <script src="js/app.js?v=20260826d"></script>
+  <!-- ลงทะเบียน Service Worker — เปิดใช้แบบออฟไลน์/ติดตั้งเป็นแอพบนมือถือ (ต้องใช้ผ่าน HTTPS หรือ localhost) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js').catch(function () { /* เนเธกเนเธเธฑเธเธเธฑเธ โ€” เธ–เนเธฒเธฅเธเธ—เธฐเน€เธเธตเธขเธเนเธกเนเนเธ”เนเธเนเนเธเนเน€เธงเนเธเธเธเธ•เธด */ });
+        navigator.serviceWorker.register('sw.js').catch(function () { /* ไม่บังคับ — ถ้าลงทะเบียนไม่ได้ก็ใช้เว็บปกติ */ });
       });
     }
   </script>

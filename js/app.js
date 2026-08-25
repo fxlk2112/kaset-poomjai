@@ -321,8 +321,8 @@ const ROLE_META = {
    (กด nav) แต่จะถูกปิดตอน re-render ในหน้าเดิม เช่น กดวันที่/เปลี่ยนเดือน */
 let lastView = null;
 function render() {
-  /* บังคับล็อกอิน: ยังไม่ล็อกอิน = ไม่วาดหน้าใด ๆ ของแอป (gate ครอบอยู่) */
-  if (typeof Auth !== "undefined" && !Auth.session) {
+  /* บังคับล็อกอิน: ยังไม่ล็อกอิน (หรือโหลดระบบบัญชีไม่ได้) = ไม่วาดหน้าใด ๆ ของแอป */
+  if (typeof Auth === "undefined" || !Auth.session) {
     const vn = document.getElementById("view");
     const nn = document.getElementById("bottomNav");
     if (vn) vn.innerHTML = "";
