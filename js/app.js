@@ -176,7 +176,7 @@ function statusTag(status) {
   return `<span class="badge badge-amber">แผน</span>`;
 }
 function typeTag(t) {
-  return `<span class="task-tag" style="background:var(--green-soft);color:var(--green-dark)">${ic(TYPE_ICONS[t.type] || "info")} ${TYPE_LABELS[t.type] || t.type}</span>`;
+  return `<span class="task-tag" style="background:var(--green-light);color:var(--green)">${ic(TYPE_ICONS[t.type] || "info")} ${TYPE_LABELS[t.type] || t.type}</span>`;
 }
 /* แปลงวันที่ ISO เป็นไทยสั้น: 2026-08-13 -> 13 ส.ค. 2569 */
 function dateLabel(iso) {
