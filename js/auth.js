@@ -403,10 +403,10 @@ App.adminView = async function () {
   if (!r.ok) { toast(r.error || "โหลดไม่สำเร็จ"); return; }
   Auth._adminRows = r.data;
   const rows = r.data;
-  const th = (x) => `<th style="padding:8px 10px;text-align:left;border-bottom:2px solid #e5e7eb;white-space:nowrap;font-size:.78rem;color:#374151">${x}</th>`;
-  const td = (x, extra) => `<td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:.8rem;${extra || ""}">${x}</td>`;
+  const th = (x) => `<th class="tbl-th">${x}</th>`;
+  const td = (x, extra) => `<td class="tbl-td" style="${extra || ""}">${x}</td>`;
   const table = `
-    <div style="overflow-x:auto;max-height:56vh;overflow-y:auto;border:1px solid #e5e7eb;border-radius:10px">
+    <div style="overflow-x:auto;max-height:56vh;overflow-y:auto;border:1px solid var(--line);border-radius:10px">
       <table style="width:100%;border-collapse:collapse;min-width:760px">
         <thead><tr>${th("อีเมล")}${th("ชื่อ")}${th("สมัคร")}${th("เซฟล่าสุด")}${th("แปลง")}${th("รอบ")}${th("งาน")}${th("สต็อก")}${th("ใบเสร็จ")}${th("ขนาด")}${th("")}</tr></thead>
         <tbody>
@@ -457,7 +457,7 @@ App.adminDetail = async function (email) {
     <div style="margin-bottom:12px">
       <div style="font-weight:800;font-size:.85rem;margin-bottom:4px">${title} (${items.length})</div>
       ${items.length === 0 ? `<div class="muted" style="font-size:.76rem">— ไม่มีข้อมูล —</div>` :
-      `<div style="max-height:150px;overflow-y:auto;border:1px solid #f3f4f6;border-radius:8px;padding:6px 10px;font-size:.78rem">${items.map(i => `<div style="padding:2px 0">${i}</div>`).join("")}</div>`}
+      `<div style="max-height:150px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:.78rem">${items.map(i => `<div style="padding:2px 0">${i}</div>`).join("")}</div>`}
     </div>`;
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>

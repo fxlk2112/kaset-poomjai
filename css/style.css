@@ -298,7 +298,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   border-radius: 999px; vertical-align: 1px;
 }
 .badge-green { background: var(--green-light); color: var(--green-deep); }
-.badge-amber { background: var(--amber-light); color: #92400e; }
+.badge-amber { background: var(--amber-light); color: var(--amber-text); }
 .badge-red { background: var(--red-light); color: var(--red); }
 .badge-blue { background: var(--blue-light); color: #1e40af; }
 .badge-gray { background: #eef0f2; color: var(--muted); }
@@ -428,7 +428,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 /* จำนวนงานที่เหลือเกินจากที่แสดง */
 .cal-day .cal-more {
   font-size: .48rem; font-weight: 800; color: var(--muted);
-  background: #eef2f0; border-radius: 5px; padding: 0 4px; line-height: 1.3;
+  background: var(--chip); border-radius: 5px; padding: 0 4px; line-height: 1.3;
 }
 
 .legend { display: flex; gap: 14px; font-size: .72rem; color: var(--muted); margin: 10px 2px; flex-wrap: wrap; }
@@ -436,7 +436,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 
 /* ============ Task rows (สไตล์ Farm Command: จุดสถานะ + แถวเรียบ) ============ */
-.task-row { display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 12px; animation: riseIn .35s ease both; }
+.task-row { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--soft); border-radius: 12px; animation: riseIn .35s ease both; }
 .task-row + .task-row { margin-top: 8px; }
 /* จุดสถานะกลม: เขียว=เสร็จ เหลือง=แผน แดง=เลยกำหนด — กดติ๊กเสร็จได้ */
 .task-dot { width: 12px; height: 12px; border-radius: 50%; border: 0; padding: 0; flex-shrink: 0; cursor: pointer; transition: transform .15s ease; }
@@ -466,13 +466,13 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .stock-open {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: .7rem; font-weight: 700; color: #b45309;
-  background: #fef3c7; border-radius: 999px; padding: 2px 9px; margin-top: 6px;
+  background: var(--amber-light); border-radius: 999px; padding: 2px 9px; margin-top: 6px;
 }
 .stock-open .ic { width: .95em; height: .95em; }
 .stock-sealed {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: .7rem; font-weight: 700; color: var(--muted);
-  background: #eef2f0; border-radius: 999px; padding: 2px 9px; margin-top: 6px;
+  background: var(--chip); border-radius: 999px; padding: 2px 9px; margin-top: 6px;
 }
 .stock-sealed .ic { width: .95em; height: .95em; }
 /* ป้ายหมวดสินค้า */
@@ -488,7 +488,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 /* ป้ายขนาดสินค้า */
 .stock-size {
   display: inline-block; font-size: .62rem; font-weight: 700;
-  background: #eef2f0; color: var(--muted);
+  background: var(--chip); color: var(--muted);
   border-radius: 999px; padding: 2px 8px; vertical-align: 2px; margin-left: 4px;
 }
 /* ============ Picker เลือกสต็อก (ในฟอร์มเพิ่มกิจกรรม) ============ */
@@ -504,7 +504,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 .stock-pick-item {
   display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
-  text-align: left; background: #f8fafc; border: 1px solid transparent; border-radius: 7px;
+  text-align: left; background: var(--soft); border: 1px solid transparent; border-radius: 7px;
   padding: 7px 9px; cursor: pointer; font-size: .78rem;
   transition: background .15s, border-color .15s;
 }
@@ -539,7 +539,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 /* กล่องคำนวณการใช้ตามพื้นที่ */
 .calc-box {
   margin: 2px 0 10px; padding: 10px 12px;
-  background: #f0fdf4; border: 1.5px dashed var(--green-light); border-radius: 10px;
+  background: var(--green-soft); border: 1.5px dashed var(--green-light); border-radius: 10px;
 }
 .calc-title { font-size: .76rem; font-weight: 800; color: var(--green-deep); margin-bottom: 6px; }
 .calc-title .ic { width: .95em; height: .95em; vertical-align: -0.15em; }
@@ -629,7 +629,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   padding: 11px 0; font-size: .9rem; min-width: 0;
 }
 .stock-search-clear {
-  background: #eef2f0; border: 0; border-radius: 50%; width: 22px; height: 22px;
+  background: var(--chip); border: 0; border-radius: 50%; width: 22px; height: 22px;
   font-size: .7rem; font-weight: 700; color: var(--muted); flex-shrink: 0; cursor: pointer;
 }
 /* แท็บกรองหน้าสต็อก */
@@ -886,7 +886,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .cc-box .cc-label { font-size: .68rem; color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: 5px; }
 .cc-box .cc-val { font-size: .86rem; font-weight: 800; }
 /* แถบพื้นที่เก็บข้อมูล (หน้าตั้งค่า) */
-.storage-bar { height: 8px; border-radius: 999px; background: #eef2f0; overflow: hidden; margin-top: 8px; }
+.storage-bar { height: 8px; border-radius: 999px; background: var(--chip); overflow: hidden; margin-top: 8px; }
 .storage-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--green), var(--green-dark)); transition: width .35s ease; }
 .storage-bar-fill.warn { background: linear-gradient(90deg, #f59e0b, var(--red)); }
 
@@ -908,7 +908,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 
 /* งานที่ยังไม่ผูกกับรอบการปลูก — ป้าย + เลือกผูกได้จากหน้าแปลง */
 .task-nocycle {
-  display: inline-block; background: #fef3c7; color: #92400e;
+  display: inline-block; background: var(--amber-light); color: var(--amber-text);
   font-size: .66rem; font-weight: 700; padding: 1px 8px; border-radius: 20px; vertical-align: 1px;
 }
 /* ป้ายแปลงเจ้าของงาน (หน้าแรก/ปฏิทิน) — เห็นทันทีว่างานนี้แปลงไหน */
@@ -932,7 +932,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   display: inline-flex; align-items: center; justify-content: center;
   font-size: .7rem; font-weight: 800;
 }
-.row-line:first-child .rank-badge { background: #fef3c7; color: #92400e; } /* อันดับ 1 เน้นสีเหลือง */
+.row-line:first-child .rank-badge { background: var(--amber-light); color: var(--amber-text); } /* อันดับ 1 เน้นสีเหลือง */
 
 /* เงินในแถวงาน: รายได้ = เขียว, ต้นทุน = แดง */
 .task-money { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; }
@@ -1235,8 +1235,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .task-ico.work { background: #eef2ff; }
 .task-ico.fertilize { background: var(--green-light); }
 .task-ico.harvest { background: #ffedd5; }
-.task-ico.water { background: #dbeafe; }
-.task-ico.inspect { background: #fef3c7; }
+.task-ico.water { background: var(--blue-light); }
+.task-ico.inspect { background: var(--amber-light); }
 .task-ico.expense { background: #fee2e2; }
 .task-ico.spray { background: #f3e8ff; }
 
@@ -1471,6 +1471,7 @@ html[data-theme="dark"] {
   --text: #e6efe9; --muted: #93a89b; --line: #26332c;
   --green-light: #143522; --green-soft: #10241a;
   --amber-light: #33270e; --red-light: #381515; --blue-light: #14213a;
+  --chip: #26332c; --soft: #101814; --amber-text: #fde047; --blue-text: #93c5fd;
   --shadow: 0 1px 2px rgba(0,0,0,.35), 0 4px 12px rgba(0,0,0,.4);
   --shadow-lg: 0 12px 28px rgba(0,0,0,.55);
   color-scheme: dark;
@@ -1489,3 +1490,12 @@ html[data-theme="dark"] .pp-theme button.active { background: var(--green); colo
 .pp-theme { display: flex; gap: 6px; padding: 0 12px 12px; }
 .pp-theme button { flex: 1; border: 0; cursor: pointer; font: inherit; font-size: .8rem; font-weight: 700; padding: 8px 0; border-radius: 9px; background: var(--green-soft); color: var(--text); transition: all .15s; }
 .pp-theme button.active { background: var(--green); color: #fff; }
+
+
+/* ==================== ชิป/ตาราง/แบนเนอร์ (สลับธีมผ่านตัวแปร) ==================== */
+.chip-water { background: var(--blue-light); color: var(--blue-text); }
+.chip-price { background: var(--amber-light); color: var(--amber-text); }
+.soft-bg { background: var(--soft); }
+.tbl-th { padding: 8px 10px; text-align: left; border-bottom: 2px solid var(--line); white-space: nowrap; font-size: .78rem; color: var(--muted); }
+.tbl-td { padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: .8rem; }
+.warn-banner { background: var(--amber-light); color: var(--amber-text); border-radius: 10px; padding: 8px 10px; margin: 8px 0; font-size: .76rem; font-weight: 700; }

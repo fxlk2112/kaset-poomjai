@@ -536,7 +536,7 @@ function renderHome() {
   }
 
   const welcome = S.tourDone ? "" : `
-    <div class="card" style="border:1.5px solid var(--green-light);background:linear-gradient(135deg,#f0fdf4,#ffffff)">
+    <div class="card" style="border:1.5px solid var(--green-light);background:linear-gradient(135deg,var(--green-soft),var(--card))">
       <div class="row">
         <span class="plot-emoji" style="background:var(--green-light);color:var(--green-deep)">${ic("compass")}</span>
         <div class="grow">
@@ -958,7 +958,7 @@ function renderPlotWeather() {
           const pr = probs[i] == null ? 0 : Number(probs[i]);
           if (pr >= 60) {
             const dayName = i === 1 ? "พรุ่งนี้" : "วัน" + THAI_DAYS[new Date(d.time[i] + "T12:00:00").getDay()];
-            return `<div style="background:#fef3c7;color:#92400e;border-radius:10px;padding:8px 10px;margin:8px 0;font-size:.76rem;font-weight:700">${ic("alert")} พยากรณ์ฝน ${pr}% ${dayName} — เลื่อนพ่นยา/ใส่ปุ๋ยไปหลังฝนผ่าน ประหยัดกว่า</div>`;
+            return `<div class="warn-banner">${ic("alert")} พยากรณ์ฝน ${pr}% ${dayName} — เลื่อนพ่นยา/ใส่ปุ๋ยไปหลังฝนผ่าน ประหยัดกว่า</div>`;
           }
         }
         return "";
@@ -1600,7 +1600,7 @@ function plotWaterCard(p) {
     return `
     <div class="card" style="border-style:dashed">
       <div class="row">
-        <div class="plot-emoji" style="background:#eff6ff;color:#1d4ed8">${ic("droplet")}</div>
+        <div class="plot-emoji chip-water">${ic("droplet")}</div>
         <div class="grow">
           <div class="bold" style="font-size:.86rem">ระบบน้ำของแปลงนี้</div>
           <div class="muted" style="font-size:.72rem">ยังไม่มีระบบน้ำ — เพิ่มเพื่อตั้งตารางให้น้ำอัตโนมัติ</div>
@@ -1615,7 +1615,7 @@ function plotWaterCard(p) {
     const due = next && next <= today;
     return `
     <div class="row" style="margin-top:6px">
-      <div class="plot-emoji" style="background:#eff6ff;color:#1d4ed8">${ic("droplet")}</div>
+      <div class="plot-emoji chip-water">${ic("droplet")}</div>
       <div class="grow">
         <div class="bold" style="font-size:.86rem">${esc(sys.name)}</div>
         <div class="muted" style="font-size:.72rem">
@@ -1656,7 +1656,7 @@ function renderIoT() {
     return `
     <div class="card">
       <div class="row">
-        <div class="plot-emoji" style="background:#eff6ff;color:#1d4ed8">${ic("droplet")}</div>
+        <div class="plot-emoji chip-water">${ic("droplet")}</div>
         <div class="grow">
           <div class="plot-name">${esc(plotName(sys.plotId))}</div>
           <div class="muted" style="font-size:.74rem">${esc(sys.name)}${sys.pumpName ? " · ปั๊ม: " + esc(sys.pumpName) : ""}${sys.valveCount ? " · " + sys.valveCount + " วาล์ว" : ""}${src ? " · " + esc(src.name) : ""}</div>
@@ -1683,7 +1683,7 @@ function renderIoT() {
   const srcCards = W.sources.map(src => `
     <div class="card">
       <div class="row">
-        <div class="plot-emoji" style="background:#dbeafe;color:#1e40af">${ic("droplet")}</div>
+        <div class="plot-emoji chip-water">${ic("droplet")}</div>
         <div class="grow">
           <div class="plot-name">${esc(src.name)}</div>
           <div class="muted" style="font-size:.74rem">${esc(src.type || "—")}${src.capacityM3 ? " · ความจุ " + fmtNum(src.capacityM3) + " ลบ.ม." : ""}</div>
@@ -1795,7 +1795,7 @@ App.waterShowKey = function (key) {
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${ic("wifi")} Device Key สำหรับ ESP32</h3>
     <div class="modal-sub">คัดลอก Key นี้ไปใส่ในไฟล์ firmware (บรรทัด DEVICE_KEY) — ใครมี Key นี้สั่งวาล์วคุณได้ อย่าเปิดเผย</div>
-    <div class="card" style="background:#f8fafc;font-family:monospace;font-size:.85rem;word-break:break-all;user-select:all">${esc(key)}</div>
+    <div class="card soft-bg" style="font-family:monospace;font-size:.85rem;word-break:break-all;user-select:all">${esc(key)}</div>
     <div class="field"><label>URL API ที่อุปกรณ์ใช้ (POST)</label><input readonly value="https://farmbackup.carfork123.workers.dev" onclick="this.select()"></div>
     <div class="modal-actions">
       <button class="btn btn-primary" onclick="App.copyText('${esc(key)}')">${ic("save")} คัดลอก Key</button>
@@ -1967,7 +1967,7 @@ function renderPrices() {
     <details class="card" style="padding:12px 14px">
       <summary style="cursor:pointer;list-style:none">
         <div class="row">
-          <div class="plot-emoji" style="background:#fef9c3;color:#a16207">${ic("dollar")}</div>
+          <div class="plot-emoji chip-price">${ic("dollar")}</div>
           <div class="grow">
             <div class="bold" style="font-size:.86rem">${esc(p.product)}</div>
             <div class="muted" style="font-size:.72rem">${esc(p.category)} · ${p.count} จุดรับซื้อ · ${dateLabel(p.date)}</div>
@@ -1996,12 +1996,12 @@ function renderPrices() {
     <div class="section-title">แหล่งราคาทางการ (กดเปิดเว็บ)</div>
     <div class="card">
       <div class="row-line" onclick="window.open('https://talaadthai.com/products','_blank')" role="button">
-        <span class="task-ico" style="background:#dcfce7;color:#166534">${ic("dollar")}</span>
+        <span class="task-ico" style="background:var(--green-light);color:var(--green-deep)">${ic("dollar")}</span>
         <div class="grow"><div class="bold" style="font-size:.84rem">ตลาดไท — ราคาผักผลไม้ขายส่งรายวัน</div><div class="muted" style="font-size:.7rem">ราคาผักสดรายวัน (คะน้า ผักกาด และอื่น ๆ) — ที่มาข้อมูลจริงจากตลาดไท</div></div>
         <span class="task-arrow">${ic("chevron")}</span>
       </div>
       <div class="row-line" onclick="window.open('https://pricelist.dit.go.th/main.php','_blank')" role="button">
-        <span class="task-ico" style="background:#dbeafe;color:#1e40af">${ic("dollar")}</span>
+        <span class="task-ico" style="background:var(--blue-light);color:var(--blue-text)">${ic("dollar")}</span>
         <div class="grow"><div class="bold" style="font-size:.84rem">กรมการค้าภายใน — ราคาขายปลีก/ขายส่ง</div><div class="muted" style="font-size:.7rem">ราคาสินค้าเกษตรทางการรายวัน รวมตลาดดำหม้อ ตลาดบ้านเด่น</div></div>
         <span class="task-arrow">${ic("chevron")}</span>
       </div>
