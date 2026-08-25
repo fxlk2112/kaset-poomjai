@@ -5,8 +5,8 @@
    ============================================================ */
 "use strict";
 
-/* ---------------- state & bootstrap ---------------- */
-const S = loadState();
+/* ---------------- state & bootstrap ----------------
+   (S ประกาศใน data.js — ให้ระบบบัญชี (auth.js) สลับ slot ข้อมูลรายบัญชีได้ก่อน render) */
 let route = { view: "home", tab: "plots", year: Number(todayISO().slice(0, 4)) };
 /* จำหน้าล่าสุดไว้ (sessionStorage — รีเฟรชแล้วอยู่หน้าเดิม ไม่กลับหน้าแรก, เปิดแท็บใหม่เริ่มหน้าแรกปกติ) */
 const ROUTE_STORE = "kaset-route-v1";

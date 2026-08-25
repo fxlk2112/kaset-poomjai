@@ -11,6 +11,7 @@
 const AUTH_API = "https://farmbackup.carfork123.workers.dev";
 const SESSION_KEY = "farmult-session-v1";   /* {token, email, name} */
 const CLOUD_TS_KEY = "farmult-cloud-ts-v1"; /* updated_at ล่าสุดของข้อมูลบนคลาวด์ที่เคยเห็น */
+const OWNER_KEY = "farmult-data-owner";     /* บัญชีเจ้าของข้อมูลที่กำลังเปิดใช้ในเครื่องนี้ */
 
 /* โหลดเซสชันค้างไว้จากเครื่องนี้ */
 const Auth = {
@@ -62,6 +63,67 @@ function cloudHasContent(d) {
     (d.sales && d.sales.length) || (d.equipment && d.equipment.length)));
 }
 
+/* ==================== แยกข้อมูลรายบัญชีในเครื่อง ====================
+   แต่ละบัญชีมี storage slot ของตัวเอง: "kaset-poomjai-v51::<email>"
+   - ล็อกอินบัญชีไหน = สลับเข้า slot ของบัญชีนั้นทันที (ห้ามเห็นข้ามบัญชี)
+   - key รวม (STORAGE_KEY) ใช้เฉพาะตอนยังไม่มีใครล็อกอิน (ข้อมูลเดิมก่อนมีระบบบัญชี) */
+function slotKey(email) { return STORAGE_KEY + "::" + String(email || "").toLowerCase(); }
+
+function loadSlotIntoS(email) {
+  try {
+    const raw = localStorage.getItem(slotKey(email));
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && typeof s === "object") {
+        ensureTaskIds(s);
+        ensureDefaults(s);
+        s.version = 52;
+        return s;
+      }
+    }
+  } catch (e) { /* slot เสียหาย → เริ่มใหม่ */ }
+  return null;
+}
+
+/* ค่าเริ่มต้นล้วน (seed) — แคชไว้ครั้งเดียว ครบทุกฟิลด์ (role/cycles/workers ฯลฯ) */
+let SEED_SNAPSHOT = null;
+function blankState() {
+  if (!SEED_SNAPSHOT) {
+    const backup = localStorage.getItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
+    SEED_SNAPSHOT = loadState();
+    if (backup !== null) localStorage.setItem(STORAGE_KEY, backup);
+  }
+  return JSON.parse(JSON.stringify(SEED_SNAPSHOT));
+}
+
+function resetSTo(newState) {
+  /* ฐาน = seed ครบทุกฟิลด์ แล้วทับด้วยข้อมูลของบัญชี — กันฟิลด์ขาด (slot เก่า/คลาวด์คนละเวอร์ชัน) */
+  const merged = Object.assign(blankState(), newState || {});
+  try { ensureTaskIds(merged); ensureDefaults(merged); } catch (e) {}
+  Object.keys(S).forEach(k => { delete S[k]; });
+  Object.assign(S, merged);
+}
+
+/* สลับเข้า slot ของบัญชีที่เพิ่งล็อกอิน — เรียกหลัง setSession เสมอ */
+Auth.switchAccount = function () {
+  if (!Auth.session) return;
+  const email = Auth.session.email;
+  const owner = localStorage.getItem(OWNER_KEY);
+  if (owner === email) return; /* บัญชีเดิม — S ถูกต้องอยู่แล้ว */
+  const cached = loadSlotIntoS(email);
+  if (cached) {
+    resetSTo(cached);
+  } else if (!owner && localHasData()) {
+    /* เครื่องยังไม่มีเจ้าของ + มีข้อมูลเดิมก่อนมีระบบบัญชี → ให้บัญชีนี้รับไป (bootCheck จะอัปขึ้นคลาวด์) */
+  } else {
+    resetSTo(blankState());
+  }
+  localStorage.setItem(OWNER_KEY, email);
+  localStorage.removeItem(STORAGE_KEY); /* ปิด key รวม — กันบัญชีอื่นเห็นข้อมูลนี้ */
+  saveState(S); /* เขียนลง slot ของบัญชีนี้ */
+};
+
 /* ---------- sync ---------- */
 Auth.queueSave = function () {
   if (!Auth.session || Auth.suppress) return;
@@ -82,7 +144,7 @@ Auth.saveNow = async function () {
 
 function applyCloudState(cloudData, updatedAt) {
   Auth.suppress = true;
-  Object.assign(S, cloudData || {});
+  resetSTo(cloudData);
   saveState(S);
   if (updatedAt) setCloudTs(updatedAt); /* กันถามซ้ำทันทีหลังโหลด */
   location.reload();
@@ -157,6 +219,7 @@ async function coreLogin(email, pw) {
   const r = await authCall("login", { email, password: pw });
   if (!r.ok) { toast(r.error || "ล็อกอินไม่สำเร็จ"); Auth.gateMsg(r.error || "ล็อกอินไม่สำเร็จ"); return false; }
   setSession({ token: r.data.token, email: r.data.email, name: r.data.name });
+  Auth.switchAccount(); /* สลับเข้า slot ข้อมูลของบัญชีนี้ — แยกจากบัญชีอื่นเด็ดขาด */
   render();
   toast("ล็อกอินสำเร็จ");
   Auth.hideGate();
@@ -170,6 +233,7 @@ async function coreRegister(email, pw, name) {
   const r = await authCall("register", { email, password: pw, name });
   if (!r.ok) { toast(r.error || "สมัครไม่สำเร็จ"); Auth.gateMsg(r.error || "สมัครไม่สำเร็จ"); return false; }
   setSession({ token: r.data.token, email: r.data.email, name: r.data.name });
+  Auth.switchAccount();
   render();
   toast("สมัครสำเร็จ — ข้อมูลเครื่องนี้จะถูกส่งขึ้นคลาวด์");
   Auth.hideGate();
@@ -256,11 +320,15 @@ Auth.gateSubmit = async function () {
 
 /* ---------- ออกจากระบบ / ซิงก์ปุ่มในหน้าตั้งค่า ---------- */
 App.authLogout = function () {
-  App.confirm("ออกจากระบบ?", "ข้อมูลยังอยู่บนคลาวด์ของบัญชีคุณ ล็อกอินกลับมาใช้ได้อีก", () => {
+  App.confirm("ออกจากระบบ?", "ข้อมูลของบัญชีนี้ถูกเก็บไว้ทั้งในเครื่องและบนคลาวด์ ล็อกอินกลับมาใช้ได้อีก", () => {
     if (Auth.session) authCall("logout", { token: Auth.session.token });
     setSession(null);
+    /* เคลียร์ข้อมูลบัญชีนี้ออกจากหน่วยความจำ — บัญชีถัดไปต้องไม่เห็นข้อมูลซ้อน */
+    resetSTo(blankState());
+    localStorage.removeItem(OWNER_KEY);
     toast("ออกจากระบบแล้ว");
     Auth.showGate();
+    render();
   });
 };
 
@@ -294,17 +362,40 @@ Auth.cardHtml = function () {
   </div>`;
 };
 
-/* ---------- hook: saveState ทุกครั้ง = เด้งซิงก์ ---------- */
+/* ---------- hook: saveState เขียนลง slot ของบัญชีที่ล็อกอิน (แยกข้อมูลรายบัญชี) ---------- */
 (function () {
   const orig = saveState;
   saveState = function (s) {
-    orig(s);
+    const key = Auth.session ? slotKey(Auth.session.email) : STORAGE_KEY;
+    try {
+      localStorage.setItem(key, JSON.stringify(s));
+      storageSaveFailed = false;
+    } catch (e) {
+      storageSaveFailed = true;
+      setTimeout(function () {
+        try { toast("⚠️ พื้นที่จัดเก็บเต็ม! ข้อมูลล่าสุดอาจไม่ถูกบันทึก — ไปที่ ตั้งค่า เพื่อสำรอง/จัดการพื้นที่"); } catch (e2) {}
+      }, 0);
+    }
     Auth.queueSave();
   };
 })();
 
-/* เริ่มระบบ: ไม่มีเซสชัน = โชว์ประตูทันที (static gate — ปลอดภัยแม้ไฟล์อื่นโหลดไม่ครบ) */
+/* รีเซ็ตข้อมูล: เคลียร์ key รวม + slot ของบัญชี (ไม่แตะคลาวด์ — ดึงกลับจากคลาวด์ได้) */
+App.resetData = function () {
+  App.confirm("รีเซ็ตข้อมูลทั้งหมด?", "ข้อมูลที่บันทึกไว้ในเครื่องนี้จะถูกล้างให้ว่างเปล่า (ข้อมูลบนคลาวด์ของบัญชียังอยู่ — กดดาวน์โหลดจากคลาวด์เพื่อกู้คืน) ต้องการดำเนินการต่อหรือไม่?", () => {
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    if (Auth.session) { try { localStorage.removeItem(slotKey(Auth.session.email)); } catch (e) {} }
+    location.reload();
+  });
+};
+
+/* เริ่มระบบ: ไม่มีเซสชัน = โชว์ประตูทันที (static gate — ปลอดภัยแม้ไฟล์อื่นโหลดไม่ครบ)
+   มีเซสชัน = สลับเข้า slot ของบัญชีนั้นก่อน render (auth.js โหลดก่อน app.js) แล้วค่อยตรวจคลาวด์ */
 if (Auth.session) {
+  const __cached = loadSlotIntoS(Auth.session.email);
+  if (__cached) resetSTo(__cached);
+  localStorage.removeItem(STORAGE_KEY); /* ขณะล็อกอิน ข้อมูลอยู่ใน slot ของบัญชีเท่านั้น */
+  localStorage.setItem(OWNER_KEY, Auth.session.email);
   setTimeout(() => Auth.bootCheck(), 400);
 } else {
   Auth.showGate();

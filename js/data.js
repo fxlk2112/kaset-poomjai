@@ -988,3 +988,8 @@ function dayStatus(s, dateStr) {
   if (hasPlanned) return "planned";
   return "done";
 }
+
+
+/* สถานะหลักของแอป — ประกาศท้าย data.js (โหลดก่อน auth.js/app.js)
+   เพื่อให้ระบบบัญชีสลับ slot ข้อมูลรายบัญชีได้ก่อน render หน้าแรก */
+const S = loadState();
