@@ -1423,3 +1423,5 @@ html.auth-locked #app { visibility: hidden; }
 #authGateFallback { position: fixed; inset: 0; z-index: 9998; display: flex; align-items: center; justify-content: center; background: linear-gradient(165deg, #0b3d20 0%, #14532d 40%, #1a7a3e 75%, #2c9a54 100%); }
 .agf-box { color: #fff; text-align: center; font-weight: 800; font-size: 1.1rem; letter-spacing: .4px; line-height: 1.8; }
 .agf-box span { font-weight: 400; font-size: .8rem; color: #c7e5d3; }
+
+.agf-btn { margin-top: 14px; border: 0; cursor: pointer; font: inherit; font-weight: 700; font-size: .85rem; color: #fff; background: linear-gradient(135deg, #16a34a, #15803d); padding: 10px 22px; border-radius: 12px; box-shadow: 0 6px 16px rgba(0,0,0,.3); }

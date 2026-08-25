@@ -27,7 +27,7 @@ document.documentElement.classList.toggle("auth-locked", !Auth.session);
 
 /* กันข้อความที่ผู้ใช้เคยแก้ไว้แล้วเพี้ยน (ตัวอักษรที่แสดงไม่ได้) — ลบทิ้งให้ใช้ค่าเริ่มต้น */
 try {
-  if (S && S.texts) {
+  if (typeof S !== "undefined" && S && S.texts) {
     Object.keys(S.texts).forEach(k => {
       if (typeof S.texts[k] === "string" && /[\uFFFD\u25A1\u25AF]/.test(S.texts[k])) delete S.texts[k];
     });

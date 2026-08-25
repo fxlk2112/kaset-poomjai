@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/style.css?v=20260826d">
+  <link rel="stylesheet" href="css/style.css?v=20260826e">
   <link rel="icon" href="logo.jpg">
 </head>
 <body>
@@ -68,21 +68,35 @@
     <!-- ====== Modal & overlays ====== -->
     <div id="modalRoot"></div>
     <div id="toast" class="toast" hidden></div>
-  <div id="authGateFallback" hidden><div class="agf-box">FARMULTIMATE SOLUTIONS<br><span>กำลังโหลดหน้าล็อกอิน… ตรวจอินเทอร์เน็ตแล้วรีเฟรชอีกครั้ง</span></div></div>
-  <script>setTimeout(function(){try{if(!localStorage.getItem("farmult-session-v1")&&!document.getElementById("authGate")){var f=document.getElementById("authGateFallback");if(f)f.hidden=false;}}catch(e){}},2500);</script>
+  <div id="authGateFallback" hidden><div class="agf-box">FARMULTIMATE SOLUTIONS<br><span>กำลังโหลดหน้าล็อกอิน…</span><button class="agf-btn" onclick="agHardReload()">โหลดใหม่ (ล้างแคชอัตโนมัติ)</button></div></div>
+  <script>
+    function agHardReload(){
+      try{ if(navigator.serviceWorker){ navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); }); } }catch(e){}
+      try{ if(window.caches){ caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); }); } }catch(e){}
+      setTimeout(function(){ location.replace(location.pathname + "?r=" + Date.now()); }, 300);
+    }
+    window.agHardReload = agHardReload;
+    setTimeout(function(){try{
+      if(!localStorage.getItem("farmult-session-v1") && !document.getElementById("authGate")){
+        var f=document.getElementById("authGateFallback"); if(f) f.hidden=false;
+        // ลองยิงโหลด auth.js ซ้ำ (กรณีโหลดตก)
+        setTimeout(function(){ if(!document.getElementById("authGate")){ var s=document.createElement("script"); s.src="js/auth.js?v="+Date.now(); s.onload=function(){ if(f) f.hidden=true; }; document.body.appendChild(s); } },1200);
+      }
+    }catch(e){}},2000);
+  </script>
     <div id="tourOverlay" class="tour-overlay" hidden></div>
 
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/data.js?v=20260826d"></script>
-  <script src="js/charts.js?v=20260826d"></script>
-  <script src="js/notify.js?v=20260826d"></script>
-  <script src="js/stock.js?v=20260826d"></script>
-  <script src="js/sales.js?v=20260826d"></script>
-  <script src="js/lark.js?v=20260826d"></script>
-  <script src="js/auth.js?v=20260826d"></script>
-  <script src="js/app.js?v=20260826d"></script>
+  <script src="js/data.js?v=20260826e"></script>
+  <script src="js/charts.js?v=20260826e"></script>
+  <script src="js/notify.js?v=20260826e"></script>
+  <script src="js/stock.js?v=20260826e"></script>
+  <script src="js/sales.js?v=20260826e"></script>
+  <script src="js/lark.js?v=20260826e"></script>
+  <script src="js/auth.js?v=20260826e"></script>
+  <script src="js/app.js?v=20260826e"></script>
   <!-- ลงทะเบียน Service Worker — เปิดใช้แบบออฟไลน์/ติดตั้งเป็นแอพบนมือถือ (ต้องใช้ผ่าน HTTPS หรือ localhost) -->
   <script>
     if ('serviceWorker' in navigator) {
