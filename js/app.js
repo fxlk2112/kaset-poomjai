@@ -903,11 +903,11 @@ function renderPlotWeather() {
   const hit = WEATHER_CACHE[ckey];
   if (hit && Date.now() - hit.t < WEATHER_TTL) { el.innerHTML = hit.html; fillWeatherAddress(p); return; }
   el.innerHTML = `<div class="weather-loading">${ic("pin")} กำลังดึงสภาพอากาศของ ${esc(p.name)}...</div>`;
-  /* Open-Meteo — ฟรี ไม่ต้องใช้คีย์ · ECMWF IFS = แบบจำลองที่แม่นที่สุดในโลก */
+  /* Open-Meteo — ฟรี ไม่ต้องใช้คีย์ · best_match = ผสมโมเดลที่ดีที่สุด (มี % ความน่าจะเป็นฝน) 7 วัน */
   const url = "https://api.open-meteo.com/v1/forecast?latitude=" + p.lat + "&longitude=" + p.lng +
     "&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m" +
-    "&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code" +
-    "&timezone=auto&models=ecmwf_ifs025";
+    "&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,weather_code" +
+    "&forecast_days=7&timezone=auto";
   fetch(url)
     .then(r => { if (!r.ok) throw new Error("om status " + r.status); return r.json(); })
     .then(om => {
@@ -917,13 +917,15 @@ function renderPlotWeather() {
       const [cond, emoji] = omCodeInfo(c.weather_code);
       /* แสดงทศนิยม 1 ตำแหน่ง (ไม่ปัดเลขทิ้ง — เช่น 31.4°C) */
       const fmt1 = n => (n == null ? "—" : (Math.round(Number(n) * 10) / 10).toFixed(1).replace(/\.0$/, ""));
-      const days = (d.time || []).slice(0, 5).map((day, i) => {
+      const days = (d.time || []).slice(0, 7).map((day, i) => {
         const [dc, de] = omCodeInfo(d.weather_code[i]);
+        const probs = d.precipitation_probability_max || [];
+        const pr = probs[i] == null ? null : Number(probs[i]);
         return `<div class="wday">
       <div class="wday-name">${THAI_DAYS[new Date(day + "T12:00:00").getDay()]}</div>
       <div class="wday-emoji">${de}</div>
       <div class="wday-temp">${fmt1(d.temperature_2m_max[i])}°/${fmt1(d.temperature_2m_min[i])}°</div>
-      <div class="wday-rain">ฝน ${fmt1(d.precipitation_sum[i])} มม.</div>
+      <div class="wday-rain">${pr != null ? "ฝน " + pr + "%" : "ฝน " + fmt1(d.precipitation_sum[i]) + " มม."}</div>
     </div>`;
       }).join("");
       const timeStr = c.time ? String(c.time).slice(11, 16) : "";
@@ -947,6 +949,17 @@ function renderPlotWeather() {
         <span>🌧️ ฝน ${fmt1(c.precipitation)} มม.</span>
         <span>💨 ลม ${fmt1(c.wind_speed_10m)} m/s</span>
       </div>
+      ${(() => {
+        const probs = d.precipitation_probability_max || [];
+        for (let i = 1; i <= 2 && i < (d.time || []).length; i++) {
+          const pr = probs[i] == null ? 0 : Number(probs[i]);
+          if (pr >= 60) {
+            const dayName = i === 1 ? "พรุ่งนี้" : "วัน" + THAI_DAYS[new Date(d.time[i] + "T12:00:00").getDay()];
+            return `<div style="background:#fef3c7;color:#92400e;border-radius:10px;padding:8px 10px;margin:8px 0;font-size:.76rem;font-weight:700">${ic("alert")} พยากรณ์ฝน ${pr}% ${dayName} — เลื่อนพ่นยา/ใส่ปุ๋ยไปหลังฝนผ่าน ประหยัดกว่า</div>`;
+          }
+        }
+        return "";
+      })()}
       <div class="weather-days">${days}</div>`;
       WEATHER_CACHE[ckey] = { t: Date.now(), html };
       weatherCacheSave();
@@ -2520,6 +2533,7 @@ App.modalCycle = function (plotId, cycleId) {
       </select></div>
       ${c ? "" : `<div class="field"><label>เลขรอบ (อัตโนมัติ)</label><input id="f_round" type="number" min="1" value="${newRound}"><div class="hint">เพิ่มรอบใหม่ระบบจะนับให้อัตโนมัติ (รอบ 1, รอบ 2...) — แก้ได้ถ้าต้องการ</div></div>`}
       <div class="field"><label>ชื่อพืช / รอบ *</label><input id="f_plant" value="${c ? esc(c.plant) : ""}" placeholder="เช่น ข้าวโพดหวาน / ข้าวนาปี" required></div>
+      ${c ? "" : `<div class="field"><label><input type="checkbox" id="f_plan" checked style="width:auto;margin-right:6px">${ic("leaf")} สร้างแผนงานอัตโนมัติตามสูตรพืช (ข้าว/ข้าวโพด/มันสำปะหลัง/อ้อย/พริก/แตงโม/มะม่วง/ทุเรียน)</label></div>`}
       <div class="field"><label>วันที่เริ่ม *</label><input id="f_start" type="date" value="${c ? c.startDate : todayISO()}" required></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
@@ -2544,11 +2558,16 @@ App.submitCycle = function (e, cycleId) {
     /* เลขรอบอัตโนมัติ: ใช้ค่าจากฟอร์ม (ระบบเติมให้แล้ว) — กันเลขซ้ำ/กระโดดด้วยการนับจริง */
     const roundInput = document.getElementById("f_round");
     const round = roundInput ? (Math.max(1, Math.round(Number(roundInput.value) || 0)) || nextCycleRound(S, plotId)) : nextCycleRound(S, plotId);
-    S.cycles.push({ id: uid(), plotId, plant, startDate: start, status: "active", round });
+    const c = { id: uid(), plotId, plant, startDate: start, status: "active", round };
+    S.cycles.push(c);
+    /* แผนดูแลอัตโนมัติตามสูตรพืช (checkbox ในฟอร์ม) */
+    const wantPlan = document.getElementById("f_plan");
+    let made = 0;
+    if (wantPlan && wantPlan.checked) made = generatePlaybookTasks(c);
     saveState(S);
     closeModal();
     render();
-    toast(`เริ่มรอบปลูกแล้ว — รอบที่ ${round}`);
+    toast(`เริ่มรอบปลูกแล้ว — รอบที่ ${round}` + (made ? ` · สร้างแผนงานอัตโนมัติ ${made} งาน 📋` : ""));
   }
   return false;
 };

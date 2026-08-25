@@ -319,6 +319,98 @@ function seed() {
   };
 }
 
+/* ==================== สูตรแผนดูแลรายพืช (Crop Playbook) ====================
+   วันที่ N = จำนวนวันหลังวันเริ่มปลูก → ระบบสร้างงานให้อัตโนมัติเมื่อเริ่มรอบปลูก
+   ประมาณการทั่วไป — ปรับตามสายพันธุ์/พื้นที่/ฤดูกาลของแต่ละที่ */
+const CROP_PLAYBOOKS = {
+  "ข้าว": [
+    { day: 0, title: "เตรียมดิน เพาะกล้า/เตรียมหว่าน", type: "inspect" },
+    { day: 25, title: "ดำนา/หว่านเมล็ด", type: "plant" },
+    { day: 40, title: "ใส่ปุ๋ยรอง (16-20-0 + ยูเรีย)", type: "fertilize" },
+    { day: 60, title: "ตรวจเพลี้ยกระโดด/เหาแดง", type: "inspect" },
+    { day: 80, title: "ใส่ปุ๋ยแดกตา (46-0-0)", type: "fertilize" },
+    { day: 110, title: "หยุดน้ำ เตรียมเกี่ยว", type: "water" },
+    { day: 120, title: "เก็บเกี่ยว", type: "harvest" }
+  ],
+  "ข้าวโพด": [
+    { day: 0, title: "เตรียมดิน + หว่านเมล็ด", type: "plant" },
+    { day: 15, title: "ใส่ปุ๋ยรอง (15-15-15)", type: "fertilize" },
+    { day: 30, title: "ใส่ปุ๋ยรอบ 1 (46-0-0)", type: "fertilize" },
+    { day: 45, title: "ตรวจหนอนเจาะสมอ/เพลี้ย", type: "inspect" },
+    { day: 60, title: "ใส่ปุ๋ยรอบ 2 ช่วงสร้างฝัก", type: "fertilize" },
+    { day: 95, title: "เก็บเกี่ยว", type: "harvest" }
+  ],
+  "มันสำปะหลัง": [
+    { day: 0, title: "ไถเตรียมดิน + ปลูกท่อนพันธุ์", type: "plant" },
+    { day: 30, title: "กำจัดวัชพืชครั้งที่ 1", type: "inspect" },
+    { day: 60, title: "ใส่ปุ๋ยรอบ 1 (15-15-15) + พูนดิน", type: "fertilize" },
+    { day: 120, title: "ใส่ปุ๋ยรอบ 2", type: "fertilize" },
+    { day: 300, title: "เก็บเกี่ยว", type: "harvest" }
+  ],
+  "อ้อย": [
+    { day: 0, title: "เตรียมหลุม + ปลูกท่อนพันธุ์", type: "plant" },
+    { day: 45, title: "ใส่ปุ๋ยรอบ 1 + กำจัดวัชพืช", type: "fertilize" },
+    { day: 90, title: "ใส่ปุ๋ยรอบ 2 + พูนดิน", type: "fertilize" },
+    { day: 150, title: "ตรวจเพลี้ยไฟ/หนอนกอ", type: "inspect" },
+    { day: 330, title: "หยุดให้น้ำ เพิ่มความหวาน", type: "water" },
+    { day: 365, title: "ตัดอ้อยเข้าโรงงาน", type: "harvest" }
+  ],
+  "พริก": [
+    { day: 0, title: "ปลูกกล้าลงแปลง + คลุมฟิล์ม", type: "plant" },
+    { day: 15, title: "ใส่ปุ๋ยรอง (สูตรเสมอ)", type: "fertilize" },
+    { day: 30, title: "ตรวจเพลี้ยไฟ/ไรแดง/โรคใบด่าง", type: "inspect" },
+    { day: 45, title: "ใส่ปุ๋ยรอบ 1 ช่วงออกดอก", type: "fertilize" },
+    { day: 60, title: "เก็บผลรอบแรก", type: "harvest" },
+    { day: 75, title: "ใส่ปุ๋ยหลังเก็บ เตรียมรอบถัดไป", type: "fertilize" }
+  ],
+  "แตงโม": [
+    { day: 0, title: "ยกร่องปลูก + หยอดเมล็ด/ปลูกกล้า", type: "plant" },
+    { day: 10, title: "ใส่ปุ๋ยรอง + รดน้ำเช้า-เย็น", type: "fertilize" },
+    { day: 25, title: "ใส่ปุ๋ยรอบ 1 + ตรวจเพลี้ยแป้ง", type: "inspect" },
+    { day: 40, title: "ปักหลัก/ทับวาง ช่วงติดผล", type: "inspect" },
+    { day: 55, title: "ใส่ปุ๋ยช่วงสร้างความหวาน", type: "fertilize" },
+    { day: 70, title: "เก็บเกี่ยว", type: "harvest" }
+  ],
+  "มะม่วง": [
+    { day: 0, title: "ใส่ปุ๋ยหลังเก็บผล + ตัดแต่งกิ่ง", type: "fertilize" },
+    { day: 45, title: "ใส่ปุ๋ยกระตุ้นออกดอก", type: "fertilize" },
+    { day: 60, title: "พ่นกระตุ้นดอก/ป้องกันโรคราแป้ง", type: "inspect" },
+    { day: 90, title: "คลุมผล + ป้องกันแมลงวันหัวขวาน", type: "inspect" },
+    { day: 120, title: "เก็บเกี่ยว", type: "harvest" }
+  ],
+  "ทุเรียน": [
+    { day: 0, title: "ใส่ปุ๋ยอินทรีย์หลังเก็บเกี่ยว", type: "fertilize" },
+    { day: 30, title: "ตรวจโรครากเน่า/โคนเน่า + ระบายน้ำ", type: "inspect" },
+    { day: 90, title: "ใส่ปุ๋ยช่วงแตกใบ/ออกดอก", type: "fertilize" },
+    { day: 120, title: "ตรวจเพลี้ยหอย/ไหมทอง", type: "inspect" },
+    { day: 150, title: "รดน้ำสม่ำเสมอช่วงติดผล", type: "water" }
+  ]
+};
+/* หาสูตรจากชื่อพืช — ชื่อพืชต้อง "มี" คีย์อยู่ในตัว (กัน 'ข้าว' ไปจับ 'ข้าวโพด') หรือพิมพ์ตรงเป๊ะ */
+function playbookFor(plant) {
+  const n = String(plant || "").trim().toLowerCase();
+  if (!n) return null;
+  const keys = Object.keys(CROP_PLAYBOOKS).sort((a, b) => b.length - a.length);
+  for (const k of keys) {
+    const kk = k.toLowerCase();
+    if (n === kk || n.indexOf(kk) !== -1) return { key: k, steps: CROP_PLAYBOOKS[k] };
+  }
+  return null;
+}
+/* สร้างงานจากสูตร → คืนจำนวนงานที่สร้าง */
+function generatePlaybookTasks(cycle) {
+  const pb = playbookFor(cycle.plant);
+  if (!pb) return 0;
+  pb.steps.forEach(st => {
+    S.tasks.push({
+      id: uid(), title: st.title, date: addDaysISO(cycle.startDate, st.day),
+      type: st.type, plotId: cycle.plotId, cycleId: cycle.id, status: "planned",
+      note: "แผนอัตโนมัติ (" + pb.key + " วันที่ " + st.day + ")", createdAt: Date.now()
+    });
+  });
+  return pb.steps.length;
+}
+
 /* ---------- persistence ---------- */
 function loadState() {
   try {
