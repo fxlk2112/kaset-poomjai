@@ -3201,7 +3201,7 @@ App.startTour = function () {
     const el = document.querySelector(st.sel);
     if (!el) { App.tourGo(i + 1); return; }
     /* เลื่อน element ให้อยู่ในจอถ้าจำเป็น (element ที่ fixed เช่น bottomNav/FAB จะไม่เลื่อน) */
-    if (st.scroll !== false) el.scrollIntoView({ block: "nearest", behavior: "auto" });
+    if (st.scroll !== false && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest", behavior: "auto" });
     const r = el.getBoundingClientRect();
     dim.style.left = r.left + "px";
     dim.style.top = r.top + "px";
@@ -3290,6 +3290,9 @@ function drawCharts() {
 }
 
 /* ---------------- init ---------------- */
+/* ปุ่มแนะนำระบบ (ทัวร์) — เดิมลืมผูก event ทำให้กดไม่ได้ */
+const tourBtn = document.getElementById("tourBtn");
+if (tourBtn) tourBtn.addEventListener("click", () => App.startTour());
 const editBtn = document.getElementById("editBtn");
 if (editBtn) editBtn.addEventListener("click", () => App.openEditor());
 /* ปุ่มกระดิ่งแจ้งเตือน */

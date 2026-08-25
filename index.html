@@ -51,7 +51,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/style.css?v=20260826i">
+  <link rel="stylesheet" href="css/style.css?v=20260826j">
   <link rel="icon" href="logo.jpg">
 </head>
 <body>
@@ -100,19 +100,21 @@
             <div class="brand-sub" id="brandSubTxt">ระบบจัดการฟาร์มอัจฉริยะ</div>
           </div>
         </div>
-        <button class="btn btn-ghost-light btn-tour" id="tourBtn" title="แนะนำระบบ">
-          <span class="btn-ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></span> แนะนำระบบ
-        </button>
-        <button class="btn btn-ghost-light btn-tour" id="editBtn" style="display:none" title="แก้ไขเว็บ (ผู้ดูแล)">
-          <span class="btn-ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></span> แก้ไข
-        </button>
-        <button class="btn btn-ghost-light btn-tour notif-btn" id="notifBtn" title="การแจ้งเตือน (ครบกำหนด/เลยกำหนด)">
-          <span class="btn-ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
-          <span class="notif-badge" id="notifBadge" hidden></span>
-        </button>
-        <button class="btn btn-ghost-light btn-tour profile-btn" id="profileBtn" title="บัญชีผู้ใช้">
-          <span class="btn-ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
-        </button>
+        <div class="topbar-actions">
+          <button class="icon-btn" id="tourBtn" title="แนะนำระบบ">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+          </button>
+          <button class="icon-btn notif-btn" id="notifBtn" title="การแจ้งเตือน (ครบกำหนด/เลยกำหนด)">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="notif-badge" id="notifBadge" hidden></span>
+          </button>
+          <button class="icon-btn profile-btn" id="profileBtn" title="บัญชีผู้ใช้">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </button>
+          <button class="icon-btn" id="editBtn" style="display:none" title="แก้ไขเว็บ (ผู้ดูแล)">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+          </button>
+        </div>
       </div>
       <div class="notif-panel" id="notifPanel" hidden></div>
       <div class="profile-panel" id="profilePanel" hidden></div>
@@ -144,14 +146,14 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/data.js?v=20260826i"></script>
-  <script src="js/charts.js?v=20260826i"></script>
-  <script src="js/notify.js?v=20260826i"></script>
-  <script src="js/stock.js?v=20260826i"></script>
-  <script src="js/sales.js?v=20260826i"></script>
-  <script src="js/lark.js?v=20260826i"></script>
-  <script src="js/auth.js?v=20260826i"></script>
-  <script src="js/app.js?v=20260826i"></script>
+  <script src="js/data.js?v=20260826j"></script>
+  <script src="js/charts.js?v=20260826j"></script>
+  <script src="js/notify.js?v=20260826j"></script>
+  <script src="js/stock.js?v=20260826j"></script>
+  <script src="js/sales.js?v=20260826j"></script>
+  <script src="js/lark.js?v=20260826j"></script>
+  <script src="js/auth.js?v=20260826j"></script>
+  <script src="js/app.js?v=20260826j"></script>
   <!-- ลงทะเบียน Service Worker — เปิดใช้แบบออฟไลน์/ติดตั้งเป็นแอพบนมือถือ (ต้องใช้ผ่าน HTTPS หรือ localhost) -->
   <script>
     if ('serviceWorker' in navigator) {

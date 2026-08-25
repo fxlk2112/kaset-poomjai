@@ -64,6 +64,16 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   box-shadow: 0 4px 14px rgba(20, 83, 45, .28);
 }
 .topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.icon-btn {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.3);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background .18s, transform .12s; position: relative; flex-shrink: 0;
+}
+.icon-btn:hover { background: rgba(255,255,255,.3); }
+.icon-btn:active { transform: scale(.93); }
+.icon-btn .ic { width: 19px; height: 19px; }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .brand-logo { font-size: 1.7rem; filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
 .brand-logo[src] { width: 40px; height: 40px; object-fit: contain; border-radius: 50%; background: #fff; padding: 2px; flex-shrink: 0; }
