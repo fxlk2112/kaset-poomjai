@@ -1,5 +1,5 @@
 /* ============================================================
-   เกษตรภูมิใจ v52 — app logic
+   FARMULTIMATE SOLUTIONS v52 — app logic
    dashboard, role switcher, plots, stock, equipment, cycles,
    activity planner, IoT, analytics, FAB drawer, interactive tour
    ============================================================ */
@@ -1906,7 +1906,7 @@ App.deleteCostCat = function (key) {
 /* ---------------- Export / Import ข้อมูล ---------------- */
 App.exportData = function () {
   const payload = {
-    app: "kaset-poomjai",
+    app: "farmultimate-solutions",
     type: "backup",
     version: S.version,
     exportedAt: new Date().toISOString(),
@@ -1916,7 +1916,7 @@ App.exportData = function () {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "kaset-poomjai-backup-" + todayISO() + ".json";
+  a.download = "farmultimate-backup-" + todayISO() + ".json";
   document.body.appendChild(a);
   a.click();
   a.remove();

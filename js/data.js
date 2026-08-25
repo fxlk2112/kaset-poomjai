@@ -1,5 +1,5 @@
 /* ============================================================
-   เกษตรภูมิใจ v52 — data layer
+   FARMULTIMATE SOLUTIONS v52 — data layer
    seed data + localStorage persistence + business logic
    ตัวเลขการเงินทั้งหมด (KPI, กราฟ, กำไรรายแปลง/รอบ) คำนวณจาก
    บันทึกงานจริง (tasks) ที่ผู้ใช้แก้ไขได้ — ไม่ใช่ตัวเลขตายตัว
