@@ -1,10 +1,9 @@
-/* ---------------- ซิงก์ข้อมูลกับ Lark Base (ผ่าน Netlify Function) ----------------
-   เรียก /.netlify/functions/lark — App Secret เก็บไว้ฝั่ง Netlify เท่านั้น ไม่หลุดมาเบราว์เซอร์
+/* ---------------- ซิงก์ข้อมูลกับ Lark Base (ผ่าน Cloudflare Worker) ----------------
+   App Secret เก็บไว้ฝั่ง Worker เท่านั้น ไม่หลุดมาเบราว์เซอร์
    ใช้ในหน้าตั้งค่า: ทดสอบการเชื่อมต่อ / อัปโหลด (push) / ดาวน์โหลด (pull) */
-/* เรียก Cloudflare Worker (proxy เก็บ App Secret ฝั่ง server) */
 const LARK_FN = "https://farmbackup.carfork123.workers.dev";
 
-/* เรียก Netlify Function — คืน data หรือ throw พร้อมข้อความ */
+/* เรียก Cloudflare Worker — คืน data หรือ throw พร้อมข้อความ */
 async function larkCall(action, body) {
   const r = await fetch(LARK_FN, {
     method: "POST",
@@ -12,7 +11,7 @@ async function larkCall(action, body) {
     body: JSON.stringify(Object.assign({ action }, body || {}))
   });
   const j = await r.json().catch(() => null);
-  if (!r.ok || !j || j.ok !== true) throw new Error((j && j.error) || "เชื่อมต่อ Netlify Function ไม่ได้");
+  if (!r.ok || !j || j.ok !== true) throw new Error((j && j.error) || "เชื่อมต่อ Cloudflare Worker ไม่ได้");
   return j.data;
 }
 

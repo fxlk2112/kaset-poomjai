@@ -1,2 +1,4 @@
-# Local Netlify folder
+# Local tool folders
 .netlify
+.wrangler
+.freebuff

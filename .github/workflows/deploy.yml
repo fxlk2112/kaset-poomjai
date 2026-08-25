@@ -1,4 +1,4 @@
-name: Deploy to Netlify
+name: Deploy to Cloudflare Pages
 
 on:
   push:
@@ -11,14 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to Netlify
-        uses: nwtgck/actions-netlify@v3.0
+      - name: Remove non-site files before upload
+        run: rm -rf .git .github .freebuff .wrangler .netlify node_modules
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
         with:
-          publish-dir: '.'
-          functions-dir: netlify/functions
-          deploy-message: 'Auto-deploy from GitHub Actions'
-          production-deploy: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy . --project-name=kaset-poomjai --branch=master --commit-dirty=true
