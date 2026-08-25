@@ -1458,3 +1458,34 @@ html.auth-locked #app { visibility: hidden; }
 .agf-box span { font-weight: 400; font-size: .8rem; color: #c7e5d3; }
 
 .agf-btn { margin-top: 14px; border: 0; cursor: pointer; font: inherit; font-weight: 700; font-size: .85rem; color: #fff; background: linear-gradient(135deg, #16a34a, #15803d); padding: 10px 22px; border-radius: 12px; box-shadow: 0 6px 16px rgba(0,0,0,.3); }
+
+
+/* ==================== แก้สีแผงแจ้งเตือน/โปรไฟล์ (เดิมตัวหนังสือขาวบนพื้นขาว) ==================== */
+.notif-panel, .profile-panel { color: var(--text); }
+.notif-panel .muted, .profile-panel .muted, .pp-email { color: var(--muted); }
+.notif-head { color: var(--text); }
+
+/* ==================== Dark Mode (สว่าง/มืด/ตามระบบ) ==================== */
+html[data-theme="dark"] {
+  --bg: #0e1512; --card: #18211c; --card-border: #26332c;
+  --text: #e6efe9; --muted: #93a89b; --line: #26332c;
+  --green-light: #143522; --green-soft: #10241a;
+  --amber-light: #33270e; --red-light: #381515; --blue-light: #14213a;
+  --shadow: 0 1px 2px rgba(0,0,0,.35), 0 4px 12px rgba(0,0,0,.4);
+  --shadow-lg: 0 12px 28px rgba(0,0,0,.55);
+  color-scheme: dark;
+}
+html[data-theme="dark"] body { background: var(--bg); }
+html[data-theme="dark"] input, html[data-theme="dark"] select, html[data-theme="dark"] textarea { background: #101814; border-color: var(--card-border); color: var(--text); }
+html[data-theme="dark"] .modal { background: var(--card); color: var(--text); box-shadow: 0 -8px 30px rgba(0,0,0,.55); }
+html[data-theme="dark"] .btn-outline { background: rgba(22,163,74,.14); color: #86efac; }
+html[data-theme="dark"] .role-switch button.active, html[data-theme="dark"] .tabs button.active { background: #e6efe9; color: #14532d; }
+html[data-theme="dark"] .receipt { background: var(--card); }
+html[data-theme="dark"] .storage-bar { background: #26332c; }
+html[data-theme="dark"] .weather-card, html[data-theme="dark"] .weather-note { color: var(--text); }
+html[data-theme="dark"] .notif-panel, html[data-theme="dark"] .profile-panel { background: var(--card); }
+html[data-theme="dark"] .pp-theme button { background: var(--green-soft); color: var(--text); }
+html[data-theme="dark"] .pp-theme button.active { background: var(--green); color: #fff; }
+.pp-theme { display: flex; gap: 6px; padding: 0 12px 12px; }
+.pp-theme button { flex: 1; border: 0; cursor: pointer; font: inherit; font-size: .8rem; font-weight: 700; padding: 8px 0; border-radius: 9px; background: var(--green-soft); color: var(--text); transition: all .15s; }
+.pp-theme button.active { background: var(--green); color: #fff; }

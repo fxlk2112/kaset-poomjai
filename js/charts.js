@@ -1,3 +1,8 @@
+
+/* อ่านสีจาก CSS variable — ให้กราฟสอดคล้องทั้งโหมดสว่าง/มืด */
+function chartCol(name, fallback) {
+  try { const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); return v || fallback; } catch (e) { return fallback; }
+}
 /* ============================================================
    FARMULTIMATE SOLUTIONS v52 — lightweight SVG charts (no dependencies)
    ปรับสมดุล: กราฟจำกัดขนาดพอดี, แท่งค่าลบวาดจากเส้นศูนย์กลาง,
@@ -31,7 +36,7 @@ const Charts = {
     const scale = hasNeg ? max * 2 : max;
     let out = "";
     if (hasNeg) {
-      out += `<line x1="${padL}" y1="${zeroY}" x2="${W - padR}" y2="${zeroY}" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4 3"/>`;
+      out += `<line x1="${padL}" y1="${zeroY}" x2="${W - padR}" y2="${zeroY}" stroke="${chartCol("--muted","#94a3b8")}" stroke-width="1" stroke-dasharray="4 3"/>`;
     }
     items.forEach((it, i) => {
       const v = Number(it.value) || 0;
@@ -45,7 +50,7 @@ const Charts = {
         const ly = v >= 0 ? y - 7 : Math.min(zeroY + h + 13, H - 4);
         out += `<text x="${(x + bw / 2).toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="${v >= 0 ? "#15803d" : "#b91c1c"}">${fmtChartVal(v)}</text>`;
       }
-      out += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 9}" text-anchor="middle" font-size="9" fill="#6b7280">${it.label}</text>`;
+      out += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 9}" text-anchor="middle" font-size="9" fill="${chartCol("--muted","#6b7280")}">${it.label}</text>`;
     });
     container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img">${out}</svg>`;
   },
@@ -69,8 +74,8 @@ const Charts = {
       angle = a2;
     });
     const center = opts.centerLabel
-      ? `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="14" font-weight="800" fill="#111827">${opts.centerLabel}</text>
-         <text x="${cx}" y="${cy + 13}" text-anchor="middle" font-size="9" fill="#6b7280">${opts.centerSub || ""}</text>`
+      ? `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="14" font-weight="800" fill="${chartCol("--text","#111827")}">${opts.centerLabel}</text>
+         <text x="${cx}" y="${cy + 13}" text-anchor="middle" font-size="9" fill="${chartCol("--muted","#6b7280")}">${opts.centerSub || ""}</text>`
       : "";
     container.innerHTML = `<svg viewBox="0 0 ${W} ${W}" role="img">${paths}${center}</svg>`;
   },
@@ -91,10 +96,10 @@ const Charts = {
       `<circle cx="${px(i).toFixed(1)}" cy="${py(it.value).toFixed(1)}" r="3" fill="#16a34a"/>`
     ).join("");
     let labels = items.map((it, i) =>
-      `<text x="${px(i).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="8.5" fill="#6b7280">${it.label}</text>`
+      `<text x="${px(i).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="8.5" fill="${chartCol("--muted","#6b7280")}">${it.label}</text>`
     ).join("");
     let values = items.map((it, i) =>
-      `<text x="${px(i).toFixed(1)}" y="${(py(it.value) - 6).toFixed(1)}" text-anchor="middle" font-size="8" font-weight="700" fill="#4b5563">${fmtNum(it.value)}</text>`
+      `<text x="${px(i).toFixed(1)}" y="${(py(it.value) - 6).toFixed(1)}" text-anchor="middle" font-size="8" font-weight="700" fill="${chartCol("--text","#4b5563")}">${fmtNum(it.value)}</text>`
     ).join("");
     container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img">
       <polygon points="${area}" fill="#16a34a" opacity="0.12"/>

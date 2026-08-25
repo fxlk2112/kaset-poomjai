@@ -482,6 +482,29 @@ App.adminDownloadJson = async function (email) {
   toast("ดาวน์โหลด JSON แล้ว");
 };
 
+/* ---------- ธีม: สว่าง / มืด / ตามระบบ ---------- */
+Auth.applyTheme = function () {
+  let mode = "system";
+  try { mode = localStorage.getItem("farmult-theme") || "system"; } catch (e) {}
+  const dark = mode === "dark" || (mode === "system" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+  if (dark) document.documentElement.setAttribute("data-theme", "dark");
+  else document.documentElement.removeAttribute("data-theme");
+  return mode;
+};
+Auth.getTheme = function () {
+  try { return localStorage.getItem("farmult-theme") || "system"; } catch (e) { return "system"; }
+};
+Auth.setTheme = function (mode) {
+  try { localStorage.setItem("farmult-theme", mode); } catch (e) {}
+  Auth.applyTheme();
+  render();
+  toast(mode === "dark" ? "🌙 โหมดมืด" : mode === "light" ? "☀️ โหมดสว่าง" : "🖥️ ตามระบบ");
+};
+try {
+  if (window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => Auth.applyTheme());
+} catch (e) {}
+Auth.applyTheme();
+
 /* ---------- เมนูโปรไฟล์ (ปุ่มมุมขวาบน) ---------- */
 Auth.closeProfile = function () {
   const p = document.getElementById("profilePanel");
@@ -510,6 +533,11 @@ Auth.fillProfilePanel = function () {
       ${s.admin ? `<button class="btn btn-primary btn-block" onclick="Auth.closeProfile();App.adminView()">${ic("user")} ดูข้อมูลทุกบัญชี</button>` : ""}
       <button class="btn btn-outline btn-block" onclick="Auth.closeProfile();App.authSyncNow()">${ic("refresh")} ซิงก์ขึ้นคลาวด์</button>
       <button class="btn btn-danger-soft btn-block" onclick="Auth.closeProfile();App.authLogout()">${ic("lock")} ออกจากระบบ</button>
+    </div>
+    <div class="pp-theme">
+      <button class="${Auth.getTheme() === "light" ? "active" : ""}" onclick="Auth.setTheme('light')" title="โหมดสว่าง">☀️ สว่าง</button>
+      <button class="${Auth.getTheme() === "dark" ? "active" : ""}" onclick="Auth.setTheme('dark')" title="โหมดมืด">🌙 มืด</button>
+      <button class="${Auth.getTheme() === "system" ? "active" : ""}" onclick="Auth.setTheme('system')" title="ตามระบบ">🖥️ ระบบ</button>
     </div>`;
 };
 
