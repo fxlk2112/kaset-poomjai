@@ -239,6 +239,50 @@ async function authUser(env, token) {
   return row;
 }
 
+/* ---------- แอดมิน: อีเมลใน env ADMIN_EMAILS (คั่นด้วย ,) เท่านั้น ---------- */
+function isAdminEmail(env, email) {
+  return adminEmails(env).includes(String(email || "").toLowerCase());
+}
+function adminEmails(env) {
+  return String(env.ADMIN_EMAILS || "").split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
+}
+async function requireAdmin(env, token) {
+  const u = await authUser(env, token);
+  if (!isAdminEmail(env, u.email)) throw new Error("เฉพาะผู้ดูแลระบบเท่านั้น");
+  return u;
+}
+
+/* แอดมิน: สรุปข้อมูลทุกบัญชี */
+async function doAdminList(env, p) {
+  await requireAdmin(env, p.token);
+  const users = await env.DB.prepare("SELECT id, email, name, created_at FROM users ORDER BY created_at DESC").all();
+  const datas = await env.DB.prepare("SELECT user_id, data, updated_at FROM user_data").all();
+  const byUser = new Map(datas.results.map(d => [d.user_id, d]));
+  return users.results.map(u => {
+    const d = byUser.get(u.id);
+    const summary = { plots: 0, cycles: 0, tasks: 0, stock: 0, sales: 0, equipment: 0 };
+    if (d && d.data) {
+      try {
+        const s = JSON.parse(d.data);
+        ["plots", "cycles", "tasks", "stock", "sales", "equipment"].forEach(k => { summary[k] = (s[k] || []).length; });
+      } catch (e) { /* data เสียหาย */ }
+    }
+    return { email: u.email, name: u.name, created_at: u.created_at, updated_at: d ? d.updated_at : 0, bytes: d ? d.data.length : 0, summary };
+  });
+}
+
+/* แอดมิน: ข้อมูลเต็มของบัญชีหนึ่ง */
+async function doAdminGet(env, p) {
+  await requireAdmin(env, p.token);
+  const row = await env.DB.prepare(
+    "SELECT u.email, u.name, d.data, d.updated_at FROM users u LEFT JOIN user_data d ON d.user_id = u.id WHERE u.email = ?1"
+  ).bind(String(p.email || "").toLowerCase()).first();
+  if (!row) throw new Error("ไม่พบบัญชีนี้");
+  let data = null;
+  try { data = row.data ? JSON.parse(row.data) : null; } catch (e) { /* data เสียหาย */ }
+  return { email: row.email, name: row.name, updated_at: row.updated_at || 0, data };
+}
+
 async function doRegister(env, request, p) {
   rateLimit(request);
   const email = String(p.email || "").trim().toLowerCase();
@@ -282,7 +326,7 @@ async function doLogout(env, p) {
 async function doMe(env, p) {
   const u = await authUser(env, p.token);
   const d = await env.DB.prepare("SELECT updated_at FROM user_data WHERE user_id = ?1").bind(u.user_id).first();
-  return { email: u.email, name: u.name, updated_at: d ? d.updated_at : 0 };
+  return { email: u.email, name: u.name, updated_at: d ? d.updated_at : 0, admin: isAdminEmail(env, u.email) };
 }
 
 async function doSave(env, p) {
@@ -322,6 +366,8 @@ export default {
       else if (payload.action === "me") data = await doMe(env, payload);
       else if (payload.action === "save") data = await doSave(env, payload);
       else if (payload.action === "load") data = await doLoad(env, payload);
+      else if (payload.action === "admin_list") data = await doAdminList(env, payload);
+      else if (payload.action === "admin_get") data = await doAdminGet(env, payload);
       else throw new Error("ไม่รู้จัก action: " + payload.action);
       return json({ ok: true, data });
     } catch (e) {

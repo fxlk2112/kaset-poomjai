@@ -225,6 +225,7 @@ async function coreLogin(email, pw) {
   Auth.hideGate();
   Auth._askedThisLoad = false;
   await Auth.bootCheck();
+  Auth.refreshAdmin();
   return true;
 }
 async function coreRegister(email, pw, name) {
@@ -340,6 +341,119 @@ App.authSyncNow = async function () {
   toast("ซิงก์ขึ้นคลาวด์แล้ว ✓");
 };
 
+/* ---------- แอดมิน: ตรวจสิทธิ์ + ดูข้อมูลทุกบัญชี ---------- */
+Auth.refreshAdmin = async function () {
+  if (!Auth.session) return;
+  const r = await authCall("me", { token: Auth.session.token });
+  if (r.ok) {
+    const isAdmin = !!r.data.admin;
+    if (Auth.session.admin !== isAdmin) {
+      Auth.session.admin = isAdmin;
+      setSession(Auth.session);
+      if (typeof render === "function") render();
+    }
+  }
+};
+
+function downloadBlob(name, blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+function thDateTime(ts) {
+  if (!ts) return "—";
+  const d = new Date(Number(ts));
+  return dateLabel(d.toISOString().slice(0, 10)) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+}
+
+App.adminView = async function () {
+  if (!Auth.session || !Auth.session.admin) { toast("เฉพาะผู้ดูแลระบบ"); return; }
+  toast("กำลังโหลดข้อมูลทุกบัญชี...");
+  const r = await authCall("admin_list", { token: Auth.session.token });
+  if (!r.ok) { toast(r.error || "โหลดไม่สำเร็จ"); return; }
+  Auth._adminRows = r.data;
+  const rows = r.data;
+  const th = (x) => `<th style="padding:8px 10px;text-align:left;border-bottom:2px solid #e5e7eb;white-space:nowrap;font-size:.78rem;color:#374151">${x}</th>`;
+  const td = (x, extra) => `<td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:.8rem;${extra || ""}">${x}</td>`;
+  const table = `
+    <div style="overflow-x:auto;max-height:56vh;overflow-y:auto;border:1px solid #e5e7eb;border-radius:10px">
+      <table style="width:100%;border-collapse:collapse;min-width:760px">
+        <thead><tr>${th("อีเมล")}${th("ชื่อ")}${th("สมัคร")}${th("เซฟล่าสุด")}${th("แปลง")}${th("รอบ")}${th("งาน")}${th("สต็อก")}${th("ใบเสร็จ")}${th("ขนาด")}${th("")}</tr></thead>
+        <tbody>
+          ${rows.map(x => `
+          <tr>
+            ${td(esc(x.email), "font-weight:700")}
+            ${td(esc(x.name || "—"))}
+            ${td(thDateTime(x.created_at))}
+            ${td(thDateTime(x.updated_at))}
+            ${td(x.summary.plots)}
+            ${td(x.summary.cycles)}
+            ${td(x.summary.tasks)}
+            ${td(x.summary.stock)}
+            ${td(x.summary.sales)}
+            ${td(Math.round(x.bytes / 1024) + " KB")}
+            ${td(`<button class="btn btn-sm btn-primary" onclick="App.adminDetail('${esc(x.email)}')">ดู</button>`)}
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("user")} ข้อมูลทุกบัญชี (แอดมิน) — ${rows.length} บัญชี</h3>
+    ${table}
+    <div class="modal-actions mt-12">
+      <button class="btn btn-outline" onclick="App.adminExportCsv()">${ic("download")} ส่งออก CSV (สรุป)</button>
+      <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
+    </div>`);
+};
+
+App.adminExportCsv = function () {
+  const rows = Auth._adminRows || [];
+  const head = ["อีเมล", "ชื่อ", "สมัครเมื่อ", "เซฟล่าสุด", "แปลง", "รอบปลูก", "งาน", "สต็อก", "ใบเสร็จ", "ขนาดไบต์"];
+  const lines = [head.join(",")].concat(rows.map(x => [
+    x.email, x.name || "", thDateTime(x.created_at), thDateTime(x.updated_at),
+    x.summary.plots, x.summary.cycles, x.summary.tasks, x.summary.stock, x.summary.sales, x.bytes
+  ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")));
+  downloadBlob("farmultimate-accounts-" + todayISO() + ".csv", new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }));
+  toast("ดาวน์โหลด CSV แล้ว");
+};
+
+App.adminDetail = async function (email) {
+  toast("กำลังโหลดข้อมูลของ " + email + "...");
+  const r = await authCall("admin_get", { token: Auth.session.token, email });
+  if (!r.ok) { toast(r.error || "โหลดไม่สำเร็จ"); return; }
+  const s = r.data.data || {};
+  const sec = (title, items) => `
+    <div style="margin-bottom:12px">
+      <div style="font-weight:800;font-size:.85rem;margin-bottom:4px">${title} (${items.length})</div>
+      ${items.length === 0 ? `<div class="muted" style="font-size:.76rem">— ไม่มีข้อมูล —</div>` :
+      `<div style="max-height:150px;overflow-y:auto;border:1px solid #f3f4f6;border-radius:8px;padding:6px 10px;font-size:.78rem">${items.map(i => `<div style="padding:2px 0">${i}</div>`).join("")}</div>`}
+    </div>`;
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${esc(email)} ${r.data.name ? "(" + esc(r.data.name) + ")" : ""}</h3>
+    <div class="modal-sub">เซฟล่าสุด: ${thDateTime(r.data.updated_at)}</div>
+    ${sec("แปลง", (s.plots || []).map(p => esc(p.name) + " — " + (p.sizeRai || 0) + " ไร่"))}
+    ${sec("รอบปลูก", (s.cycles || []).map(c => esc(c.plant || "-") + " (เริ่ม " + (c.startDate || "-") + ")"))}
+    ${sec("งาน", (s.tasks || []).map(t => "[" + (t.status === "done" ? "เสร็จ" : "แผน") + "] " + esc(t.title) + " (" + (t.date || "-") + ")"))}
+    ${sec("สต็อกสินค้า", (s.stock || []).map(st => esc(st.name) + " — เหลือ " + (st.qty || 0) + " " + esc(st.unit || "")))}
+    ${sec("ใบเสร็จขาย", (s.sales || []).map(x => esc(x.no || x.id || "-") + " — " + (x.total || 0) + " บาท"))}
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="App.adminDownloadJson('${esc(email)}')">${ic("download")} ดาวน์โหลด JSON (ข้อมูลเต็ม)</button>
+      <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
+    </div>`);
+};
+
+App.adminDownloadJson = async function (email) {
+  const r = await authCall("admin_get", { token: Auth.session.token, email });
+  if (!r.ok) { toast(r.error || "โหลดไม่สำเร็จ"); return; }
+  downloadBlob("farmultimate-" + email.replace(/[^a-z0-9]/gi, "_") + "-" + todayISO() + ".json",
+    new Blob([JSON.stringify({ app: "farmultimate-solutions", type: "backup", version: 52, exportedAt: new Date().toISOString(), data: r.data.data }, null, 2)], { type: "application/json" }));
+  toast("ดาวน์โหลด JSON แล้ว");
+};
+
 /* ---------- UI: การ์ดบัญชีในหน้าตั้งค่า ---------- */
 Auth.cardHtml = function () {
   return `
@@ -349,7 +463,8 @@ Auth.cardHtml = function () {
       <div class="row row-between"><span class="muted">อีเมล</span><span class="small bold">${esc(Auth.session.email)}</span></div>
       ${Auth.session.name ? `<div class="row row-between mt-8"><span class="muted">ชื่อ</span><span class="small bold">${esc(Auth.session.name)}</span></div>` : ""}
       <div class="muted mt-8" style="font-size:.72rem">${ic("info")} ทุกครั้งที่บันทึกงาน ระบบจะส่งขึ้นคลาวด์ให้อัตโนมัติ</div>
-      <button class="btn btn-primary btn-block mt-12" onclick="App.authSyncNow()">${ic("refresh")} ซิงก์ขึ้นคลาวด์ตอนนี้</button>
+      ${Auth.session.admin ? `<button class="btn btn-primary btn-block mt-12" onclick="App.adminView()">${ic("user")} ดูข้อมูลทุกบัญชี (แอดมิน)</button>` : ""}
+      <button class="btn ${Auth.session.admin ? "btn-outline" : "btn-primary"} btn-block mt-12" onclick="App.authSyncNow()">${ic("refresh")} ซิงก์ขึ้นคลาวด์ตอนนี้</button>
       <button class="btn btn-danger-soft btn-block mt-8" onclick="App.authLogout()">${ic("lock")} ออกจากระบบ</button>
     ` : `
       <div class="field"><label>อีเมล</label><input id="au_email" type="email" autocomplete="email"></div>
@@ -396,7 +511,7 @@ if (Auth.session) {
   if (__cached) resetSTo(__cached);
   localStorage.removeItem(STORAGE_KEY); /* ขณะล็อกอิน ข้อมูลอยู่ใน slot ของบัญชีเท่านั้น */
   localStorage.setItem(OWNER_KEY, Auth.session.email);
-  setTimeout(() => Auth.bootCheck(), 400);
+  setTimeout(() => { Auth.bootCheck(); Auth.refreshAdmin(); }, 400);
 } else {
   Auth.showGate();
 }
