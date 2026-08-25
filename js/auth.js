@@ -1,8 +1,9 @@
 /* ============================================================
    FARMULTIMATE SOLUTIONS — บัญชีผู้ใช้ + ซิงก์ข้อมูลขึ้นคลาวด์ (Cloudflare D1)
+   - บังคับล็อกอินก่อนใช้งาน (auth gate ครอบทั้งเว็บ)
    - ล็อกอินด้วยอีเมล+รหัสผ่าน (แฮช PBKDF2 ฝั่ง Worker)
    - แต่ละบัญชีมีข้อมูลของตัวเอง (แปลง/รอบ/งาน/สต็อก/ใบเสร็จ)
-   - เก็บซ้อนใน localStorage ด้วยเสมอ → ใช้แบบออฟไลน์ได้เหมือนเดิม
+   - เก็บซ้อนใน localStorage ด้วยเสมอ → ล็อกอินค้างไว้แล้วออฟไลน์ใช้ได้ต่อ
    - บันทึกทุกครั้ง = เด้งขึ้นคลาวด์อัตโนมัติ (หน่วง 2.5 วินาทีรวบรวมก่อน)
    ============================================================ */
 "use strict";
@@ -17,6 +18,7 @@ const Auth = {
   syncing: false,
   suppress: false,
   timer: null,
+  _askedThisLoad: false,
 };
 try { Auth.session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) {}
 
@@ -25,7 +27,7 @@ function authCall(action, extra) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(Object.assign({ action }, extra || {}))
-  }).then(r => r.json()).catch(() => ({ ok: false, error: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้" }));
+  }).then(r => r.json()).catch(() => ({ ok: false, error: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจอินเทอร์เน็ต" }));
 }
 
 function setSession(s) {
@@ -39,6 +41,11 @@ function localHasData() {
   return (S.plots && S.plots.length) || (S.cycles && S.cycles.length) ||
          (S.tasks && S.tasks.length) || (S.stock && S.stock.length) ||
          (S.sales && S.sales.length) || (S.equipment && S.equipment.length);
+}
+function cloudHasContent(d) {
+  return !!(d && ((d.plots && d.plots.length) || (d.cycles && d.cycles.length) ||
+    (d.tasks && d.tasks.length) || (d.stock && d.stock.length) ||
+    (d.sales && d.sales.length) || (d.equipment && d.equipment.length)));
 }
 
 /* ---------- sync ---------- */
@@ -59,37 +66,40 @@ Auth.saveNow = async function () {
   Auth.syncing = false;
 };
 
-function applyCloudState(cloudData) {
+function applyCloudState(cloudData, updatedAt) {
   Auth.suppress = true;
   Object.assign(S, cloudData || {});
   saveState(S);
-  setTimeout(() => { Auth.suppress = false; }, 100);
+  if (updatedAt) setCloudTs(updatedAt); /* กันถามซ้ำทันทีหลังโหลด */
   location.reload();
 }
 
 /* ---------- boot: เช็กคลาวด์ตอนเปิดเว็บ (มีเซสชันค้าง) ---------- */
 Auth.bootCheck = async function () {
-  if (!Auth.session) return;
+  if (!Auth.session) { Auth.showGate(); return; }
   try {
     const r = await authCall("load", { token: Auth.session.token });
     if (!r.ok) {
-      /* เซสชันหมดอายุ/ไม่ถูกต้อง */
       if (String(r.error || "").indexOf("เซสชัน") >= 0) {
         setSession(null);
+        Auth.showGate();
         toast("เซสชันหมดอายุ กรุณาล็อกอินใหม่");
+      } else {
+        toast(String(r.error || "เชื่อมต่อไม่ได้") + " — ใช้ข้อมูลในเครื่องชั่วคราว");
       }
       return;
     }
     const { data, updated_at } = r.data || {};
-    if (!data) {
-      /* คลาวด์ยังว่าง — ถ้าเครื่องนี้มีข้อมูล อัปขึ้นให้เลย */
+    if (!data || !cloudHasContent(data)) {
+      /* คลาวด์ยังว่าง — ถ้าเครื่องนี้มีข้อมูล อัปขึ้นให้เลย (ถ้าไม่มีก็ผ่าน ห้ามวนลูป) */
       if (localHasData()) await Auth.saveNow();
+      else setCloudTs(Math.max(cloudTs(), updated_at || 0));
       return;
     }
     const seenTs = cloudTs();
     if (!localHasData()) {
-      /* เครื่องใหม่/ข้อมูลว่าง — ดึงจากคลาวด์เงียบ ๆ */
-      applyCloudState(data);
+      /* เครื่องใหม่/ข้อมูลว่าง — ดึงจากคลาวด์เงียบ ๆ (พร้อม mark timestamp กันถามซ้ำ) */
+      applyCloudState(data, updated_at);
       return;
     }
     if (updated_at > seenTs + 1000 && !Auth._askedThisLoad) {
@@ -117,7 +127,7 @@ Auth.choosePull = function () {
   closeModal();
   App.confirm("ยืนยันดึงข้อมูลจากคลาวด์?", "ข้อมูลปัจจุบันในเครื่องนี้จะถูกแทนที่ทั้งหมด", () => {
     authCall("load", { token: Auth.session.token }).then(r => {
-      if (r.ok && r.data.data) { setCloudTs(r.data.updated_at); applyCloudState(r.data.data); }
+      if (r.ok && r.data.data) { setCloudTs(r.data.updated_at); applyCloudState(r.data.data, r.data.updated_at); }
     });
   });
 };
@@ -126,43 +136,123 @@ Auth.choosePush = function () {
   Auth.saveNow().then(() => toast("ส่งข้อมูลเครื่องนี้ขึ้นคลาวด์แล้ว"));
 };
 
-/* ---------- สมัคร / ล็อกอิน / ออกจากระบบ ---------- */
+/* ---------- core: สมัคร / ล็อกอิน (ใช้ร่วม gate และหน้าตั้งค่า) ---------- */
+async function coreLogin(email, pw) {
+  if (!email || !pw) { toast("กรอกอีเมลและรหัสผ่านให้ครบ"); return false; }
+  toast("กำลังล็อกอิน...");
+  const r = await authCall("login", { email, password: pw });
+  if (!r.ok) { toast(r.error || "ล็อกอินไม่สำเร็จ"); return false; }
+  setSession({ token: r.data.token, email: r.data.email, name: r.data.name });
+  render();
+  toast("ล็อกอินสำเร็จ");
+  Auth.hideGate();
+  Auth._askedThisLoad = false;
+  await Auth.bootCheck();
+  return true;
+}
+async function coreRegister(email, pw, name) {
+  if (!email || !pw) { toast("กรอกอีเมลและรหัสผ่านให้ครบ"); return false; }
+  toast("กำลังสมัครบัญชี...");
+  const r = await authCall("register", { email, password: pw, name });
+  if (!r.ok) { toast(r.error || "สมัครไม่สำเร็จ"); return false; }
+  setSession({ token: r.data.token, email: r.data.email, name: r.data.name });
+  render();
+  toast("สมัครสำเร็จ — ข้อมูลเครื่องนี้จะถูกส่งขึ้นคลาวด์");
+  Auth.hideGate();
+  await Auth.saveNow();
+  return true;
+}
+
+/* ปุ่มในหน้าตั้งค่า (การ์ด au_*) */
+App.authLogin = async function () {
+  const email = (document.getElementById("au_email")?.value || "").trim();
+  const pw = document.getElementById("au_pass")?.value || "";
+  await coreLogin(email, pw);
+};
 App.authRegister = async function () {
   const email = (document.getElementById("au_email")?.value || "").trim();
   const pw = document.getElementById("au_pass")?.value || "";
   const pw2 = document.getElementById("au_pass2")?.value || "";
   const name = (document.getElementById("au_name")?.value || "").trim();
-  if (!email || !pw) { toast("กรอกอีเมลและรหัสผ่านให้ครบ"); return; }
   if (pw !== pw2) { toast("รหัสผ่านสองช่องไม่ตรงกัน"); return; }
-  toast("กำลังสมัครบัญชี...");
-  const r = await authCall("register", { email, password: pw, name });
-  if (!r.ok) { toast(r.error || "สมัครไม่สำเร็จ"); return; }
-  setSession({ token: r.data.token, email: r.data.email, name: r.data.name });
-  closeModal(); render();
-  toast("สมัครสำเร็จ");
-  await Auth.saveNow();
-  setCloudTs(Date.now());
+  await coreRegister(email, pw, name);
 };
 
-App.authLogin = async function () {
-  const email = (document.getElementById("au_email")?.value || "").trim();
-  const pw = document.getElementById("au_pass")?.value || "";
-  if (!email || !pw) { toast("กรอกอีเมลและรหัสผ่านให้ครบ"); return; }
-  toast("กำลังล็อกอิน...");
-  const r = await authCall("login", { email, password: pw });
-  if (!r.ok) { toast(r.error || "ล็อกอินไม่สำเร็จ"); return; }
-  setSession({ token: r.data.token, email: r.data.email, name: r.data.name });
-  closeModal(); render();
-  toast("ล็อกอินสำเร็จ");
-  await Auth.bootCheck();
+/* ---------- ประตูบังคับล็อกอิน (gate) ---------- */
+Auth.gateEl = null;
+
+Auth.showGate = function () {
+  if (!Auth.gateEl) Auth.buildGate();
+  Auth.gateEl.style.display = "flex";
+};
+Auth.hideGate = function () {
+  if (Auth.gateEl) Auth.gateEl.style.display = "none";
 };
 
+Auth.buildGate = function () {
+  const el = document.createElement("div");
+  el.id = "authGate";
+  el.innerHTML = `
+    <div class="auth-box">
+      <div class="auth-brand">
+        <img src="logo.jpg" alt="" onerror="this.style.display='none'">
+        <div class="auth-brand-name">FARMULTIMATE SOLUTIONS</div>
+        <div class="auth-brand-sub">ระบบจัดการฟาร์มอัจฉริยะ</div>
+      </div>
+      <div class="auth-tabs">
+        <button id="ag_tab_login" class="active" onclick="Auth.gateMode('login')">ล็อกอิน</button>
+        <button id="ag_tab_reg" onclick="Auth.gateMode('register')">สมัครใหม่</button>
+      </div>
+      <div class="field"><label>อีเมล</label><input id="g_email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+      <div class="field"><label>รหัสผ่าน</label><input id="g_pass" type="password" placeholder="อย่างน้อย 6 ตัวอักษร" autocomplete="current-password"></div>
+      <div id="g_reg_extra" style="display:none">
+        <div class="field"><label>ยืนยันรหัสผ่าน</label><input id="g_pass2" type="password" autocomplete="new-password"></div>
+        <div class="field"><label>ชื่อ-นามสกุล (ไม่บังคับ)</label><input id="g_name"></div>
+      </div>
+      <button class="btn btn-primary btn-block mt-8" id="ag_submit" onclick="Auth.gateSubmit()">${ic("unlock")} ล็อกอิน</button>
+      <div class="auth-hint">ข้อมูลของแต่ละบัญชีแยกกัน และซิงก์ขึ้นคลาวด์อัตโนมัติ<br>เปิดได้ทุกเครื่อง · ใช้แบบออฟไลน์ได้หลังล็อกอิน</div>
+    </div>`;
+  document.body.appendChild(el);
+  Auth.gateEl = el;
+  /* Enter ในช่องกรอก = กดปุ่ม */
+  ["g_email", "g_pass", "g_pass2", "g_name"].forEach(id => {
+    const inp = el.querySelector("#" + id);
+    if (inp) inp.addEventListener("keydown", e => { if (e.key === "Enter") Auth.gateSubmit(); });
+  });
+};
+
+Auth.gateMode = function (mode) {
+  Auth._gateMode = mode;
+  const tl = document.getElementById("ag_tab_login"), tr = document.getElementById("ag_tab_reg");
+  const extra = document.getElementById("g_reg_extra"), submit = document.getElementById("ag_submit");
+  if (tl) tl.classList.toggle("active", mode === "login");
+  if (tr) tr.classList.toggle("active", mode === "register");
+  if (extra) extra.style.display = mode === "register" ? "" : "none";
+  if (submit) submit.innerHTML = (mode === "register" ? ic("plus") + " สมัครบัญชีใหม่" : ic("unlock") + " ล็อกอิน");
+};
+
+Auth.gateSubmit = async function () {
+  const email = (document.getElementById("g_email")?.value || "").trim();
+  const pw = document.getElementById("g_pass")?.value || "";
+  if (!Auth._gateMode || Auth._gateMode === "login") {
+    await coreLogin(email, pw);
+  } else {
+    const pw2 = document.getElementById("g_pass2")?.value || "";
+    const name = (document.getElementById("g_name")?.value || "").trim();
+    if (!email || !pw) { toast("กรอกอีเมลและรหัสผ่านให้ครบ"); return; }
+    if (pw.length < 6) { toast("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร"); return; }
+    if (pw !== pw2) { toast("รหัสผ่านสองช่องไม่ตรงกัน"); return; }
+    await coreRegister(email, pw, name);
+  }
+};
+
+/* ---------- ออกจากระบบ / ซิงก์ปุ่มในหน้าตั้งค่า ---------- */
 App.authLogout = function () {
-  App.confirm("ออกจากระบบ?", "ข้อมูลยังอยู่ในเครื่องนี้ และบนคลาวด์ของบัญชีคุณ", () => {
+  App.confirm("ออกจากระบบ?", "ข้อมูลยังอยู่บนคลาวด์ของบัญชีคุณ ล็อกอินกลับมาใช้ได้อีก", () => {
     if (Auth.session) authCall("logout", { token: Auth.session.token });
     setSession(null);
     toast("ออกจากระบบแล้ว");
-    render();
+    Auth.showGate();
   });
 };
 
@@ -176,39 +266,38 @@ App.authSyncNow = async function () {
 
 /* ---------- UI: การ์ดบัญชีในหน้าตั้งค่า ---------- */
 Auth.cardHtml = function () {
-  if (!Auth.session) {
-    return `
-    <div class="section-title">${ic("user")} บัญชีผู้ใช้ / ซิงก์คลาวด์ <span class="badge badge-blue">ใช้ได้หลายเครื่อง</span></div>
-    <div class="card">
-      <div class="muted" style="font-size:.76rem;margin-bottom:10px">มีบัญชีเดียว เก็บข้อมูลไว้บนคลาวด์ — เปิดเครื่องไหนก็เห็นข้อมูลเดียวกัน พร้อมใช้แบบออฟไลน์เหมือนเดิม</div>
-      <div class="field"><label>อีเมล</label><input id="au_email" type="email" placeholder="you@example.com" autocomplete="email"></div>
-      <div class="field"><label>รหัสผ่าน (อย่างน้อย 6 ตัวอักษร)</label><input id="au_pass" type="password" autocomplete="current-password"></div>
-      <div class="field"><label>ยืนยันรหัสผ่าน (สำหรับสมัครใหม่)</label><input id="au_pass2" type="password"></div>
-      <div class="field"><label>ชื่อ-นามสกุล (ไม่บังคับ — สำหรับสมัครใหม่)</label><input id="au_name"></div>
+  return `
+  <div class="section-title">${ic("user")} บัญชีผู้ใช้ / ซิงก์คลาวด์ ${Auth.session ? `<span class="badge badge-green">เชื่อมต่อแล้ว</span>` : ""}</div>
+  <div class="card">
+    ${Auth.session ? `
+      <div class="row row-between"><span class="muted">อีเมล</span><span class="small bold">${esc(Auth.session.email)}</span></div>
+      ${Auth.session.name ? `<div class="row row-between mt-8"><span class="muted">ชื่อ</span><span class="small bold">${esc(Auth.session.name)}</span></div>` : ""}
+      <div class="muted mt-8" style="font-size:.72rem">${ic("info")} ทุกครั้งที่บันทึกงาน ระบบจะส่งขึ้นคลาวด์ให้อัตโนมัติ</div>
+      <button class="btn btn-primary btn-block mt-12" onclick="App.authSyncNow()">${ic("refresh")} ซิงก์ขึ้นคลาวด์ตอนนี้</button>
+      <button class="btn btn-danger-soft btn-block mt-8" onclick="App.authLogout()">${ic("lock")} ออกจากระบบ</button>
+    ` : `
+      <div class="field"><label>อีเมล</label><input id="au_email" type="email" autocomplete="email"></div>
+      <div class="field"><label>รหัสผ่าน</label><input id="au_pass" type="password" autocomplete="current-password"></div>
+      <div class="field"><label>ยืนยันรหัสผ่าน (สมัครใหม่)</label><input id="au_pass2" type="password"></div>
+      <div class="field"><label>ชื่อ-นามสกุล (ไม่บังคับ)</label><input id="au_name"></div>
       <button class="btn btn-primary btn-block mt-8" onclick="App.authLogin()">${ic("unlock")} ล็อกอิน</button>
       <button class="btn btn-outline btn-block mt-8" onclick="App.authRegister()">${ic("plus")} สมัครบัญชีใหม่</button>
-    </div>`;
-  }
-  return `
-  <div class="section-title">${ic("user")} บัญชีผู้ใช้ / ซิงก์คลาวด์ <span class="badge badge-green">เชื่อมต่อแล้ว</span></div>
-  <div class="card">
-    <div class="row row-between"><span class="muted">อีเมล</span><span class="small bold">${esc(Auth.session.email)}</span></div>
-    ${Auth.session.name ? `<div class="row row-between mt-8"><span class="muted">ชื่อ</span><span class="small bold">${esc(Auth.session.name)}</span></div>` : ""}
-    <div class="muted mt-8" style="font-size:.72rem">${ic("info")} ทุกครั้งที่บันทึกงาน ระบบจะส่งขึ้นคลาวด์ให้อัตโนมัติ</div>
-    <button class="btn btn-primary btn-block mt-12" onclick="App.authSyncNow()">${ic("refresh")} ซิงก์ขึ้นคลาวด์ตอนนี้</button>
-    <button class="btn btn-danger-soft btn-block mt-8" onclick="App.authLogout()">${ic("lock")} ออกจากระบบ</button>
+    `}
   </div>`;
 };
 
 /* ---------- hook: saveState ทุกครั้ง = เด้งซิงก์ ---------- */
 (function () {
   const orig = saveState;
-  window.__origSaveState = orig;
   saveState = function (s) {
     orig(s);
     Auth.queueSave();
   };
 })();
 
-/* เริ่มตรวจคลาวด์หลังแอปโหลดเสร็จ */
-setTimeout(() => Auth.bootCheck(), 400);
+/* เริ่มระบบ: ไม่มีเซสชัน = โชว์ประตูทันที / มี = ปล่อยเข้า + ตรวจคลาวด์
+   (เลื่อนไป setTimeout เพราะ buildGate ใช้ ic() จาก app.js ที่โหลดทีหลังไฟล์นี้) */
+setTimeout(() => {
+  if (Auth.session) Auth.bootCheck();
+  else Auth.showGate();
+}, 0);
