@@ -11,8 +11,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Remove non-site files before upload
-        run: rm -rf .git .github .freebuff .wrangler .netlify node_modules
+      - name: Assemble site-only directory
+        run: |
+          mkdir -p "$RUNNER_TEMP/site-stage"
+          cp -r index.html sw.js manifest.json logo.jpg _redirects css js icons images "$RUNNER_TEMP/site-stage/"
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
@@ -22,4 +24,4 @@ jobs:
           wranglerVersion: "4"
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy . --project-name=kaset-poomjai --branch=master --commit-dirty=true
+          command: pages deploy "$RUNNER_TEMP/site-stage" --project-name=kaset-poomjai --branch=master --commit-dirty=true

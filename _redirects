@@ -1,0 +1,11 @@
+# บล็อกไฟล์ระบบ/ภายในไม่ให้ถูกเรียกผ่านเว็บสาธารณะ
+/.git*           /__blocked 404
+/.github/*       /__blocked 404
+/.freebuff/*     /__blocked 404
+/.wrangler/*     /__blocked 404
+/.netlify/*      /__blocked 404
+/.assetsignore   /__blocked 404
+/netlify/*       /__blocked 404
+/worker/*        /__blocked 404
+/_headers        /__blocked 404
+/_redirects      /__blocked 404

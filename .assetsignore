@@ -1,8 +1,0 @@
-.git
-.github
-.gitignore
-.freebuff
-.wrangler
-.netlify
-node_modules
-.assetsignore
