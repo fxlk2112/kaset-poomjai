@@ -307,7 +307,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .bottomnav {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: var(--maxw);
-  background: #ffffff;
+  background: var(--card);
   border-top: 1px solid var(--line);
   display: flex; padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
   z-index: 30; box-shadow: 0 -4px 14px rgba(16,60,32,.07);
@@ -1518,3 +1518,21 @@ html[data-theme="dark"] .kpi.pos .kpi-value, html[data-theme="dark"] .price-tren
 html[data-theme="dark"] .kpi.neg .kpi-value, html[data-theme="dark"] .price-trend-down { color: #f87171; }
 html[data-theme="dark"] .weather-card, html[data-theme="dark"] .weather-days, html[data-theme="dark"] .wday { color: var(--text); }
 html[data-theme="dark"] .cal-tip { color: var(--text); }
+
+/* ==================== Dark mode: กล่อง/ป๊อปอัปที่เหลือ ==================== */
+html[data-theme="dark"] .bottomnav { background: var(--card); }
+html[data-theme="dark"] .stock-picker .sp-search,
+html[data-theme="dark"] .stock-pick-list,
+html[data-theme="dark"] .stock-cat-select,
+html[data-theme="dark"] .stock-search { background: var(--card); color: var(--text); }
+html[data-theme="dark"] .field input:focus, html[data-theme="dark"] .field select:focus, html[data-theme="dark"] .field textarea:focus { background: var(--card); }
+html[data-theme="dark"] .option-box, html[data-theme="dark"] .option-box.inline-option { background: var(--card); }
+html[data-theme="dark"] .usage-row { background: var(--card); }
+html[data-theme="dark"] .toast { background: #111827; color: #f3f4f6; }
+html[data-theme="dark"] .cycle-filter > input { background: var(--card); color: var(--text); }
+html[data-theme="dark"] .task-cycle-assign { background: var(--card); color: var(--text); }
+html[data-theme="dark"] .tour-bubble { background: var(--card); color: var(--text); }
+html[data-theme="dark"] .hero { background: linear-gradient(135deg, var(--card) 0%, var(--green-soft) 60%, var(--green-light) 100%); }
+html[data-theme="dark"] .chip { background: var(--card); border-color: var(--card-border); color: var(--text); }
+html[data-theme="dark"] .task-check { background: var(--card); border-color: var(--chip); }
+html[data-theme="dark"] .task-row.done .task-check { background: var(--green); border-color: var(--green); color: #fff; }
