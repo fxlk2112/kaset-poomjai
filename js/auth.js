@@ -348,6 +348,27 @@ App.authSyncNow = async function () {
   toast("ซิงก์ขึ้นคลาวด์แล้ว ✓");
 };
 
+/* ---------- ซิงก์ระบบน้ำ (ตารางอัตโนมัติ) ขึ้นเซิร์ฟเวอร์ — cron ใช้ตัดสินใจให้น้ำ ---------- */
+Auth.waterSync = async function () {
+  if (!Auth.session) return null;
+  const systems = (S.water.systems || []).map(sys => {
+    const p = plotById(S, sys.plotId);
+    return {
+      id: sys.id,
+      plotName: p ? p.name : "",
+      name: sys.name || "",
+      everyDays: (sys.auto && sys.auto.everyDays) || 2,
+      time: (sys.auto && sys.auto.time) || "06:00",
+      minutes: (sys.auto && sys.auto.minutes) || 30,
+      enabled: !!(sys.auto && sys.auto.enabled),
+      lastWatered: sys.lastWatered || "",
+      lat: p ? Number(p.lat) || 0 : 0,
+      lng: p ? Number(p.lng) || 0 : 0
+    };
+  });
+  return authCall("water_sync", { token: Auth.session.token, systems });
+};
+
 /* ---------- แอดมิน: ตรวจสิทธิ์ + ดูข้อมูลทุกบัญชี ---------- */
 Auth.refreshAdmin = async function () {
   if (!Auth.session) return;

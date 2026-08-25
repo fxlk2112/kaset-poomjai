@@ -367,6 +367,8 @@ function render() {
   v.innerHTML = (views[route.view] || renderHome)();
   /* หลังวาดหน้า — ดึงสภาพอากาศของแปลง (เฉพาะหน้ารายละเอียดแปลง) */
   if (route.view === "plotDetail") renderPlotWeather();
+  /* หน้าระบบน้ำ: ดึงโน้ตล่าสุดจากเซิร์ฟเวอร์ (ข้ามรอบเพราะฝน ฯลฯ) */
+  if (route.view === "iot" && typeof App.waterPullStatus === "function") App.waterPullStatus();
   /* เลื่อนกลับหัวหน้าเฉพาะตอนเปลี่ยนหน้า (เช่น กดเมนู) — ถ้าแค่ re-render ในหน้าเดิม (กดวันปฏิทิน/กรอง/ติ๊กงาน)
      ต้องไม่กระโดดขึ้นบน กันบัคหน้าเด้ง */
   if (viewChanged) {
@@ -1649,6 +1651,7 @@ function renderIoT() {
         ${sys.auto && sys.auto.enabled ? `<span class="badge badge-blue">${ic("clock")} อัตโนมัติ ทุก ${sys.auto.everyDays} วัน · ${sys.auto.time} · ${sys.auto.minutes} นาที</span>` : `<span class="badge badge-gray">ให้น้ำด้วยมือ</span>`}
         ${due ? `<span class="badge badge-amber">${ic("droplet")} ถึงรอบให้น้ำแล้ว</span>` : next ? `<span class="badge badge-green">ครั้งถัดไป ${dateLabel(next)}</span>` : ""}
       </div>
+      <div class="muted" data-wnote="${esc(sys.id)}" style="font-size:.7rem;color:#b45309;margin-top:4px;min-height:0"></div>
       <div class="row row-between mt-8">
         <div class="muted" style="font-size:.72rem">ให้น้ำล่าสุด: ${sys.lastWatered ? dateLabel(sys.lastWatered) : "ยังไม่เคย"}</div>
         <div style="display:flex;gap:6px">
@@ -1720,17 +1723,87 @@ function renderIoT() {
     <div class="section-title">${ic("clock")} บันทึกการให้น้ำล่าสุด</div>
     <div class="card">
       ${logs.length === 0 ? `<div class="muted" style="text-align:center;padding:8px;font-size:.8rem">ยังไม่มีบันทึก — กด "ให้น้ำตอนนี้" ที่การ์ดแปลงเพื่อบันทึก</div>` : logRows}
+    </div>
+
+    <div class="section-title">${ic("wifi")} อุปกรณ์ควบคุมที่แปลง (ESP32)</div>
+    <div class="card">
+      <div class="muted" style="font-size:.76rem;margin-bottom:10px">เซิร์ฟเวอร์ตัดสินใจให้น้ำตามตารางให้อัตโนมัติ (ทุกนาที) และเช็คพยากรณ์ฝนก่อนสั่ง — อุปกรณ์ ESP32 ที่แปลงจะดึงคำสั่งจาก API ทุก ~10 วินาที แล้วเปิด/ปิดวาล์วตาม กดปุ่มเพื่อรับ Device Key</div>
+      <button class="btn btn-primary btn-block" onclick="App.waterAddDevice()">${ic("plus")} เพิ่มอุปกรณ์ / รับ Device Key</button>
+      <button class="btn btn-outline btn-block mt-8" onclick="App.waterListDevices()">${ic("eye")} ดู Device Key ที่มีอยู่</button>
     </div>`;
 }
 
-/* สลับสวิตช์วาล์วของระบบน้ำ (จำลอง — เผื่อต่อ IoT จริงภายหลัง) */
+/* ดึงสถานะ/โน้ตล่าสุดจากเซิร์ฟเวอร์ (เช่น "ข้ามรอบเพราะฝน") มาแสดงในการ์ด */
+App.waterPullStatus = async function () {
+  if (!(typeof Auth !== "undefined" && Auth.session)) return;
+  try {
+    const r = await authCall("water_status", { token: Auth.session.token });
+    if (!r.ok || !r.data.states) return;
+    r.data.states.forEach(st => {
+      const el = document.querySelector('[data-wnote="' + st.system_id + '"]');
+      if (el && st.note) el.textContent = "☁️ " + st.note;
+    });
+  } catch (e) { /* ออฟไลน์ */ }
+};
+
+/* สลับสวิตช์วาล์ว — สั่งเซิร์ฟเวอร์จริง (อุปกรณ์ ESP32 ดึงคำสั่งนี้ไปทำงาน) + จำลองในเว็บ */
 App.toggleWater = function (id) {
   const sys = (S.water.systems || []).find(x => x.id === id);
   if (!sys) return;
   sys.state = sys.state === "on" ? "off" : "on";
   saveState(S);
   render();
-  toast(sys.state === "on" ? "เปิดวาล์วแล้ว (จำลอง)" : "ปิดวาล์วแล้ว");
+  toast(sys.state === "on" ? "สั่งเปิดวาล์ว → เซิร์ฟเวอร์" : "สั่งปิดวาล์ว → เซิร์ฟเวอร์");
+  if (typeof authCall === "function" && typeof Auth !== "undefined" && Auth.session) {
+    authCall("water_set", { token: Auth.session.token, systemId: id, cmd: sys.state, minutes: sys.auto && sys.auto.enabled ? sys.auto.minutes : 30 })
+      .then(r => { if (!r.ok) toast("⚠️ สั่งเซิร์ฟเวอร์ไม่สำเร็จ: " + (r.error || "") + " (กดซิงก์ระบบน้ำก่อน)"); });
+  }
+};
+
+/* ซิงก์ระบบน้ำทั้งหมดขึ้นเซิร์ฟเวอร์ (ตารางอัตโนมัติทำงานฝั่งเซิร์ฟเวอร์) */
+App.waterSyncNow = async function () {
+  if (typeof Auth === "undefined" || !Auth.session) return;
+  toast("กำลังซิงก์ระบบน้ำขึ้นเซิร์ฟเวอร์...");
+  const r = await Auth.waterSync();
+  toast(r && r.ok ? "ซิงก์เซิร์ฟเวอร์แล้ว ✓ — ตารางอัตโนมัติทำงานแม้ปิดแอป" : "ซิงก์ไม่สำเร็จ: " + ((r && r.error) || ""));
+};
+
+App.waterAddDevice = async function () {
+  if (!(typeof Auth !== "undefined" && Auth.session)) { toast("ต้องล็อกอินก่อน"); return; }
+  const r = await authCall("water_register", { token: Auth.session.token, name: "ESP32-" + new Date().toISOString().slice(5, 10) });
+  if (!r.ok) { toast(r.error || "ทำรายการไม่สำเร็จ"); return; }
+  App.waterShowKey(r.data.device_key);
+};
+App.waterShowKey = function (key) {
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("wifi")} Device Key สำหรับ ESP32</h3>
+    <div class="modal-sub">คัดลอก Key นี้ไปใส่ในไฟล์ firmware (บรรทัด DEVICE_KEY) — ใครมี Key นี้สั่งวาล์วคุณได้ อย่าเปิดเผย</div>
+    <div class="card" style="background:#f8fafc;font-family:monospace;font-size:.85rem;word-break:break-all;user-select:all">${esc(key)}</div>
+    <div class="field"><label>URL API ที่อุปกรณ์ใช้ (POST)</label><input readonly value="https://farmbackup.carfork123.workers.dev" onclick="this.select()"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="App.copyText('${esc(key)}')">${ic("save")} คัดลอก Key</button>
+      <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
+    </div>`);
+};
+App.waterListDevices = async function () {
+  if (!(typeof Auth !== "undefined" && Auth.session)) { toast("ต้องล็อกอินก่อน"); return; }
+  const r = await authCall("water_keys", { token: Auth.session.token });
+  if (!r.ok) { toast(r.error || "โหลดไม่สำเร็จ"); return; }
+  const ds = r.data.devices || [];
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("wifi")} Device Key ทั้งหมด (${ds.length})</h3>
+    ${ds.length === 0 ? `<div class="muted" style="text-align:center;padding:10px">ยังไม่มีอุปกรณ์ — กด "เพิ่มอุปกรณ์" ที่หน้าระบบน้ำ</div>` : ds.map(d => `
+      <div class="ed-row">
+        <span class="grow" style="font-family:monospace;font-size:.75rem;word-break:break-all">${esc(d.device_key)}</span>
+        <button class="btn btn-sm btn-outline" onclick="App.copyText('${esc(d.device_key)}')">${ic("save")}</button>
+      </div>`).join("")}
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button></div>`);
+};
+App.copyText = function (t) {
+  try { navigator.clipboard.writeText(t); toast("คัดลอกแล้ว"); }
+  catch (e) { toast("คัดลอกไม่ได้ — เลือกข้อความแล้วก๊อปเอง"); }
 };
 
 /* ฟอร์ม: เพิ่ม/แก้ไขระบบน้ำของแปลง */
@@ -1776,6 +1849,7 @@ App.saveWaterSystem = function (id) {
   };
   if (!id) S.water.systems.push(sys);
   saveState(S);
+  if (typeof Auth !== "undefined" && Auth.waterSync) Auth.waterSync(); /* ส่งตารางขึ้นเซิร์ฟเวอร์ */
   closeModal();
   render();
   toast(id ? "บันทึกระบบน้ำแล้ว" : "เพิ่มระบบน้ำแล้ว");
@@ -1784,7 +1858,9 @@ App.delWaterSystem = function (id) {
   App.confirm("ลบระบบน้ำนี้?", "บันทึกการให้น้ำของระบบนี้จะถูกลบด้วย", () => {
     S.water.systems = S.water.systems.filter(x => x.id !== id);
     S.water.logs = S.water.logs.filter(l => l.systemId !== id);
-    saveState(S); render(); toast("ลบแล้ว");
+    saveState(S);
+    if (typeof Auth !== "undefined" && Auth.waterSync) Auth.waterSync();
+    render(); toast("ลบแล้ว");
   });
 };
 

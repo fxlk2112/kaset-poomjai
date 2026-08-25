@@ -3,6 +3,9 @@ main = "src/lark.js"
 compatibility_date = "2025-01-01"
 workers_dev = true
 
+[triggers]
+crons = ["* * * * *"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "farmultimate-db"

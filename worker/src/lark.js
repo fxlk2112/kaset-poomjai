@@ -283,6 +283,130 @@ async function doAdminGet(env, p) {
   return { email: row.email, name: row.name, updated_at: row.updated_at || 0, data };
 }
 
+/* ==================== ระบบน้ำ IoT ====================
+   แอป:  water_sync  (ส่งรายการระบบน้ำ+ตารางขึ้นเซิร์ฟเวอร์)
+         water_status (อ่านสถานะจริงล่าสุด)
+         water_set   (สั่งเปิด/ปิดด้วยมือ + นาที)
+         water_register (ออก device key ให้ ESP32)
+   อุปกรณ์: water_poll (ดึงคำสั่ง on/off), water_report (รายงานสถานะจริง)
+   Cron (ทุกนาที): คิดตารางอัตโนมัติ + เช็คฝน (Open-Meteo) ข้ามรอบถ้าฝนชุก */
+async function doWaterSync(env, p) {
+  const u = await authUser(env, p.token);
+  const systems = Array.isArray(p.systems) ? p.systems : [];
+  for (const s of systems) {
+    await env.DB.prepare(
+      `INSERT INTO water_systems (user_id, system_id, plot_name, name, every_days, time_of_day, minutes, enabled, last_watered, lat, lng, updated_at)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)
+       ON CONFLICT(user_id, system_id) DO UPDATE SET plot_name=?3, name=?4, every_days=?5, time_of_day=?6, minutes=?7, enabled=?8, last_watered=?9, lat=?10, lng=?11, updated_at=?12`
+    ).bind(u.user_id, String(s.id || ""), String(s.plotName || ""), String(s.name || ""),
+      Number(s.everyDays) || 2, String(s.time || "06:00"), Number(s.minutes) || 30,
+      s.enabled ? 1 : 0, String(s.lastWatered || ""), Number(s.lat) || 0, Number(s.lng) || 0, Date.now()).run();
+  }
+  /* ลบระบบที่ถูกลบจากแอป */
+  const existing = await env.DB.prepare("SELECT system_id FROM water_systems WHERE user_id = ?1").bind(u.user_id).all();
+  for (const row of existing.results) {
+    if (!systems.find(s => String(s.id) === row.system_id)) {
+      await env.DB.prepare("DELETE FROM water_systems WHERE user_id = ?1 AND system_id = ?2").bind(u.user_id, row.system_id).run();
+    }
+  }
+  return { synced: systems.length };
+}
+
+async function doWaterStatus(env, p) {
+  const u = await authUser(env, p.token);
+  const rows = await env.DB.prepare("SELECT system_id, plot_name, name, enabled, state, until_ts, last_watered, note, updated_at FROM water_systems WHERE user_id = ?1").bind(u.user_id).all();
+  return { states: rows.results };
+}
+
+async function doWaterSet(env, p) {
+  const u = await authUser(env, p.token);
+  const on = p.cmd === "on";
+  const minutes = Number(p.minutes) || 30;
+  const until = on ? Date.now() + minutes * 60000 : 0;
+  const res = await env.DB.prepare("UPDATE water_systems SET state = ?3, until_ts = ?4, updated_at = ?5 WHERE user_id = ?1 AND system_id = ?2")
+    .bind(u.user_id, String(p.systemId || ""), on ? "on" : "off", until, Date.now()).run();
+  if (!res.meta.changes) throw new Error("ไม่พบระบบน้ำนี้บนเซิร์ฟเวอร์ (ลองซิงก์ก่อน)");
+  return { state: on ? "on" : "off", minutes, until };
+}
+
+async function doWaterRegister(env, p) {
+  const u = await authUser(env, p.token);
+  const key = makeToken();
+  await env.DB.prepare("INSERT INTO water_devices (user_id, device_key, name, created_at) VALUES (?1, ?2, ?3, ?4)")
+    .bind(u.user_id, key, String(p.name || "valve-controller").slice(0, 60), Date.now()).run();
+  return { device_key: key };
+}
+
+async function doWaterKeys(env, p) {
+  const u = await authUser(env, p.token);
+  const rows = await env.DB.prepare("SELECT device_key, name, created_at FROM water_devices WHERE user_id = ?1 ORDER BY created_at DESC").bind(u.user_id).all();
+  return { devices: rows.results };
+}
+
+async function deviceUser(env, key) {
+  const dev = await env.DB.prepare("SELECT user_id FROM water_devices WHERE device_key = ?1").bind(String(key || "")).first();
+  if (!dev) throw new Error("device key ไม่ถูกต้อง");
+  return dev.user_id;
+}
+
+async function doWaterPoll(env, p) {
+  const uid2 = await deviceUser(env, p.device_key);
+  const now = Date.now();
+  /* ปิดอัตโนมัติเมื่อหมดเวลา */
+  await env.DB.prepare("UPDATE water_systems SET state = 'off' WHERE user_id = ?1 AND state = 'on' AND until_ts <= ?2").bind(uid2, now).run();
+  const rows = await env.DB.prepare("SELECT system_id, state, until_ts FROM water_systems WHERE user_id = ?1").bind(uid2).all();
+  return { cmds: rows.results.map(r => ({ system_id: r.system_id, on: r.state === "on" && r.until_ts > now })) };
+}
+
+async function doWaterReport(env, p) {
+  const uid2 = await deviceUser(env, p.device_key);
+  await env.DB.prepare("UPDATE water_systems SET state = ?3, updated_at = ?4 WHERE user_id = ?1 AND system_id = ?2")
+    .bind(uid2, String(p.system_id || ""), p.state === "on" ? "on" : "off", Date.now()).run();
+  return { ok: true };
+}
+
+/* Cron: ตัดสินใจให้น้ำอัตโนมัติทุกนาที (เวลาไทย UTC+7) + ข้ามรอบถ้าพยากรณ์ฝนชุก */
+async function cronWater(env) {
+  const nowBkk = new Date(Date.now() + 7 * 3600 * 1000);
+  const today = nowBkk.toISOString().slice(0, 10);
+  const nowHM = nowBkk.toISOString().slice(11, 16);
+  /* ปิดวาล์วที่หมดเวลา */
+  await env.DB.prepare("UPDATE water_systems SET state = 'off' WHERE state = 'on' AND until_ts <= ?1").bind(Date.now()).run();
+  /* ระบบที่ถึงเวลา (enabled, ยังไม่ให้วันนี้, ถึงเวลาตั้งไว้) */
+  const due = await env.DB.prepare(
+    "SELECT user_id, system_id, minutes, lat, lng FROM water_systems WHERE enabled = 1 AND last_watered <> ?1 AND time_of_day <= ?2"
+  ).bind(today, nowHM).all();
+  const weatherCache = new Map();
+  for (const row of due.results) {
+    let skip = "";
+    /* เช็คฝน: ถ้ามีพิกัดและพยากรณ์ฝนชุก → ข้ามรอบ (ฝนช่วยรดน้ำแทน) */
+    if (row.lat && row.lng) {
+      const ck = row.lat.toFixed(2) + "," + row.lng.toFixed(2);
+      let w = weatherCache.get(ck);
+      if (!w) {
+        try {
+          const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=" + row.lat + "&longitude=" + row.lng + "&daily=precipitation_probability_max,precipitation_sum&forecast_days=1&timezone=auto");
+          const jj = await res.json();
+          const prob = (jj.daily && jj.daily.precipitation_probability_max && jj.daily.precipitation_probability_max[0]) || 0;
+          const mm = (jj.daily && jj.daily.precipitation_sum && jj.daily.precipitation_sum[0]) || 0;
+          w = { prob: Number(prob) || 0, mm: Number(mm) || 0 };
+        } catch (e) { w = { prob: 0, mm: 0 }; }
+        weatherCache.set(ck, w);
+      }
+      if (w.prob >= 70 || w.mm >= 3) skip = "ข้ามรอบ " + today + " — พยากรณ์ฝน " + w.prob + "% (" + w.mm + " มม.)";
+    }
+    if (skip) {
+      /* ฝนตก = น้ำได้แล้ว → เลื่อนรอบไปวันถัดไปตาม interval */
+      await env.DB.prepare("UPDATE water_systems SET last_watered = ?3, note = ?4, updated_at = ?5 WHERE user_id = ?1 AND system_id = ?2")
+        .bind(row.user_id, row.system_id, today, skip, Date.now()).run();
+    } else {
+      const until = Date.now() + (row.minutes || 30) * 60000;
+      await env.DB.prepare("UPDATE water_systems SET state = 'on', until_ts = ?3, last_watered = ?4, note = '', updated_at = ?5 WHERE user_id = ?1 AND system_id = ?2")
+        .bind(row.user_id, row.system_id, until, today, Date.now()).run();
+    }
+  }
+}
+
 async function doRegister(env, request, p) {
   rateLimit(request);
   const email = String(p.email || "").trim().toLowerCase();
@@ -368,10 +492,20 @@ export default {
       else if (payload.action === "load") data = await doLoad(env, payload);
       else if (payload.action === "admin_list") data = await doAdminList(env, payload);
       else if (payload.action === "admin_get") data = await doAdminGet(env, payload);
+      else if (payload.action === "water_sync") data = await doWaterSync(env, payload);
+      else if (payload.action === "water_status") data = await doWaterStatus(env, payload);
+      else if (payload.action === "water_set") data = await doWaterSet(env, payload);
+      else if (payload.action === "water_register") data = await doWaterRegister(env, payload);
+      else if (payload.action === "water_keys") data = await doWaterKeys(env, payload);
+      else if (payload.action === "water_poll") data = await doWaterPoll(env, payload);
+      else if (payload.action === "water_report") data = await doWaterReport(env, payload);
       else throw new Error("ไม่รู้จัก action: " + payload.action);
       return json({ ok: true, data });
     } catch (e) {
       return json({ ok: false, error: String(e.message || e) }, 400);
     }
+  },
+  async scheduled(event, env, ctx) {
+    try { await cronWater(env); } catch (e) { console.error("cron error:", e); }
   }
 };
