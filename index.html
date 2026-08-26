@@ -10,7 +10,7 @@
     <meta name="description" content="FARMULTIMATE SOLUTIONS — ระบบจัดการฟาร์มอัจฉริยะ: บันทึกแปลง/รอบปลูก/งาน/เก็บเกี่ยว, สต็อกวัสดุ, ขายพร้อมใบส่งสินค้า, สภาพอากาศรายแปลง — ใช้ได้ทั้งออนไลน์และออฟไลน์">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <script>try{if(!localStorage.getItem("farmult-session-v1"))document.documentElement.className+=" auth-locked";}catch(e){}</script>
+  <script>try{var _shareToken=(new URL(location.href)).searchParams.get("share");if(!_shareToken&&!localStorage.getItem("farmult-session-v1"))document.documentElement.className+=" auth-locked";}catch(e){}</script>
   <style>
     /* ===== Auth Gate (self-contained: ไม่พึ่งไฟล์ CSS อื่น) ===== */
     html.auth-locked { background: linear-gradient(165deg,#0b3d20 0%,#14532d 40%,#1a7a3e 75%,#2c9a54 100%); min-height:100%; }
@@ -52,7 +52,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script>try{var _ft=localStorage.getItem("farmult-theme")||"system";var _fd=_ft==="dark"||(_ft==="system"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);if(_fd)document.documentElement.setAttribute("data-theme","dark");}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=20260826x">
+  <link rel="stylesheet" href="css/style.css?v=20260826z">
   <link rel="icon" href="logo.jpg">
 </head>
 <body>
@@ -87,7 +87,7 @@
       <div class="auth-hint">ข้อมูลแยกต่อบัญชี ซิงก์ขึ้นคลาวด์อัตโนมัติ · ใช้แบบออฟไลน์ได้หลังล็อกอิน<br><a href="javascript:void(0)" onclick="agHardReload()">หน้าไม่ปกติ? ล้างแคชแล้วโหลดใหม่</a></div>
     </div>
   </div>
-  <script>try{if(!localStorage.getItem("farmult-session-v1")){document.documentElement.className+=" auth-locked";var _ag=document.getElementById("authGate");if(_ag)_ag.style.display="flex";}}catch(e){}</script>
+  <script>try{var _shareToken2=(new URL(location.href)).searchParams.get("share");if(!_shareToken2&&!localStorage.getItem("farmult-session-v1")){document.documentElement.className+=" auth-locked";var _ag=document.getElementById("authGate");if(_ag)_ag.style.display="flex";}}catch(e){}</script>
   <div id="app">
 
     <!-- ====== Top bar ====== -->
@@ -147,14 +147,14 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/data.js?v=20260826x"></script>
-  <script src="js/charts.js?v=20260826x"></script>
-  <script src="js/notify.js?v=20260826x"></script>
-  <script src="js/stock.js?v=20260826x"></script>
-  <script src="js/sales.js?v=20260826x"></script>
-  <script src="js/lark.js?v=20260826x"></script>
-  <script src="js/auth.js?v=20260826x"></script>
-  <script src="js/app.js?v=20260826x"></script>
+  <script src="js/data.js?v=20260826z"></script>
+  <script src="js/charts.js?v=20260826z"></script>
+  <script src="js/notify.js?v=20260826z"></script>
+  <script src="js/stock.js?v=20260826z"></script>
+  <script src="js/sales.js?v=20260826z"></script>
+  <script src="js/lark.js?v=20260826z"></script>
+  <script src="js/auth.js?v=20260826z"></script>
+  <script src="js/app.js?v=20260826z"></script>
   <!-- ลงทะเบียน Service Worker — เปิดใช้แบบออฟไลน์/ติดตั้งเป็นแอพบนมือถือ (ต้องใช้ผ่าน HTTPS หรือ localhost) -->
   <script>
     if ('serviceWorker' in navigator) {

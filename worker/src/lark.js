@@ -321,6 +321,104 @@ async function doMarketPrices(env, p) {
   throw new Error("ไม่พบข้อมูลราคาล่าสุดจาก สศก.");
 }
 
+/* ---------- แชร์แปลง: ลิงก์ดูอย่างเดียว + คอมเมนต์ ---------- */
+async function userState(env, userId) {
+  const d = await env.DB.prepare("SELECT data FROM user_data WHERE user_id = ?1").bind(userId).first();
+  try { return d && d.data ? JSON.parse(d.data) : {}; } catch (e) { return {}; }
+}
+async function doShareCreate(env, p) {
+  const u = await authUser(env, p.token);
+  const plotId = String(p.plotId || "");
+  const cycleId = String(p.cycleId || "");
+  if (!plotId) throw new Error("ไม่พบรหัสแปลงที่ต้องการแชร์");
+  const state = await userState(env, u.user_id);
+  const plots = state.plots || [];
+  if (!plots.find(pl => pl.id === plotId)) throw new Error("ไม่พบแปลงนี้ในบัญชีของคุณ");
+  const cycles = state.cycles || [];
+  if (cycleId && !cycles.find(c => c.id === cycleId && c.plotId === plotId)) throw new Error("รอบปลูกนี้ไม่อยู่ในแปลงที่เลือก");
+  const oldRows = await env.DB.prepare(
+    "SELECT s.token, COALESCE(sc.cycle_id, '') AS cycle_id FROM shares s LEFT JOIN share_scopes sc ON sc.token = s.token WHERE s.owner_user_id = ?1 AND s.plot_id = ?2 AND s.active = 1 ORDER BY s.created_at DESC"
+  ).bind(u.user_id, plotId).all();
+  const old = (oldRows.results || []).find(r => String(r.cycle_id || "") === cycleId);
+  if (old && old.token) return { token: old.token, reused: true };
+  const token = makeToken().slice(0, 20);
+  await env.DB.prepare("INSERT INTO shares (token, owner_user_id, plot_id, created_at, active) VALUES (?1, ?2, ?3, ?4, 1)")
+    .bind(token, u.user_id, plotId, Date.now()).run();
+  if (cycleId) {
+    await env.DB.prepare("INSERT INTO share_scopes (token, cycle_id) VALUES (?1, ?2)")
+      .bind(token, cycleId).run();
+  }
+  return { token };
+}
+async function doShareList(env, p) {
+  const u = await authUser(env, p.token);
+  const rows = await env.DB.prepare(
+    "SELECT s.token, s.plot_id, COALESCE(sc.cycle_id, '') AS cycle_id, s.created_at, s.active FROM shares s LEFT JOIN share_scopes sc ON sc.token = s.token WHERE s.owner_user_id = ?1 ORDER BY s.created_at DESC"
+  ).bind(u.user_id).all();
+  const out = [];
+  for (const r of rows.results) {
+    const c = await env.DB.prepare("SELECT COUNT(*) AS n FROM share_comments WHERE token = ?1").bind(r.token).first();
+    out.push({ token: r.token, plot_id: r.plot_id, cycle_id: r.cycle_id || "", created_at: r.created_at, active: r.active, comments: c ? c.n : 0 });
+  }
+  return { shares: out };
+}
+async function doShareRevoke(env, p) {
+  const u = await authUser(env, p.token);
+  await env.DB.prepare("UPDATE shares SET active = 0 WHERE owner_user_id = ?1 AND token = ?2").bind(u.user_id, String(p.shareToken || "")).run();
+  return { revoked: true };
+}
+async function doShareGet(env, p) {
+  const s = await env.DB.prepare("SELECT owner_user_id, plot_id FROM shares WHERE token = ?1 AND active = 1").bind(String(p.shareToken || "")).first();
+  if (!s) throw new Error("ลิงก์หมดอายุหรือถูกยกเลิกแล้ว");
+  const scope = await env.DB.prepare("SELECT cycle_id FROM share_scopes WHERE token = ?1").bind(String(p.shareToken || "")).first();
+  const cycleId = String((scope && scope.cycle_id) || "");
+  const state = await userState(env, s.owner_user_id);
+  const comments = await env.DB.prepare("SELECT name, text, created_at FROM share_comments WHERE token = ?1 ORDER BY created_at DESC LIMIT 50").bind(String(p.shareToken || "")).all();
+  const out = { share: { mode: cycleId ? "cycle" : "plot" }, comments: comments.results, plot: null, cycle: null, cycles: [], tasks: [], finance: null, farm: null };
+  const plots = state.plots || [];
+  const target = s.plot_id ? plots.find(pl => pl.id === s.plot_id) : null;
+  if (!target) throw new Error("แปลงนี้ถูกลบหรือเจ้าของหยุดแชร์แล้ว");
+  const allCycles = state.cycles || [];
+  const targetCycle = cycleId ? allCycles.find(c => c.id === cycleId && c.plotId === target.id) : null;
+  if (cycleId && !targetCycle) throw new Error("รอบปลูกนี้ถูกลบหรือเจ้าของหยุดแชร์แล้ว");
+  if (target) {
+    out.plot = { name: target.name, sizeRai: target.sizeRai || 0, status: target.status || "", crop: target.crop || "" };
+    out.cycles = (targetCycle ? [targetCycle] : allCycles.filter(c => c.plotId === target.id))
+      .map(c => ({ plant: c.plant || "", startDate: c.startDate || "", status: c.status || "", round: c.round || 0 }));
+    out.cycle = targetCycle ? out.cycles[0] : null;
+    out.tasks = (state.tasks || [])
+      .filter(t => targetCycle ? t.cycleId === targetCycle.id : t.plotId === target.id)
+      .sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 80)
+      .map(t => ({
+        title: t.title || "", date: t.date || "", status: t.status || "", type: t.type || "",
+        note: t.note || "", cost: Number(t.cost) || 0, revenue: Number(t.revenue) || 0,
+        qty: Number(t.qty) || 0, unit: t.unit || "", harvestQty: Number(t.harvestQty) || 0,
+        costItems: (t.costItems || []).slice(0, 8).map(it => ({
+          name: it.name || "", qty: Number(it.qty) || 0, unit: it.unit || "", totalCost: Number(it.totalCost) || 0
+        }))
+      }));
+    let revenue = 0, cost = 0;
+    (state.tasks || []).forEach(t => {
+      if (targetCycle ? t.cycleId === targetCycle.id : t.plotId === target.id) {
+        revenue += Number(t.revenue) || 0; cost += Number(t.cost) || 0;
+      }
+    });
+    out.finance = { revenue, cost, net: revenue - cost };
+  }
+  return out;
+}
+async function doShareComment(env, request, p) {
+  rateLimit(request);
+  const s = await env.DB.prepare("SELECT token FROM shares WHERE token = ?1 AND active = 1").bind(String(p.shareToken || "")).first();
+  if (!s) throw new Error("ลิงก์ไม่ถูกต้อง");
+  const text = String(p.text || "").trim().slice(0, 500);
+  const name = String(p.name || "ไม่ระบุชื่อ").trim().slice(0, 60) || "ไม่ระบุชื่อ";
+  if (!text) throw new Error("พิมพ์คอมเมนต์ก่อนส่ง");
+  await env.DB.prepare("INSERT INTO share_comments (id, token, name, text, created_at) VALUES (?1, ?2, ?3, ?4, ?5)")
+    .bind(makeToken().slice(0, 16), s.token, name, text, Date.now()).run();
+  return { ok: true };
+}
+
 /* ==================== ระบบน้ำ IoT ====================
    แอป:  water_sync  (ส่งรายการระบบน้ำ+ตารางขึ้นเซิร์ฟเวอร์)
          water_status (อ่านสถานะจริงล่าสุด)
@@ -538,6 +636,11 @@ export default {
       else if (payload.action === "water_poll") data = await doWaterPoll(env, payload);
       else if (payload.action === "water_report") data = await doWaterReport(env, payload);
       else if (payload.action === "market_prices") data = await doMarketPrices(env, payload);
+      else if (payload.action === "share_create") data = await doShareCreate(env, payload);
+      else if (payload.action === "share_list") data = await doShareList(env, payload);
+      else if (payload.action === "share_revoke") data = await doShareRevoke(env, payload);
+      else if (payload.action === "share_get") data = await doShareGet(env, payload);
+      else if (payload.action === "share_comment") data = await doShareComment(env, request, payload);
       else throw new Error("ไม่รู้จัก action: " + payload.action);
       return json({ ok: true, data });
     } catch (e) {

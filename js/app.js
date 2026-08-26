@@ -321,6 +321,8 @@ const ROLE_META = {
    (กด nav) แต่จะถูกปิดตอน re-render ในหน้าเดิม เช่น กดวันที่/เปลี่ยนเดือน */
 let lastView = null;
 function render() {
+  /* โหมดแชร์: เปิดลิงก์ ?share=... — แสดงแปลงแบบดูอย่างเดียว (ไม่ต้องล็อกอิน) */
+  if (typeof Auth !== "undefined" && Auth.shareMode) { App.renderShareView(); return; }
   /* บังคับล็อกอิน: ยังไม่ล็อกอิน (หรือโหลดระบบบัญชีไม่ได้) = ไม่วาดหน้าใด ๆ ของแอป */
   if (typeof Auth === "undefined" || !Auth.session) {
     const vn = document.getElementById("view");
@@ -645,7 +647,7 @@ function renderHome() {
               <span class="plot-emoji sm">${cropEmoji(p.crop)}</span>
               <div class="grow" style="text-align:left">
                 <div class="bold" style="font-size:.88rem">${esc(p.name)}</div>
-                <div class="muted" style="font-size:.68rem">รายได้ ${fmtMoney(fin.revenue)} · ต้นทุน ${fmtMoney(fin.cost)}</div>
+                <div class="muted" style="font-size:.68rem">รายได้ ${fmtMoney(fin.revenue)} · ต้นทุน ${fmtMoney(fin.cost)}${p.sizeRai > 0 ? ` · <b>${fmtMoney(Math.round(fin.cost / p.sizeRai))} บ./ไร่</b>` : ""}</div>
               </div>
               <div class="bold ${fin.net >= 0 ? "price-trend-up" : "price-trend-down"}" style="font-size:.95rem">${fmtMoney(fin.net)}</div>
             </button>`).join("")}
@@ -773,6 +775,7 @@ function renderPlots() {
           <div class="meta-box"><div class="lb">สถานะ</div><div class="vl" style="font-size:.78rem">${fin.revenue > 0 ? "มีผลผลิตแล้ว" : "รอผลผลิต"}</div></div>
         </div>
         <div class="actions-row" style="margin-top:10px">
+          <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();App.openShareLink('${c.plotId}', '${c.id}')">${ic("user")} แชร์พืชนี้</button>
           <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();App.modalCycle('${c.plotId}', '${c.id}')">${ic("pencil")} แก้ไขรอบ</button>
           ${c.status === "active" ? `<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : `<button class="btn btn-sm btn-outline" onclick="event.stopPropagation();App.reopenCycle('${c.id}')">${ic("refresh")} เปิดรอบอีกครั้ง</button>`}
         </div>
@@ -1033,6 +1036,7 @@ function renderPlotDetail() {
       </div>
       <div class="actions-row">
         <button class="btn btn-sm btn-outline" onclick="App.modalPlot('${p.id}')">${ic("pencil")} แก้ไขแปลง</button>
+        <button class="btn btn-sm btn-outline" onclick="App.modalShare('${p.id}')">${ic("user")} แชร์</button>
         ${activeCycle ? "" : `<button class="btn btn-sm btn-primary" onclick="App.modalCycle('${p.id}')">${ic("leaf")} เริ่มปลูก</button>`}
         <button class="btn btn-sm btn-primary" onclick="App.modalTask(todayISO(), { plotId: '${p.id}' })">${ic("plus")} เพิ่มกิจกรรม</button>
       </div>
@@ -1049,6 +1053,7 @@ function renderPlotDetail() {
           <div style="font-size:.75rem;opacity:.85">กำไรสุทธิ (รวมทุกรอบ)</div>
           <div class="bold" style="font-size:1.5rem">${fmtMoney(fin.net)} บาท</div>
           <div style="font-size:.7rem;opacity:.85">รายได้ ${fmtMoney(fin.revenue)} · ต้นทุน ${fmtMoney(fin.cost)}</div>
+          ${p.sizeRai > 0 ? `<div style="font-size:.7rem;opacity:.85;margin-top:4px">ต่อไร่: ต้นทุน <b>${fmtMoney(Math.round(fin.cost / p.sizeRai))}</b> · กำไรสุทธิ <b>${fmtMoney(Math.round(fin.net / p.sizeRai))}</b> บ./ไร่</div>` : ""}
         </div>
         <span class="kpi-icon" style="font-size:2rem">${ic(fin.net >= 0 ? "chart" : "alert")}</span>
       </div>
@@ -1228,6 +1233,7 @@ function renderCycleDetail() {
       </div>
       <div class="actions-row">
         ${c.status === "active" ? `<button class="btn btn-sm btn-primary" onclick="App.modalTask(todayISO(), { cycleId: '${c.id}' })">${ic("plus")} เพิ่มกิจกรรม</button>` : ""}
+        <button class="btn btn-sm btn-outline" onclick="App.openShareLink('${c.plotId}', '${c.id}')">${ic("user")} แชร์พืชนี้</button>
         <button class="btn btn-sm btn-ghost" onclick="App.modalCycle('${c.plotId}', '${c.id}')">${ic("pencil")} แก้ไขรอบ</button>
         ${c.status === "active" ? `<button class="btn btn-sm btn-ghost" onclick="App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : `<button class="btn btn-sm btn-outline" onclick="App.reopenCycle('${c.id}')">${ic("refresh")} เปิดรอบการปลูกอีกครั้ง</button>`}
       </div>
@@ -2027,6 +2033,191 @@ App.mountRakaWidget = function () {
   const s = document.createElement("script");
   s.src = "https://rakakaset.com/widgets/table.js";
   el.appendChild(s);
+};
+
+/* ---------------- โหมดแชร์: หน้าดูแปลงแบบ read-only + คอมเมนต์ ---------------- */
+function shareTaskHtml(t) {
+  const meta = [];
+  meta.push(TYPE_LABELS[t.type] || t.type || "กิจกรรม");
+  if (t.date) meta.push(dateLabel(t.date));
+  if (t.harvestQty) meta.push("เก็บเกี่ยว " + fmtNum(t.harvestQty) + " กก.");
+  else if (t.qty) meta.push("จำนวน " + fmtNum(t.qty) + (t.unit ? " " + t.unit : ""));
+  if (t.revenue) meta.push("รายรับ " + fmtMoney(t.revenue) + " บาท");
+  if (t.cost) meta.push("ต้นทุน " + fmtMoney(t.cost) + " บาท");
+  const costs = (t.costItems || []).filter(it => it.name || it.qty || it.totalCost);
+  const costsHtml = costs.length ? `
+    <div class="td-cost-list" style="margin-top:7px">
+      ${costs.map(it => {
+        const m = [];
+        if (it.qty) m.push(fmtNum(it.qty) + (it.unit ? " " + it.unit : ""));
+        return `<div class="td-cost-row"><span>${esc(it.name || "ค่าใช้จ่าย")} ${m.length ? `<span class="muted" style="font-size:.68rem">${esc(m.join(" · "))}</span>` : ""}</span><b>${fmtMoney(it.totalCost)} บาท</b></div>`;
+      }).join("")}
+    </div>` : "";
+  return `
+    <div class="row-line" style="align-items:flex-start">
+      <span class="task-ico">${ic(TYPE_ICONS[t.type] || "check")}</span>
+      <div class="grow">
+        <div class="bold" style="font-size:.84rem">${esc(t.title)}</div>
+        <div class="muted" style="font-size:.7rem">${meta.map(esc).join(" · ")}</div>
+        ${t.note ? `<div class="td-note-body" style="margin-top:6px;font-size:.74rem">${esc(t.note)}</div>` : ""}
+        ${costsHtml}
+      </div>
+      ${t.status === "done" ? '<span class="badge badge-green">เสร็จ</span>' : '<span class="badge badge-amber">แผน</span>'}
+    </div>`;
+}
+App.renderShareView = function () {
+  const v = document.getElementById("view");
+  const nav = document.getElementById("bottomNav");
+  if (nav) nav.innerHTML = "";
+  ["notifBtn", "profileBtn", "tourBtn", "editBtn"].forEach(id => { const b = document.getElementById(id); if (b) b.style.display = "none"; });
+  const rs = document.getElementById("roleSwitch");
+  if (rs) rs.innerHTML = "";
+  if (v.dataset.shareLoaded) return;
+  v.dataset.shareLoaded = "1";
+  v.innerHTML = `<div class="card"><div class="muted" style="text-align:center;padding:20px">${ic("droplet")} กำลังโหลดแปลงที่แชร์...</div></div>`;
+  App.loadShareView();
+};
+App.loadShareView = async function () {
+  const v = document.getElementById("view");
+  const r = await authCall("share_get", { shareToken: Auth.shareMode });
+  if (!r.ok) {
+    v.innerHTML = `<div class="card"><div class="empty"><div class="e-title">${ic("alert")} ลิงก์ไม่ถูกต้อง</div><div class="muted">${esc(r.error || "")}</div></div></div>`;
+    return;
+  }
+  const d = r.data;
+  let body = "";
+  if (d.plot) {
+    const f = d.finance || { revenue: 0, cost: 0, net: 0 };
+    const perRai = d.plot.sizeRai > 0 ? Math.round(f.cost / d.plot.sizeRai) : 0;
+    const shareCycle = d.cycle || null;
+    body = `
+      <div class="card">
+        <div class="plot-top">
+          <div class="plot-emoji">${ic("leaf")}</div>
+          <div class="grow">
+            <div class="plot-name">${shareCycle ? esc(shareCycle.plant) : esc(d.plot.name)} ${shareCycle ? `<span class="badge badge-blue">รอบ ${shareCycle.round || "—"}</span>` : (d.plot.status === "active" ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-gray">ว่าง</span>')}</div>
+            <div class="muted" style="font-size:.72rem">${shareCycle ? `แปลง ${esc(d.plot.name)} · แชร์เฉพาะพืช/รอบปลูกนี้` : "แชร์ทั้งแปลง — รวมทุกรอบปลูกของแปลงนี้"}</div>
+          </div>
+        </div>
+        <div class="meta-grid">
+          <div class="meta-box"><div class="lb">ขนาดพื้นที่</div><div class="vl">${fmtNum(d.plot.sizeRai)} ไร่</div></div>
+          <div class="meta-box"><div class="lb">${shareCycle ? "วันเริ่มปลูก" : "รอบปลูก"}</div><div class="vl">${shareCycle ? esc(shareCycle.startDate || "—") : d.cycles.length + " รอบ"}</div></div>
+          <div class="meta-box"><div class="lb">กิจกรรม</div><div class="vl">${d.tasks.length} งาน</div></div>
+        </div>
+      </div>
+      <div class="section-title">กำไร/ขาดทุน</div>
+      <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none">
+        <div class="row row-between">
+          <div>
+            <div style="font-size:.75rem;opacity:.85">กำไรสุทธิ (รวมทุกรอบ)</div>
+            <div class="bold" style="font-size:1.4rem">${fmtMoney(f.net)} บาท</div>
+            <div style="font-size:.7rem;opacity:.85">รายได้ ${fmtMoney(f.revenue)} · ต้นทุน ${fmtMoney(f.cost)}${d.plot.sizeRai > 0 ? ` · ต้นทุน ${fmtMoney(perRai)} บ./ไร่` : ""}</div>
+          </div>
+        </div>
+      </div>
+      <div class="section-title">${shareCycle ? "รายละเอียดพืชปลูก" : "รอบการปลูก"}</div>
+      <div class="card">
+        ${d.cycles.length === 0 ? '<div class="muted" style="text-align:center;padding:8px;font-size:.8rem">ยังไม่มีรอบปลูก</div>' : d.cycles.map(c => `
+        <div class="row-line"><span class="task-ico">${ic("leaf")}</span><div class="grow"><div class="bold" style="font-size:.84rem">${esc(c.plant)}</div><div class="muted" style="font-size:.7rem">เริ่ม ${esc(c.startDate)} · รอบ ${c.round || "-"}</div></div>${c.status === "active" ? '<span class="badge badge-green">กำลังปลูก</span>' : '<span class="badge badge-gray">ปิดแล้ว</span>'}</div>`).join("")}
+      </div>
+      <div class="section-title">${shareCycle ? "กิจกรรมของพืชนี้" : "กิจกรรมล่าสุด"}</div>
+      <div class="card">
+        ${d.tasks.length === 0 ? '<div class="muted" style="text-align:center;padding:8px;font-size:.8rem">ยังไม่มีบันทึก</div>' : d.tasks.map(t => `
+        ${shareTaskHtml(t)}`).join("")}
+      </div>`;
+  } else {
+    body = `
+      <div class="section-title">ฟาร์มของเจ้าของแปลง</div>
+      <div class="card">
+        ${(d.farm || []).map(pl => `<div class="row-line"><span class="task-ico">${ic("map")}</span><div class="grow"><div class="bold" style="font-size:.84rem">${esc(pl.name)}</div><div class="muted" style="font-size:.7rem">${fmtNum(pl.sizeRai)} ไร่</div></div>${pl.status === "active" ? '<span class="badge badge-green">Active</span>' : ""}</div>`).join("") || '<div class="muted" style="text-align:center;padding:8px">ยังไม่มีแปลง</div>'}
+      </div>`;
+  }
+  const comments = (d.comments || []).map(cm => `
+    <div class="row-line"><span class="task-ico">${ic("user")}</span><div class="grow"><div class="bold" style="font-size:.8rem">${esc(cm.name)}</div><div class="muted" style="font-size:.74rem">${esc(cm.text)}</div></div><span class="muted" style="font-size:.66rem">${new Date(Number(cm.created_at)).toLocaleDateString("th-TH")}</span></div>`).join("");
+  v.innerHTML = `
+    <div class="hero" style="margin-bottom:12px"><div class="hero-row"><div><div class="hero-greet">FARMULTIMATE SOLUTIONS</div><div class="hero-sub">หน้าแชร์สำหรับผู้เยี่ยมชม — ดูอย่างเดียว</div></div></div></div>
+    ${body}
+    <div class="section-title">คอมเมนต์ (${(d.comments || []).length})</div>
+    <div class="card">
+      <div class="field"><label>ชื่อ</label><input id="sc_name" placeholder="ชื่อของคุณ (ไม่บังคับ)"></div>
+      <div class="field"><label>คอมเมนต์</label><textarea id="sc_text" rows="2" placeholder="แสดงความคิดเห็น/ถาม-ตอบเจ้าของแปลง"></textarea></div>
+      <button class="btn btn-primary btn-block" onclick="App.shareCommentSubmit()">${ic("check")} ส่งคอมเมนต์</button>
+      <div id="sc_list" class="mt-12">${comments || '<div class="muted" style="text-align:center;font-size:.76rem">ยังไม่มีคอมเมนต์</div>'}</div>
+    </div>
+    <div class="muted" style="font-size:.68rem;text-align:center;padding:10px">FARMULTIMATE SOLUTIONS — ระบบจัดการฟาร์มอัจฉริยะ</div>`;
+};
+App.shareCommentSubmit = async function () {
+  const name = (document.getElementById("sc_name") || {}).value || "";
+  const text = (document.getElementById("sc_text") || {}).value || "";
+  if (!text.trim()) { toast("พิมพ์คอมเมนต์ก่อนส่ง"); return; }
+  const r = await authCall("share_comment", { shareToken: Auth.shareMode, name, text });
+  if (!r.ok) { toast(r.error || "ส่งไม่สำเร็จ"); return; }
+  toast("ส่งคอมเมนต์แล้ว ✓");
+  const v = document.getElementById("view");
+  if (v) v.dataset.shareLoaded = "";
+  App.renderShareView();
+};
+
+/* ฝั่งเจ้าของ: สร้าง/ดูลิงก์แชร์ของแปลง */
+App.modalShare = async function (plotId) {
+  if (!(typeof Auth !== "undefined" && Auth.session)) return;
+  const p = plotById(S, plotId);
+  if (!p) return;
+  const cycles = S.cycles.filter(c => c.plotId === plotId).sort((a, b) => b.startDate.localeCompare(a.startDate));
+  const lst = await authCall("share_list", { token: Auth.session.token });
+  const shares = lst.ok ? (lst.data.shares || []) : [];
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("user")} เลือกลิงก์แชร์</h3>
+    <div class="modal-sub">แนะนำให้แชร์ตามพืช/รอบปลูก เพื่อให้ผู้รับเห็นเฉพาะรายละเอียดและกิจกรรมของพืชนั้น ไม่รวมทุกพืชเข้าด้วยกัน</div>
+    <div class="card" style="box-shadow:none;margin-bottom:10px">
+      <div class="row-line">
+        <span class="task-ico">${ic("map")}</span>
+        <div class="grow"><div class="bold" style="font-size:.84rem">ทั้งแปลง: ${esc(p.name)}</div><div class="muted" style="font-size:.72rem">รวมทุกรอบปลูกและทุกกิจกรรมของแปลงนี้</div></div>
+        <button class="btn btn-sm btn-outline" onclick="App.openShareLink('${plotId}', '')">${ic("user")} แชร์</button>
+      </div>
+      ${cycles.length ? cycles.map(c => {
+        const f = shares.find(x => x.plot_id === plotId && x.cycle_id === c.id && x.active);
+        return `<div class="row-line">
+          <span class="task-ico">${ic("leaf")}</span>
+          <div class="grow"><div class="bold" style="font-size:.84rem">${esc(c.plant)} <span class="badge badge-blue">รอบ ${c.round || "—"}</span></div><div class="muted" style="font-size:.72rem">เริ่ม ${esc(c.startDate)} · ${S.tasks.filter(t => t.cycleId === c.id).length} กิจกรรม${f ? ` · คอมเมนต์ ${f.comments || 0}` : ""}</div></div>
+          <button class="btn btn-sm btn-primary" onclick="App.openShareLink('${plotId}', '${c.id}')">${ic("user")} แชร์พืชนี้</button>
+        </div>`;
+      }).join("") : `<div class="muted" style="text-align:center;padding:10px">ยังไม่มีรอบปลูกให้แชร์แบบแยกพืช</div>`}
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button></div>`);
+};
+App.openShareLink = async function (plotId, cycleId) {
+  if (!(typeof Auth !== "undefined" && Auth.session)) return;
+  toast("กำลังเตรียมลิงก์แชร์...");
+  let token = null, comments = 0;
+  const lst = await authCall("share_list", { token: Auth.session.token });
+  if (lst.ok) { const f = (lst.data.shares || []).find(x => x.plot_id === plotId && (x.cycle_id || "") === (cycleId || "") && x.active); if (f) { token = f.token; comments = f.comments; } }
+  if (!token) {
+    const cr = await authCall("share_create", { token: Auth.session.token, plotId, cycleId });
+    if (!cr.ok) { toast(cr.error || "สร้างลิงก์ไม่สำเร็จ"); return; }
+    token = cr.data.token;
+  }
+  const c = cycleId ? cycleById(S, cycleId) : null;
+  const link = location.origin + "/?share=" + token;
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("user")} ${c ? "แชร์พืช/รอบปลูกนี้" : "แชร์แปลงนี้"}</h3>
+    <div class="modal-sub">${c ? `ลิงก์นี้เห็นเฉพาะ <b>${esc(c.plant)}</b> รอบ ${c.round || "—"} และกิจกรรมของรอบนี้` : "ลิงก์นี้เห็นทั้งแปลง รวมทุกรอบปลูก"} · ดูได้อย่างเดียวและคอมเมนต์ได้ · คอมเมนต์ปัจจุบัน ${comments} รายการ</div>
+    <div class="field"><label>ลิงก์แชร์</label><input readonly value="${esc(link)}" onclick="this.select()" class="soft-bg" style="font-size:.78rem"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="App.copyText('${esc(link)}')">${ic("save")} คัดลอกลิงก์</button>
+      <button class="btn btn-danger-soft" onclick="App.shareRevoke('${esc(token)}')">${ic("trash")} ยกเลิกลิงก์</button>
+      <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
+    </div>`);
+};
+App.shareRevoke = function (token) {
+  App.confirm("ยกเลิกลิงก์แชร์นี้?", "ใครก็ตามที่มีลิงก์เดิมจะเข้าดูไม่ได้อีก (คอมเมนต์เดิมยังเก็บไว้)", () => {
+    authCall("share_revoke", { token: Auth.session.token, shareToken: token }).then(r => {
+      toast(r.ok ? "ยกเลิกลิงก์แล้ว" : "ยกเลิกไม่สำเร็จ");
+      closeModal();
+    });
+  });
 };
 
 /* ---------------- Settings ---------------- */

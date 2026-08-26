@@ -13,9 +13,15 @@ const SESSION_KEY = "farmult-session-v1";   /* {token, email, name} */
 const CLOUD_TS_KEY = "farmult-cloud-ts-v1"; /* updated_at ล่าสุดของข้อมูลบนคลาวด์ที่เคยเห็น */
 const OWNER_KEY = "farmult-data-owner";     /* บัญชีเจ้าของข้อมูลที่กำลังเปิดใช้ในเครื่องนี้ */
 
+function shareTokenFromUrl() {
+  try { return String(new URL(location.href).searchParams.get("share") || "").trim(); }
+  catch (e) { return ""; }
+}
+
 /* โหลดเซสชันค้างไว้จากเครื่องนี้ */
 const Auth = {
   session: null,
+  shareMode: shareTokenFromUrl(),
   syncing: false,
   suppress: false,
   timer: null,
@@ -24,7 +30,7 @@ const Auth = {
 try { Auth.session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) {}
 
 /* ล็อกทันทีตั้งแต่ไฟล์นี้โหลด (ก่อน app.js render) — เครื่องที่ไม่มีเซสชันจะเห็นแต่หน้าล็อกอิน */
-document.documentElement.classList.toggle("auth-locked", !Auth.session);
+document.documentElement.classList.toggle("auth-locked", !(Auth.session || Auth.shareMode));
 
 /* กันข้อความที่ผู้ใช้เคยแก้ไว้แล้วเพี้ยน (ตัวอักษรที่แสดงไม่ได้) — ลบทิ้งให้ใช้ค่าเริ่มต้น */
 try {
@@ -46,7 +52,7 @@ function authCall(action, extra) {
 function setSession(s) {
   Auth.session = s;
   /* ล็อกทั้งระบบทันทีที่ระดับ DOM — ไม่ต้องรอ gate element */
-  document.documentElement.classList.toggle("auth-locked", !s);
+  document.documentElement.classList.toggle("auth-locked", !(s || Auth.shareMode));
   if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s));
   else localStorage.removeItem(SESSION_KEY);
 }
@@ -262,6 +268,7 @@ App.authRegister = async function () {
 Auth.gateEl = null;
 
 Auth.showGate = function () {
+  if (Auth.shareMode) return;
   if (!Auth.gateEl) Auth.gateEl = document.getElementById("authGate");
   if (Auth.gateEl) Auth.gateEl.style.display = "flex";
 };
@@ -604,7 +611,10 @@ App.resetData = function () {
 
 /* เริ่มระบบ: ไม่มีเซสชัน = โชว์ประตูทันที (static gate — ปลอดภัยแม้ไฟล์อื่นโหลดไม่ครบ)
    มีเซสชัน = สลับเข้า slot ของบัญชีนั้นก่อน render (auth.js โหลดก่อน app.js) แล้วค่อยตรวจคลาวด์ */
-if (Auth.session) {
+if (Auth.shareMode) {
+  document.documentElement.classList.remove("auth-locked");
+  Auth.hideGate();
+} else if (Auth.session) {
   const __cached = loadSlotIntoS(Auth.session.email);
   if (__cached) resetSTo(__cached);
   localStorage.removeItem(STORAGE_KEY); /* ขณะล็อกอิน ข้อมูลอยู่ใน slot ของบัญชีเท่านั้น */
