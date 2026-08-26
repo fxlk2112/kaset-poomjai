@@ -1367,6 +1367,161 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 
 
+/* ==================== Product Passport / QR Traceability ==================== */
+.passport-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--card-border);
+  background:
+    linear-gradient(135deg, rgba(22,163,74,.92), rgba(21,128,61,.92)),
+    radial-gradient(500px 220px at 100% 0, rgba(255,255,255,.2), transparent 60%);
+  color: #fff;
+  padding: 18px;
+  box-shadow: var(--shadow-lg);
+}
+.passport-hero::after {
+  content: "";
+  position: absolute;
+  right: -60px;
+  bottom: -80px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  border: 42px solid rgba(255,255,255,.08);
+  pointer-events: none;
+}
+.passport-hero-main { position: relative; z-index: 1; min-width: 0; }
+.passport-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .72rem;
+  font-weight: 800;
+  color: rgba(255,255,255,.82);
+  text-transform: uppercase;
+}
+.passport-eyebrow .ic { width: 1em; height: 1em; }
+.passport-hero h1 {
+  font-size: 1.75rem;
+  line-height: 1.1;
+  margin: 8px 0 6px;
+  letter-spacing: 0;
+}
+.passport-sub { font-size: .82rem; color: rgba(255,255,255,.84); }
+.passport-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+.passport-qr {
+  position: relative;
+  z-index: 1;
+  justify-self: start;
+  width: 132px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.96);
+  color: var(--green-deep);
+  padding: 8px;
+  text-align: center;
+  font-size: .64rem;
+  font-weight: 800;
+  box-shadow: 0 12px 30px rgba(0,0,0,.16);
+}
+.passport-qr img,
+.passport-share-box img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border-radius: 9px;
+}
+.passport-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 12px 0;
+}
+.passport-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0 14px;
+}
+.passport-stat {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  box-shadow: var(--shadow);
+}
+.passport-stat .lb {
+  font-size: .66rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+.passport-stat .vl {
+  margin-top: 2px;
+  font-size: .96rem;
+  font-weight: 800;
+  color: var(--text);
+}
+.passport-note { border-style: dashed; }
+.passport-share-box {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  background: var(--green-soft);
+  border: 1px solid var(--green-light);
+  border-radius: 14px;
+  padding: 12px;
+  margin: 12px 0;
+}
+.passport-share-box img {
+  background: #fff;
+  padding: 8px;
+  border: 1px solid var(--line);
+}
+.share-actions { flex-wrap: wrap; }
+.share-actions .btn { min-width: 128px; }
+@media (min-width: 640px) {
+  .passport-hero { grid-template-columns: minmax(0, 1fr) 156px; align-items: center; }
+  .passport-qr { width: 156px; justify-self: end; }
+  .passport-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media print {
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  #app {
+    max-width: none;
+    min-height: auto;
+  }
+  .topbar,
+  .bottomnav,
+  .fab-dock,
+  .modal-backdrop,
+  .toast,
+  .no-print {
+    display: none !important;
+  }
+  .view {
+    padding: 0 !important;
+  }
+  .card,
+  .passport-stat,
+  .passport-hero {
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+  .passport-hero {
+    color: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
 
 
 /* ==================== Auth Gate (บังคับล็อกอิน) ==================== */
@@ -1627,6 +1782,7 @@ html[data-theme="dark"] .weather-card,
 html[data-theme="dark"] .more-card,
 html[data-theme="dark"] .cal-card,
 html[data-theme="dark"] .receipt,
+html[data-theme="dark"] .passport-stat,
 html[data-theme="dark"] .usage-row,
 html[data-theme="dark"] .fab-item,
 html[data-theme="dark"] .year-nav-btn,
@@ -1672,6 +1828,9 @@ html[data-theme="dark"] .receipt-table td { border-color: var(--card-border); }
 html[data-theme="dark"] .receipt-table th { background: var(--green-soft); color: #86efac; }
 
 html[data-theme="dark"] .hero { background: linear-gradient(135deg, var(--card) 0%, #12291d 60%, var(--green-light) 100%); }
+html[data-theme="dark"] .passport-hero { background: linear-gradient(135deg, #0b3d20 0%, #0f5130 62%, #123522 100%); border-color: rgba(134,239,172,.18); }
+html[data-theme="dark"] .passport-qr { background: rgba(230,239,233,.96); color: #14532d; }
+html[data-theme="dark"] .passport-share-box { background: var(--soft); border-color: var(--card-border); }
 html[data-theme="dark"] .hero-progress { background: rgba(255,255,255,.05); border-color: var(--card-border); }
 html[data-theme="dark"] .chip { background: var(--soft); border-color: var(--card-border); color: #86efac; box-shadow: none; }
 html[data-theme="dark"] .chip:hover { background: var(--green-light); border-color: rgba(134,239,172,.32); }

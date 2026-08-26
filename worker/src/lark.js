@@ -394,12 +394,12 @@ async function doShareGet(env, p) {
         note: t.note || "", cost: Number(t.cost) || 0, revenue: Number(t.revenue) || 0,
         qty: Number(t.qty) || 0, unit: t.unit || "", harvestQty: Number(t.harvestQty) || 0,
         costItems: (t.costItems || []).slice(0, 8).map(it => ({
-          name: it.name || "", qty: Number(it.qty) || 0, unit: it.unit || "", totalCost: Number(it.totalCost) || 0
+          name: it.name || "", category: it.category || "", qty: Number(it.qty) || 0, unit: it.unit || "", totalCost: Number(it.totalCost) || 0
         }))
       }));
     let revenue = 0, cost = 0;
     (state.tasks || []).forEach(t => {
-      if (targetCycle ? t.cycleId === targetCycle.id : t.plotId === target.id) {
+      if ((t.status || "") === "done" && (targetCycle ? t.cycleId === targetCycle.id : t.plotId === target.id)) {
         revenue += Number(t.revenue) || 0; cost += Number(t.cost) || 0;
       }
     });

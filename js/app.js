@@ -129,6 +129,8 @@ const ICONS = {
   down: '<line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>',
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
   upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  qr: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h2v2h-2z"/><path d="M19 14h2v2h-2z"/><path d="M14 19h2v2h-2z"/><path d="M18 18h3v3h-3z"/>',
+  printer: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
   camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
   alert: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
@@ -1233,7 +1235,7 @@ function renderCycleDetail() {
       </div>
       <div class="actions-row">
         ${c.status === "active" ? `<button class="btn btn-sm btn-primary" onclick="App.modalTask(todayISO(), { cycleId: '${c.id}' })">${ic("plus")} เพิ่มกิจกรรม</button>` : ""}
-        <button class="btn btn-sm btn-outline" onclick="App.openShareLink('${c.plotId}', '${c.id}')">${ic("user")} แชร์พืชนี้</button>
+        <button class="btn btn-sm btn-outline" onclick="App.openShareLink('${c.plotId}', '${c.id}')">${ic("qr")} QR Passport</button>
         <button class="btn btn-sm btn-ghost" onclick="App.modalCycle('${c.plotId}', '${c.id}')">${ic("pencil")} แก้ไขรอบ</button>
         ${c.status === "active" ? `<button class="btn btn-sm btn-ghost" onclick="App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : `<button class="btn btn-sm btn-outline" onclick="App.reopenCycle('${c.id}')">${ic("refresh")} เปิดรอบการปลูกอีกครั้ง</button>`}
       </div>
@@ -2036,6 +2038,67 @@ App.mountRakaWidget = function () {
 };
 
 /* ---------------- โหมดแชร์: หน้าดูแปลงแบบ read-only + คอมเมนต์ ---------------- */
+function qrImageUrl(link, size) {
+  const s = Number(size) || 220;
+  return "https://api.qrserver.com/v1/create-qr-code/?size=" + s + "x" + s + "&margin=12&data=" + encodeURIComponent(link);
+}
+function passportMetrics(d) {
+  const tasks = d.tasks || [];
+  const done = tasks.filter(t => t.status === "done");
+  const dates = tasks.map(t => t.date).filter(Boolean).sort();
+  const inputs = {};
+  let harvestKg = 0, inputCost = 0;
+  tasks.forEach(t => {
+    if (t.status !== "done") return;
+    if (t.harvestQty) harvestKg += Number(t.harvestQty) || 0;
+    else if (t.type === "harvest" && t.qty) harvestKg += Number(t.qty) || 0;
+    (t.costItems || []).forEach(it => {
+      const name = String(it.name || "").trim();
+      if (!name) return;
+      const unit = String(it.unit || "").trim();
+      const key = name + "|" + unit;
+      if (!inputs[key]) inputs[key] = { name, unit, qty: 0, cost: 0, category: it.category || "" };
+      inputs[key].qty += Number(it.qty) || 0;
+      inputs[key].cost += Number(it.totalCost) || 0;
+      inputCost += Number(it.totalCost) || 0;
+    });
+  });
+  const typeCounts = {};
+  done.forEach(t => {
+    const k = t.type || "work";
+    typeCounts[k] = (typeCounts[k] || 0) + 1;
+  });
+  const typeRows = Object.entries(typeCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, count]) => ({ type, count, label: TYPE_LABELS[type] || type || "กิจกรรม" }));
+  const inputRows = Object.values(inputs).sort((a, b) => b.cost - a.cost).slice(0, 8);
+  return {
+    totalTasks: tasks.length,
+    doneTasks: done.length,
+    plannedTasks: tasks.length - done.length,
+    harvestKg,
+    inputCost,
+    firstDate: dates[0] || "",
+    lastDate: dates[dates.length - 1] || "",
+    typeRows,
+    inputRows
+  };
+}
+function passportMiniStats(d, m) {
+  const f = d.finance || { revenue: 0, cost: 0, net: 0 };
+  const shareCycle = d.cycle || null;
+  const age = shareCycle && shareCycle.startDate ? ageDays(shareCycle.startDate) : 0;
+  const perRaiCost = d.plot && d.plot.sizeRai > 0 ? Math.round(f.cost / d.plot.sizeRai) : 0;
+  const perKgCost = m.harvestKg > 0 ? Math.round(f.cost / m.harvestKg) : 0;
+  return [
+    { label: "อายุรอบปลูก", value: shareCycle ? age + " วัน" : (d.cycles || []).length + " รอบ" },
+    { label: "กิจกรรมเสร็จ", value: m.doneTasks + "/" + m.totalTasks },
+    { label: "เก็บเกี่ยวรวม", value: m.harvestKg ? fmtNum(m.harvestKg) + " กก." : "รอบันทึก" },
+    { label: "ต้นทุน/ไร่", value: perRaiCost ? fmtMoney(perRaiCost) + " บ." : "—" },
+    { label: "ต้นทุน/กก.", value: perKgCost ? fmtMoney(perKgCost) + " บ." : "—" },
+    { label: "กำไรสุทธิ", value: fmtMoney(f.net) + " บ.", cls: f.net >= 0 ? "price-trend-up" : "price-trend-down" }
+  ];
+}
 function shareTaskHtml(t) {
   const meta = [];
   meta.push(TYPE_LABELS[t.type] || t.type || "กิจกรรม");
@@ -2090,40 +2153,68 @@ App.loadShareView = async function () {
     const f = d.finance || { revenue: 0, cost: 0, net: 0 };
     const perRai = d.plot.sizeRai > 0 ? Math.round(f.cost / d.plot.sizeRai) : 0;
     const shareCycle = d.cycle || null;
+    const pm = passportMetrics(d);
+    const stats = passportMiniStats(d, pm);
+    const pageLink = location.href;
+    const qr = qrImageUrl(pageLink, 180);
     body = `
+      <div class="passport-hero">
+        <div class="passport-hero-main">
+          <div class="passport-eyebrow">${ic("qr")} Product Passport</div>
+          <h1>${shareCycle ? esc(shareCycle.plant) : esc(d.plot.name)}</h1>
+          <div class="passport-sub">${shareCycle ? `แปลง ${esc(d.plot.name)} · รอบ ${shareCycle.round || "—"} · เริ่ม ${dateLabel(shareCycle.startDate || "")}` : "พาสปอร์ตภาพรวมทั้งแปลง — รวมทุกรอบปลูก"}</div>
+          <div class="passport-badges">
+            ${shareCycle ? (shareCycle.status === "active" ? '<span class="badge badge-green">กำลังปลูก</span>' : '<span class="badge badge-gray">ปิดรอบแล้ว</span>') : (d.plot.status === "active" ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-gray">ว่าง</span>')}
+            <span class="badge badge-blue">บันทึกจากเจ้าของฟาร์ม</span>
+            <span class="badge badge-amber">ดูอย่างเดียว</span>
+          </div>
+        </div>
+        <div class="passport-qr">
+          <img src="${esc(qr)}" alt="QR Product Passport">
+          <div>สแกนเพื่อเปิดหน้านี้</div>
+        </div>
+      </div>
+      <div class="passport-actions no-print">
+        <button class="btn btn-primary" onclick="window.print()">${ic("printer")} พิมพ์/บันทึก PDF</button>
+        <button class="btn btn-outline" onclick="App.copyText(String(location.href))">${ic("save")} คัดลอกลิงก์</button>
+      </div>
+      <div class="passport-stats">
+        ${stats.map(x => `<div class="passport-stat"><div class="lb">${esc(x.label)}</div><div class="vl ${x.cls || ""}">${esc(x.value)}</div></div>`).join("")}
+      </div>
+      <div class="section-title">สรุปผลผลิตและต้นทุน</div>
       <div class="card">
-        <div class="plot-top">
-          <div class="plot-emoji">${ic("leaf")}</div>
-          <div class="grow">
-            <div class="plot-name">${shareCycle ? esc(shareCycle.plant) : esc(d.plot.name)} ${shareCycle ? `<span class="badge badge-blue">รอบ ${shareCycle.round || "—"}</span>` : (d.plot.status === "active" ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-gray">ว่าง</span>')}</div>
-            <div class="muted" style="font-size:.72rem">${shareCycle ? `แปลง ${esc(d.plot.name)} · แชร์เฉพาะพืช/รอบปลูกนี้` : "แชร์ทั้งแปลง — รวมทุกรอบปลูกของแปลงนี้"}</div>
-          </div>
-        </div>
-        <div class="meta-grid">
-          <div class="meta-box"><div class="lb">ขนาดพื้นที่</div><div class="vl">${fmtNum(d.plot.sizeRai)} ไร่</div></div>
-          <div class="meta-box"><div class="lb">${shareCycle ? "วันเริ่มปลูก" : "รอบปลูก"}</div><div class="vl">${shareCycle ? esc(shareCycle.startDate || "—") : d.cycles.length + " รอบ"}</div></div>
-          <div class="meta-box"><div class="lb">กิจกรรม</div><div class="vl">${d.tasks.length} งาน</div></div>
-        </div>
+        <div class="row row-between"><span class="muted">ขนาดพื้นที่</span><span class="bold">${fmtNum(d.plot.sizeRai)} ไร่</span></div>
+        <div class="row row-between mt-4"><span class="muted">รายได้รวม</span><span class="bold price-trend-up">${fmtMoney(f.revenue)} บาท</span></div>
+        <div class="row row-between mt-4"><span class="muted">ต้นทุนรวม</span><span class="bold price-trend-down">${fmtMoney(f.cost)} บาท</span></div>
+        <div class="divider"></div>
+        <div class="row row-between"><span class="bold">กำไรสุทธิ</span><span class="bold ${f.net >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(f.net)} บาท</span></div>
+        <div class="muted mt-8" style="font-size:.72rem">ช่วงบันทึก ${pm.firstDate ? dateLabel(pm.firstDate) : "—"} ถึง ${pm.lastDate ? dateLabel(pm.lastDate) : "—"}${perRai ? ` · ต้นทุน ${fmtMoney(perRai)} บ./ไร่` : ""}</div>
       </div>
-      <div class="section-title">กำไร/ขาดทุน</div>
-      <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none">
-        <div class="row row-between">
-          <div>
-            <div style="font-size:.75rem;opacity:.85">กำไรสุทธิ (รวมทุกรอบ)</div>
-            <div class="bold" style="font-size:1.4rem">${fmtMoney(f.net)} บาท</div>
-            <div style="font-size:.7rem;opacity:.85">รายได้ ${fmtMoney(f.revenue)} · ต้นทุน ${fmtMoney(f.cost)}${d.plot.sizeRai > 0 ? ` · ต้นทุน ${fmtMoney(perRai)} บ./ไร่` : ""}</div>
-          </div>
-        </div>
+      <div class="section-title">บันทึกการปฏิบัติงาน</div>
+      <div class="card">
+        ${pm.typeRows.length ? pm.typeRows.map(x => `
+          <div class="row-line"><span class="task-ico">${ic(TYPE_ICONS[x.type] || "check")}</span><div class="grow"><div class="bold" style="font-size:.84rem">${esc(x.label)}</div><div class="muted" style="font-size:.7rem">กิจกรรมที่ทำเสร็จแล้ว</div></div><span class="badge badge-green">${x.count} ครั้ง</span></div>
+        `).join("") : '<div class="muted" style="text-align:center;padding:8px;font-size:.8rem">ยังไม่มีงานที่ติ๊กเสร็จ</div>'}
       </div>
-      <div class="section-title">${shareCycle ? "รายละเอียดพืชปลูก" : "รอบการปลูก"}</div>
+      <div class="section-title">วัสดุ/ปัจจัยผลิตที่บันทึกไว้</div>
+      <div class="card">
+        ${pm.inputRows.length ? pm.inputRows.map(x => `
+          <div class="row-line"><span class="task-ico">${ic(x.category === "chemical" ? "spray" : x.category === "fertilizer" ? "leaf" : "box")}</span><div class="grow"><div class="bold" style="font-size:.84rem">${esc(x.name)}</div><div class="muted" style="font-size:.7rem">${x.qty ? fmtNum(x.qty) + (x.unit ? " " + esc(x.unit) : "") : "มีบันทึกต้นทุน"}</div></div><span class="bold" style="font-size:.8rem">${fmtMoney(x.cost)} บ.</span></div>
+        `).join("") : '<div class="muted" style="text-align:center;padding:8px;font-size:.8rem">ยังไม่มีรายการวัสดุในรอบนี้</div>'}
+      </div>
+      <div class="section-title">ข้อมูลรอบปลูก</div>
       <div class="card">
         ${d.cycles.length === 0 ? '<div class="muted" style="text-align:center;padding:8px;font-size:.8rem">ยังไม่มีรอบปลูก</div>' : d.cycles.map(c => `
-        <div class="row-line"><span class="task-ico">${ic("leaf")}</span><div class="grow"><div class="bold" style="font-size:.84rem">${esc(c.plant)}</div><div class="muted" style="font-size:.7rem">เริ่ม ${esc(c.startDate)} · รอบ ${c.round || "-"}</div></div>${c.status === "active" ? '<span class="badge badge-green">กำลังปลูก</span>' : '<span class="badge badge-gray">ปิดแล้ว</span>'}</div>`).join("")}
+        <div class="row-line"><span class="task-ico">${ic("leaf")}</span><div class="grow"><div class="bold" style="font-size:.84rem">${esc(c.plant)}</div><div class="muted" style="font-size:.7rem">เริ่ม ${dateLabel(c.startDate || "")} · รอบ ${c.round || "-"}</div></div>${c.status === "active" ? '<span class="badge badge-green">กำลังปลูก</span>' : '<span class="badge badge-gray">ปิดแล้ว</span>'}</div>`).join("")}
       </div>
-      <div class="section-title">${shareCycle ? "กิจกรรมของพืชนี้" : "กิจกรรมล่าสุด"}</div>
+      <div class="section-title">${shareCycle ? "ไทม์ไลน์กิจกรรมของพืชนี้" : "กิจกรรมล่าสุด"}</div>
       <div class="card">
         ${d.tasks.length === 0 ? '<div class="muted" style="text-align:center;padding:8px;font-size:.8rem">ยังไม่มีบันทึก</div>' : d.tasks.map(t => `
         ${shareTaskHtml(t)}`).join("")}
+      </div>
+      <div class="card passport-note">
+        <div class="bold">${ic("info")} หมายเหตุความน่าเชื่อถือ</div>
+        <div class="muted mt-4" style="font-size:.74rem">ข้อมูลนี้มาจากบันทึกของเจ้าของฟาร์มในระบบ FARMULTIMATE SOLUTIONS เพื่อใช้ประกอบการตรวจสอบย้อนกลับ ไม่ใช่ใบรับรองมาตรฐานจากหน่วยงานรัฐโดยตรง</div>
       </div>`;
   } else {
     body = `
@@ -2135,10 +2226,10 @@ App.loadShareView = async function () {
   const comments = (d.comments || []).map(cm => `
     <div class="row-line"><span class="task-ico">${ic("user")}</span><div class="grow"><div class="bold" style="font-size:.8rem">${esc(cm.name)}</div><div class="muted" style="font-size:.74rem">${esc(cm.text)}</div></div><span class="muted" style="font-size:.66rem">${new Date(Number(cm.created_at)).toLocaleDateString("th-TH")}</span></div>`).join("");
   v.innerHTML = `
-    <div class="hero" style="margin-bottom:12px"><div class="hero-row"><div><div class="hero-greet">FARMULTIMATE SOLUTIONS</div><div class="hero-sub">หน้าแชร์สำหรับผู้เยี่ยมชม — ดูอย่างเดียว</div></div></div></div>
+    <div class="hero no-print" style="margin-bottom:12px"><div class="hero-row"><div><div class="hero-greet">FARMULTIMATE SOLUTIONS</div><div class="hero-sub">Product Passport / หน้าแชร์สำหรับผู้เยี่ยมชม</div></div></div></div>
     ${body}
-    <div class="section-title">คอมเมนต์ (${(d.comments || []).length})</div>
-    <div class="card">
+    <div class="section-title no-print">คอมเมนต์ (${(d.comments || []).length})</div>
+    <div class="card no-print">
       <div class="field"><label>ชื่อ</label><input id="sc_name" placeholder="ชื่อของคุณ (ไม่บังคับ)"></div>
       <div class="field"><label>คอมเมนต์</label><textarea id="sc_text" rows="2" placeholder="แสดงความคิดเห็น/ถาม-ตอบเจ้าของแปลง"></textarea></div>
       <button class="btn btn-primary btn-block" onclick="App.shareCommentSubmit()">${ic("check")} ส่งคอมเมนต์</button>
@@ -2181,7 +2272,7 @@ App.modalShare = async function (plotId) {
         return `<div class="row-line">
           <span class="task-ico">${ic("leaf")}</span>
           <div class="grow"><div class="bold" style="font-size:.84rem">${esc(c.plant)} <span class="badge badge-blue">รอบ ${c.round || "—"}</span></div><div class="muted" style="font-size:.72rem">เริ่ม ${esc(c.startDate)} · ${S.tasks.filter(t => t.cycleId === c.id).length} กิจกรรม${f ? ` · คอมเมนต์ ${f.comments || 0}` : ""}</div></div>
-          <button class="btn btn-sm btn-primary" onclick="App.openShareLink('${plotId}', '${c.id}')">${ic("user")} แชร์พืชนี้</button>
+          <button class="btn btn-sm btn-primary" onclick="App.openShareLink('${plotId}', '${c.id}')">${ic("qr")} QR Passport</button>
         </div>`;
       }).join("") : `<div class="muted" style="text-align:center;padding:10px">ยังไม่มีรอบปลูกให้แชร์แบบแยกพืช</div>`}
     </div>
@@ -2200,13 +2291,22 @@ App.openShareLink = async function (plotId, cycleId) {
   }
   const c = cycleId ? cycleById(S, cycleId) : null;
   const link = location.origin + "/?share=" + token;
+  const qr = qrImageUrl(link, 220);
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
-    <h3>${ic("user")} ${c ? "แชร์พืช/รอบปลูกนี้" : "แชร์แปลงนี้"}</h3>
-    <div class="modal-sub">${c ? `ลิงก์นี้เห็นเฉพาะ <b>${esc(c.plant)}</b> รอบ ${c.round || "—"} และกิจกรรมของรอบนี้` : "ลิงก์นี้เห็นทั้งแปลง รวมทุกรอบปลูก"} · ดูได้อย่างเดียวและคอมเมนต์ได้ · คอมเมนต์ปัจจุบัน ${comments} รายการ</div>
+    <h3>${ic("qr")} ${c ? "QR Product Passport" : "ลิงก์แชร์แปลง"}</h3>
+    <div class="modal-sub">${c ? `สแกนแล้วเห็นเฉพาะ <b>${esc(c.plant)}</b> รอบ ${c.round || "—"} พร้อมกิจกรรม ผลผลิต ต้นทุน และวัสดุที่ใช้` : "ลิงก์นี้เห็นทั้งแปลง รวมทุกรอบปลูก"} · ดูได้อย่างเดียวและคอมเมนต์ได้ · คอมเมนต์ปัจจุบัน ${comments} รายการ</div>
+    <div class="passport-share-box">
+      <img src="${esc(qr)}" alt="QR Product Passport">
+      <div>
+        <div class="bold">${c ? esc(c.plant) : "แชร์แปลง"}</div>
+        <div class="muted" style="font-size:.74rem">${c ? "ใช้พิมพ์ติดผลผลิต/กล่อง/เอกสารส่งของได้" : "ใช้ส่งให้ผู้เยี่ยมชมดูข้อมูลแปลง"}</div>
+      </div>
+    </div>
     <div class="field"><label>ลิงก์แชร์</label><input readonly value="${esc(link)}" onclick="this.select()" class="soft-bg" style="font-size:.78rem"></div>
-    <div class="modal-actions">
+    <div class="modal-actions share-actions">
       <button class="btn btn-primary" onclick="App.copyText('${esc(link)}')">${ic("save")} คัดลอกลิงก์</button>
+      <button class="btn btn-outline" onclick="window.open('${esc(link)}','_blank')">${ic("eye")} เปิดดู</button>
       <button class="btn btn-danger-soft" onclick="App.shareRevoke('${esc(token)}')">${ic("trash")} ยกเลิกลิงก์</button>
       <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
     </div>`);
