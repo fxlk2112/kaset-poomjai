@@ -1891,3 +1891,36 @@ html[data-theme="dark"] .task-ico.harvest { background: #3a2610; }
 html[data-theme="dark"] .task-ico.expense { background: #381515; }
 html[data-theme="dark"] .task-ico.spray { background: #2c1a45; }
 html[data-theme="dark"] .soft-bg { background: var(--soft); }
+
+/* ===== การ์ดเทียบหลายสถานีพยากรณ์อากาศ (wx-table) ===== */
+.wx-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.wx-table { width: 100%; border-collapse: collapse; font-size: .72rem; }
+.wx-table th { font-size: .68rem; color: var(--muted, #6b7280); font-weight: 700; text-align: center; padding: 6px 4px; border-bottom: 1.5px solid var(--line, #e5e7eb); white-space: nowrap; }
+.wx-table td { padding: 8px 4px; text-align: center; border-bottom: 1px solid var(--line, #e5e7eb); vertical-align: top; }
+.wx-table tbody tr:last-child td { border-bottom: none; }
+.wx-table td.wx-src { text-align: left; font-weight: 700; white-space: nowrap; font-size: .72rem; padding-right: 8px; }
+.wx-mm { font-weight: 800; font-size: .78rem; color: #334155; }
+.wx-mm.wx-wet { color: #0369a1; }
+.wx-prob { font-size: .66rem; color: #0284c7; margin-top: 2px; }
+.wx-t { font-size: .68rem; color: #b45309; margin-top: 2px; }
+.wx-verdict { margin-top: 4px; }
+.wx-verdict .badge { font-size: .6rem; padding: 2px 6px; }
+.wx-consensus td { background: rgba(22, 163, 74, .07); border-top: 2px solid var(--green, #16a34a); }
+.wx-consensus .wx-src { color: var(--green, #16a34a); }
+html[data-theme="dark"] .wx-table th { color: #9ab7a6; border-color: rgba(134, 239, 172, .18); }
+html[data-theme="dark"] .wx-table td { border-color: rgba(134, 239, 172, .12); }
+html[data-theme="dark"] .wx-mm { color: #e2e8f0; }
+html[data-theme="dark"] .wx-mm.wx-wet { color: #7dd3fc; }
+html[data-theme="dark"] .wx-prob { color: #7dd3fc; }
+html[data-theme="dark"] .wx-t { color: #fcd34d; }
+html[data-theme="dark"] .wx-consensus td { background: rgba(22, 163, 74, .14); }
+html[data-theme="dark"] .adv-banner.adv-warn { background: #3a2e07; color: #fde68a; }
+html[data-theme="dark"] .adv-banner.adv-danger { background: #3f1d1d; color: #fecaca; }
+html[data-theme="dark"] .adv-banner.adv-info { background: #17254a; color: #bfdbfe; }
+
+/* แบนเนอร์คำเตือนสภาพอากาศเชิงปฏิบัติการ */
+.adv-banner { display: flex; gap: 8px; align-items: flex-start; font-size: .74rem; font-weight: 600; border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; line-height: 1.55; }
+.adv-banner:last-child { margin-bottom: 0; }
+.adv-banner.adv-warn { background: #fef9c3; color: #854d0e; }
+.adv-banner.adv-danger { background: #fee2e2; color: #991b1b; }
+.adv-banner.adv-info { background: #dbeafe; color: #1e40af; }

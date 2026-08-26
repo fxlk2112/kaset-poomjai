@@ -345,7 +345,7 @@ function render() {
 
   // keep route valid for role (sub-views group under their parent nav item)
   const keys = visibleNav().map(n => n.key);
-  const VIEW_GROUP = { equipment: "more", iot: "more", settings: "more", prices: "more", plotDetail: "plots", cycleDetail: "plots" };
+  const VIEW_GROUP = { equipment: "more", iot: "more", settings: "more", prices: "more", weather: "plots", plotDetail: "plots", cycleDetail: "plots" };
   const navKey = VIEW_GROUP[route.view] || route.view;
   if (!keys.includes(navKey)) {
     route.view = keys.includes("home") ? "home" : keys[0];
@@ -366,7 +366,7 @@ function render() {
     planner: renderPlanner, analytics: renderAnalytics, more: renderMore,
     equipment: renderEquipment, iot: renderIoT, settings: renderSettings,
     plotDetail: renderPlotDetail, cycleDetail: renderCycleDetail,
-    prices: renderPrices
+    prices: renderPrices, weather: renderWeather
   };
   const viewChanged = lastView !== route.view;
   lastView = route.view;
@@ -374,8 +374,8 @@ function render() {
   /* ปิดแอนิเมชันตอน re-render ในหน้าเดิม (กันกระพริบ) */
   v.classList.toggle("no-anim", !viewChanged);
   v.innerHTML = (views[route.view] || renderHome)();
-  /* หลังวาดหน้า — ดึงสภาพอากาศของแปลง (เฉพาะหน้ารายละเอียดแปลง) */
-  if (route.view === "plotDetail") renderPlotWeather();
+  /* หลังวาดหน้า — ดึงสภาพอากาศของแปลง (หน้าแปลงไม่มีการ์ดอากาศแล้ว — ดึงเฉพาะหน้าสภาพอากาศ) */
+  if (route.view === "weather") renderPlotWeather();
   /* หน้าระบบน้ำ: ดึงโน้ตล่าสุดจากเซิร์ฟเวอร์ (ข้ามรอบเพราะฝน ฯลฯ) */
   if (route.view === "iot" && typeof App.waterPullStatus === "function") App.waterPullStatus();
   /* หน้าราคาตลาด: ฝังวิดเจ็ตราคารายวัน */
@@ -885,14 +885,144 @@ function weatherCacheSave() {
 }
 let WEATHER_CACHE = weatherCacheLoad();
 /* การ์ดสภาพอากาศของแปลง — แสดง loading ก่อน แล้ว renderPlotWeather() ไปดึงข้อมูลจริงมาเติม */
+/* การ์ดสภาพอากาศในหน้าแปลง — เหลือแค่การ์ดทางเข้าเล็ก ๆ กดแล้วเปิดหน้าสภาพอากาศแยก (เทียบ 5 สถานี) */
 function plotWeatherCard(p) {
-  const hasCoords = p && Number(p.lat) && Number(p.lng);
   return `
-    <div class="section-title">สภาพอากาศแปลงนี้ <span class="muted" style="font-size:.72rem;font-weight:600">จากพิกัด GPS</span></div>
-    <div class="card weather-card" id="weatherCard">
-      ${hasCoords ? `<div class="weather-loading">${ic("pin")} กำลังดึงสภาพอากาศของ ${esc(p.name)}...</div>`
-        : `<div class="weather-note">${ic("pin")} ยังไม่มีพิกัด GPS ของแปลงนี้ — กด "แก้ไขแปลง" แล้วปักหมุด เพื่อดูสภาพอากาศ</div>`}
-    </div>`;
+    <div class="section-title">สภาพอากาศ</div>
+    <button class="card wx-entry" onclick="App.openWeather('${p.id}')" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer">
+      <div class="row" style="align-items:center;gap:10px">
+        <span style="font-size:1.6rem">📡</span>
+        <div class="grow">
+          <div class="bold" style="font-size:.88rem">เทียบ 5 สถานีพยากรณ์${Number(p.lat) && Number(p.lng) ? "" : " (ยังไม่ปักพิกัด GPS)"}</div>
+          <div class="muted" style="font-size:.72rem">Open-Meteo · ECMWF · GFS · ICON · MET Norway — กดเพื่อดู</div>
+        </div>
+        <span class="muted" style="font-size:1.2rem">›</span>
+      </div>
+    </button>`;
+}
+
+/* ---------------- หน้าสภาพอากาศ (แยกจากหน้าแปลง) ---------------- */
+/* เข้าจาก: การ์ดทางเข้าในหน้าแปลง / เมนู "เพิ่มเติม" — แสดงเทียบ 5 สถานี + รายละเอียด 7 วัน + คำเตือน */
+function renderWeather() {
+  const plots = S.plots.filter(p => Number(p.lat) && Number(p.lng));
+  let p = plotById(S, route.plotId);
+  if (!p || !(Number(p.lat) && Number(p.lng))) p = plots[0] || null;
+  if (p) route.plotId = p.id;
+  return `
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn btn-sm btn-ghost" onclick="${route.plotId ? `App.openPlot('${route.plotId}')` : "App.nav('plots')"}">← กลับ</button>
+    </div>
+    <div class="section-title">${ic("droplet")} สภาพอากาศ · เทียบ 5 สถานีพยากรณ์</div>
+    ${plots.length === 0 ? `
+      <div class="card"><div class="empty"><div class="e-ico">${ic("pin")}</div><div class="e-title">ยังไม่มีแปลงที่ปักพิกัด GPS</div>
+      <div class="muted">เพิ่มหรือแก้ไขแปลง แล้วปักหมุดพิกัด เพื่อดึงพยากรณ์อากาศรายแปลง</div>
+      <button class="btn btn-primary btn-block mt-8" onclick="App.nav('plots')">${ic("map")} ไปหน้าแปลง</button></div></div>` : `
+      <div class="row" style="gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px">
+        ${plots.map(pl => `<button class="btn btn-sm ${pl.id === route.plotId ? "btn-primary" : "btn-outline"}" style="white-space:nowrap" onclick="App.wxPickPlot('${pl.id}')">${cropEmoji(pl.crop)} ${esc(pl.name)}</button>`).join("")}
+      </div>
+      <div class="card weather-card" id="weatherCompare"><div class="weather-loading">⏳ กำลังดึงพยากรณ์จาก 5 สถานี...</div></div>
+      <div class="card weather-card" id="weatherCard" style="margin-top:10px"><div class="weather-loading">${ic("pin")} กำลังดึงรายละเอียด 7 วัน...</div></div>`}`;
+}
+App.wxPickPlot = function (id) { route.plotId = id; render(); };
+App.openWeather = function (plotId) { route.view = "weather"; if (plotId) route.plotId = plotId; render(); };
+
+/* ---- เทียบหลายสถานีพยากรณ์ (ฟรีทั้งหมด ไม่ใช้คีย์ · ทดสอบ CORS แล้ว) ----
+   1) Open-Meteo best_match (ผสมโมเดลดีที่สุด — มี % ความน่าจะเป็นฝน)
+   2) ECMWF IFS ยุโรป (แม่นสุดในโลก)  3) GFS อเมริกา  4) ICON เยอรมนี — ผ่าน Open-Meteo models=
+   5) MET Norway (Yr.no นอร์เวย์) — อิสระจาก Open-Meteo จริง (hourly → รวมเป็นรายวันเอง) */
+const WX_SOURCES = [
+  { key: "best", name: "Open-Meteo ผสม", flag: "🌍",
+    url: (la, ln) => "https://api.open-meteo.com/v1/forecast?latitude=" + la + "&longitude=" + ln + "&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&forecast_days=3&timezone=auto" },
+  { key: "ecmwf", name: "ECMWF ยุโรป", flag: "🇪🇺",
+    url: (la, ln) => "https://api.open-meteo.com/v1/forecast?latitude=" + la + "&longitude=" + ln + "&models=ecmwf_ifs025&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&forecast_days=3&timezone=auto" },
+  { key: "gfs", name: "GFS อเมริกา", flag: "🇺🇸",
+    url: (la, ln) => "https://api.open-meteo.com/v1/forecast?latitude=" + la + "&longitude=" + ln + "&models=gfs_seamless&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&forecast_days=3&timezone=auto" },
+  { key: "icon", name: "ICON เยอรมนี", flag: "🇩🇪",
+    url: (la, ln) => "https://api.open-meteo.com/v1/forecast?latitude=" + la + "&longitude=" + ln + "&models=icon_seamless&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&forecast_days=3&timezone=auto" },
+  { key: "metno", name: "MET Norway", flag: "🇳🇴", custom: true }
+];
+/* Open-Meteo daily JSON -> [{date, tmax, tmin, mm, prob}] (prob อาจเป็น null ถ้าโมเดลไม่ให้) */
+function parseOmDaily(om) {
+  const d = om && om.daily; if (!d || !d.time) return [];
+  const probs = d.precipitation_probability_max || [];
+  return d.time.slice(0, 3).map((date, i) => ({
+    date,
+    tmax: d.temperature_2m_max[i], tmin: d.temperature_2m_min[i],
+    mm: Number(d.precipitation_sum[i] || 0),
+    prob: probs[i] == null ? null : Number(probs[i])
+  }));
+}
+/* MET Norway compact (hourly, UTC) -> รวมเป็นรายวันตามเวลาไทย (UTC+7 ไม่มี DST) */
+function parseMetNo(mj) {
+  const ts = mj && mj.properties && mj.properties.timeseries; if (!ts) return [];
+  const byDay = {};
+  ts.forEach(e => {
+    const day = new Date(new Date(e.time).getTime() + 7 * 3600e3).toISOString().slice(0, 10);
+    const det = (e.data && e.data.instant && e.data.instant.details) || {};
+    const pr = (e.data.next_1_hours && e.data.next_1_hours.details && e.data.next_1_hours.details.precipitation_amount) ||
+               (e.data.next_6_hours && e.data.next_6_hours.details && e.data.next_6_hours.details.precipitation_amount) || 0;
+    const d = byDay[day] || (byDay[day] = { date: day, tmax: -99, tmin: 99, mm: 0, prob: null });
+    if (det.air_temperature != null) { d.tmax = Math.max(d.tmax, det.air_temperature); d.tmin = Math.min(d.tmin, det.air_temperature); }
+    d.mm += Number(pr || 0);
+  });
+  return Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3)
+    .map(d => ({ ...d, mm: Math.round(d.mm * 10) / 10, tmax: Math.round(d.tmax), tmin: Math.round(d.tmin) }));
+}
+/* ดึงข้อมูลสถานีเดียว (แคช 30 นาทีต่อสถานี) -> [{date,tmax,tmin,mm,prob}] */
+function wxSourceDays(p, src) {
+  const key = p.id + "|" + p.lat + "," + p.lng + "|" + src.key;
+  const hit = WEATHER_CACHE[key];
+  if (hit && Date.now() - hit.t < WEATHER_TTL) return Promise.resolve(hit.days);
+  const req = src.custom
+    ? fetch("https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=" + p.lat + "&lon=" + p.lng).then(r => { if (!r.ok) throw new Error("metno " + r.status); return r.json(); }).then(parseMetNo)
+    : fetch(src.url(p.lat, p.lng)).then(r => { if (!r.ok) throw new Error(src.key + " " + r.status); return r.json(); }).then(parseOmDaily);
+  return req.then(days => { if (days && days.length) { WEATHER_CACHE[key] = { t: Date.now(), days }; weatherCacheSave(); } return days; });
+}
+/* การ์ดเทียบ 5 สถานี: ตาราง 3 วันข้างหน้า + แถวฉันทามติ (เฉลี่ยทุกสถานี + กี่สถานีชี้ฝนตก) */
+function renderWeatherCompare(p) {
+  const el = document.getElementById("weatherCompare");
+  if (!el || !Number(p.lat) || !Number(p.lng)) return;
+  Promise.allSettled(WX_SOURCES.map(s => wxSourceDays(p, s).then(days => ({ s, days })))).then(rs => {
+    const ok = rs.filter(r => r.status === "fulfilled" && r.value.days && r.value.days.length).map(r => r.value);
+    if (!ok.length) { el.innerHTML = `<div class="weather-note">${ic("alert")} ดึงข้อมูลสถานีพยากรณ์ไม่ได้ (ตรวจสอบอินเทอร์เน็ต)</div>`; return; }
+    const fmt1 = n => (n == null ? "—" : (Math.round(Number(n) * 10) / 10).toFixed(1).replace(/\.0$/, ""));
+    const cell = (d) => d ? `<div class="wx-mm ${d.mm >= 1 ? "wx-wet" : ""}">💧 ${fmt1(d.mm)} มม.</div>`
+      + (d.prob != null ? `<div class="wx-prob">ฝน ${d.prob}%</div>` : "")
+      + `<div class="wx-t">${d.tmax != null ? fmt1(d.tmax) + "°" : "—"}</div>` : `<div class="wx-t">—</div>`;
+    const dates = ok[0].days.map(d => d.date);
+    const heads = dates.map((dt, i) => i === 0 ? "วันนี้" : i === 1 ? "พรุ่งนี้" : dayNameISO(dt));
+    const rows = ok.map(({ s, days }) => `
+      <tr>
+        <td class="wx-src">${s.flag} ${esc(s.name)}</td>
+        ${dates.map((_, i) => `<td>${cell(days[i])}</td>`).join("")}
+      </tr>`).join("");
+    /* ฉันทามติรายวัน: เฉลี่ย มม. + กี่สถานีชี้ว่าฝนตก (มม. >= 1) */
+    const cons = dates.map((dt, i) => {
+      const vals = ok.map(o => o.days[i]).filter(Boolean);
+      const avgMm = vals.length ? vals.reduce((a, d) => a + d.mm, 0) / vals.length : null;
+      const probs = vals.map(d => d.prob).filter(v => v != null);
+      const avgProb = probs.length ? Math.round(probs.reduce((a, b) => a + b, 0) / probs.length) : null;
+      const wetN = vals.filter(d => d.mm >= 1).length;
+      const verdict = wetN >= Math.ceil(ok.length * 0.8) ? `<span class="badge badge-blue">ฝนชัด ${wetN}/${ok.length} สถานี</span>`
+        : wetN === 0 ? `<span class="badge badge-green">แล้งชัด ${ok.length}/${ok.length} สถานี</span>`
+        : `<span class="badge badge-gray">ไม่แน่นอน ${wetN}/${ok.length} สถานี</span>`;
+      return `<td><div class="wx-mm ${avgMm >= 1 ? "wx-wet" : ""}">💧 ${fmt1(avgMm)} มม.</div>${avgProb != null ? `<div class="wx-prob">ฝน ${avgProb}%</div>` : ""}<div class="wx-verdict">${verdict}</div></td>`;
+    }).join("");
+    const failNote = ok.length < WX_SOURCES.length ? `<div class="weather-updated" style="margin-top:6px">⚠️ ${WX_SOURCES.length - ok.length} สถานีดึงไม่สำเร็จชั่วคราว</div>` : "";
+    el.innerHTML = `
+      <div class="weather-top">
+        <div>
+          <div class="weather-loc">📡 เทียบ ${ok.length} สถานีพยากรณ์ · ${esc(p.name)}</div>
+          <div class="weather-updated">ฝน (มม.) · % ความน่าจะเป็นฝน · อุณหภูมิสูงสุด — อัปเดตทุก 30 นาที</div>
+        </div>
+      </div>
+      <div class="wx-table-wrap"><table class="wx-table">
+        <thead><tr><th></th>${heads.map(h => `<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${rows}
+          <tr class="wx-consensus"><td class="wx-src">🤝 ฉันทามติ</td>${cons}</tr>
+        </tbody>
+      </table></div>${failNote}`;
+  });
 }
 /* รหัสสภาพอากาศ WMO ของ Open-Meteo -> [คำอธิบายไทย, อีโมจิ] */
 const OM_CODES = {
@@ -905,12 +1035,63 @@ const OM_CODES = {
   95: ["พายุฟ้าคะนอง", "⛈️"], 96: ["พายุฟ้าคะนอง + ลูกเห็บ", "⛈️"], 99: ["พายุรุนแรง + ลูกเห็บ", "⛈️"]
 };
 function omCodeInfo(code) { const w = OM_CODES[code]; return w ? w : ["อากาศแปรปรวน", "🌡️"]; }
+/* วันภาษาไทยสั้นจาก ISO date */
+function dayNameISO(iso) { try { return "วัน" + THAI_DAYS[new Date(iso + "T12:00:00").getDay()]; } catch (e) { return ""; } }
+/* คำเตือนสภาพอากาศเชิงปฏิบัติการ — แปลงพยากรณ์เป็นคำแนะนำทำงานจริง:
+   ฝนใน 2 วัน -> เลื่อนพ่นยา/ใส่ปุ๋ย · ลมแรง -> งดฉีด (หยดลอย) · ฝนหนัก -> ระบายน้ำ
+   และเทียบกับงานที่วางไว้ของแปลงนี้ (ฉีดยา/ใส่ปุ๋ย/เก็บเกี่ยว) ว่าชนกับฝนไหม */
+function weatherAdvisoryHtml(p, c, d) {
+  const out = [];
+  const probs = d.precipitation_probability_max || [], sums = d.precipitation_sum || [];
+  const push = (cls, icon, msg) => out.push(`<div class="adv-banner adv-${cls}"><span>${icon}</span><span>${msg}</span></div>`);
+  /* 1) ฝนโปรย 60%+ ใน 2 วันข้างหน้า -> เลื่อนพ่นยา/ใส่ปุ๋ย */
+  const rainDays = [];
+  for (let i = 1; i <= 2 && i < (d.time || []).length; i++) {
+    const pr = probs[i] == null ? 0 : Number(probs[i]);
+    if (pr >= 60) rainDays.push({ i, pr, name: i === 1 ? "พรุ่งนี้" : dayNameISO(d.time[i]) });
+  }
+  if (rainDays.length) {
+    const best = Math.max(...rainDays.map(r => r.pr));
+    const names = rainDays.map(r => r.name).join(" และ ");
+    push("warn", ic("alert"), `พยากรณ์ฝน ${best}% ${names} — <b>เลื่อนพ่นยา/ใส่ปุ๋ย</b>ไปหลังฝนผ่าน ประหยัดกว่า (ยาไม่ถูกฝนชะ)`);
+  }
+  /* 2) ลมแรงตอนนี้ -> งดฉีดพ่น (หยดลอยเสี่ยง) */
+  const wind = Number(c.wind_speed_10m);
+  if (wind >= 10) {
+    push("danger", "💨", `ลมแรง ${fmtNum(wind)} m/s — <b>งดฉีดพ่นตอนนี้</b> หยดลอยเสี่ยงฟุ้งกระเด็นถึงคน/แปลงข้างเคียง รอลมสงบก่อน`);
+  } else if (wind >= 6) {
+    push("info", "💨", `ลมปานกลาง ${fmtNum(wind)} m/s — ฉีดพ่นได้ แต่ควรฉีด<b>เช้ามืดหรือเย็น</b> ช่วงลมสงบ และฉีดตามทิศลม`);
+  }
+  /* 3) ฝนหนัก >= 30 มม. ใน 2 วัน -> เตรียมระบายน้ำ */
+  for (let i = 1; i <= 2 && i < (d.time || []).length; i++) {
+    const mm = Number(sums[i] || 0);
+    if (mm >= 30) { push("warn", "🌧️", `${dayNameISO(d.time[i])} ฝนหนัก ~${fmtNum(mm)} มม. — เตรียม<b>ระบายน้ำแปลง</b> กันขังเน่า และเก็บอุปกรณ์/ถุงปุ๋ยให้พ้นฝน`); break; }
+  }
+  /* 4) เทียบกับงานที่วางไว้ของแปลงนี้ (3 วันข้างหน้า) */
+  const upcoming = S.tasks.filter(t => t.plotId === p.id && t.status === "planned" && t.date &&
+    t.date >= todayISO() && t.date <= addDaysISO(todayISO(), 2));
+  upcoming.forEach(t => {
+    const idx = (d.time || []).indexOf(t.date);
+    if (idx < 0 || idx > 2) return;
+    const pr = probs[idx] == null ? 0 : Number(probs[idx]);
+    const name = esc((t.title || TYPE_LABELS[t.type] || "งาน").slice(0, 40));
+    if ((t.type === "spray" || t.type === "fertilize") && pr >= 50) {
+      push("warn", ic("spray"), `งาน"${name}" (${dayNameISO(t.date)}) เสี่ยงโดนฝน ${pr}% — พิจารณา<b>เลื่อนวัน</b>หรือทำให้เสร็จก่อนฝนตก`);
+    } else if (t.type === "harvest" && (pr >= 50 || Number(sums[idx] || 0) >= 10)) {
+      push("danger", ic("box"), `กำหนด<b>เก็บเกี่ยว</b>วัน${dayNameISO(t.date)} แต่มีฝน ${pr}% (~${fmtNum(sums[idx] || 0)} มม.) — ถ้าผลผลิตพร้อม<b>รีบเก็บก่อนฝน</b> คุณภาพดีกว่า`);
+    }
+  });
+  return out.join("");
+}
+
 /* ดึงข้อมูลจาก Open-Meteo (ECMWF IFS — แบบจำลองที่แม่นที่สุดในโลก) แล้วเติมลงการ์ด (แคช 30 นาที ตามพิกัด) */
 function renderPlotWeather() {
   const el = document.getElementById("weatherCard");
   if (!el) return;
   const p = plotById(S, route.plotId);
-  if (!p || !Number(p.lat) || !Number(p.lng)) return;
+  if (!p) return;
+  renderWeatherCompare(p); /* การ์ดเทียบหลายสถานี — ดึงขนานกันเอง */
+  if (!Number(p.lat) || !Number(p.lng)) return;
   const ckey = p.id + "|" + p.lat + "," + p.lng;
   const hit = WEATHER_CACHE[ckey];
   if (hit && Date.now() - hit.t < WEATHER_TTL) { el.innerHTML = hit.html; fillWeatherAddress(p); return; }
@@ -961,17 +1142,7 @@ function renderPlotWeather() {
         <span>🌧️ ฝน ${fmt1(c.precipitation)} มม.</span>
         <span>💨 ลม ${fmt1(c.wind_speed_10m)} m/s</span>
       </div>
-      ${(() => {
-        const probs = d.precipitation_probability_max || [];
-        for (let i = 1; i <= 2 && i < (d.time || []).length; i++) {
-          const pr = probs[i] == null ? 0 : Number(probs[i]);
-          if (pr >= 60) {
-            const dayName = i === 1 ? "พรุ่งนี้" : "วัน" + THAI_DAYS[new Date(d.time[i] + "T12:00:00").getDay()];
-            return `<div class="warn-banner">${ic("alert")} พยากรณ์ฝน ${pr}% ${dayName} — เลื่อนพ่นยา/ใส่ปุ๋ยไปหลังฝนผ่าน ประหยัดกว่า</div>`;
-          }
-        }
-        return "";
-      })()}
+      ${weatherAdvisoryHtml(p, c, d)}
       <div class="weather-days">${days}</div>`;
       WEATHER_CACHE[ckey] = { t: Date.now(), html };
       weatherCacheSave();
@@ -1008,7 +1179,7 @@ function fillWeatherAddress(p) {
 /* รีเฟรชสภาพอากาศอัตโนมัติทุก 10 นาที (จริงๆ อัปเดตทุก 30 นาทีตาม TTL แคช) —
    ขณะอยู่หน้ารายละเอียดแปลง ไม่ต้องกดรีเฟรชเอง และเลขไม่เปลี่ยนทุกครั้งที่รีเฟรช */
 setInterval(() => {
-  if (route.view === "plotDetail" && document.getElementById("weatherCard")) renderPlotWeather();
+  if ((route.view === "weather" || route.view === "plotDetail") && document.getElementById("weatherCard")) renderPlotWeather();
 }, 600000);
 
 /* ---------------- Plot detail ---------------- */
@@ -2692,6 +2863,7 @@ function renderMore() {
     <div class="more-grid">
       <button class="more-card" onclick="App.nav('equipment')"><span class="mc-ico">${ic("truck")}</span><span class="mc-name">จัดการอุปกรณ์</span><span class="mc-desc">เครื่องจักร ค่าเสื่อมราคา ซ่อมบำรุง</span></button>
       <button class="more-card" onclick="App.nav('prices')"><span class="mc-ico">${ic("dollar")}</span><span class="mc-name">ราคาตลาดวันนี้</span><span class="mc-desc">ราคาจริงจาก สศก. + ตลาดไท</span></button>
+      <button class="more-card" onclick="App.openWeather('')"><span class="mc-ico">${ic("droplet")}</span><span class="mc-name">สภาพอากาศ 5 สถานี</span><span class="mc-desc">เทียบพยากรณ์ Open-Meteo · ECMWF · GFS · ICON · MET Norway</span></button>
       <button class="more-card" onclick="App.nav('iot')"><span class="mc-ico">${ic("droplet")}</span><span class="mc-name">ระบบน้ำอัตโนมัติ</span><span class="mc-desc">แยกตามแปลง · ตารางให้น้ำ · บันทึกการให้น้ำ</span></button>
       <button class="more-card" onclick="App.nav('settings')"><span class="mc-ico">${ic("gear")}</span><span class="mc-name">ตั้งค่า</span><span class="mc-desc">ข้อมูลระบบ รีเซ็ต ทัวร์</span></button>
       <button class="more-card" onclick="App.startTour()"><span class="mc-ico">${ic("compass")}</span><span class="mc-name">แนะนำระบบ</span><span class="mc-desc">ทัวร์หน้าจอทีละขั้นตอน</span></button>
