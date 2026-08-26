@@ -43,6 +43,7 @@ The source was resized to `390 x 844` and placed beside the browser-rendered imp
 - Mobile: `390 x 844`; scroll width `390`; no horizontal overflow.
 - Desktop: `1024 x 1000`; centered app width `760`; no horizontal overflow.
 - Canvas evidence: capacity gauge, depth profile, and 24-hour history all produced non-empty pixel output.
+- Capacity gauge uses its actual `58 x 62 CSS px` slot, so the complete base ring and the `13.1%` progress arc remain visible without horizontal scaling.
 - Keyboard focus is visible on the logo navigation button.
 - Logo navigation works and the digital-twin view can be reopened.
 - Local `sensorPreview=1` bypasses the login gate only on `localhost/127.0.0.1`; `auth-locked` is false, the gate is hidden, and no persistent session is stored.

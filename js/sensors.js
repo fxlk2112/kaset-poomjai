@@ -244,9 +244,9 @@
     return out;
   }
 
-  function canvasContext(canvas, cssHeight) {
+  function canvasContext(canvas, cssHeight, minWidth) {
     if (!canvas || typeof window === "undefined") return null;
-    const width = Math.max(220, Math.round(canvas.getBoundingClientRect().width || 320));
+    const width = Math.max(minWidth || 220, Math.round(canvas.getBoundingClientRect().width || 320));
     const height = cssHeight;
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     canvas.width = Math.round(width * dpr);
@@ -261,7 +261,7 @@
 
   function drawGauge() {
     const canvas = typeof document !== "undefined" ? document.getElementById("sensorCapacityGauge") : null;
-    const setup = canvasContext(canvas, 62);
+    const setup = canvasContext(canvas, 62, 48);
     if (!setup) return;
     const { ctx, width, height } = setup;
     const pct = Math.max(0, Math.min(100, Number(canvas.dataset.value) || 0));

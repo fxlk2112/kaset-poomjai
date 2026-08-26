@@ -57,9 +57,9 @@
     "canvases": [
       {
         "id": "sensorCapacityGauge",
-        "width": 220,
+        "width": 58,
         "height": 62,
-        "pixels": 4194
+        "pixels": 3338
       },
       {
         "id": "sensorDepthProfileChart",
