@@ -45,6 +45,7 @@ The source was resized to `390 x 844` and placed beside the browser-rendered imp
 - Canvas evidence: capacity gauge, depth profile, and 24-hour history all produced non-empty pixel output.
 - Keyboard focus is visible on the logo navigation button.
 - Logo navigation works and the digital-twin view can be reopened.
+- Local `sensorPreview=1` bypasses the login gate only on `localhost/127.0.0.1`; `auth-locked` is false, the gate is hidden, and no persistent session is stored.
 - Footer is reachable.
 - Forbidden output text check is false for `เปิดปั๊ม`, `เปิดวาล์ว`, and `สั่งรีเลย์`.
 - Browser console errors: none.

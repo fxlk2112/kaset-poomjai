@@ -18,6 +18,16 @@ function shareTokenFromUrl() {
   catch (e) { return ""; }
 }
 
+function localSensorPreviewFromUrl() {
+  try {
+    const u = new URL(location.href);
+    const localHost = u.hostname === "127.0.0.1" || u.hostname === "localhost";
+    return localHost && u.searchParams.get("sensorPreview") === "1";
+  } catch (e) { return false; }
+}
+
+const LOCAL_SENSOR_PREVIEW = localSensorPreviewFromUrl();
+
 /* โหลดเซสชันค้างไว้จากเครื่องนี้ */
 const Auth = {
   session: null,
@@ -28,6 +38,9 @@ const Auth = {
   _askedThisLoad: false,
 };
 try { Auth.session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) {}
+if (LOCAL_SENSOR_PREVIEW) {
+  Auth.session = { token: "", email: "sensor-preview@local.invalid", name: "Sensor Preview", localPreview: true };
+}
 
 /* ล็อกทันทีตั้งแต่ไฟล์นี้โหลด (ก่อน app.js render) — เครื่องที่ไม่มีเซสชันจะเห็นแต่หน้าล็อกอิน */
 document.documentElement.classList.toggle("auth-locked", !(Auth.session || Auth.shareMode));
@@ -138,12 +151,14 @@ Auth.switchAccount = function () {
 
 /* ---------- sync ---------- */
 Auth.queueSave = function () {
+  if (LOCAL_SENSOR_PREVIEW) return;
   if (!Auth.session || Auth.suppress) return;
   clearTimeout(Auth.timer);
   Auth.timer = setTimeout(() => Auth.saveNow(), 2500);
 };
 
 Auth.saveNow = async function () {
+  if (LOCAL_SENSOR_PREVIEW) return;
   if (!Auth.session || Auth.syncing) return;
   Auth.syncing = true;
   try {
@@ -167,6 +182,7 @@ function applyCloudState(cloudData, updatedAt) {
 
 /* ---------- boot: เช็กคลาวด์ตอนเปิดเว็บ (มีเซสชันค้าง) ---------- */
 Auth.bootCheck = async function () {
+  if (LOCAL_SENSOR_PREVIEW) return;
   if (!Auth.session) { Auth.showGate(); return; }
   try {
     const r = await authCall("load", { token: Auth.session.token });
@@ -277,7 +293,7 @@ App.authRegister = async function () {
 Auth.gateEl = null;
 
 Auth.showGate = function () {
-  if (Auth.shareMode) return;
+  if (LOCAL_SENSOR_PREVIEW || Auth.shareMode) return;
   if (!Auth.gateEl) Auth.gateEl = document.getElementById("authGate");
   if (Auth.gateEl) Auth.gateEl.style.display = "flex";
 };
@@ -623,7 +639,10 @@ App.resetData = function () {
 
 /* เริ่มระบบ: ไม่มีเซสชัน = โชว์ประตูทันที (static gate — ปลอดภัยแม้ไฟล์อื่นโหลดไม่ครบ)
    มีเซสชัน = สลับเข้า slot ของบัญชีนั้นก่อน render (auth.js โหลดก่อน app.js) แล้วค่อยตรวจคลาวด์ */
-if (Auth.shareMode) {
+if (LOCAL_SENSOR_PREVIEW) {
+  document.documentElement.classList.remove("auth-locked");
+  Auth.hideGate();
+} else if (Auth.shareMode) {
   document.documentElement.classList.remove("auth-locked");
   Auth.hideGate();
 } else if (Auth.session) {

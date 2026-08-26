@@ -17,11 +17,7 @@ const consoleErrors = [];
 const pageErrors = [];
 const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
 await page.addInitScript(() => {
-  localStorage.setItem("farmult-session-v1", JSON.stringify({
-    token: "local-visual-qa-only",
-    email: "visual-qa@local.invalid",
-    name: "Visual QA"
-  }));
+  localStorage.removeItem("farmult-session-v1");
   sessionStorage.setItem("kaset-route-v1", JSON.stringify({ view: "iot" }));
 });
 await page.route("**/*", route => {
@@ -79,6 +75,11 @@ const mobileMetrics = await page.evaluate(() => {
   return {
     viewport: { width: innerWidth, height: innerHeight },
     scroll: { width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight },
+    auth: {
+      locked: document.documentElement.classList.contains("auth-locked"),
+      gateDisplay: getComputedStyle(document.getElementById("authGate")).display,
+      persistentSessionPresent: localStorage.getItem("farmult-session-v1") !== null
+    },
     bodyClass: document.body.className,
     digitalTwin: rect(".sensor-digital-twin"),
     header: rect(".digital-header"),
@@ -92,6 +93,10 @@ const mobileMetrics = await page.evaluate(() => {
     canvases
   };
 });
+
+if (mobileMetrics.auth.locked || mobileMetrics.auth.gateDisplay !== "none" || mobileMetrics.auth.persistentSessionPresent) {
+  throw new Error("Local sensor preview must bypass the auth gate without storing a session");
+}
 
 const mobileViewport = path.join(outDir, "implementation-mobile-390x844.png");
 const mobileFull = path.join(outDir, "implementation-mobile-390-full.png");

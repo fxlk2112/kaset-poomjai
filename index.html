@@ -10,7 +10,7 @@
     <meta name="description" content="FARMULTIMATE SOLUTIONS — ระบบจัดการฟาร์มอัจฉริยะ: บันทึกแปลง/รอบปลูก/งาน/เก็บเกี่ยว, สต็อกวัสดุ, ขายพร้อมใบส่งสินค้า, สภาพอากาศรายแปลง — ใช้ได้ทั้งออนไลน์และออฟไลน์">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <script>try{var _shareToken=(new URL(location.href)).searchParams.get("share");if(!_shareToken&&!localStorage.getItem("farmult-session-v1"))document.documentElement.className+=" auth-locked";}catch(e){}</script>
+  <script>try{var _bootUrl=new URL(location.href);var _shareToken=_bootUrl.searchParams.get("share");var _sensorPreview=(_bootUrl.hostname==="127.0.0.1"||_bootUrl.hostname==="localhost")&&_bootUrl.searchParams.get("sensorPreview")==="1";if(!_shareToken&&!_sensorPreview&&!localStorage.getItem("farmult-session-v1"))document.documentElement.className+=" auth-locked";}catch(e){}</script>
   <style>
     /* ===== Auth Gate (self-contained: ไม่พึ่งไฟล์ CSS อื่น) ===== */
     html.auth-locked { background: #0b3d20 url("images/login-smart-farm.png") center/cover fixed no-repeat; min-height:100%; }
@@ -106,7 +106,7 @@
       <div class="auth-hint">ข้อมูลแยกต่อบัญชี ซิงก์ขึ้นคลาวด์อัตโนมัติ · ใช้แบบออฟไลน์ได้หลังล็อกอิน<br><a href="javascript:void(0)" onclick="agHardReload()">หน้าไม่ปกติ? ล้างแคชแล้วโหลดใหม่</a></div>
     </div>
   </div>
-  <script>try{var _shareToken2=(new URL(location.href)).searchParams.get("share");if(!_shareToken2&&!localStorage.getItem("farmult-session-v1")){document.documentElement.className+=" auth-locked";var _ag=document.getElementById("authGate");if(_ag)_ag.style.display="flex";}}catch(e){}</script>
+  <script>try{var _gateUrl=new URL(location.href);var _shareToken2=_gateUrl.searchParams.get("share");var _sensorPreview2=(_gateUrl.hostname==="127.0.0.1"||_gateUrl.hostname==="localhost")&&_gateUrl.searchParams.get("sensorPreview")==="1";if(!_shareToken2&&!_sensorPreview2&&!localStorage.getItem("farmult-session-v1")){document.documentElement.className+=" auth-locked";var _ag=document.getElementById("authGate");if(_ag)_ag.style.display="flex";}}catch(e){}</script>
   <div id="app">
 
     <!-- ====== Top bar ====== -->
@@ -172,7 +172,7 @@
   <script src="js/stock.js?v=20260826p1local"></script>
   <script src="js/sales.js?v=20260826p1local"></script>
   <script src="js/lark.js?v=20260826p1local"></script>
-  <script src="js/auth.js?v=20260826p1local"></script>
+  <script src="js/auth.js?v=20260826preview2"></script>
   <script src="js/sensors.js?v=20260826graphic3d1"></script>
   <script src="js/app.js?v=20260826graphic3d1"></script>
   <!-- ลงทะเบียน Service Worker — เปิดใช้แบบออฟไลน์/ติดตั้งเป็นแอพบนมือถือ (ต้องใช้ผ่าน HTTPS หรือ localhost) -->

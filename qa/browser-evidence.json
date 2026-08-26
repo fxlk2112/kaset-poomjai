@@ -9,6 +9,11 @@
       "width": 390,
       "height": 866
     },
+    "auth": {
+      "locked": false,
+      "gateDisplay": "none",
+      "persistentSessionPresent": false
+    },
     "bodyClass": "view-iot-digital-twin",
     "digitalTwin": {
       "x": 0,
