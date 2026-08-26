@@ -374,8 +374,8 @@ function render() {
   /* ปิดแอนิเมชันตอน re-render ในหน้าเดิม (กันกระพริบ) */
   v.classList.toggle("no-anim", !viewChanged);
   v.innerHTML = (views[route.view] || renderHome)();
-  /* หลังวาดหน้า — ดึงสภาพอากาศของแปลง (หน้าแปลงไม่มีการ์ดอากาศแล้ว — ดึงเฉพาะหน้าสภาพอากาศ) */
-  if (route.view === "weather") renderPlotWeather();
+  /* หลังวาดหน้า — ดึงสภาพอากาศของแปลง (หน้าแปลง + หน้าสภาพอากาศ) */
+  if (route.view === "weather" || route.view === "plotDetail") renderPlotWeather();
   /* หน้าระบบน้ำ: ดึงโน้ตล่าสุดจากเซิร์ฟเวอร์ (ข้ามรอบเพราะฝน ฯลฯ) */
   if (route.view === "iot" && typeof App.waterPullStatus === "function") App.waterPullStatus();
   /* หน้าราคาตลาด: ฝังวิดเจ็ตราคารายวัน */
@@ -885,20 +885,17 @@ function weatherCacheSave() {
 }
 let WEATHER_CACHE = weatherCacheLoad();
 /* การ์ดสภาพอากาศของแปลง — แสดง loading ก่อน แล้ว renderPlotWeather() ไปดึงข้อมูลจริงมาเติม */
-/* การ์ดสภาพอากาศในหน้าแปลง — เหลือแค่การ์ดทางเข้าเล็ก ๆ กดแล้วเปิดหน้าสภาพอากาศแยก (เทียบ 5 สถานี) */
+/* การ์ดสภาพอากาศในหน้าแปลง — โชว์อากาศปัจจุบัน + 7 วันทันที (#weatherCard)
+   พร้อมแถบเสริม "เทียบ 5 สถานี" กดเข้าหน้าเปรียบเทียบเต็มได้ */
 function plotWeatherCard(p) {
+  const hasCoords = p && Number(p.lat) && Number(p.lng);
   return `
-    <div class="section-title">สภาพอากาศ</div>
-    <button class="card wx-entry" onclick="App.openWeather('${p.id}')" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer">
-      <div class="row" style="align-items:center;gap:10px">
-        <span style="font-size:1.6rem">📡</span>
-        <div class="grow">
-          <div class="bold" style="font-size:.88rem">เทียบ 5 สถานีพยากรณ์${Number(p.lat) && Number(p.lng) ? "" : " (ยังไม่ปักพิกัด GPS)"}</div>
-          <div class="muted" style="font-size:.72rem">Open-Meteo · ECMWF · GFS · ICON · MET Norway — กดเพื่อดู</div>
-        </div>
-        <span class="muted" style="font-size:1.2rem">›</span>
-      </div>
-    </button>`;
+    <div class="section-title">สภาพอากาศแปลงนี้ <span class="muted" style="font-size:.72rem;font-weight:600">จากพิกัด GPS</span></div>
+    <div class="card weather-card" id="weatherCard">
+      ${hasCoords ? `<div class="weather-loading">${ic("pin")} กำลังดึงสภาพอากาศของ ${esc(p.name)}...</div>`
+        : `<div class="weather-note">${ic("pin")} ยังไม่มีพิกัด GPS ของแปลงนี้ — กด "แก้ไขแปลง" แล้วปักหมุด เพื่อดูสภาพอากาศ</div>`}
+    </div>
+    ${hasCoords ? `<button class="btn btn-sm btn-outline btn-block mt-8" onclick="App.openWeather('${p.id}')" style="font-size:.76rem">📡 เทียบ 5 สถานีพยากรณ์ <span class="muted" style="font-weight:600">Open-Meteo · ECMWF · GFS · ICON · MET Norway</span> ›</button>` : ""}`;
 }
 
 /* ---------------- หน้าสภาพอากาศ (แยกจากหน้าแปลง) ---------------- */
