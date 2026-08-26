@@ -329,10 +329,14 @@ function render() {
   if (typeof Auth === "undefined" || !Auth.session) {
     const vn = document.getElementById("view");
     const nn = document.getElementById("bottomNav");
+    const fd = document.getElementById("fabDock");
     if (vn) vn.innerHTML = "";
     if (nn) nn.innerHTML = "";
+    if (fd) fd.style.display = "none";
     return;
   }
+  const fd = document.getElementById("fabDock");
+  if (fd) fd.style.display = "";
   // role switch
   const rs = document.getElementById("roleSwitch");
   rs.innerHTML = Object.keys(ROLE_META).map(k =>
@@ -2131,7 +2135,9 @@ function shareTaskHtml(t) {
 App.renderShareView = function () {
   const v = document.getElementById("view");
   const nav = document.getElementById("bottomNav");
+  const fd = document.getElementById("fabDock");
   if (nav) nav.innerHTML = "";
+  if (fd) fd.style.display = "none";
   ["notifBtn", "profileBtn", "tourBtn", "editBtn"].forEach(id => { const b = document.getElementById(id); if (b) b.style.display = "none"; });
   const rs = document.getElementById("roleSwitch");
   if (rs) rs.innerHTML = "";
