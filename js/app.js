@@ -19,6 +19,7 @@ function saveRoute() {
   } catch (e) {}
 }
 let plotTaskCycle = "";   // กรองงาน/กิจกรรมของแปลงตามรอบการปลูก ("" = ทั้งหมด, "__none__" = ไม่มีรอบ)
+let cycTaskFilter = { sort: "new", type: "", status: "", costOnly: false }; // ตัวกรอง/เรียง "งาน/กิจกรรมของรอบนี้" ในหน้ารายละเอียดรอบ
 let collapsedCycles = {}; // หน้ารอบการปลูก: แปลงที่กดย่อไว้ (plotId -> true) กันหน้ายาวเกิน
 let cycleFilter = { q: "", status: "all" }; // ตัวกรองหน้ารอบการปลูก: q=ค้นหา (ชื่อแปลง/พืช), status=all|active|idle
 let cal = { y: new Date().getFullYear(), m: new Date().getMonth(), sel: todayISO() };
@@ -217,9 +218,11 @@ function taskRowHtml(t, opts) {
     meta.push(t.type === "harvest" ? `เก็บได้ ${fmtNum(t.qty)} กก.` : "จำนวน " + fmtNum(t.qty));
   }
   if (t.harvestQty) meta.push(`เก็บได้ ${fmtNum(t.harvestQty)} กก.`);
-  /* เงิน: รายได้ = เขียว, ต้นทุน = แดง — แยกเห็นชัดว่าเข้า/ออก */
+  /* เงิน: รายได้ = เขียว, ต้นทุน = แดง — แยกเห็นชัดว่าเข้า/ออก (ต้นทุนนับจาก costItems หลายรายการด้วย) */
   if (t.revenue) meta.push(`<span class="task-money in">${ic("dollar")} รายได้ ${fmtMoney(t.revenue)} บาท</span>`);
-  if (t.cost) meta.push(`<span class="task-money out">${ic("dollar")} ต้นทุน ${fmtMoney(t.cost)} บาท</span>`);
+  const itemsCost = (t.costItems && t.costItems.length) ? t.costItems.reduce((a, ci) => a + (ci.totalCost || (Number(ci.qty || 0) * Number(ci.unitCost || 0)) || 0), 0) : 0;
+  const costShow = itemsCost > 0 ? itemsCost : Number(t.cost || 0);
+  if (costShow > 0) meta.push(`<span class="task-money out">${ic("dollar")} ต้นทุน ${fmtMoney(costShow)} บาท</span>`);
   if (opts.showNote && t.note) meta.push(esc(t.note));
   /* งานที่ยังไม่ผูกกับรอบการปลูก (เมื่อส่ง opts.cycleOptions มา — ใช้ในหน้าแปลง) */
   const noCycle = opts.cycleOptions && (!t.cycleId || !opts.cycleOptions.some(c => c.id === t.cycleId));
@@ -1364,7 +1367,22 @@ function renderCycleDetail() {
   if (!c) { route.view = "plots"; return renderPlots(); }
   const p = plotById(S, c.plotId);
   const cf = cycleFinance(S, c.id);
-  const tasks = S.tasks.filter(t => t.cycleId === c.id).sort((a, b) => b.date.localeCompare(a.date));
+  /* ต้นทุนรวมของงานเดียว (costItems หลายรายการ หรือ cost เดี่ยว) — ใช้เรียง/กรอง */
+  const costOf = t => {
+    if (t.costItems && t.costItems.length) return t.costItems.reduce((a, ci) => a + (ci.totalCost || (Number(ci.qty || 0) * Number(ci.unitCost || 0)) || 0), 0);
+    return Number(t.cost || 0);
+  };
+  /* กรอง + เรียงตามตัวเลือกของผู้ใช้ (เก่า→ใหม่ ให้เห็นงานแรกของรอบได้ไม่ต้องเลื่อนล่างสุด) */
+  const allTasks = S.tasks.filter(t => t.cycleId === c.id);
+  const f = cycTaskFilter;
+  let tasks = allTasks.slice();
+  if (f.type) tasks = tasks.filter(t => t.type === f.type);
+  if (f.status === "done") tasks = tasks.filter(t => t.status === "done");
+  else if (f.status === "planned") tasks = tasks.filter(t => t.status !== "done");
+  if (f.costOnly) tasks = tasks.filter(t => costOf(t) > 0);
+  if (f.sort === "old") tasks.sort((a, b) => a.date.localeCompare(b.date));
+  else if (f.sort === "cost") tasks.sort((a, b) => costOf(b) - costOf(a));
+  else tasks.sort((a, b) => b.date.localeCompare(a.date));
   /* สรุปต้นทุนแยกรายหมวดของรอบนี้ (เฉพาะงานที่เสร็จ) */
   const cmap = costCatMap(S);
   const costByCat = {};
@@ -1421,12 +1439,38 @@ function renderCycleDetail() {
       ${catRows ? `<div class="cc-grid">${catRows}</div>` : `<div class="muted" style="text-align:center;padding:8px">ยังไม่มีต้นทุนในรอบนี้</div>`}
     </div>
 
-    <div class="section-title">งาน/กิจกรรมของรอบนี้ (${tasks.length})</div>
+    <div class="section-title">งาน/กิจกรรมของรอบนี้ <span class="muted" style="font-size:.75rem;font-weight:600">${tasks.length === allTasks.length ? allTasks.length : "แสดง " + tasks.length + " จาก " + allTasks.length}</span></div>
+    ${allTasks.length === 0 ? `
+    <div class="card"><div class="muted" style="text-align:center;padding:8px">ยังไม่มีบันทึกงานในรอบนี้ — กด + เพิ่มกิจกรรม ได้เลย</div></div>` : `
+    <div class="card cycf-bar">
+      <select class="cycf" onchange="App.cycTaskFilter('sort', this.value)" title="เรียงลำดับ">
+        <option value="new" ${f.sort === "new" ? "selected" : ""}>⏱ ใหม่ → เก่า</option>
+        <option value="old" ${f.sort === "old" ? "selected" : ""}>⏱ เก่า → ใหม่ (งานแรกของรอบ)</option>
+        <option value="cost" ${f.sort === "cost" ? "selected" : ""}>💰 ต้นทุนสูง → ต่ำ</option>
+      </select>
+      <select class="cycf" onchange="App.cycTaskFilter('type', this.value)" title="กรองประเภท">
+        <option value="">ทุกประเภท</option>
+        ${[...new Set(allTasks.map(t => t.type))].map(tp => `<option value="${tp}" ${f.type === tp ? "selected" : ""}>${TYPE_LABELS[tp] || tp}</option>`).join("")}
+      </select>
+      <select class="cycf" onchange="App.cycTaskFilter('status', this.value)" title="กรองสถานะ">
+        <option value="" ${!f.status ? "selected" : ""}>ทุกสถานะ</option>
+        <option value="planned" ${f.status === "planned" ? "selected" : ""}>ยังไม่เสร็จ</option>
+        <option value="done" ${f.status === "done" ? "selected" : ""}>เสร็จแล้ว</option>
+      </select>
+      <label class="cycf-cost"><input type="checkbox" ${f.costOnly ? "checked" : ""} onchange="App.cycTaskFilter('costOnly', this.checked)"> มีค่าใช้จ่าย</label>
+      ${(f.sort !== "new" || f.type || f.status || f.costOnly) ? `<button class="btn btn-sm btn-ghost" onclick="App.cycTaskFilter('reset')" title="ล้างตัวกรอง">✕ ล้าง</button>` : ""}
+    </div>
     <div class="card">
-      ${tasks.length === 0 ? `<div class="muted" style="text-align:center;padding:8px">ยังไม่มีบันทึกงานในรอบนี้ — กด + เพิ่มกิจกรรม ได้เลย</div>` : ""}
+      ${tasks.length === 0 ? `<div class="muted" style="text-align:center;padding:8px">ไม่มีงานตรงกับตัวกรอง — ลองล้างตัวกรอง</div>` : ""}
       ${tasks.map(t => taskRowHtml(t, { showDate: true, showNote: true, showDelete: true })).join("")}
-    </div>`;
+    </div>`}`;
 }
+/* ตั้งค่าตัวกรอง/เรียง "งาน/กิจกรรมของรอบนี้" — re-render หน้าเดิม (ไม่เลื่อนขึ้นหัว) */
+App.cycTaskFilter = function (key, val) {
+  if (key === "reset") cycTaskFilter = { sort: "new", type: "", status: "", costOnly: false };
+  else cycTaskFilter[key] = val;
+  rerender();
+};
 App.openCycle = function (id) {
   route.view = "cycleDetail"; route.cycleId = id;
   /* ปฏิทินรายรอบเริ่มที่เดือนเริ่มปลูกรอบนี้ */
