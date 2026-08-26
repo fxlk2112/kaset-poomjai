@@ -22,7 +22,7 @@
     .ag-sun { position: absolute; top: 8%; left: 50%; transform: translateX(-50%); width: min(46vmin,340px); height: min(46vmin,340px); border-radius: 50%; background: radial-gradient(circle, rgba(255,214,120,.42) 0%, rgba(255,190,90,.24) 42%, rgba(255,180,80,0) 72%); }
     .ag-hills { position: absolute; bottom: -2px; left: 0; width: 100%; height: 44%; }
     .ag-hills .h1 { fill: rgba(255,255,255,.10); } .ag-hills .h2 { fill: rgba(16,71,39,.55); } .ag-hills .h3 { fill: rgba(9,46,24,.82); }
-    .auth-box { position: relative; z-index: 1; width: min(100%, 410px); max-width: calc(100vw - 36px); background: rgba(255,255,255,.92); backdrop-filter: blur(10px); border-radius: 24px; padding: 28px 24px 22px; box-shadow: 0 30px 70px rgba(4,32,17,.5); max-height: calc(100vh - 36px); overflow-y: auto; border: 1px solid rgba(255,255,255,.6); box-sizing: border-box; }
+    .auth-box { position: relative; z-index: 1; width: min(410px, calc(100vw - 36px)); max-width: 100%; background: rgba(255,255,255,.92); backdrop-filter: blur(10px); border-radius: 24px; padding: 28px 24px 22px; box-shadow: 0 30px 70px rgba(4,32,17,.5); max-height: calc(100vh - 36px); overflow-y: auto; border: 1px solid rgba(255,255,255,.6); box-sizing: border-box; }
     .auth-brand { text-align: center; margin-bottom: 16px; }
     .auth-brand img { width: 68px; height: 68px; border-radius: 16px; object-fit: cover; box-shadow: 0 8px 22px rgba(20,83,45,.35), 0 0 0 3px rgba(255,255,255,.85); }
     .auth-brand-name { font-weight: 800; font-size: 1.05rem; color: #123f23; letter-spacing: .4px; margin-top: 10px; }
@@ -39,6 +39,23 @@
     .auth-msg { min-height: 20px; font-size: .8rem; color: #dc2626; text-align: center; margin-top: 8px; font-weight: 700; }
     .auth-hint { text-align: center; font-size: .7rem; color: #93a89b; margin-top: 10px; line-height: 1.55; }
     .auth-hint a { color: #93a89b; }
+    html[data-theme="dark"].auth-locked { background-color: #030906; }
+    html[data-theme="dark"] #authGate { background: #030906; color: #e6efe9; }
+    html[data-theme="dark"] .ag-bg::before { filter: blur(7px) brightness(.54) saturate(.92); }
+    html[data-theme="dark"] .ag-bg::after { background: linear-gradient(135deg, rgba(0,0,0,.78), rgba(6,31,18,.72) 48%, rgba(0,0,0,.64)), radial-gradient(circle at 18% 16%, rgba(34,197,94,.12), transparent 34%); }
+    html[data-theme="dark"] .ag-sun { opacity: .4; }
+    html[data-theme="dark"] .ag-hills .h1 { fill: rgba(134,239,172,.06); } html[data-theme="dark"] .ag-hills .h2 { fill: rgba(10,48,28,.62); } html[data-theme="dark"] .ag-hills .h3 { fill: rgba(2,14,8,.9); }
+    html[data-theme="dark"] .auth-box { background: rgba(13,23,18,.9); color: #e6efe9; border-color: rgba(134,239,172,.18); box-shadow: 0 30px 70px rgba(0,0,0,.68), inset 0 1px 0 rgba(255,255,255,.05); }
+    html[data-theme="dark"] .auth-brand img { box-shadow: 0 8px 22px rgba(0,0,0,.45), 0 0 0 3px rgba(134,239,172,.16); }
+    html[data-theme="dark"] .auth-brand-name { color: #d1fae5; }
+    html[data-theme="dark"] .auth-brand-sub { color: #9ab7a6; }
+    html[data-theme="dark"] .auth-tabs { background: rgba(16,36,26,.9); border: 1px solid rgba(134,239,172,.12); }
+    html[data-theme="dark"] .auth-tabs button { color: #9ab7a6; }
+    html[data-theme="dark"] .auth-tabs button.active { color: #fff; }
+    html[data-theme="dark"] .ag-field label { color: #cde7d7; }
+    html[data-theme="dark"] .ag-field input { background: rgba(3,12,8,.84); color: #f4fbf6; border-color: rgba(134,239,172,.24); }
+    html[data-theme="dark"] .ag-field input::placeholder { color: #7c9788; }
+    html[data-theme="dark"] .auth-hint, html[data-theme="dark"] .auth-hint a { color: #9ab7a6; }
     @media (max-width: 420px) { .auth-box { padding: 22px 16px 16px; border-radius: 20px; } .auth-brand-name { font-size: .95rem; } }
   </style>
   <script>
@@ -54,7 +71,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script>try{var _ft=localStorage.getItem("farmult-theme")||"system";var _fd=_ft==="dark"||(_ft==="system"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);if(_fd)document.documentElement.setAttribute("data-theme","dark");}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=20260826aa">
+  <link rel="stylesheet" href="css/style.css?v=20260826ab">
   <link rel="icon" href="logo.jpg">
 </head>
 <body>
@@ -149,14 +166,14 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/data.js?v=20260826aa"></script>
-  <script src="js/charts.js?v=20260826aa"></script>
-  <script src="js/notify.js?v=20260826aa"></script>
-  <script src="js/stock.js?v=20260826aa"></script>
-  <script src="js/sales.js?v=20260826aa"></script>
-  <script src="js/lark.js?v=20260826aa"></script>
-  <script src="js/auth.js?v=20260826aa"></script>
-  <script src="js/app.js?v=20260826aa"></script>
+  <script src="js/data.js?v=20260826ab"></script>
+  <script src="js/charts.js?v=20260826ab"></script>
+  <script src="js/notify.js?v=20260826ab"></script>
+  <script src="js/stock.js?v=20260826ab"></script>
+  <script src="js/sales.js?v=20260826ab"></script>
+  <script src="js/lark.js?v=20260826ab"></script>
+  <script src="js/auth.js?v=20260826ab"></script>
+  <script src="js/app.js?v=20260826ab"></script>
   <!-- ลงทะเบียน Service Worker — เปิดใช้แบบออฟไลน์/ติดตั้งเป็นแอพบนมือถือ (ต้องใช้ผ่าน HTTPS หรือ localhost) -->
   <script>
     if ('serviceWorker' in navigator) {

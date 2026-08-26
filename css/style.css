@@ -1419,8 +1419,8 @@ html.auth-locked #app { visibility: hidden; }
 /* --- การ์ดล็อกอิน --- */
 .auth-box {
   position: relative; z-index: 1;
-  width: min(100%, 410px);
-  max-width: calc(100vw - 36px);
+  width: min(410px, calc(100vw - 36px));
+  max-width: 100%;
   background: rgba(255,255,255,.92);
   backdrop-filter: blur(10px);
   border-radius: 24px;
@@ -1428,6 +1428,7 @@ html.auth-locked #app { visibility: hidden; }
   box-shadow: 0 30px 70px rgba(4,32,17,.5), inset 0 1px 0 rgba(255,255,255,.9);
   max-height: calc(100vh - 36px); overflow-y: auto;
   border: 1px solid rgba(255,255,255,.6);
+  box-sizing: border-box;
 }
 .auth-brand { text-align: center; margin-bottom: 16px; }
 .auth-brand img {
@@ -1571,3 +1572,163 @@ html[data-theme="dark"] .leaflet-control-attribution { background: rgba(20,30,25
 html[data-theme="dark"] .leaflet-control-attribution a { color: #86efac; }
 /* แท็บ active หน้าวิเคราะห์: เม็ดเขียวแบรนด์ (เดิมเม็ดสีอ่อนดูเหมือนกล่องขาว) */
 html[data-theme="dark"] .tabs button.active { background: var(--green); color: #fff; box-shadow: 0 4px 12px rgba(22,163,74,.35); }
+
+/* ==================== Dark mode: เก็บจุดตกค้างทั้งระบบ ==================== */
+html[data-theme="dark"].auth-locked { background-color: #030906; }
+html[data-theme="dark"] #authGate { background: #030906; color: var(--text); }
+html[data-theme="dark"] #authGate .ag-bg::before { filter: blur(7px) brightness(.54) saturate(.92); }
+html[data-theme="dark"] #authGate .ag-bg::after {
+  background:
+    linear-gradient(135deg, rgba(0,0,0,.78), rgba(6,31,18,.72) 48%, rgba(0,0,0,.64)),
+    radial-gradient(circle at 18% 16%, rgba(34,197,94,.12), transparent 34%);
+}
+html[data-theme="dark"] #authGate .ag-sun { opacity: .4; }
+html[data-theme="dark"] #authGate .ag-hills .h1 { fill: rgba(134,239,172,.06); }
+html[data-theme="dark"] #authGate .ag-hills .h2 { fill: rgba(10,48,28,.62); }
+html[data-theme="dark"] #authGate .ag-hills .h3 { fill: rgba(2,14,8,.9); }
+html[data-theme="dark"] .auth-box {
+  background: rgba(13,23,18,.9);
+  color: var(--text);
+  border-color: rgba(134,239,172,.18);
+  box-shadow: 0 30px 70px rgba(0,0,0,.68), inset 0 1px 0 rgba(255,255,255,.05);
+}
+html[data-theme="dark"] .auth-brand img { box-shadow: 0 8px 22px rgba(0,0,0,.45), 0 0 0 3px rgba(134,239,172,.16); }
+html[data-theme="dark"] .auth-brand-name { color: #d1fae5; }
+html[data-theme="dark"] .auth-brand-sub,
+html[data-theme="dark"] .auth-hint,
+html[data-theme="dark"] .auth-hint a { color: #9ab7a6; }
+html[data-theme="dark"] .auth-tabs {
+  background: rgba(16,36,26,.9);
+  border: 1px solid rgba(134,239,172,.12);
+}
+html[data-theme="dark"] .auth-tabs button { color: #9ab7a6; }
+html[data-theme="dark"] .auth-tabs button.active { color: #fff; }
+html[data-theme="dark"] .ag-field label { color: #cde7d7; }
+html[data-theme="dark"] .ag-field input {
+  background: rgba(3,12,8,.84);
+  color: #f4fbf6;
+  border-color: rgba(134,239,172,.24);
+}
+html[data-theme="dark"] .ag-field input::placeholder { color: #7c9788; }
+
+html[data-theme="dark"] .topbar { box-shadow: 0 2px 10px rgba(0,0,0,.42); }
+html[data-theme="dark"] .brand-logo[src] { background: rgba(255,255,255,.9); }
+html[data-theme="dark"] .role-switch,
+html[data-theme="dark"] .tabs { background: rgba(255,255,255,.08); }
+html[data-theme="dark"] .role-switch button,
+html[data-theme="dark"] .tabs button { color: rgba(230,239,233,.82); }
+html[data-theme="dark"] .role-switch button.active,
+html[data-theme="dark"] .tabs button.active { background: var(--green); color: #fff; box-shadow: 0 4px 12px rgba(22,163,74,.35); }
+
+html[data-theme="dark"] .card,
+html[data-theme="dark"] .stat-card,
+html[data-theme="dark"] .plot-card,
+html[data-theme="dark"] .weather-card,
+html[data-theme="dark"] .more-card,
+html[data-theme="dark"] .cal-card,
+html[data-theme="dark"] .receipt,
+html[data-theme="dark"] .usage-row,
+html[data-theme="dark"] .fab-item,
+html[data-theme="dark"] .year-nav-btn,
+html[data-theme="dark"] .year-chip,
+html[data-theme="dark"] .stock-picker .sp-search,
+html[data-theme="dark"] .stock-pick-list,
+html[data-theme="dark"] .stock-cat-select,
+html[data-theme="dark"] .stock-search,
+html[data-theme="dark"] .cycle-filter > input,
+html[data-theme="dark"] .task-cycle-assign,
+html[data-theme="dark"] .tour-bubble {
+  background: var(--card);
+  color: var(--text);
+  border-color: var(--card-border);
+}
+
+html[data-theme="dark"] .field input,
+html[data-theme="dark"] .field select,
+html[data-theme="dark"] .field textarea {
+  background: var(--soft);
+  color: var(--text);
+  border-color: var(--card-border);
+}
+html[data-theme="dark"] .field input::placeholder,
+html[data-theme="dark"] .field textarea::placeholder,
+html[data-theme="dark"] input::placeholder { color: #728578; }
+
+html[data-theme="dark"] .btn-outline { background: rgba(22,163,74,.14); border-color: rgba(134,239,172,.28); color: #86efac; }
+html[data-theme="dark"] .btn-danger-soft { background: rgba(239,68,68,.14); color: #fca5a5; }
+html[data-theme="dark"] .btn-danger-soft:hover { background: rgba(239,68,68,.22); }
+html[data-theme="dark"] .modal-backdrop { background: rgba(0,0,0,.72); }
+html[data-theme="dark"] .modal-x { background: var(--soft); color: var(--muted); }
+html[data-theme="dark"] .modal-x:hover { background: var(--chip); color: var(--text); }
+html[data-theme="dark"] .year-nav-label,
+html[data-theme="dark"] .year-nav-btn,
+html[data-theme="dark"] .cal-nav button,
+html[data-theme="dark"] .tour-bubble .tb-title,
+html[data-theme="dark"] .fab-item .ic { color: #86efac; }
+html[data-theme="dark"] .year-chip.active { background: var(--green); border-color: var(--green); color: #fff; }
+html[data-theme="dark"] .receipt-head { border-bottom-color: var(--card-border); }
+html[data-theme="dark"] .receipt-table th,
+html[data-theme="dark"] .receipt-table td { border-color: var(--card-border); }
+html[data-theme="dark"] .receipt-table th { background: var(--green-soft); color: #86efac; }
+
+html[data-theme="dark"] .hero { background: linear-gradient(135deg, var(--card) 0%, #12291d 60%, var(--green-light) 100%); }
+html[data-theme="dark"] .hero-progress { background: rgba(255,255,255,.05); border-color: var(--card-border); }
+html[data-theme="dark"] .chip { background: var(--soft); border-color: var(--card-border); color: #86efac; box-shadow: none; }
+html[data-theme="dark"] .chip:hover { background: var(--green-light); border-color: rgba(134,239,172,.32); }
+
+html[data-theme="dark"] .meta-box,
+html[data-theme="dark"] .cc-box,
+html[data-theme="dark"] .calc-box,
+html[data-theme="dark"] .nested-fields,
+html[data-theme="dark"] .td-cost-list,
+html[data-theme="dark"] .gps-box,
+html[data-theme="dark"] .weather-chips span,
+html[data-theme="dark"] .weather-map,
+html[data-theme="dark"] .task-plot,
+html[data-theme="dark"] .task-use-more,
+html[data-theme="dark"] .rank-badge {
+  background: var(--green-soft);
+  border-color: rgba(134,239,172,.18);
+  color: #86efac;
+}
+html[data-theme="dark"] .stock-cat,
+html[data-theme="dark"] .calc-title,
+html[data-theme="dark"] .calc-amt,
+html[data-theme="dark"] .usage-total,
+html[data-theme="dark"] .usage-row-head strong,
+html[data-theme="dark"] .td-cost-title,
+html[data-theme="dark"] .td-cost-row b,
+html[data-theme="dark"] .gps-box .gps-coords,
+html[data-theme="dark"] .stock-qty,
+html[data-theme="dark"] .hero-greet { color: #86efac; }
+
+html[data-theme="dark"] .task-row { background: var(--soft); }
+html[data-theme="dark"] .task-row:hover,
+html[data-theme="dark"] .notif-row:hover,
+html[data-theme="dark"] .stock-pick-item:hover,
+html[data-theme="dark"] .stock-pick-item.selected { background: rgba(22,163,74,.14); border-color: rgba(134,239,172,.24); }
+html[data-theme="dark"] .stock-pick-item.selected .sp-name { color: #86efac; }
+html[data-theme="dark"] .stock-pick-item.out { background: #2a1515; border-color: #5b2020; }
+html[data-theme="dark"] .stock-pick-item.out:hover { background: #351818; border-color: #7f2a2a; }
+html[data-theme="dark"] .stock-pick-item.out .sp-name { color: #fca5a5; }
+html[data-theme="dark"] .stock-pick-item .sp-x { background: rgba(239,68,68,.18); color: #fca5a5; }
+html[data-theme="dark"] .ci-warn { background: #2a1515; border-color: #5b2020; color: #fca5a5; }
+
+html[data-theme="dark"] .wday,
+html[data-theme="dark"] .cal-day { background: var(--soft); border-color: var(--card-border); color: var(--text); }
+html[data-theme="dark"] .cal-day.other { color: #536258; }
+html[data-theme="dark"] .cal-day.today { background: var(--green-light); color: #bbf7d0; }
+html[data-theme="dark"] .cal-day.selected { background: var(--green); color: #fff; }
+html[data-theme="dark"] .wday-rain { color: #93c5fd; }
+
+html[data-theme="dark"] .bottomnav { background: var(--card); border-color: var(--line); }
+html[data-theme="dark"] .nav-item:hover,
+html[data-theme="dark"] .nav-item.active { background: var(--green-soft); color: #86efac; }
+html[data-theme="dark"] .switch::after,
+html[data-theme="dark"] .task-check { background: var(--card); }
+html[data-theme="dark"] .task-check:hover { background: var(--green-light); color: #bbf7d0; }
+html[data-theme="dark"] .task-ico.work { background: #18224a; }
+html[data-theme="dark"] .task-ico.harvest { background: #3a2610; }
+html[data-theme="dark"] .task-ico.expense { background: #381515; }
+html[data-theme="dark"] .task-ico.spray { background: #2c1a45; }
+html[data-theme="dark"] .soft-bg { background: var(--soft); }
