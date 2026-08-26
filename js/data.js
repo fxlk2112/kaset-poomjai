@@ -11,6 +11,8 @@
 const App = {};
 
 const STORAGE_KEY = "kaset-poomjai-v51";
+/* Phase 1 รับข้อมูลเซนเซอร์จริงแบบ read-only เท่านั้น ห้ามหน้าเว็บสั่งเอาต์พุต */
+const SENSOR_PHASE1_READ_ONLY = true;
 
 /* ---------- helpers ---------- */
 function uid() {

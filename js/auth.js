@@ -58,6 +58,12 @@ function setSession(s) {
 }
 function cloudTs() { return Number(localStorage.getItem(CLOUD_TS_KEY)) || 0; }
 function setCloudTs(ts) { localStorage.setItem(CLOUD_TS_KEY, String(Number(ts) || Date.now())); }
+function cloudSafeState(state) {
+  const copy = JSON.parse(JSON.stringify(state || {}));
+  /* adminPass เป็น UI gate เฉพาะเครื่อง ไม่ใช่สิทธิ์ backend และห้ามซิงก์ขึ้นคลาวด์ */
+  delete copy.adminPass;
+  return copy;
+}
 function localHasData() {
   return (S.plots && S.plots.length) || (S.cycles && S.cycles.length) ||
          (S.tasks && S.tasks.length) || (S.stock && S.stock.length) ||
@@ -142,7 +148,7 @@ Auth.saveNow = async function () {
   Auth.syncing = true;
   try {
     const ts = Date.now();
-    const r = await authCall("save", { token: Auth.session.token, data: JSON.stringify(S), updated_at: ts });
+    const r = await authCall("save", { token: Auth.session.token, data: JSON.stringify(cloudSafeState(S)), updated_at: ts });
     if (r.ok) setCloudTs(ts);
   } catch (e) { /* ออฟไลน์ — รอบันทึกครั้งถัดไป */ }
   Auth.syncing = false;
@@ -150,7 +156,10 @@ Auth.saveNow = async function () {
 
 function applyCloudState(cloudData, updatedAt) {
   Auth.suppress = true;
-  resetSTo(cloudData);
+  const localAdminPass = String(S.adminPass || "");
+  const safeCloudData = cloudSafeState(cloudData);
+  resetSTo(safeCloudData);
+  S.adminPass = localAdminPass;
   saveState(S);
   if (updatedAt) setCloudTs(updatedAt); /* กันถามซ้ำทันทีหลังโหลด */
   location.reload();
@@ -357,6 +366,9 @@ App.authSyncNow = async function () {
 
 /* ---------- ซิงก์ระบบน้ำ (ตารางอัตโนมัติ) ขึ้นเซิร์ฟเวอร์ — cron ใช้ตัดสินใจให้น้ำ ---------- */
 Auth.waterSync = async function () {
+  if (typeof SENSOR_PHASE1_READ_ONLY !== "undefined" && SENSOR_PHASE1_READ_ONLY) {
+    return { ok: false, disabled: true, error: "SENSOR_PHASE1_READ_ONLY" };
+  }
   if (!Auth.session) return null;
   const systems = (S.water.systems || []).map(sys => {
     const p = plotById(S, sys.plotId);

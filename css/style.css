@@ -1935,3 +1935,48 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
 .adv-banner.adv-warn { background: #fef9c3; color: #854d0e; }
 .adv-banner.adv-danger { background: #fee2e2; color: #991b1b; }
 .adv-banner.adv-info { background: #dbeafe; color: #1e40af; }
+
+/* ===== Phase 1: การ์ดข้อมูลเซนเซอร์จริง (read-only) ===== */
+.sensor-card { border-color: rgba(37,99,235,.22); box-shadow: 0 8px 24px rgba(37,99,235,.08); }
+.sensor-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.sensor-eyebrow { color: var(--blue); font-size: .7rem; font-weight: 800; letter-spacing: .03em; margin-bottom: 2px; }
+.sensor-status { display: inline-flex; align-items: center; white-space: nowrap; border-radius: 999px; padding: 4px 9px; font-size: .68rem; font-weight: 800; }
+.sensor-status.good { background: var(--green-light); color: var(--green-deep); }
+.sensor-status.stale { background: var(--amber-light); color: #92400e; }
+.sensor-status.fault { background: var(--red-light); color: #991b1b; }
+.sensor-status.muted { background: var(--line); color: var(--muted); }
+.sensor-primary { display: grid; grid-template-columns: minmax(0,1fr) 82px; align-items: center; gap: 14px; margin-top: 14px; }
+.sensor-value { color: var(--blue); font-size: clamp(1.8rem, 9vw, 2.8rem); font-weight: 850; line-height: 1; letter-spacing: -.04em; }
+.sensor-unit { color: var(--muted); font-size: .78rem; font-weight: 700; }
+.sensor-ring { width: 78px; height: 78px; position: relative; border-radius: 50%; background: conic-gradient(var(--blue) calc(var(--sensor-pct) * 1%), var(--line) 0); display: grid; place-content: center; text-align: center; }
+.sensor-ring::after { content: ""; position: absolute; inset: 7px; border-radius: 50%; background: var(--card); }
+.sensor-ring b,.sensor-ring span { position: relative; z-index: 1; }
+.sensor-ring b { font-size: .92rem; color: var(--blue); }
+.sensor-ring span { color: var(--muted); font-size: .58rem; }
+.sensor-metrics { display: grid; grid-template-columns: 1fr; gap: 7px; margin-top: 14px; }
+.sensor-metrics > div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); }
+.sensor-metrics span { color: var(--muted); font-size: .7rem; }
+.sensor-metrics b { text-align: right; font-size: .76rem; }
+.sensor-metrics small { display: block; color: var(--muted); font-weight: 400; }
+.sensor-history-head { margin-top: 14px; }
+.sensor-history-head .muted { font-size: .66rem; }
+.sensor-range { display: inline-flex; padding: 3px; gap: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; }
+.sensor-range button { padding: 5px 9px; border-radius: 999px; color: var(--muted); font-size: .68rem; font-weight: 700; }
+.sensor-range button.active { background: var(--card); color: var(--blue); box-shadow: 0 1px 4px rgba(15,23,42,.12); }
+.sensor-history-chart { min-height: 150px; margin-top: 6px; }
+.sensor-chart-empty { min-height: 130px; display: grid; place-items: center; font-size: .74rem; }
+.sensor-foot { display: flex; flex-direction: column; gap: 2px; color: var(--muted); font-size: .64rem; border-top: 1px solid var(--line); padding-top: 8px; }
+.sensor-safety-note { margin-top: 10px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--blue-light); color: #1e3a8a; font-size: .68rem; font-weight: 700; }
+.sensor-control-lock { border-left: 4px solid var(--green); }
+
+html[data-theme="dark"] .sensor-status.good { background: rgba(22,163,74,.2); color: #86efac; }
+html[data-theme="dark"] .sensor-status.stale { background: rgba(245,158,11,.18); color: #fde68a; }
+html[data-theme="dark"] .sensor-status.fault { background: rgba(220,38,38,.18); color: #fecaca; }
+html[data-theme="dark"] .sensor-metrics > div,.sensor-range { background: var(--soft); }
+html[data-theme="dark"] .sensor-safety-note { background: rgba(37,99,235,.18); color: #bfdbfe; }
+
+@media (min-width: 720px) {
+  .sensor-metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .sensor-metrics > div { display: block; }
+  .sensor-metrics b { display: block; text-align: left; margin-top: 4px; }
+}

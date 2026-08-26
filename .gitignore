@@ -2,3 +2,7 @@
 .netlify
 .wrangler
 .freebuff
+
+# Local test/runtime caches
+__pycache__/
+*.py[cod]

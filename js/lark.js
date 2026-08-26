@@ -5,10 +5,13 @@ const LARK_FN = "https://farmbackup.carfork123.workers.dev";
 
 /* เรียก Cloudflare Worker — คืน data หรือ throw พร้อมข้อความ */
 async function larkCall(action, body) {
+  if (typeof Auth === "undefined" || !Auth.session || !Auth.session.admin) {
+    throw new Error("ต้องเข้าสู่ระบบด้วยบัญชีผู้ดูแลก่อนใช้ Lark Base");
+  }
   const r = await fetch(LARK_FN, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(Object.assign({ action }, body || {}))
+    body: JSON.stringify(Object.assign({ action, token: Auth.session.token }, body || {}))
   });
   const j = await r.json().catch(() => null);
   if (!r.ok || !j || j.ok !== true) throw new Error((j && j.error) || "เชื่อมต่อ Cloudflare Worker ไม่ได้");
