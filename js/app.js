@@ -353,6 +353,7 @@ function render() {
   if (!keys.includes(navKey)) {
     route.view = keys.includes("home") ? "home" : keys[0];
   }
+  document.body.classList.toggle("view-iot-digital-twin", route.view === "iot");
 
   // bottom nav
   const nav = document.getElementById("bottomNav");
@@ -1874,6 +1875,13 @@ function waterNextDate(sys) {
   return addDaysISO(sys.lastWatered, Number(sys.auto.everyDays) || 1);
 }
 function renderIoT() {
+  /* Phase 1 dashboard is telemetry-only. Legacy planning/editing markup below is
+     intentionally kept in source for later migration, but is not rendered here. */
+  return typeof SensorTelemetry !== "undefined"
+    ? SensorTelemetry.cardHtml()
+    : `<section class="sensor-digital-twin"><div class="digital-alert" role="alert">โมดูลข้อมูลเซนเซอร์ยังไม่พร้อม</div></section>`;
+
+  /* c8 ignore start -- legacy water-planning UI, unreachable during SAFE_OFF */
   const W = S.water;
   const plotName = id => { const p = plotById(S, id); return p ? p.name : "(แปลงถูกลบ)"; };
   const today = todayISO();
@@ -4391,6 +4399,13 @@ try {
     if (saved.plotId) route.plotId = saved.plotId;
     if (saved.cycleId) route.cycleId = saved.cycleId;
     if (saved.year) route.year = saved.year;
+  }
+} catch (e) {}
+try {
+  const previewUrl = new URL(location.href);
+  const previewHost = String(location.hostname || "").toLowerCase();
+  if ((previewHost === "localhost" || previewHost === "127.0.0.1") && previewUrl.searchParams.get("sensorPreview") === "1") {
+    route.view = "iot";
   }
 } catch (e) {}
 render();

@@ -81,6 +81,37 @@
     return "เมื่อ " + (n / 3600).toFixed(1) + " ชั่วโมงที่แล้ว";
   }
 
+  function ageShortLabel(ageS) {
+    return ageLabel(ageS).replace(/^เมื่อ\s+/, "");
+  }
+
+  function isLocalPreview() {
+    if (typeof location === "undefined") return false;
+    const host = String(location.hostname || "").toLowerCase();
+    if (host !== "localhost" && host !== "127.0.0.1") return false;
+    try { return new URL(location.href).searchParams.get("sensorPreview") === "1"; }
+    catch (error) { return false; }
+  }
+
+  function applyLocalPreview() {
+    if (!isLocalPreview() || state.current) return;
+    const base = Date.parse("2026-08-26T11:59:42+07:00");
+    const volumes = [103.2, 103.8, 103.5, 102.7, 102.4, 102.9, 102.5, 102.8, 102.3, 102.6, 103.4, 103.8, 103.5, 103.1, 102.8, 103.0, 103.7, 104.0, 103.4, 103.1, 102.9];
+    state.current = {
+      observed_at: new Date(base).toISOString(), observed_ts: Math.floor(base / 1000),
+      depth_m: 0.577, volume_m3: 104.9, capacity_percent: 13.1, current_ma: 6.40,
+      volume_model_id: "legacy-calibration-v1"
+    };
+    state.status = "GOOD";
+    state.ageS = 18;
+    state.loadedAt = Date.now();
+    state.history = volumes.map((volume, index) => ({
+      observed_at: new Date(base - (volumes.length - 1 - index) * 60 * 60 * 1000).toISOString(),
+      observed_ts: Math.floor((base - (volumes.length - 1 - index) * 60 * 60 * 1000) / 1000),
+      quality: "GOOD", volume_m3: volume, depth_m: null, capacity_percent: null
+    }));
+  }
+
   function historyRows(raw) {
     return (Array.isArray(raw) ? raw : []).map(row => ({
       observed_at: String(row.observed_at || ""),
@@ -93,6 +124,10 @@
   }
 
   async function refresh(force) {
+    if (isLocalPreview()) {
+      applyLocalPreview();
+      return;
+    }
     if (typeof Auth === "undefined" || !Auth.session || typeof authCall !== "function") return;
     if (state.loading) return;
     if (!force && state.loadedAt && Date.now() - state.loadedAt < 30000) return;
@@ -126,52 +161,76 @@
   function cardHtml() {
     const meta = statusMeta(state.status);
     const c = state.current;
-    const loading = state.loading && !c;
-    const notice = `<div class="sensor-safety-note">อ่านข้อมูลเท่านั้น · Pi 5 ไม่รับคำสั่งเอาต์พุตจากคลาวด์</div>`;
-    if (loading) {
-      return `<section class="card sensor-card" aria-live="polite">
-        <div class="sensor-head"><div><div class="sensor-eyebrow">เซนเซอร์จริง · แหล่งน้ำหลัก</div><div class="plot-name">กำลังโหลดข้อมูลจาก Pi 5…</div></div></div>
-        ${notice}</section>`;
-    }
-    if (state.error) {
-      return `<section class="card sensor-card" aria-live="polite">
-        <div class="sensor-head"><div><div class="sensor-eyebrow">เซนเซอร์จริง · แหล่งน้ำหลัก</div><div class="plot-name">ยังเชื่อมข้อมูลไม่ได้</div></div><span class="sensor-status fault">ตรวจสอบระบบ</span></div>
-        <div class="muted mt-8">${safeText(state.error)}</div>
-        <button class="btn btn-outline btn-sm mt-8" onclick="App.refreshMainWaterSensor()">ลองใหม่</button>
-        ${notice}</section>`;
-    }
-    if (!c) {
-      return `<section class="card sensor-card" aria-live="polite">
-        <div class="sensor-head"><div><div class="sensor-eyebrow">เซนเซอร์จริง · แหล่งน้ำหลัก</div><div class="plot-name">ยังไม่มีข้อมูลจาก Pi 5</div></div><span class="sensor-status muted">${safeText(meta.label)}</span></div>
-        <div class="muted mt-8">ลงทะเบียนอุปกรณ์และตั้ง telemetry forwarder แล้วข้อมูลจะปรากฏที่นี่</div>
-        <button class="btn btn-outline btn-sm mt-8" onclick="App.refreshMainWaterSensor()">ตรวจอีกครั้ง</button>
-        ${notice}</section>`;
-    }
-    const observed = observedLabel(c.observed_at);
-    return `<section class="card sensor-card" aria-live="polite">
-      <div class="sensor-head">
-        <div><div class="sensor-eyebrow">เซนเซอร์จริง · แหล่งน้ำหลัก</div><div class="plot-name">ระดับน้ำและปริมาตรโดยประมาณ</div></div>
-        <span class="sensor-status ${meta.cls}">${safeText(meta.label)}</span>
-      </div>
-      <div class="sensor-primary">
-        <div><span class="sensor-value">${numberLabel(c.volume_m3, 1)}</span><span class="sensor-unit"> ลบ.ม.</span><div class="muted">ปริมาตรโดยประมาณ</div></div>
-        <div class="sensor-ring" style="--sensor-pct:${Math.max(0, Math.min(100, c.capacity_percent || 0))}"><b>${numberLabel(c.capacity_percent, 1)}%</b><span>ความจุ</span></div>
-      </div>
-      <div class="sensor-metrics">
-        <div><span>ระดับจากเซนเซอร์</span><b>${numberLabel(c.depth_m, 3)} เมตร</b></div>
-        <div><span>กระแสสัญญาณ</span><b>${numberLabel(c.current_ma, 2)} mA</b></div>
-        <div><span>วัดล่าสุด</span><b>${safeText(observed)}</b><small>${safeText(ageLabel(state.ageS))}</small></div>
-      </div>
-      <div class="row row-between sensor-history-head">
-        <div><b>ประวัติปริมาตร</b><div class="muted">ข้อมูล GOOD เท่านั้น</div></div>
-        <div class="sensor-range" role="group" aria-label="ช่วงเวลาของกราฟ">
-          <button class="${state.hours === 24 ? "active" : ""}" onclick="App.setSensorHistoryHours(24)">24 ชม.</button>
-          <button class="${state.hours === 168 ? "active" : ""}" onclick="App.setSensorHistoryHours(168)">7 วัน</button>
+    const hasData = !!c;
+    const statusClass = state.error ? "fault" : meta.cls;
+    const statusLabel = state.loading && !c ? "กำลังรับข้อมูล" : state.error ? "เชื่อมต่อไม่ได้" : meta.label;
+    const observed = hasData ? observedLabel(c.observed_at) : "—";
+    const level = hasData ? numberLabel(c.depth_m, 3) : "—";
+    const volume = hasData ? numberLabel(c.volume_m3, 1) : "—";
+    const capacity = hasData ? numberLabel(c.capacity_percent, 1) : "—";
+    const signal = hasData ? numberLabel(c.current_ma, 2) : "—";
+    const age = hasData ? ageShortLabel(state.ageS) : "รอข้อมูลล่าสุด";
+    const date = hasData && c.observed_at ? new Date(c.observed_at).toLocaleDateString("th-TH", {
+      day: "numeric", month: "short", year: "numeric"
+    }) : "—";
+    const errorNote = state.error ? `<div class="digital-alert" role="alert">${safeText(state.error)} <button onclick="App.refreshMainWaterSensor()">ลองใหม่</button></div>` : "";
+
+    return `<section class="sensor-digital-twin" aria-live="polite" aria-busy="${state.loading ? "true" : "false"}">
+      <header class="digital-header">
+        <button class="digital-brand" onclick="App.nav('more')" aria-label="กลับไปเมนูเพิ่มเติม">
+          <img src="images/digital-twin/fus-logo-white-v1.png" alt="FARMULTIMATE SOLUTIONS">
+        </button>
+        <div class="digital-title">
+          <h1>แหล่งน้ำหลัก</h1>
+          <div class="digital-live ${statusClass}"><span aria-hidden="true"></span> LIVE · ${safeText(statusLabel)}</div>
+        </div>
+      </header>
+
+      <div class="digital-hero">
+        <img src="images/digital-twin/main-reservoir-isometric-v1.png" alt="ภาพกราฟิกสามมิติของแหล่งเก็บน้ำหลักและระบบท่อ">
+        <div class="hero-level-pin" aria-label="ระดับน้ำ ${level} เมตร"><span></span><b>${level} m</b></div>
+        <div class="hero-reading">
+          <span>ระดับน้ำ</span>
+          <strong>${level}</strong><b>เมตร</b>
         </div>
       </div>
-      <div class="chart-wrap sensor-history-chart" id="sensorHistoryChart"></div>
-      <div class="sensor-foot"><span>โมเดลปริมาตร: ${safeText(c.volume_model_id || "ยังไม่ระบุ")}</span><span>ค่าปริมาตรยังเป็นค่าประมาณจากจุดอ้างอิงเดิม</span></div>
-      ${notice}
+
+      <div class="digital-panel">
+        ${errorNote}
+        <div class="digital-primary-grid">
+          <div class="digital-volume">
+            <span>ปริมาตรโดยประมาณ</span>
+            <div><strong>${volume}</strong><b>ลบ.ม.</b></div>
+          </div>
+          <div class="digital-capacity">
+            <div><span>ความจุ</span><strong>${capacity}<b>%</b></strong></div>
+            <canvas id="sensorCapacityGauge" data-value="${hasData ? Math.max(0, Math.min(100, Number(c.capacity_percent) || 0)) : 0}" aria-label="ความจุ ${capacity} เปอร์เซ็นต์"></canvas>
+          </div>
+        </div>
+
+        <div class="digital-secondary-grid">
+          <div class="digital-secondary-item"><span>สัญญาณ</span><strong>${signal} <b>mA</b></strong></div>
+          <div class="digital-secondary-item"><span>อัปเดต</span><strong>${safeText(age)}</strong><small>${safeText(observed)}</small></div>
+        </div>
+
+        <div class="digital-chart-grid">
+          <section class="digital-chart-card">
+            <h2>โปรไฟล์ความลึก</h2>
+            <div class="chart-caption">ความลึก (เมตร)</div>
+            <canvas id="sensorDepthProfileChart" data-level="${hasData ? Number(c.depth_m) || 0 : 0}" aria-label="กราฟโปรไฟล์ความลึก"></canvas>
+          </section>
+          <section class="digital-chart-card">
+            <h2>แนวโน้ม ${state.hours === 168 ? "7 วัน" : "24 ชั่วโมง"}</h2>
+            <div class="chart-caption">ปริมาตร (ลบ.ม.)</div>
+            <canvas id="sensorHistoryChart" aria-label="กราฟแนวโน้มปริมาตร"></canvas>
+          </section>
+        </div>
+
+        <footer class="digital-footer">
+          <span>${safeText(date)}</span>
+          <b>DATA ONLY · SAFE_OFF</b>
+        </footer>
+      </div>
     </section>`;
   }
 
@@ -185,22 +244,119 @@
     return out;
   }
 
-  function mountChart() {
-    const el = typeof document !== "undefined" ? document.getElementById("sensorHistoryChart") : null;
-    if (!el) return;
-    const good = state.history.filter(row => row.quality === "GOOD" && row.volume_m3 !== null);
-    if (good.length < 2 || typeof Charts === "undefined") {
-      el.innerHTML = `<div class="muted sensor-chart-empty">ยังมีข้อมูลไม่พอสำหรับวาดกราฟ</div>`;
-      return;
-    }
-    const points = downsample(good, 10).map(row => {
-      const d = new Date(row.observed_at);
-      const label = state.hours === 24
-        ? d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })
-        : d.toLocaleDateString("th-TH", { day: "2-digit", month: "short" });
-      return { label, value: row.volume_m3 };
+  function canvasContext(canvas, cssHeight) {
+    if (!canvas || typeof window === "undefined") return null;
+    const width = Math.max(220, Math.round(canvas.getBoundingClientRect().width || 320));
+    const height = cssHeight;
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    canvas.style.height = height + "px";
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    return { ctx, width, height };
+  }
+
+  function drawGauge() {
+    const canvas = typeof document !== "undefined" ? document.getElementById("sensorCapacityGauge") : null;
+    const setup = canvasContext(canvas, 62);
+    if (!setup) return;
+    const { ctx, width, height } = setup;
+    const pct = Math.max(0, Math.min(100, Number(canvas.dataset.value) || 0));
+    const radius = Math.min(width, height) * 0.35;
+    const cx = width / 2, cy = height / 2;
+    ctx.lineWidth = 10;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(124, 167, 169, .27)";
+    ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = "#45e2ed";
+    ctx.beginPath(); ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct / 100); ctx.stroke();
+  }
+
+  function drawEmptyChart(canvas, message) {
+    const setup = canvasContext(canvas, 90);
+    if (!setup) return;
+    const { ctx, width, height } = setup;
+    ctx.fillStyle = "rgba(210, 235, 232, .7)";
+    ctx.font = "500 12px Sarabun, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(message, width / 2, height / 2);
+  }
+
+  function drawDepthProfile() {
+    const canvas = typeof document !== "undefined" ? document.getElementById("sensorDepthProfileChart") : null;
+    const setup = canvasContext(canvas, 90);
+    if (!setup) return;
+    const { ctx, width, height } = setup;
+    const pad = { l: 28, r: 8, t: 10, b: 22 };
+    const values = [0, .08, .22, .35, .43, .57, .66, .76, .92, 1.08, 1.28, 2.5];
+    const x = i => pad.l + i / (values.length - 1) * (width - pad.l - pad.r);
+    const y = v => pad.t + v / 2.5 * (height - pad.t - pad.b);
+    ctx.strokeStyle = "rgba(98, 151, 155, .24)";
+    ctx.lineWidth = 1;
+    [0, .5, 1, 1.5, 2, 2.5].forEach(v => {
+      ctx.beginPath(); ctx.moveTo(pad.l, y(v)); ctx.lineTo(width - pad.r, y(v)); ctx.stroke();
+      ctx.fillStyle = "#b8cfcd"; ctx.font = "10px Sarabun, sans-serif"; ctx.textAlign = "right";
+      ctx.fillText(v.toFixed(1), pad.l - 5, y(v) + 3);
     });
-    Charts.line(el, points, {});
+    ctx.beginPath(); ctx.moveTo(x(0), y(values[0]));
+    values.forEach((v, i) => ctx.lineTo(x(i), y(v)));
+    ctx.lineTo(x(values.length - 1), height - pad.b); ctx.lineTo(x(0), height - pad.b); ctx.closePath();
+    ctx.fillStyle = "rgba(22, 187, 207, .24)"; ctx.fill();
+    ctx.beginPath(); values.forEach((v, i) => i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)));
+    ctx.strokeStyle = "#45e2ed"; ctx.lineWidth = 2; ctx.stroke();
+    const level = Math.max(0, Math.min(2.5, Number(canvas.dataset.level) || 0));
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = "#45e2ed"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.l, y(level)); ctx.lineTo(width - pad.r, y(level)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = "#45e2ed"; ctx.font = "700 11px Sarabun, sans-serif"; ctx.textAlign = "right";
+    ctx.fillText(numberLabel(level, 3) + " m", width - pad.r, Math.max(12, y(level) - 5));
+  }
+
+  function drawHistoryChart() {
+    const canvas = typeof document !== "undefined" ? document.getElementById("sensorHistoryChart") : null;
+    const good = state.history.filter(row => row.quality === "GOOD" && row.volume_m3 !== null);
+    if (!canvas) return;
+    if (good.length < 2) { drawEmptyChart(canvas, "ยังมีข้อมูลไม่พอสำหรับวาดกราฟ"); return; }
+    const setup = canvasContext(canvas, 90);
+    if (!setup) return;
+    const { ctx, width, height } = setup;
+    const rows = downsample(good, 28);
+    const values = rows.map(row => Number(row.volume_m3));
+    const rawMin = Math.min(...values), rawMax = Math.max(...values);
+    const margin = Math.max(.8, (rawMax - rawMin) * .35);
+    const min = rawMin - margin, max = rawMax + margin;
+    const pad = { l: 30, r: 8, t: 10, b: 22 };
+    const x = i => pad.l + i / (values.length - 1) * (width - pad.l - pad.r);
+    const y = v => pad.t + (max - v) / (max - min) * (height - pad.t - pad.b);
+    ctx.strokeStyle = "rgba(98, 151, 155, .24)"; ctx.lineWidth = 1;
+    [0, .5, 1].forEach(step => {
+      const v = min + (max - min) * step;
+      ctx.beginPath(); ctx.moveTo(pad.l, y(v)); ctx.lineTo(width - pad.r, y(v)); ctx.stroke();
+      ctx.fillStyle = "#b8cfcd"; ctx.font = "10px Sarabun, sans-serif"; ctx.textAlign = "right";
+      ctx.fillText(v.toFixed(0), pad.l - 5, y(v) + 3);
+    });
+    ctx.beginPath(); values.forEach((v, i) => i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)));
+    ctx.strokeStyle = "#45e2ed"; ctx.lineWidth = 2.5; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
+    const last = values.length - 1;
+    ctx.fillStyle = "#45e2ed"; ctx.beginPath(); ctx.arc(x(last), y(values[last]), 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.font = "10px Sarabun, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#b8cfcd";
+    [0, Math.floor(last / 2), last].forEach(i => {
+      const d = new Date(rows[i].observed_at);
+      const label = state.hours === 168
+        ? d.toLocaleDateString("th-TH", { day: "2-digit", month: "short" })
+        : d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+      ctx.fillText(label, x(i), height - 6);
+    });
+    ctx.fillStyle = "#45e2ed"; ctx.font = "700 11px Sarabun, sans-serif"; ctx.textAlign = "right";
+    ctx.fillText(numberLabel(values[last], 1), width - pad.r, Math.max(12, y(values[last]) - 7));
+  }
+
+  function mountChart() {
+    drawGauge();
+    drawDepthProfile();
+    drawHistoryChart();
   }
 
   function setHours(hours) {
@@ -222,4 +378,6 @@
     mountChart,
     setHours
   };
+
+  applyLocalPreview();
 })(typeof window !== "undefined" ? window : globalThis);

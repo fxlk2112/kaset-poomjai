@@ -44,3 +44,10 @@ test("status labels distinguish stale and sensor faults", () => {
   assert.equal(Sensors.statusMeta("STALE").cls, "stale");
   assert.equal(Sensors.statusMeta("SENSOR_FAULT").cls, "fault");
 });
+
+test("digital twin surface remains telemetry-only", () => {
+  const html = Sensors.cardHtml();
+  assert.match(html, /sensor-digital-twin/);
+  assert.match(html, /DATA ONLY · SAFE_OFF/);
+  assert.doesNotMatch(html, /เปิดปั๊ม|เปิดวาล์ว|สั่งรีเลย์/);
+});
