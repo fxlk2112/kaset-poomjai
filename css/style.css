@@ -1371,22 +1371,38 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 
 /* ==================== Auth Gate (บังคับล็อกอิน) ==================== */
 html.auth-locked {
-  background: linear-gradient(165deg, #0b3d20 0%, #14532d 40%, #1a7a3e 75%, #2c9a54 100%);
+  background: #0b3d20 url("../images/login-smart-farm.png") center/cover fixed no-repeat;
   min-height: 100%;
 }
 html.auth-locked #app { visibility: hidden; }
 #authGate {
   position: fixed; inset: 0; z-index: 9999;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(165deg, #0b3d20 0%, #14532d 38%, #1a7a3e 72%, #2c9a54 100%);
+  background: #0b3d20;
   padding: 18px; overflow-y: auto;
 }
 /* --- ฉากหลัง: พระอาทิตย์ + เนินไร่ 3 ชั้น --- */
 .ag-bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.ag-bg::before {
+  content: "";
+  position: absolute;
+  inset: -16px;
+  background: url("../images/login-smart-farm.png") center/cover no-repeat;
+  filter: blur(5px);
+  transform: scale(1.03);
+}
+.ag-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, rgba(5,28,15,.62), rgba(13,71,36,.42) 44%, rgba(0,0,0,.34)),
+    radial-gradient(circle at 18% 16%, rgba(255,217,142,.28), transparent 34%);
+}
 .ag-sun {
   position: absolute; top: 8%; left: 50%; transform: translateX(-50%);
   width: min(46vmin, 340px); height: min(46vmin, 340px); border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,214,120,.95) 0%, rgba(255,190,90,.55) 42%, rgba(255,180,80,0) 72%);
+  background: radial-gradient(circle, rgba(255,214,120,.42) 0%, rgba(255,190,90,.24) 42%, rgba(255,180,80,0) 72%);
   filter: blur(1px);
 }
 .ag-hills { position: absolute; bottom: -2px; left: 0; width: 100%; height: 44%; }
@@ -1403,8 +1419,10 @@ html.auth-locked #app { visibility: hidden; }
 /* --- การ์ดล็อกอิน --- */
 .auth-box {
   position: relative; z-index: 1;
-  width: 100%; max-width: 410px;
-  background: rgba(255,255,255,.97);
+  width: min(100%, 410px);
+  max-width: calc(100vw - 36px);
+  background: rgba(255,255,255,.92);
+  backdrop-filter: blur(10px);
   border-radius: 24px;
   padding: 28px 24px 22px;
   box-shadow: 0 30px 70px rgba(4,32,17,.5), inset 0 1px 0 rgba(255,255,255,.9);
