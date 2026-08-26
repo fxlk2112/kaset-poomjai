@@ -1925,6 +1925,10 @@ html[data-theme="dark"] .adv-banner.adv-info { background: #17254a; color: #bfdb
 .cycf-cost { display: inline-flex; align-items: center; gap: 5px; font-size: .74rem; font-weight: 700; color: var(--muted, #6b7280); cursor: pointer; white-space: nowrap; padding: 0 2px; }
 .cycf-cost input { accent-color: var(--green, #16a34a); width: 15px; height: 15px; }
 
+/* กล่องดูข้อมูลดิบ JSON */
+.raw-json { max-height: 50vh; overflow: auto; background: var(--soft, #f4f6f5); padding: 10px; border-radius: 10px; font-size: .68rem; line-height: 1.5; white-space: pre; font-family: monospace; }
+html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e5dc; }
+
 /* แบนเนอร์คำเตือนสภาพอากาศเชิงปฏิบัติการ */
 .adv-banner { display: flex; gap: 8px; align-items: flex-start; font-size: .74rem; font-weight: 600; border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; line-height: 1.55; }
 .adv-banner:last-child { margin-bottom: 0; }

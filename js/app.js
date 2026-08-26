@@ -2541,6 +2541,72 @@ App.shareRevoke = function (token) {
 /* ---------------- Settings ---------------- */
 const ADMIN_LS = "fus_admin_unlocked";
 function adminUnlocked() { return sessionStorage.getItem(ADMIN_LS) === "1"; }
+/* ---------------- พื้นที่เก็บข้อมูล (หน้าตั้งค่า) ---------------- */
+function fmtBytes(b) { return b < 1024 ? b + " B" : b < 1048576 ? (b / 1024).toFixed(1) + " KB" : (b / 1048576).toFixed(2) + " MB"; }
+/* แยกขนาดข้อมูลตามหมวด — เห็นว่าอะไรกินพื้นที่ */
+function storageBreakdown() {
+  const sz = v => { try { return JSON.stringify(v).length; } catch (e) { return 0; } };
+  const rows = [
+    { label: "🌱 แปลง", key: "plots" },
+    { label: "🌿 รอบปลูก", key: "cycles" },
+    { label: "📋 งาน/กิจกรรม", key: "tasks" },
+    { label: "🧪 สต็อกยา/ปุ๋ย", key: "stock" },
+    { label: "🧾 การขาย", key: "sales" },
+    { label: "🚜 อุปกรณ์", key: "equipment" }
+  ].map(r => ({ label: r.label, count: (S[r.key] || []).length, bytes: sz(S[r.key] || []) }));
+  const knownSum = rows.reduce((a, r) => a + r.bytes, 0);
+  rows.push({ label: "📦 อื่นๆ (ตั้งค่า/แบรนด์ ฯลฯ)", count: null, bytes: Math.max(0, sz(S) - knownSum) });
+  let wx = 0; try { wx = (localStorage.getItem("kaset-weather-cache-v2") || "").length; } catch (e) {}
+  if (wx) rows.push({ label: "🌦️ แคชพยากรณ์อากาศ", count: null, bytes: wx });
+  return rows.sort((a, b) => b.bytes - a.bytes);
+}
+/* ดูข้อมูลดิบรายหมวดเป็น JSON (แสดง 8,000 ตัวอักษรแรก — ก๊อปได้ทั้งก้อน) */
+App._rawKey = "plots";
+App.viewRawData = function (key) {
+  if (key) App._rawKey = key;
+  const opts = [["plots", "🌱 แปลง"], ["cycles", "🌿 รอบปลูก"], ["tasks", "📋 งาน/กิจกรรม"], ["stock", "🧪 สต็อกยา/ปุ๋ย"], ["sales", "🧾 การขาย"], ["equipment", "🚜 อุปกรณ์"]];
+  const json = JSON.stringify(S[App._rawKey] || [], null, 2);
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>ดูข้อมูลดิบ (JSON)</h3>
+    <div class="modal-sub">ข้อมูลจริงที่เก็บอยู่ในเครื่องนี้ — ก๊อปไปเปิดดู/เก็บไว้ได้</div>
+    <select class="cycf" style="width:100%" onchange="App.viewRawData(this.value)">
+      ${opts.map(o => `<option value="${o[0]}" ${o[0] === App._rawKey ? "selected" : ""}>${o[1]} (${(S[o[0]] || []).length} รายการ)</option>`).join("")}
+    </select>
+    <pre class="raw-json" id="rawJson">${esc(json.length > 8000 ? json.slice(0, 8000) + "\n… (เหลืออีก " + fmtBytes(json.length - 8000) + " — กดก๊อปเพื่อดูทั้งก้อน)" : json)}</pre>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.copyRawJson()">${ic("download")} ก๊อปทั้งหมด</button>
+      <button class="btn btn-primary" onclick="App.closeModal()">ปิด</button>
+    </div>`);
+};
+App.copyRawJson = function () {
+  const txt = JSON.stringify(S[App._rawKey] || [], null, 2);
+  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(
+    () => toast("ก๊อปข้อมูลแล้ว (" + fmtBytes(txt.length) + ")"),
+    () => toast("ก๊อปไม่ได้ — เบราว์เซอร์ไม่อนุญาต")
+  );
+};
+/* ตรวจขนาดข้อมูลก้อนล่าสุดบนคลาวด์ (D1) ของบัญชีนี้ */
+App.checkCloudSize = async function () {
+  if (typeof authCall === "undefined" || !Auth.session) { toast("ยังไม่ล็อกอิน — ยังไม่มีข้อมูลบนคลาวด์"); return; }
+  toast("กำลังตรวจข้อมูลบนคลาวด์...");
+  try {
+    const r = await authCall("load", { token: Auth.session.token });
+    if (!r || !r.ok) { toast("ตรวจไม่สำเร็จ: " + ((r && r.error) || "เชื่อมต่อไม่ได้")); return; }
+    const dataStr = (r.data && r.data.data) ? String(r.data.data) : "";
+    const ts = r.data && r.data.updated_at ? new Date(Number(r.data.updated_at) || Date.now()) : null;
+    openModal(`
+      <button class="modal-x" onclick="App.closeModal()">✕</button>
+      <h3>ข้อมูลบนคลาวด์</h3>
+      <div class="modal-sub">บัญชี ${esc(Auth.session.email)}</div>
+      <div class="card" style="margin-top:8px">
+        <div class="row row-between"><span class="muted">ขนาดข้อมูลล่าสุด</span><span class="bold">${fmtBytes(dataStr.length)}</span></div>
+        <div class="row row-between mt-8"><span class="muted">อัปเดตเมื่อ</span><span class="small bold">${ts ? ts.toLocaleString("th-TH") : "—"}</span></div>
+        <div class="muted mt-8" style="font-size:.72rem">เก็บบน Cloudflare D1 (ฐานข้อมูล farmultimate-db) — ซิงก์อัตโนมัติทุกครั้งที่แก้ข้อมูลเมื่อล็อกอินอยู่</div>
+      </div>`);
+  } catch (e) { toast("เชื่อมต่อคลาวด์ไม่ได้ (ออฟไลน์?)"); }
+};
+
 function renderSettings() {
   const unlocked = adminUnlocked();
   let editorHtml = "";
@@ -2591,14 +2657,31 @@ function renderSettings() {
       <button class="btn btn-primary btn-block" onclick="App.exportData()">${ic("download")} ดาวน์โหลดข้อมูล (.json)</button>
       <button class="btn btn-ghost btn-block mt-8" onclick="App.importData()">${ic("upload")} นำเข้าข้อมูล (.json)</button>
     </div>
-    <div class="section-title">${ic("alert")} พื้นที่เก็บข้อมูลในเครื่อง</div>
+    <div class="section-title">${ic("alert")} พื้นที่เก็บข้อมูล <span class="muted" style="font-size:.72rem;font-weight:600">ในเครื่อง + คลาวด์</span></div>
     <div class="card">
-      ${(() => { const st = storageHealthInfo(); return `
-      <div class="row row-between"><span class="muted">ใช้ไป</span><span class="bold">${(st.used / 1048576).toFixed(2)} MB / ~5 MB (${st.pct}%)</span></div>
+      ${(() => { const st = storageHealthInfo(); const bd = storageBreakdown(); const maxB = Math.max(...bd.map(r => r.bytes), 1); const photoN = S.stock.filter(s => s.photo).length; return `
+      <div class="row row-between"><span class="muted">ใช้ไปในเครื่อง</span><span class="bold">${(st.used / 1048576).toFixed(2)} MB / ~5 MB (${st.pct}%)</span></div>
       <div class="storage-bar"><div class="storage-bar-fill ${st.pct >= 80 ? "warn" : ""}" style="width:${st.pct}%"></div></div>
-      ${st.pct >= 80 ? `<div class="muted" style="color:var(--red);font-size:.76rem;margin-top:6px">${ic("alert")} พื้นที่ใกล้เต็ม — ลบรูปสินค้าที่ไม่ใช้ หรือสำรองข้อมูลไว้ (ไฟล์ .json / ล็อกอินบัญชีเพื่อซิงก์คลาวด์)</div>` : `<div class="muted" style="font-size:.72rem;margin-top:6px">${ic("info")} ข้อมูลบันทึกในเครื่อง และขึ้นคลาวด์อัตโนมัติเมื่อล็อกอินบัญชี — สำรองข้อมูลเป็นประจำ</div>`}
-      ${storageSaveFailed ? `<div class="muted" style="color:var(--red);font-size:.76rem;margin-top:6px">${ic("alert")} ข้อมูลล่าสุดบันทึกไม่สำเร็จ (พื้นที่เต็ม) — ลบรูปสินค้า/สำรองข้อมูลด่วน</div>` : ""}
-      `; })()}
+      <div class="divider"></div>
+      ${bd.map(r => `
+      <div class="row row-between" style="padding:3px 0">
+        <span class="muted" style="font-size:.78rem">${r.label}${r.count != null ? ` <b style="color:inherit">(${fmtNum(r.count)})</b>` : ""}</span>
+        <span class="small bold" style="white-space:nowrap">${fmtBytes(r.bytes)}</span>
+      </div>
+      <div class="storage-bar" style="height:4px"><div class="storage-bar-fill" style="width:${Math.round(r.bytes / maxB * 100)}%"></div></div>`).join("")}
+      <div class="muted mt-8" style="font-size:.72rem">📷 รูปสินค้าสต็อก ${photoN} รายการ — เก็บเป็นไฟล์ใน images/products/ ของเว็บ (ไม่กินพื้นที่นี้) · รูปที่ถ่ายเพิ่มในอนาคตควรเก็บบนคลาวด์แยก</div>
+      ${st.pct >= 80 ? `<div class="muted" style="color:var(--red);font-size:.76rem;margin-top:6px">${ic("alert")} พื้นที่ใกล้เต็ม — สำรองข้อมูลไว้ และลบสต็อก/งานเก่าที่ไม่ใช้</div>` : ""}
+      ${storageSaveFailed ? `<div class="muted" style="color:var(--red);font-size:.76rem;margin-top:6px">${ic("alert")} บันทึกล่าสุดไม่สำเร็จ (พื้นที่เต็ม) — สำรองข้อมูลด่วน</div>` : ""}
+      <div class="divider"></div>
+      <div class="row" style="gap:8px">
+        <button class="btn btn-sm btn-outline" style="flex:1" onclick="App.viewRawData()">${ic("eye")} ดูข้อมูลดิบ</button>
+        <button class="btn btn-sm btn-outline" style="flex:1" onclick="App.exportData()">${ic("download")} สำรอง .json</button>
+      </div>`; })()}
+    </div>
+    <div class="card mt-8">
+      <div class="row row-between"><span class="muted">บนคลาวด์ (Cloudflare D1)</span><span class="small bold">${typeof Auth !== "undefined" && Auth.session ? esc(Auth.session.email) : "ยังไม่ล็อกอิน"}</span></div>
+      <div class="row row-between mt-8"><span class="muted">ซิงก์ล่าสุด</span><span class="small bold">${typeof cloudTs === "function" && cloudTs() ? dateLabel(new Date(cloudTs()).toISOString().slice(0, 10)) + " " + new Date(cloudTs()).toTimeString().slice(0, 5) : "—"}</span></div>
+      <button class="btn btn-ghost btn-block mt-8" onclick="App.checkCloudSize()">${ic("refresh")} ตรวจขนาดข้อมูลบนคลาวด์</button>
     </div>
     ${adminUnlocked() ? `
     <div class="section-title">${ic("upload")} ซิงก์กับ Lark Base (ผู้ดูแลระบบ) <span class="badge badge-gray">ระดับแอดมิน</span></div>
