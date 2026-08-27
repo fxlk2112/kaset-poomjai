@@ -622,6 +622,7 @@ async function doPhotoPut(env, payload, request) {
   const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
   if (!bytes.length) throw new Error("ข้อมูลรูปว่าง");
   const ext = ct === "image/png" ? "png" : ct === "image/webp" ? "webp" : "jpg";
+  if (!env.PHOTOS) throw new Error("R2 ยังไม่พร้อม — ต้องเปิด R2 และสร้าง bucket farmultimate-photos ก่อน");
   const key = "u/" + u.user_id + "/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "." + ext;
   await env.PHOTOS.put(key, bytes, { httpMetadata: { contentType: ct } });
   const origin = request ? new URL(request.url).origin : "https://farmbackup.carfork123.workers.dev";
@@ -635,7 +636,7 @@ async function doPhotoDel(env, payload) {
     try { key = decodeURIComponent(new URL(payload.url).pathname.slice("/photo/".length)); } catch (e) {}
   }
   if (!key || !key.startsWith("u/" + u.user_id + "/")) throw new Error("ไม่อนุญาต (ไม่ใช่รูปของคุณ)");
-  await env.PHOTOS.delete(key);
+  if (env.PHOTOS) await env.PHOTOS.delete(key);
   return { deleted: key };
 }
 
@@ -649,6 +650,7 @@ export default {
         try {
           const key = decodeURIComponent(url.pathname.slice("/photo/".length));
           if (!key || key.includes("..")) return new Response("bad key", { status: 400 });
+          if (!env.PHOTOS) return new Response("R2 ยังไม่พร้อม", { status: 503 });
           const obj = await env.PHOTOS.get(key);
           if (!obj) return new Response("ไม่พบรูป", { status: 404 });
           return new Response(obj.body, {
