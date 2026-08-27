@@ -2,3 +2,9 @@
 .netlify
 .wrangler
 .freebuff
+
+# temp files from xlsx analysis (tools/xlsx_to_import.js reads tmp_xlsx)
+tmp_xlsx/
+tmp_farm.zip
+tmp_dump.txt
+import-plotC-round.json

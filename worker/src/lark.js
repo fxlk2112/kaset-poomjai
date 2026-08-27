@@ -609,9 +609,59 @@ async function doLoad(env, p) {
   return { data: parsed, updated_at: d.updated_at };
 }
 
+/* ---------- รูปภาพ (R2) ---------- */
+/* อัปโหลดรูป: base64 (ไม่มี prefix data:) — จำกัดขนาด ~2MB base64 ≈ 1.5MB ไบต์จริง
+   key = u/<userId>/<timestamp>-<rand>.jpg — แยกตามเจ้าของ เดายาก */
+async function doPhotoPut(env, payload, request) {
+  const u = await authUser(env, payload.token);
+  const b64 = String(payload.data || "");
+  const ct = String(payload.contentType || "image/jpeg");
+  if (!b64) throw new Error("ไม่มีข้อมูลรูป");
+  if (!["image/jpeg", "image/png", "image/webp"].includes(ct)) throw new Error("ชนิดไฟล์ไม่รองรับ (JPG/PNG/WebP เท่านั้น)");
+  if (b64.length > 2 * 1024 * 1024) throw new Error("รูปใหญ่เกิน (จำกัด ~1.5MB หลังย่อ)");
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  if (!bytes.length) throw new Error("ข้อมูลรูปว่าง");
+  const ext = ct === "image/png" ? "png" : ct === "image/webp" ? "webp" : "jpg";
+  const key = "u/" + u.user_id + "/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "." + ext;
+  await env.PHOTOS.put(key, bytes, { httpMetadata: { contentType: ct } });
+  const origin = request ? new URL(request.url).origin : "https://farmbackup.carfork123.workers.dev";
+  return { url: origin + "/photo/" + key, key, size: bytes.length };
+}
+/* ลบรูป: ต้องเป็นรูปของตัวเองเท่านั้น (prefix u/<userId>/) */
+async function doPhotoDel(env, payload) {
+  const u = await authUser(env, payload.token);
+  let key = String(payload.key || "");
+  if (!key && payload.url) {
+    try { key = decodeURIComponent(new URL(payload.url).pathname.slice("/photo/".length)); } catch (e) {}
+  }
+  if (!key || !key.startsWith("u/" + u.user_id + "/")) throw new Error("ไม่อนุญาต (ไม่ใช่รูปของคุณ)");
+  await env.PHOTOS.delete(key);
+  return { deleted: key };
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") return new Response(null, { headers: cors() });
+    /* GET /photo/<key> — เสิร์ฟรูปจาก R2 (อ่านสาธารณะ เพราะ key เดายาก + แชร์/QR ต้องโชว์รูปได้) */
+    if (request.method === "GET") {
+      const url = new URL(request.url);
+      if (url.pathname.startsWith("/photo/")) {
+        try {
+          const key = decodeURIComponent(url.pathname.slice("/photo/".length));
+          if (!key || key.includes("..")) return new Response("bad key", { status: 400 });
+          const obj = await env.PHOTOS.get(key);
+          if (!obj) return new Response("ไม่พบรูป", { status: 404 });
+          return new Response(obj.body, {
+            headers: {
+              "Content-Type": (obj.httpMetadata && obj.httpMetadata.contentType) || "image/jpeg",
+              "Cache-Control": "public, max-age=31536000, immutable",
+              "Access-Control-Allow-Origin": "*"
+            }
+          });
+        } catch (e) { return new Response("photo error", { status: 500 }); }
+      }
+      return new Response("ใช้ POST เท่านั้น", { status: 405 });
+    }
     if (request.method !== "POST") return json({ ok: false, error: "ใช้ POST เท่านั้น" }, 405);
     let payload = {};
     try { payload = await request.json(); } catch (e) { /* ปล่อยว่าง */ }
@@ -641,6 +691,8 @@ export default {
       else if (payload.action === "share_revoke") data = await doShareRevoke(env, payload);
       else if (payload.action === "share_get") data = await doShareGet(env, payload);
       else if (payload.action === "share_comment") data = await doShareComment(env, request, payload);
+      else if (payload.action === "photo_put") data = await doPhotoPut(env, payload, request);
+      else if (payload.action === "photo_del") data = await doPhotoDel(env, payload);
       else throw new Error("ไม่รู้จัก action: " + payload.action);
       return json({ ok: true, data });
     } catch (e) {

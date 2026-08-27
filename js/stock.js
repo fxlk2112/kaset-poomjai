@@ -206,16 +206,20 @@ App.stockPhoto = function (id) {
     if (!x) return;
     if (!Array.isArray(x.photos)) x.photos = x.photo ? [x.photo] : [];
     try {
-      let ok = 0;
+      let ok = 0, cloud = 0;
       for (const f of files) {
-        x.photos.push(await downscaleImage(f, 480, 0.68));
+        /* พยายามอัปขึ้น R2 ก่อน — เก็บแค่ URL ไม่กินพื้นที่เครื่อง
+           ถ้าไม่ได้ (ออฟไลน์/ยังไม่ล็อกอิน) fallback เก็บ base64 ในเครื่องแบบเดิม */
+        const url = await App.uploadPhotoR2(f, 960);
+        if (url) { x.photos.push(url); cloud++; }
+        else x.photos.push(await downscaleImage(f, 480, 0.68));
         ok++;
       }
       x.photo = x.photos[0] || "";
       saveState(S);
       render(); // อัปเดตการ์ดด้านหลังทันที (ไม่ต้องรีเฟรช)
       App.stockDetail(id);
-      toast(ok > 1 ? `เพิ่ม ${ok} รูปแล้ว` : "เพิ่มรูปแล้ว");
+      toast(ok > 1 ? `เพิ่ม ${ok} รูปแล้ว${cloud ? ` (${cloud} รูปเก็บบนคลาวด์)` : ""}` : `เพิ่มรูปแล้ว${cloud ? " (เก็บบนคลาวด์)" : " (เก็บในเครื่อง)"}`);
     } catch (e) { toast("อ่านรูปไม่สำเร็จ — ลองไฟล์ JPG/PNG"); console.error(e); }
   };
   input.click();
@@ -223,12 +227,17 @@ App.stockPhoto = function (id) {
 App.stockPhotoRemoveOne = function (id, idx) {
   const x = stockById(S, id);
   if (!x || !Array.isArray(x.photos)) return;
+  const gone = x.photos[idx];
   x.photos.splice(idx, 1);
   x.photo = x.photos[0] || "";
   saveState(S);
   render(); // อัปเดตการ์ดด้านหลังทันที (ไม่ต้องรีเฟรช)
   App.stockDetail(id);
   toast("ลบรูปแล้ว");
+  /* ถ้าเป็นรูปบนคลาวด์ (R2) — ลบไฟล์จริงทิ้งด้วย (best-effort) */
+  if (gone && typeof gone === "string" && gone.startsWith("http") && typeof Auth !== "undefined" && Auth.session) {
+    authCall("photo_del", { token: Auth.session.token, url: gone }).catch(() => {});
+  }
 };
 /* ดูภาพใหญ่ (lightbox) — กดที่รูปในป๊อปอัป */
 let lightboxEl = null;

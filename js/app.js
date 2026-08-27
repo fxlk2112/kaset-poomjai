@@ -888,6 +888,45 @@ function weatherCacheSave() {
 }
 let WEATHER_CACHE = weatherCacheLoad();
 /* การ์ดสภาพอากาศของแปลง — แสดง loading ก่อน แล้ว renderPlotWeather() ไปดึงข้อมูลจริงมาเติม */
+/* การ์ดรูปแปลง — ถ่าย/เลือกรูป เก็บบน R2 (เก็บแค่ URL ในข้อมูล ไม่กินพื้นที่เครื่อง) */
+function plotPhotoCard(p) {
+  const url = p.photoUrl || "";
+  return `
+    <div class="section-title">รูปแปลง</div>
+    <div class="card">
+      ${url ? `<img src="${esc(url)}" alt="รูปแปลง" style="width:100%;border-radius:12px;display:block" loading="lazy" onclick="App.plotPhoto('${p.id}')" title="กดเพื่อเปลี่ยนรูป">`
+        : `<div class="muted" style="text-align:center;padding:6px 0;font-size:.78rem">ยังไม่มีรูปแปลง</div>`}
+      <div class="row" style="gap:8px;margin-top:8px">
+        <button class="btn btn-sm btn-outline" style="flex:1" onclick="App.plotPhoto('${p.id}')">📷 ${url ? "เปลี่ยนรูป" : "เพิ่มรูปแปลง"}</button>
+        ${url ? `<button class="btn btn-sm btn-danger-soft" onclick="App.plotPhotoRemove('${p.id}')">${ic("trash")} ลบรูป</button>` : ""}
+      </div>
+    </div>`;
+}
+App.plotPhoto = function (id) {
+  const p = plotById(S, id); if (!p) return;
+  const input = document.createElement("input");
+  input.type = "file"; input.accept = "image/*";
+  input.onchange = async () => {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    toast("กำลังอัปโหลดรูป...");
+    const url = await App.uploadPhotoR2(f, 1280);
+    if (!url) { toast("อัปโหลดไม่สำเร็จ — ต้องล็อกอินและมีอินเทอร์เน็ต"); return; }
+    p.photoUrl = url;
+    saveState(S); render();
+    toast("เพิ่มรูปแปลงแล้ว (เก็บบนคลาวด์)");
+  };
+  input.click();
+};
+App.plotPhotoRemove = function (id) {
+  const p = plotById(S, id); if (!p || !p.photoUrl) return;
+  const url = p.photoUrl;
+  p.photoUrl = "";
+  saveState(S); render();
+  toast("ลบรูปแปลงแล้ว");
+  if (url.startsWith("http") && typeof Auth !== "undefined" && Auth.session) authCall("photo_del", { token: Auth.session.token, url }).catch(() => {});
+};
+
 /* การ์ดสภาพอากาศในหน้าแปลง — โชว์อากาศปัจจุบัน + 7 วันทันที (#weatherCard)
    พร้อมแถบเสริม "เทียบ 5 สถานี" กดเข้าหน้าเปรียบเทียบเต็มได้ */
 function plotWeatherCard(p) {
@@ -1218,6 +1257,8 @@ function renderPlotDetail() {
         <button class="btn btn-sm btn-primary" onclick="App.modalTask(todayISO(), { plotId: '${p.id}' })">${ic("plus")} เพิ่มกิจกรรม</button>
       </div>
     </div>
+
+    ${plotPhotoCard(p)}
 
     ${plotWeatherCard(p)}
 
@@ -2607,6 +2648,19 @@ App.checkCloudSize = async function () {
   } catch (e) { toast("เชื่อมต่อคลาวด์ไม่ได้ (ออฟไลน์?)"); }
 };
 
+/* ---------------- รูปภาพบนคลาวด์ (R2) ---------------- */
+/* ย่อ + อัปโหลดรูปขึ้น R2 ผ่าน worker — สำเร็จคืน URL (ข้อมูลเก็บแค่ URL ไม่กิน localStorage)
+   ล้มเหลว (ออฟไลน์/ยังไม่ล็อกอิน/R2 ยังไม่พร้อม) คืน null ให้ผู้เรียก fallback เก็บ base64 เดิม */
+App.uploadPhotoR2 = async function (file, maxSide) {
+  try {
+    if (typeof Auth === "undefined" || !Auth.session) return null;
+    const dataUrl = await downscaleImage(file, maxSide || 960, 0.8);
+    const r = await authCall("photo_put", { token: Auth.session.token, data: dataUrl.split(",")[1], contentType: "image/jpeg" });
+    if (!r || !r.ok || !r.data || !r.data.url) return null;
+    return r.data.url;
+  } catch (e) { return null; }
+};
+
 function renderSettings() {
   const unlocked = adminUnlocked();
   let editorHtml = "";
@@ -2656,6 +2710,7 @@ function renderSettings() {
       <div class="muted" style="font-size:.76rem;margin-bottom:10px">ดาวน์โหลดข้อมูลทั้งหมด (งาน / สต็อก / แปลง / ค่าใช้จ่าย) เป็นไฟล์ .json เพื่อสำรอง หรือนำเข้าไฟล์สำรองกลับมาใช้งาน — ข้อมูลบันทึกในเบราว์เซอร์เท่านั้น</div>
       <button class="btn btn-primary btn-block" onclick="App.exportData()">${ic("download")} ดาวน์โหลดข้อมูล (.json)</button>
       <button class="btn btn-ghost btn-block mt-8" onclick="App.importData()">${ic("upload")} นำเข้าข้อมูล (.json)</button>
+      <button class="btn btn-ghost btn-block mt-8" onclick="App.importMerge()">${ic("box")} ผสานข้อมูลจากไฟล์ (เพิ่มเข้าของเดิม)</button>
     </div>
     <div class="section-title">${ic("alert")} พื้นที่เก็บข้อมูล <span class="muted" style="font-size:.72rem;font-weight:600">ในเครื่อง + คลาวด์</span></div>
     <div class="card">
@@ -2966,6 +3021,71 @@ App.importData = function () {
         ensureDefaults(payload);
         saveState(payload);
         location.reload();
+      });
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+};
+
+/* ผสานข้อมูลจากไฟล์ .json (เช่นที่แปลงจาก Excel) — "เพิ่มเข้า" ข้อมูลเดิม ไม่ทับของที่มีอยู่
+   - แปลง: ถ้ามีแปลงชื่อเดียวกันอยู่แล้ว -> ผูกงาน/รอบเข้าแปลงเดิม (ไม่สร้างซ้ำ)
+   - รอบ/งาน: ข้ามรายการที่ id ซ้ำกับที่มีอยู่, เลขรอบ (round) คำนวณใหม่ให้อัตโนมัติ */
+App.importMerge = function () {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json,application/json";
+  input.style.display = "none";
+  document.body.appendChild(input);
+  input.addEventListener("change", () => {
+    const file = input.files && input.files[0];
+    input.remove();
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let obj;
+      try { obj = JSON.parse(reader.result); } catch (e) { toast("ไฟล์ไม่ใช่ JSON ที่ถูกต้อง"); return; }
+      const payload = obj && obj.type === "backup" && obj.data ? obj.data : obj;
+      const nP = (payload.plots || []).length, nC = (payload.cycles || []).length, nT = (payload.tasks || []).length;
+      if (!nP && !nC && !nT) { toast("ไฟล์นี้ไม่มีแปลง/รอบ/งานให้ผสาน"); return; }
+      App.confirm("ผสานข้อมูล?",
+        `จะเพิ่มเข้าข้อมูลเดิม (ไม่ลบของที่มี): ${nP} แปลง · ${nC} รอบปลูก · ${nT} งาน` +
+        (obj.label ? `\n(${obj.label})` : "") + "\nต้องการดำเนินการต่อหรือไม่?", () => {
+        /* แปลง: map ตามชื่อ (ตัดช่องว่าง) — มีอยู่แล้วใช้ของเดิม ไม่มีค่อยสร้างใหม่ */
+        const norm = s => String(s || "").replace(/\s+/g, "").toLowerCase();
+        const byName = {};
+        S.plots.forEach(p => { byName[norm(p.name)] = p; });
+        const idRemap = {};
+        let addedPlots = 0;
+        (payload.plots || []).forEach(np => {
+          if (!np || !np.id) return;
+          let ex = byName[norm(np.name)];
+          if (!ex) {
+            ex = Object.assign({}, np);
+            if (S.plots.some(p => p.id === ex.id)) ex.id = uid();
+            S.plots.push(ex); byName[norm(ex.name)] = ex; addedPlots++;
+          }
+          idRemap[np.id] = ex.id;
+        });
+        let addedCycles = 0;
+        (payload.cycles || []).forEach(c => {
+          if (!c || !c.id || S.cycles.some(x => x.id === c.id)) return;
+          const nc = Object.assign({}, c, { plotId: idRemap[c.plotId] || c.plotId });
+          /* เลขรอบ: ต่อท้ายรอบที่มีของแปลงนั้น (กันเลขซ้ำ) */
+          const rounds = S.cycles.filter(x => x.plotId === nc.plotId).map(x => Number(x.round) || 0);
+          nc.round = Math.max(0, ...rounds) + 1;
+          S.cycles.push(nc); addedCycles++;
+        });
+        let addedTasks = 0;
+        (payload.tasks || []).forEach(t => {
+          if (!t || !t.id || S.tasks.some(x => x.id === t.id)) return;
+          S.tasks.push(Object.assign({}, t, { plotId: idRemap[t.plotId] || t.plotId }));
+          addedTasks++;
+        });
+        ensureTaskIds(S);
+        saveState(S);
+        toast(`ผสานแล้ว: +${addedPlots} แปลง · +${addedCycles} รอบ · +${addedTasks} งาน`);
+        setTimeout(() => location.reload(), 800);
       });
     };
     reader.readAsText(file);
