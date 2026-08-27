@@ -381,8 +381,8 @@ function render() {
   if (route.view === "weather" || route.view === "plotDetail") renderPlotWeather();
   /* หน้าระบบน้ำ: ดึงโน้ตล่าสุดจากเซิร์ฟเวอร์ (ข้ามรอบเพราะฝน ฯลฯ) */
   if (route.view === "iot" && typeof App.waterPullStatus === "function") App.waterPullStatus();
-  /* หน้าราคาตลาด: ฝังวิดเจ็ตราคารายวัน */
-  if (route.view === "prices" && typeof App.mountRakaWidget === "function") App.mountRakaWidget();
+  /* หน้าราคาตลาด: reset _priceLoading เมื่อเปลี่ยนออกจากหน้า prices เพื่อให้โหลดใหม่ได้ครั้งถัดไป */
+  if (viewChanged && route.view !== "prices") App._priceLoading = false;
   /* เลื่อนกลับหัวหน้าเฉพาะตอนเปลี่ยนหน้า (เช่น กดเมนู) — ถ้าแค่ re-render ในหน้าเดิม (กดวันปฏิทิน/กรอง/ติ๊กงาน)
      ต้องไม่กระโดดขึ้นบน กันบัคหน้าเด้ง */
   if (viewChanged) {
@@ -2241,78 +2241,254 @@ function priceFilterRows(rows, searchKey, catFilter) {
   });
 }
 
-/* ===== ตารางราคา (อัปเดตเฉพาะจุด = focus ไม่หลุด) ===== */
+/* ===== card grid ราคา (อัปเดตเฉพาะจุด = focus ไม่หลุด) แบบ kasetpoomjai ===== */
 function priceTableHtml() {
   const cached = App._marketPrices;
   if (!cached) return "";
   const searchKey = App._priceSearch || "";
   const catFilter = App._priceCat || "";
   const rows = priceFilterRows(priceFlatRows(cached), searchKey, catFilter);
-  if (!rows.length) return `<div class="card" style="text-align:center;padding:24px"><div class="muted">${ic("search")} ไม่พบข้อมูลที่ค้นหา</div></div>`;
-  return `<div class="card" style="padding:0;overflow:hidden;border-radius:var(--radius)">
-    <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:.8rem">
-        <thead>
-          <tr style="background:var(--bg);border-bottom:2px solid var(--line)">
-            <th style="text-align:left;padding:12px 14px;font-weight:700;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.5px">สินค้า</th>
-            <th style="text-align:left;padding:12px 10px;font-weight:700;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.5px">ตลาด</th>
-            <th style="text-align:right;padding:12px 14px;font-weight:700;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.5px">ราคาปัจจุบัน</th>
-            <th style="text-align:center;padding:12px 10px;font-weight:700;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.5px">สถานะ</th>
-            <th style="text-align:center;padding:12px 10px;font-weight:700;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.5px">อัปเดต</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${(() => {
-            const grouped = {};
-            rows.forEach(r => {
-              if (!grouped[r.product]) grouped[r.product] = { product: r.product, category: r.category, unit: r.unit, min: r.min, max: r.max, markets: [] };
-              grouped[r.product].markets.push(r);
-            });
-            return Object.values(grouped).sort((a, b) => a.product.localeCompare(b.product, "th")).map(g => g.markets.map((m, i) => `
-              <tr style="border-bottom:1px solid var(--line)">
-                ${i === 0 ? `<td rowspan="${g.markets.length}" style="text-align:left;padding:12px 14px;font-weight:600;vertical-align:top;line-height:1.5">
-                  <div style="font-size:.86rem">${esc(g.product)}</div>
-                  <div style="font-size:.68rem;color:var(--muted);font-weight:400;margin-top:2px">${esc(g.category)}</div>
-                </td>` : ""}
-                <td style="text-align:left;padding:10px">
-                  <span style="display:inline-block;padding:2px 8px;border-radius:6px;background:var(--bg);font-size:.74rem;font-weight:500">${esc(m.market)}</span>
-                </td>
-                <td style="text-align:right;padding:10px 14px;white-space:nowrap">
-                  <span style="font-weight:700;font-size:.88rem;color:var(--green-deep)">${fmtNum(m.min)}${m.min === m.max ? "" : " - " + fmtNum(m.max)}</span>
-                  <span style="font-size:.68rem;color:var(--muted);margin-left:2px">/${esc(g.unit)}</span>
-                </td>
-                <td style="text-align:center;padding:10px;white-space:nowrap">
-                  ${m.status === "up" ? `<span style="color:var(--green);font-weight:600;font-size:.78rem">▲ ${m.change > 0 ? fmtNum(m.change) : ""}</span>` : m.status === "down" ? `<span style="color:var(--red);font-weight:600;font-size:.78rem">▼ ${m.change > 0 ? fmtNum(m.change) : ""}</span>` : `<span style="color:var(--muted);font-size:.74rem">—</span>`}
-                </td>
-                <td style="text-align:center;padding:10px;white-space:nowrap">
-                  <span style="font-size:.72rem;color:var(--muted)">${dateLabel(m.date)}</span>
-                </td>
-              </tr>`).join("")).join("");
-          })()}
-        </tbody>
-      </table>
-    </div>
-  </div>`;
+  if (!rows.length) return `<div class="card" style="text-align:center;padding:32px 20px"><div class="muted" style="font-size:.88rem">${ic("search")} ไม่พบสินค้าที่ตรงกับเงื่อนไข<br><span style="font-size:.76rem">กรุณาลองเปลี่ยนตลาดหรือคำค้นหาของคุณ</span></div></div>`;
+
+  /* จัดกลุ่มตามสินค้า เพื่อรวมหลายตลาดในการ์ดเดียว */
+  const grouped = {};
+  rows.forEach(r => {
+    if (!grouped[r.product]) grouped[r.product] = { product: r.product, category: r.category, unit: r.unit, markets: [] };
+    grouped[r.product].markets.push(r);
+  });
+  const items = Object.values(grouped).sort((a, b) => a.product.localeCompare(b.product, "th"));
+
+  const cards = items.map(g => {
+    const marketRows = g.markets.map(m => {
+      const priceStr = m.min === m.max ? fmtNum(m.min) : `${fmtNum(m.min)}-${fmtNum(m.max)}`;
+      const changeBadge = m.status === "up"
+        ? `<span style="color:var(--green);font-weight:700;font-size:.82rem;white-space:nowrap">▲ ${m.change > 0 ? fmtNum(m.change) : ""}</span>`
+        : m.status === "down"
+        ? `<span style="color:var(--red);font-weight:700;font-size:.82rem;white-space:nowrap">▼ ${m.change > 0 ? fmtNum(m.change) : ""}</span>`
+        : `<span style="color:var(--muted);font-size:.76rem;white-space:nowrap">—</span>`;
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;${g.markets.length > 1 ? "border-top:1px solid var(--line);" : ""}">
+          <div style="min-width:0">
+            <div style="font-size:.75rem;color:var(--muted);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.market)}</div>
+            <div style="font-size:.72rem;color:var(--muted2,var(--muted));margin-top:1px">${dateLabel(m.date)}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+            <div style="text-align:right">
+              <span style="font-weight:800;font-size:1rem;color:var(--green-deep)">${priceStr}</span>
+              <span style="font-size:.72rem;color:var(--muted);margin-left:2px">/${esc(g.unit)}</span>
+            </div>
+            <div style="min-width:32px;text-align:right">${changeBadge}</div>
+          </div>
+        </div>`;
+    }).join("");
+
+    /* สีขอบซ้ายตามสถานะสินค้าโดยรวม (ถ้ามีตลาดใดขึ้น = ขึ้น / ลงทั้งหมด = ลง / อื่นๆ = ปกติ) */
+    const hasUp = g.markets.some(m => m.status === "up");
+    const hasDown = g.markets.some(m => m.status === "down");
+    const borderColor = hasUp ? "var(--green)" : hasDown ? "var(--red)" : "var(--line)";
+
+    const productEsc = esc(g.product).replace(/'/g, "\\'");
+    return `
+      <div class="card" style="padding:12px 14px;border-left:3px solid ${borderColor};cursor:pointer"
+           onclick="App.showPriceHistory('${productEsc}','${esc(g.unit)}')"
+           role="button" title="ดูประวัติราคา ${esc(g.product)}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:${g.markets.length > 1 ? "2px" : "0"}">
+          <div>
+            <div style="font-weight:700;font-size:.92rem;line-height:1.3">${esc(g.product)}</div>
+            <div style="font-size:.7rem;color:var(--muted);margin-top:2px">${esc(g.category)}</div>
+          </div>
+          <span style="font-size:.68rem;color:var(--muted);opacity:.6;flex-shrink:0;margin-top:2px">${ic("chart")}</span>
+        </div>
+        ${marketRows}
+      </div>`;
+  }).join("");
+
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">${cards}</div>`;
 }
 
-/* ===== สรุปภาพรวม (top cards — ราคาขึ้น/ลง/คงที่) ===== */
+/* ===== modal ประวัติราคา + กราฟ ===== */
+App.showPriceHistory = async function (product, unit) {
+  /* เปิด modal ทันทีด้วย loading state */
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("chart")} ${esc(product)}</h3>
+    <div class="muted" style="font-size:.78rem;margin-bottom:14px">ประวัติราคาย้อนหลัง</div>
+    <div id="phModalBody" style="text-align:center;padding:32px 0">
+      <div class="muted">${ic("refresh")} กำลังโหลดข้อมูล...</div>
+    </div>`);
+
+  try {
+    const r = await authCall("market_price_history", { product, days: 30 });
+    const el = document.getElementById("phModalBody");
+    if (!el) return;
+
+    if (!r.ok) {
+      /* Worker เก่าหรือ network error — fallback ราคาปัจจุบันจาก cache */
+      App._showPriceFromCache(el, product, unit);
+      return;
+    }
+
+    const { history, markets } = r.data;
+
+    /* ยังไม่มีประวัติ (เพิ่งเริ่มบันทึก) — แสดงราคาปัจจุบันจาก cache แทน */
+    const hasHistory = markets && markets.length && Object.values(history).some(arr => arr.length > 1);
+    if (!hasHistory) {
+      /* สร้าง mock จากข้อมูล snapshot ปัจจุบัน */
+      const cached = App._marketPrices;
+      const prod = cached && (cached.products || []).find(p => p.product === product);
+      if (prod) {
+        const priceStr = prod.min === prod.max ? fmtNum(prod.min) : `${fmtNum(prod.min)}–${fmtNum(prod.max)}`;
+        el.innerHTML = `
+          <div style="padding:12px 0 4px">
+            ${prod.markets.map(m => `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">
+                <span style="font-size:.82rem;color:var(--muted)">${esc(m.market)}</span>
+                <span style="font-weight:700;font-size:1rem;color:var(--green-deep)">${fmtNum(m.price)} <span style="font-size:.72rem;font-weight:400">/${esc(prod.unit)}</span></span>
+              </div>`).join("")}
+          </div>
+          <div class="muted" style="font-size:.74rem;text-align:center;margin-top:16px;padding:10px;background:var(--bg);border-radius:8px">
+            ${ic("chart")} ระบบเริ่มเก็บประวัติราคาแล้ว<br>กราฟจะแสดงหลังจากมีข้อมูลสะสม 2 วันขึ้นไป
+          </div>`;
+      } else {
+        el.innerHTML = `<div class="muted" style="padding:24px 0">ยังไม่มีประวัติราคา — ระบบจะเริ่มบันทึกตั้งแต่วันนี้</div>`;
+      }
+      return;
+    }
+
+    /* มีประวัติ — วาดกราฟแยกตามตลาด */
+    const daysPicker = `
+      <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+        ${[7,14,30,60,90].map(d => `
+          <button class="chip ${(App._phDays||30)===d?"chip-active":""}"
+                  onclick="App._phDays=${d};App.showPriceHistory('${product.replace(/'/g,"\\'")}','${(unit||"").replace(/'/g,"\\'")}')">
+            ${d} วัน
+          </button>`).join("")}
+      </div>`;
+
+    const MARKET_COLORS = ["#16a34a","#2563eb","#f97316","#8b5cf6","#e11d48"];
+    const chartSections = markets.map((mkt, mi) => {
+      const pts = (history[mkt] || []).slice(-(App._phDays || 30));
+      if (!pts.length) return "";
+      const last = pts[pts.length - 1];
+      const first = pts[0];
+      const diff = last.price - first.price;
+      const diffSign = diff > 0 ? `<span style="color:var(--green)">▲ ${fmtNum(diff)}</span>`
+                     : diff < 0 ? `<span style="color:var(--red)">▼ ${fmtNum(Math.abs(diff))}</span>`
+                     : `<span style="color:var(--muted)">—</span>`;
+      /* label ย่อ — แสดงทุก N วัน เพื่อไม่ให้แน่น */
+      const step = pts.length > 14 ? Math.ceil(pts.length / 7) : 1;
+      const chartItems = pts.map((pt, i) => ({
+        label: i % step === 0 ? pt.date.slice(5) : "",   /* MM-DD */
+        value: pt.price
+      }));
+      const color = MARKET_COLORS[mi % MARKET_COLORS.length];
+      return `
+        <div style="margin-bottom:18px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color}"></span>
+              <span style="font-size:.8rem;font-weight:600">${esc(mkt)}</span>
+            </div>
+            <div style="font-size:.78rem">
+              <span style="font-weight:700;color:var(--green-deep)">${fmtNum(last.price)}</span>
+              <span style="font-size:.68rem;color:var(--muted)"> /${esc(unit)}</span>
+              <span style="margin-left:6px;font-size:.74rem">${diffSign}</span>
+            </div>
+          </div>
+          <div id="ph_chart_${mi}" style="width:100%;overflow:hidden"></div>
+        </div>`;
+    }).join("");
+
+    el.innerHTML = daysPicker + chartSections;
+
+    /* วาดกราฟทุกตลาด */
+    markets.forEach((mkt, mi) => {
+      const pts = (history[mkt] || []).slice(-(App._phDays || 30));
+      if (!pts.length) return;
+      const step = pts.length > 14 ? Math.ceil(pts.length / 7) : 1;
+      const chartItems = pts.map((pt, i) => ({ label: i % step === 0 ? pt.date.slice(5) : "", value: pt.price }));
+      const color = MARKET_COLORS[mi % MARKET_COLORS.length];
+      const container = document.getElementById("ph_chart_" + mi);
+      if (!container) return;
+      /* override สี line ชั่วคราว */
+      const origHTML = container.innerHTML;
+      Charts.line(container, chartItems, { color });
+      /* แก้สีเส้น + จุด + area ให้ตรงกับตลาด */
+      const svg = container.querySelector("svg");
+      if (svg) {
+        svg.querySelectorAll("polyline").forEach(el => el.setAttribute("stroke", color));
+        svg.querySelectorAll("circle").forEach(el => el.setAttribute("fill", color));
+        svg.querySelectorAll("polygon").forEach(el => { el.setAttribute("fill", color); el.setAttribute("opacity","0.1"); });
+      }
+    });
+
+  } catch (e) {
+    const el = document.getElementById("phModalBody");
+    if (el) el.innerHTML = `<div class="muted">เชื่อมต่อไม่ได้ กรุณาลองใหม่</div>`;
+  }
+};
+/* reset days picker เมื่อปิด modal */
+App._phDays = 30;
+
+/* helper: แสดงราคาปัจจุบันจาก cache เมื่อ worker ยังไม่มี price_history */
+App._showPriceFromCache = function (el, product, unit) {
+  if (!el) return;
+  const cached = App._marketPrices;
+  const prod = cached && (cached.products || []).find(p => p.product === product);
+  if (!prod) {
+    el.innerHTML = `<div class="muted" style="padding:24px 0">ไม่พบข้อมูลราคาในขณะนี้</div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div style="padding:4px 0 12px">
+      ${prod.markets.map(m => {
+        const badge = m.status === "up"
+          ? `<span style="color:var(--green);font-weight:700">▲</span>`
+          : m.status === "down"
+          ? `<span style="color:var(--red);font-weight:700">▼</span>`
+          : `<span style="color:var(--muted)">—</span>`;
+        return `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)">
+            <span style="font-size:.84rem;color:var(--muted)">${esc(m.market)}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-weight:800;font-size:1.05rem;color:var(--green-deep)">${fmtNum(m.price)}</span>
+              <span style="font-size:.72rem;color:var(--muted)">/${esc(prod.unit)}</span>
+              ${badge}
+            </div>
+          </div>`;
+      }).join("")}
+    </div>
+    <div class="muted" style="font-size:.74rem;text-align:center;margin-top:8px;padding:10px 14px;background:var(--bg);border-radius:8px;line-height:1.6">
+      ${ic("chart")} กราฟประวัติราคาจะแสดงเมื่อ deploy worker เวอร์ชันใหม่แล้ว<br>
+      <span style="font-size:.7rem">ระบบจะเริ่มสะสมข้อมูลรายวันโดยอัตโนมัติ</span>
+    </div>`;
+};
+
+/* ===== summary banner แบบ kasetpoomjai (ราคาขึ้น / ลง / คงที่ ใน 1 แถวเดียว) ===== */
 function priceSummaryHtml(cached) {
   const rows = priceFlatRows(cached);
   const upCount = rows.filter(r => r.status === "up").length;
   const downCount = rows.filter(r => r.status === "down").length;
   const stableCount = rows.filter(r => r.status === "stable").length;
-  return `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
-    <div class="card" style="text-align:center;padding:16px 10px;border-left:3px solid var(--green)">
-      <div style="font-size:1.6rem;font-weight:800;color:var(--green);line-height:1">${upCount}</div>
-      <div class="muted" style="font-size:.72rem;margin-top:4px">รายการ ราคาขึ้น</div>
+  /* นับเฉพาะสินค้า (unique product) ไม่นับซ้ำหลายตลาด */
+  const products = new Set(rows.map(r => r.product));
+  return `
+  <div style="display:flex;gap:0;border-radius:var(--radius);overflow:hidden;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+    <div style="flex:1;background:var(--green);color:#fff;padding:14px 10px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:800;line-height:1">${upCount}</div>
+      <div style="font-size:.7rem;opacity:.92;margin-top:3px;white-space:nowrap">รายการ ราคาขึ้น</div>
     </div>
-    <div class="card" style="text-align:center;padding:16px 10px;border-left:3px solid var(--red)">
-      <div style="font-size:1.6rem;font-weight:800;color:var(--red);line-height:1">${downCount}</div>
-      <div class="muted" style="font-size:.72rem;margin-top:4px">รายการ ราคาลง</div>
+    <div style="flex:1;background:var(--red,#e11d48);color:#fff;padding:14px 10px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:800;line-height:1">${downCount}</div>
+      <div style="font-size:.7rem;opacity:.92;margin-top:3px;white-space:nowrap">รายการ ราคาลง</div>
     </div>
-    <div class="card" style="text-align:center;padding:16px 10px;border-left:3px solid var(--muted)">
-      <div style="font-size:1.6rem;font-weight:800;color:var(--muted);line-height:1">${stableCount}</div>
-      <div class="muted" style="font-size:.72rem;margin-top:4px">รายการ ราคาคงที่</div>
+    <div style="flex:1;background:var(--card);color:var(--text);padding:14px 10px;text-align:center;border:1px solid var(--line)">
+      <div style="font-size:1.5rem;font-weight:800;line-height:1;color:var(--muted)">${stableCount}</div>
+      <div style="font-size:.7rem;color:var(--muted);margin-top:3px;white-space:nowrap">รายการ ราคาคงที่</div>
+    </div>
+    <div style="flex:1;background:var(--card);color:var(--text);padding:14px 10px;text-align:center;border:1px solid var(--line);border-left:none">
+      <div style="font-size:1.5rem;font-weight:800;line-height:1">${products.size}</div>
+      <div style="font-size:.7rem;color:var(--muted);margin-top:3px;white-space:nowrap">สินค้าทั้งหมด</div>
     </div>
   </div>`;
 }
@@ -2356,53 +2532,91 @@ App.priceCatFilter = function (cat) {
 function renderPrices() {
   const cached = App._marketPrices;
   const searchKey = App._priceSearch || "";
-  
-  if (!cached) {
+
+  /* โหลดอัตโนมัติครั้งแรกที่เปิดหน้า (ไม่ต้องกดปุ่ม) */
+  if (!cached && !App._priceLoading) {
+    App._priceLoading = true;
+    App.loadMarketPrices();
     return `
-      <!-- Hero -->
       <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none;padding:28px 20px;text-align:center">
         <div style="font-size:2.2rem;margin-bottom:10px">${ic("dollar")}</div>
         <div class="bold" style="font-size:1.15rem;margin-bottom:6px">ราคาสินค้าเกษตรวันนี้</div>
-        <div style="font-size:.78rem;opacity:.85;line-height:1.6">ติดตามและวิเคราะห์ราคาสินค้าเกษตรล่าสุดจากตลาดกลางชั้นนำ<br>อัปเดตข้อมูลรายวันเพื่อการตัดสินใจที่แม่นยำของคุณ</div>
+        <div style="font-size:.78rem;opacity:.85;line-height:1.6">ติดตามและวิเคราะห์ราคาสินค้าเกษตรล่าสุด<br>จากตลาดกลางชั้นนำทั่วประเทศ</div>
       </div>
       <div class="card" style="text-align:center;padding:40px 20px;margin-top:12px">
-        <div style="font-size:2.5rem;margin-bottom:14px;opacity:.3">${ic("dollar")}</div>
-        <div class="bold" style="font-size:1rem;margin-bottom:8px">กดปุ่มดึงราคาล่าสุด</div>
-        <div class="muted" style="font-size:.78rem;margin-bottom:16px">ข้อมูลจริงจาก API สศก. (ศูนย์ข้อมูลเกษตรแห่งชาติ)<br>ราคารับซื้อรายวัน ณ ตลาดสำคัญทั่วประเทศ</div>
-        <button class="btn btn-primary" onclick="App.loadMarketPrices()">${ic("refresh")} ดึงราคาล่าสุด</button>
+        <div style="font-size:2rem;margin-bottom:12px;opacity:.35">${ic("refresh")}</div>
+        <div class="bold" style="margin-bottom:6px">กำลังดึงข้อมูลราคา...</div>
+        <div class="muted" style="font-size:.78rem">ข้อมูลราคา ณ ตลาดศรีเมือง + ตลาดสี่มุมเมือง</div>
       </div>`;
   }
-  
+
+  if (!cached) {
+    return `
+      <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none;padding:28px 20px;text-align:center">
+        <div style="font-size:2.2rem;margin-bottom:10px">${ic("dollar")}</div>
+        <div class="bold" style="font-size:1.15rem;margin-bottom:6px">ราคาสินค้าเกษตรวันนี้</div>
+        <div style="font-size:.78rem;opacity:.85;line-height:1.6">ติดตามและวิเคราะห์ราคาสินค้าเกษตรล่าสุด<br>จากตลาดกลางชั้นนำทั่วประเทศ</div>
+      </div>
+      <div class="card" style="text-align:center;padding:36px 20px;margin-top:12px">
+        <div class="muted" style="margin-bottom:14px;font-size:.84rem">เชื่อมต่อไม่สำเร็จ หรือยังไม่ได้โหลดข้อมูล</div>
+        <button class="btn btn-primary" onclick="App._priceLoading=false;App.loadMarketPrices()">${ic("refresh")} ลองใหม่</button>
+      </div>`;
+  }
+
   return `
-    <!-- Hero -->
-    <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none;padding:24px 20px;margin-bottom:16px">
-      <div class="row row-between" style="align-items:flex-start">
+    <!-- Hero banner + summary -->
+    <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none;padding:18px 16px 14px;margin-bottom:12px">
+      <div class="row row-between" style="align-items:flex-start;margin-bottom:10px">
         <div>
-          <div class="bold" style="font-size:1.15rem;margin-bottom:4px">ราคาสินค้าเกษตรวันนี้</div>
-          <div style="font-size:.76rem;opacity:.8;line-height:1.5">ติดตามและวิเคราะห์ราคาสินค้าเกษตรล่าสุดจากตลาดกลางชั้นนำ<br>อัปเดตข้อมูลรายวันเพื่อการตัดสินใจที่แม่นยำของคุณ</div>
+          <div class="bold" style="font-size:1.08rem;margin-bottom:3px">ราคาสินค้าเกษตรวันนี้</div>
+          <div style="font-size:.73rem;opacity:.85">ตลาดศรีเมือง + ตลาดสี่มุมเมือง · ${thaiDateStr(new Date(cached.date))}</div>
         </div>
-        <button class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;border:none;flex-shrink:0;margin-left:12px" onclick="App.loadMarketPrices()">${ic("refresh")} รีเฟรช</button>
+        <button class="btn btn-sm" style="background:rgba(255,255,255,.22);color:#fff;border:none;flex-shrink:0;margin-left:10px" onclick="App._priceLoading=false;App.loadMarketPrices()">${ic("refresh")}</button>
       </div>
-      <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.2);font-size:.76rem;opacity:.9">
-        ข้อมูลล่าสุด ณ วันที่: <b>${thaiDateStr(new Date(cached.date))}</b>
-      </div>
+      <!-- summary bar ขึ้น/ลง/คงที่ -->
+      ${(() => {
+        const rows = priceFlatRows(cached);
+        const up = rows.filter(r => r.status === "up").length;
+        const down = rows.filter(r => r.status === "down").length;
+        const stable = rows.filter(r => r.status === "stable").length;
+        return `<div style="display:flex;gap:8px">
+          <div style="flex:1;background:rgba(255,255,255,.18);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="font-size:1.15rem;font-weight:800;line-height:1">${up}</div>
+            <div style="font-size:.65rem;opacity:.9;margin-top:2px">ราคาขึ้น</div>
+          </div>
+          <div style="flex:1;background:rgba(255,255,255,.18);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="font-size:1.15rem;font-weight:800;line-height:1">${down}</div>
+            <div style="font-size:.65rem;opacity:.9;margin-top:2px">ราคาลง</div>
+          </div>
+          <div style="flex:1;background:rgba(255,255,255,.18);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="font-size:1.15rem;font-weight:800;line-height:1">${stable}</div>
+            <div style="font-size:.65rem;opacity:.9;margin-top:2px">ราคาคงที่</div>
+          </div>
+          <div style="flex:1;background:rgba(255,255,255,.18);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="font-size:1.15rem;font-weight:800;line-height:1">${new Set(rows.map(r => r.product)).size}</div>
+            <div style="font-size:.65rem;opacity:.9;margin-top:2px">สินค้า</div>
+          </div>
+        </div>`;
+      })()}
     </div>
-    
-    <!-- Summary Cards -->
-    ${priceSummaryHtml(cached)}
-    
+
     <!-- ค้นหา + กรองหมวด -->
     ${priceSearchHtml(searchKey)}
     ${priceCatTabsHtml(cached)}
-    
-    <!-- ตารางสินค้า (อัปเดตเฉพาะจุดนี้ ไม่ rebuild ทั้งหน้า) -->
+
+    <!-- card grid สินค้า -->
     <div id="priceTableWrap">${priceTableHtml()}</div>
-    
+
     <div class="section-title" style="margin-top:20px">${ic("dollar")} แหล่งราคาทางการ</div>
     <div class="card">
+      <div class="row-line" onclick="window.open('https://www.kasetpoomjai.com/ราคาตลาด/','_blank')" role="button">
+        <span class="task-ico" style="background:var(--green-light);color:var(--green-deep)">${ic("leaf")}</span>
+        <div class="grow"><div class="bold" style="font-size:.84rem">เกษตรภูมิใจ — ราคาตลาดผักผลไม้</div><div class="muted" style="font-size:.7rem">ตลาดศรีเมือง + ตลาดสี่มุมเมือง รายวัน</div></div>
+        <span class="task-arrow">${ic("chevron")}</span>
+      </div>
       <div class="row-line" onclick="window.open('https://talaadthai.com/products','_blank')" role="button">
         <span class="task-ico" style="background:var(--green-light);color:var(--green-deep)">${ic("dollar")}</span>
-        <div class="grow"><div class="bold" style="font-size:.84rem">ตลาดไท — ราคาผักผลไม้ขายส่งรายวัน</div><div class="muted" style="font-size:.7rem">ราคาผักสดรายวัน — ที่มาข้อมูลจริงจากตลาดไท</div></div>
+        <div class="grow"><div class="bold" style="font-size:.84rem">ตลาดไท — ราคาผักผลไม้ขายส่งรายวัน</div><div class="muted" style="font-size:.7rem">ราคาผักสดขายส่ง ณ ตลาดไท</div></div>
         <span class="task-arrow">${ic("chevron")}</span>
       </div>
       <div class="row-line" onclick="window.open('https://pricelist.dit.go.th/main.php','_blank')" role="button">
@@ -2412,15 +2626,16 @@ function renderPrices() {
       </div>
     </div>`;
 }
-/* โหลดราคาจาก Worker (proxy กัน CORS) + ฝังวิดเจ็ตราคา */
+/* โหลดราคาจาก Worker (proxy กัน CORS) — เรียกอัตโนมัติตอนเปิดหน้า */
 App.loadMarketPrices = async function () {
-  toast("กำลังดึงราคาล่าสุดจาก สศก...");
+  App._priceLoading = true;
   try {
     const r = await authCall("market_prices", {});
-    if (!r.ok) { toast("ดึงราคาไม่สำเร็จ: " + (r.error || "")); return; }
+    if (!r.ok) { toast("ดึงราคาไม่สำเร็จ: " + (r.error || "")); App._priceLoading = false; render(); return; }
     App._marketPrices = r.data;
+    App._priceLoading = false;
     render();
-  } catch (e) { toast("เชื่อมต่อไม่ได้"); }
+  } catch (e) { toast("เชื่อมต่อไม่ได้"); App._priceLoading = false; render(); }
 };
 /* ฝังวิดเจ็ต rakakaset (script แบบ dynamic — innerHTML ไม่รัน script เอง) */
 App.mountRakaWidget = function () {

@@ -291,6 +291,76 @@ async function doMarketPrices(env, p) {
   return MARKET_DATA;
 }
 
+/* บันทึกราคาวันนี้จาก MARKET_DATA ลง D1 (เรียกจาก cron ครั้งเดียวต่อวัน)
+   ใช้ INSERT OR REPLACE เพื่อ idempotent — รัน cron ซ้ำได้ปลอดภัย */
+async function doRecordPrices(env) {
+  /* ตรวจว่า table มีแล้วหรือยัง (migration อาจยังไม่ได้รัน) */
+  try {
+    await env.DB.prepare("SELECT 1 FROM price_history LIMIT 1").first();
+  } catch (e) {
+    /* table ยังไม่มี — สร้างอัตโนมัติ */
+    await env.DB.exec(`
+      CREATE TABLE IF NOT EXISTS price_history (
+        product TEXT NOT NULL, market TEXT NOT NULL, date TEXT NOT NULL,
+        price REAL NOT NULL, min REAL NOT NULL, max REAL NOT NULL,
+        unit TEXT DEFAULT '', category TEXT DEFAULT '', status TEXT DEFAULT 'stable',
+        recorded_at INTEGER NOT NULL, PRIMARY KEY (product, market, date)
+      );
+      CREATE INDEX IF NOT EXISTS idx_ph_product_date ON price_history(product, date DESC);
+      CREATE INDEX IF NOT EXISTS idx_ph_date ON price_history(date DESC);
+    `);
+  }
+  const nowBkk = new Date(Date.now() + 7 * 3600 * 1000);
+  const today = nowBkk.toISOString().slice(0, 10);
+  const ts = Date.now();
+  /* แบ่ง batch ทีละ 50 rows (D1 จำกัด bound params) */
+  const rows = [];
+  for (const p of MARKET_DATA.products || []) {
+    for (const m of p.markets || []) {
+      rows.push({
+        product: p.product, market: m.market, date: today,
+        price: Number(m.price) || ((Number(p.min) + Number(p.max)) / 2),
+        min: Number(p.min) || 0, max: Number(p.max) || 0,
+        unit: p.unit || "", category: p.category || "",
+        status: m.status || "stable", recorded_at: ts
+      });
+    }
+  }
+  const CHUNK = 50;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    const stmt = env.DB.prepare(
+      "INSERT OR REPLACE INTO price_history (product,market,date,price,min,max,unit,category,status,recorded_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)"
+    );
+    await env.DB.batch(chunk.map(r => stmt.bind(r.product, r.market, r.date, r.price, r.min, r.max, r.unit, r.category, r.status, r.recorded_at)));
+  }
+  /* ลบข้อมูลเก่ากว่า 90 วัน — กัน table โต */
+  const nowBkk90 = new Date(Date.now() + 7 * 3600 * 1000 - 90 * 86400 * 1000);
+  const cutoff = nowBkk90.toISOString().slice(0, 10);
+  await env.DB.prepare("DELETE FROM price_history WHERE date < ?1").bind(cutoff).run();
+  return { recorded: rows.length, date: today };
+}
+
+/* ดึงประวัติราคาของสินค้าหนึ่งชนิด (ทุกตลาด) ย้อนหลัง N วัน */
+async function doMarketPriceHistory(env, p) {
+  const product = String(p.product || "").trim();
+  if (!product) throw new Error("กรุณาระบุชื่อสินค้า");
+  const days = Math.min(Math.max(Number(p.days) || 30, 7), 90);
+  /* ตรวจ table ก่อน */
+  try { await env.DB.prepare("SELECT 1 FROM price_history LIMIT 1").first(); }
+  catch (e) { return { product, history: [], markets: [] }; }
+  const rows = await env.DB.prepare(
+    "SELECT date, market, price, min, max, status FROM price_history WHERE product = ?1 ORDER BY date ASC LIMIT ?2"
+  ).bind(product, days * 5).all(); /* 5 ตลาดสูงสุดต่อวัน */
+  /* จัดกลุ่มตามตลาด */
+  const byMarket = {};
+  for (const r of rows.results || []) {
+    if (!byMarket[r.market]) byMarket[r.market] = [];
+    byMarket[r.market].push({ date: r.date, price: r.price, min: r.min, max: r.max, status: r.status });
+  }
+  return { product, markets: Object.keys(byMarket), history: byMarket };
+}
+
 /* ---------- แชร์แปลง: ลิงก์ดูอย่างเดียว + คอมเมนต์ ---------- */
 async function userState(env, userId) {
   const d = await env.DB.prepare("SELECT data FROM user_data WHERE user_id = ?1").bind(userId).first();
@@ -658,6 +728,7 @@ export default {
       else if (payload.action === "water_poll") data = await doWaterPoll(env, payload);
       else if (payload.action === "water_report") data = await doWaterReport(env, payload);
       else if (payload.action === "market_prices") data = await doMarketPrices(env, payload);
+      else if (payload.action === "market_price_history") data = await doMarketPriceHistory(env, payload);
       else if (payload.action === "share_create") data = await doShareCreate(env, payload);
       else if (payload.action === "share_list") data = await doShareList(env, payload);
       else if (payload.action === "share_revoke") data = await doShareRevoke(env, payload);
@@ -672,6 +743,12 @@ export default {
     }
   },
   async scheduled(event, env, ctx) {
-    try { await cronWater(env); } catch (e) { console.error("cron error:", e); }
+    try { await cronWater(env); } catch (e) { console.error("cron water error:", e); }
+    /* บันทึกราคาตลาดวันนี้ลง D1 (ทุกนาที แต่ INSERT OR REPLACE = idempotent)
+       เช็คเฉพาะช่วง 08:00–08:59 BKK เพื่อไม่ให้ query DB ทุกนาที */
+    try {
+      const hBkk = new Date(Date.now() + 7 * 3600 * 1000).getUTCHours();
+      if (hBkk === 8) await doRecordPrices(env);
+    } catch (e) { console.error("cron price error:", e); }
   }
 };
