@@ -13,8 +13,9 @@ jobs:
 
       - name: Assemble site-only directory
         run: |
-          mkdir -p "$RUNNER_TEMP/site-stage"
-          cp -r index.html sw.js manifest.json logo.jpg _redirects css js icons images "$RUNNER_TEMP/site-stage/"
+          mkdir -p "${{ runner.temp }}/site-stage"
+          cp -r index.html sw.js manifest.json logo.jpg css js icons images "${{ runner.temp }}/site-stage/"
+          [ -f _redirects ] && cp _redirects "${{ runner.temp }}/site-stage/" || true
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
@@ -24,4 +25,4 @@ jobs:
           wranglerVersion: "4"
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy "$RUNNER_TEMP/site-stage" --project-name=farmultimate-solutions --branch=master --commit-dirty=true
+          command: pages deploy "${{ runner.temp }}/site-stage" --project-name=farmultimate-solutions --branch=master --commit-dirty=true
