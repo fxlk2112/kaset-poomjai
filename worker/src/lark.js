@@ -8,6 +8,7 @@
      { action: "push", records: [...] }            → อัปโหลด (upsert) ข้อมูลไป Base
      { action: "pull" }                            → ดึง record ทั้งหมดกลับมา
 */
+import { MARKET_DATA } from "./market-data.js";
 const BATCH = 500;
 
 /* แคช tenant_access_token ต่อ isolate (Cloudflare เก็บระหว่าง request) */
@@ -284,41 +285,10 @@ async function doAdminGet(env, p) {
 }
 
 /* ---------- ราคาตลาดจริงจาก API สศก. (NABC) — ราคารับซื้อรายวัน ณ ตลาดสำคัญ ---------- */
+/* ราคาตลาด: ข้อมูล static จาก kasetpoomjai.com (ตลาดศรีเมือง + ตลาดสี่มุมเมือง)
+   อัปเดตทุกครั้งที่ deploy worker — ข้อมูลมี 213 รายการ, 171 สินค้า */
 async function doMarketPrices(env, p) {
-  for (let off = 1; off <= 5; off++) {
-    const d = new Date(Date.now() - off * 86400000).toISOString().slice(0, 10);
-    try {
-      const r = await fetch("https://agriapi.nabc.go.th/api/daily-prices/date?date=" + d + "&page=1");
-      const j = await r.json();
-      if (!(j && j.success && j.data && j.data.length)) continue;
-      let all = j.data.slice();
-      const total = (j.pagination && j.pagination.total) || all.length;
-      const limit = (j.pagination && j.pagination.limit) || 50;
-      const pages = Math.ceil(total / limit);
-      for (let pg = 2; pg <= Math.min(pages, 10); pg++) {
-        const r2 = await fetch("https://agriapi.nabc.go.th/api/daily-prices/date?date=" + d + "&page=" + pg);
-        const j2 = await r2.json();
-        if (j2 && j2.success && j2.data) all = all.concat(j2.data);
-      }
-      const byProduct = {};
-      all.forEach(x => {
-        const k = x.product_category + "|" + x.product_name + "|" + x.unit;
-        if (!byProduct[k]) byProduct[k] = { category: x.product_category, product: x.product_name, unit: x.unit, markets: [] };
-        byProduct[k].markets.push({ market: x.market_name, province: x.province, price: x.day_price });
-      });
-      const products = Object.values(byProduct).map(g => {
-        const prices = g.markets.map(m => Number(m.price)).filter(v => !isNaN(v));
-        return {
-          category: g.category, product: g.product, unit: g.unit,
-          min: prices.length ? Math.min(...prices) : 0,
-          max: prices.length ? Math.max(...prices) : 0,
-          count: g.markets.length, date: d, markets: g.markets
-        };
-      }).sort((a, b) => a.category.localeCompare(b.category, "th") || a.product.localeCompare(b.product, "th"));
-      return { date: d, products };
-    } catch (e) { /* ลองวันก่อนหน้า */ }
-  }
-  throw new Error("ไม่พบข้อมูลราคาล่าสุดจาก สศก.");
+  return MARKET_DATA;
 }
 
 /* ---------- แชร์แปลง: ลิงก์ดูอย่างเดียว + คอมเมนต์ ---------- */

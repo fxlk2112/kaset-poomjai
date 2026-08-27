@@ -2228,7 +2228,7 @@ function priceFlatRows(cached) {
   const rows = [];
   (cached.products || []).forEach(p => {
     (p.markets || []).forEach(m => {
-      rows.push({ product: p.product, category: p.category, market: m.market, province: m.province, price: Number(m.price) || 0, unit: p.unit, min: p.min, max: p.max, date: p.date });
+      rows.push({ product: p.product, category: p.category, market: m.market, province: m.province || "", price: Number(m.price) || 0, unit: p.unit, min: p.min, max: p.max, date: p.date, change: Number(m.change) || 0, status: m.status || "stable" });
     });
   });
   return rows;
@@ -2257,6 +2257,7 @@ function priceTableHtml() {
             <th style="text-align:left;padding:12px 14px;font-weight:700;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.5px">สินค้า</th>
             <th style="text-align:left;padding:12px 10px;font-weight:700;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.5px">ตลาด</th>
             <th style="text-align:right;padding:12px 14px;font-weight:700;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.5px">ราคาปัจจุบัน</th>
+            <th style="text-align:center;padding:12px 10px;font-weight:700;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.5px">สถานะ</th>
             <th style="text-align:center;padding:12px 10px;font-weight:700;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.5px">อัปเดต</th>
           </tr>
         </thead>
@@ -2281,6 +2282,9 @@ function priceTableHtml() {
                   <span style="font-size:.68rem;color:var(--muted);margin-left:2px">/${esc(g.unit)}</span>
                 </td>
                 <td style="text-align:center;padding:10px;white-space:nowrap">
+                  ${m.status === "up" ? `<span style="color:var(--green);font-weight:600;font-size:.78rem">▲ ${m.change > 0 ? fmtNum(m.change) : ""}</span>` : m.status === "down" ? `<span style="color:var(--red);font-weight:600;font-size:.78rem">▼ ${m.change > 0 ? fmtNum(m.change) : ""}</span>` : `<span style="color:var(--muted);font-size:.74rem">—</span>`}
+                </td>
+                <td style="text-align:center;padding:10px;white-space:nowrap">
                   <span style="font-size:.72rem;color:var(--muted)">${dateLabel(m.date)}</span>
                 </td>
               </tr>`).join("")).join("");
@@ -2291,23 +2295,24 @@ function priceTableHtml() {
   </div>`;
 }
 
-/* ===== สรุปภาพรวม (top cards) ===== */
+/* ===== สรุปภาพรวม (top cards — ราคาขึ้น/ลง/คงที่) ===== */
 function priceSummaryHtml(cached) {
   const rows = priceFlatRows(cached);
-  const productSet = new Set(rows.map(r => r.product));
-  const marketSet = new Set(rows.map(r => r.market));
+  const upCount = rows.filter(r => r.status === "up").length;
+  const downCount = rows.filter(r => r.status === "down").length;
+  const stableCount = rows.filter(r => r.status === "stable").length;
   return `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
     <div class="card" style="text-align:center;padding:16px 10px;border-left:3px solid var(--green)">
-      <div style="font-size:1.6rem;font-weight:800;color:var(--green-deep);line-height:1">${productSet.size}</div>
-      <div class="muted" style="font-size:.72rem;margin-top:4px">สินค้า</div>
+      <div style="font-size:1.6rem;font-weight:800;color:var(--green);line-height:1">${upCount}</div>
+      <div class="muted" style="font-size:.72rem;margin-top:4px">รายการ ราคาขึ้น</div>
     </div>
-    <div class="card" style="text-align:center;padding:16px 10px;border-left:3px solid var(--blue)">
-      <div style="font-size:1.6rem;font-weight:800;color:var(--blue);line-height:1">${marketSet.size}</div>
-      <div class="muted" style="font-size:.72rem;margin-top:4px">ตลาด</div>
+    <div class="card" style="text-align:center;padding:16px 10px;border-left:3px solid var(--red)">
+      <div style="font-size:1.6rem;font-weight:800;color:var(--red);line-height:1">${downCount}</div>
+      <div class="muted" style="font-size:.72rem;margin-top:4px">รายการ ราคาลง</div>
     </div>
-    <div class="card" style="text-align:center;padding:16px 10px;border-left:3px solid var(--amber)">
-      <div style="font-size:1.6rem;font-weight:800;color:var(--amber);line-height:1">${rows.length}</div>
-      <div class="muted" style="font-size:.72rem;margin-top:4px">รายการ</div>
+    <div class="card" style="text-align:center;padding:16px 10px;border-left:3px solid var(--muted)">
+      <div style="font-size:1.6rem;font-weight:800;color:var(--muted);line-height:1">${stableCount}</div>
+      <div class="muted" style="font-size:.72rem;margin-top:4px">รายการ ราคาคงที่</div>
     </div>
   </div>`;
 }
