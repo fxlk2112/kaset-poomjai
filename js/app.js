@@ -353,6 +353,7 @@ function render() {
   if (!keys.includes(navKey)) {
     route.view = keys.includes("home") ? "home" : keys[0];
   }
+  document.body.classList.toggle("view-iot-digital-twin", route.view === "iot");
 
   // bottom nav
   const nav = document.getElementById("bottomNav");
@@ -379,8 +380,14 @@ function render() {
   v.innerHTML = (views[route.view] || renderHome)();
   /* หลังวาดหน้า — ดึงสภาพอากาศของแปลง (หน้าแปลง + หน้าสภาพอากาศ) */
   if (route.view === "weather" || route.view === "plotDetail") renderPlotWeather();
-  /* หน้าระบบน้ำ: ดึงโน้ตล่าสุดจากเซิร์ฟเวอร์ (ข้ามรอบเพราะฝน ฯลฯ) */
-  if (route.view === "iot" && typeof App.waterPullStatus === "function") App.waterPullStatus();
+  /* หน้าระบบน้ำ Phase 1: อ่าน telemetry จริงเท่านั้น; ไม่มีคำสั่งเอาต์พุต */
+  if (route.view === "iot") {
+    if (typeof SensorTelemetry !== "undefined") {
+      SensorTelemetry.mountChart();
+      SensorTelemetry.refresh(false);
+    }
+    if (typeof App.waterPullStatus === "function") App.waterPullStatus();
+  }
   /* หน้าราคาตลาด: ฝังวิดเจ็ตราคารายวัน */
   if (route.view === "prices" && typeof App.mountRakaWidget === "function") App.mountRakaWidget();
   /* เลื่อนกลับหัวหน้าเฉพาะตอนเปลี่ยนหน้า (เช่น กดเมนู) — ถ้าแค่ re-render ในหน้าเดิม (กดวันปฏิทิน/กรอง/ติ๊กงาน)
@@ -1848,7 +1855,7 @@ function plotWaterCard(p) {
         </div>
       </div>
       ${due ? `<span class="badge badge-amber">ถึงรอบ</span>` : next ? `<span class="badge badge-green">${dateLabel(next)}</span>` : ""}
-      <button class="btn btn-sm btn-primary" onclick="App.modalWaterNow('${sys.id}')">${ic("droplet")} ให้น้ำ</button>
+      <button class="btn btn-sm btn-outline" onclick="App.modalWaterNow('${sys.id}')">${ic("save")} บันทึกการให้น้ำ</button>
     </div>`;
   }).join("");
   return `
@@ -1868,6 +1875,13 @@ function waterNextDate(sys) {
   return addDaysISO(sys.lastWatered, Number(sys.auto.everyDays) || 1);
 }
 function renderIoT() {
+  /* Phase 1 dashboard is telemetry-only. Legacy planning/editing markup below is
+     intentionally kept in source for later migration, but is not rendered here. */
+  return typeof SensorTelemetry !== "undefined"
+    ? SensorTelemetry.cardHtml()
+    : `<section class="sensor-digital-twin"><div class="digital-alert" role="alert">โมดูลข้อมูลเซนเซอร์ยังไม่พร้อม</div></section>`;
+
+  /* c8 ignore start -- legacy water-planning UI, unreachable during SAFE_OFF */
   const W = S.water;
   const plotName = id => { const p = plotById(S, id); return p ? p.name : "(แปลงถูกลบ)"; };
   const today = todayISO();
@@ -1885,7 +1899,7 @@ function renderIoT() {
           <div class="plot-name">${esc(plotName(sys.plotId))}</div>
           <div class="muted" style="font-size:.74rem">${esc(sys.name)}${sys.pumpName ? " · ปั๊ม: " + esc(sys.pumpName) : ""}${sys.valveCount ? " · " + sys.valveCount + " วาล์ว" : ""}${src ? " · " + esc(src.name) : ""}</div>
         </div>
-        <button class="switch ${sys.state === "on" ? "on" : ""}" onclick="App.toggleWater('${sys.id}')" aria-label="สลับเปิดปิด"></button>
+        <span class="badge badge-gray">ควบคุมถูกปิด</span>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
         ${sys.auto && sys.auto.enabled ? `<span class="badge badge-blue">${ic("clock")} อัตโนมัติ ทุก ${sys.auto.everyDays} วัน · ${sys.auto.time} · ${sys.auto.minutes} นาที</span>` : `<span class="badge badge-gray">ให้น้ำด้วยมือ</span>`}
@@ -1895,7 +1909,7 @@ function renderIoT() {
       <div class="row row-between mt-8">
         <div class="muted" style="font-size:.72rem">ให้น้ำล่าสุด: ${sys.lastWatered ? dateLabel(sys.lastWatered) : "ยังไม่เคย"}</div>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-sm btn-primary" onclick="App.modalWaterNow('${sys.id}')">${ic("droplet")} ให้น้ำตอนนี้</button>
+          <button class="btn btn-sm btn-outline" onclick="App.modalWaterNow('${sys.id}')">${ic("save")} บันทึกการให้น้ำ</button>
           <button class="btn btn-sm btn-outline" onclick="App.modalWaterSystem('${sys.id}')">${ic("pencil")} ตั้งค่า</button>
           <button class="btn btn-sm btn-danger-soft" onclick="App.delWaterSystem('${sys.id}')">${ic("trash")}</button>
         </div>
@@ -1941,11 +1955,13 @@ function renderIoT() {
       <div class="row">
         <span style="font-size:2rem;color:#fff">${ic("droplet")}</span>
         <div class="grow">
-          <div class="bold" style="font-size:1rem">ระบบน้ำอัตโนมัติรายแปลง</div>
-          <div style="font-size:.76rem;opacity:.85">ตั้งตารางให้น้ำแยกแต่ละแปลง · บันทึกทุกครั้งที่ให้น้ำ · เห็นภาพรวมในหน้าเดียว</div>
+          <div class="bold" style="font-size:1rem">ระบบน้ำและเซนเซอร์ภาคสนาม</div>
+          <div style="font-size:.76rem;opacity:.85">Phase 1 อ่านข้อมูลจริงจาก Pi 5 · บันทึกงานให้น้ำ · เอาต์พุตทุกช่องยัง SAFE_OFF</div>
         </div>
       </div>
     </div>
+
+    ${typeof SensorTelemetry !== "undefined" ? SensorTelemetry.cardHtml() : ""}
 
     <div class="row row-between">
       <div class="bold" style="font-size:1.02rem" data-tkey="iotTitle">${T("iotTitle")} (${W.systems.length})</div>
@@ -1965,13 +1981,19 @@ function renderIoT() {
       ${logs.length === 0 ? `<div class="muted" style="text-align:center;padding:8px;font-size:.8rem">ยังไม่มีบันทึก — กด "ให้น้ำตอนนี้" ที่การ์ดแปลงเพื่อบันทึก</div>` : logRows}
     </div>
 
-    <div class="section-title">${ic("wifi")} อุปกรณ์ควบคุมที่แปลง (ESP32)</div>
-    <div class="card">
-      <div class="muted" style="font-size:.76rem;margin-bottom:10px">เซิร์ฟเวอร์ตัดสินใจให้น้ำตามตารางให้อัตโนมัติ (ทุกนาที) และเช็คพยากรณ์ฝนก่อนสั่ง — อุปกรณ์ ESP32 ที่แปลงจะดึงคำสั่งจาก API ทุก ~10 วินาที แล้วเปิด/ปิดวาล์วตาม กดปุ่มเพื่อรับ Device Key</div>
-      <button class="btn btn-primary btn-block" onclick="App.waterAddDevice()">${ic("plus")} เพิ่มอุปกรณ์ / รับ Device Key</button>
-      <button class="btn btn-outline btn-block mt-8" onclick="App.waterListDevices()">${ic("eye")} ดู Device Key ที่มีอยู่</button>
+    <div class="section-title">${ic("lock")} ขอบเขตความปลอดภัย Phase 1</div>
+    <div class="card sensor-control-lock">
+      <div class="bold">เอาต์พุตถูกปิดทั้งหน้าเว็บและ Worker</div>
+      <div class="muted mt-8" style="font-size:.76rem">ระบบนี้รับและแสดงข้อมูลจาก Pi 5 เท่านั้น ไม่ออก Device Key สำหรับ ESP32 และไม่ส่งคำสั่งเปิดปั๊มหรือวาล์ว การควบคุมจริงจะทำภายใต้ Pi 5 single-writer หลังผ่าน commissioning แยกต่างหาก</div>
     </div>`;
 }
+
+App.refreshMainWaterSensor = function () {
+  if (typeof SensorTelemetry !== "undefined") SensorTelemetry.refresh(true);
+};
+App.setSensorHistoryHours = function (hours) {
+  if (typeof SensorTelemetry !== "undefined") SensorTelemetry.setHours(hours);
+};
 
 /* ดึงสถานะ/โน้ตล่าสุดจากเซิร์ฟเวอร์ (เช่น "ข้ามรอบเพราะฝน") มาแสดงในการ์ด */
 App.waterPullStatus = async function () {
@@ -1988,6 +2010,7 @@ App.waterPullStatus = async function () {
 
 /* สลับสวิตช์วาล์ว — สั่งเซิร์ฟเวอร์จริง (อุปกรณ์ ESP32 ดึงคำสั่งนี้ไปทำงาน) + จำลองในเว็บ */
 App.toggleWater = function (id) {
+  if (SENSOR_PHASE1_READ_ONLY) { toast("Phase 1 อ่านข้อมูลเท่านั้น — เอาต์พุตยัง SAFE_OFF"); return; }
   const sys = (S.water.systems || []).find(x => x.id === id);
   if (!sys) return;
   sys.state = sys.state === "on" ? "off" : "on";
@@ -2002,6 +2025,7 @@ App.toggleWater = function (id) {
 
 /* ซิงก์ระบบน้ำทั้งหมดขึ้นเซิร์ฟเวอร์ (ตารางอัตโนมัติทำงานฝั่งเซิร์ฟเวอร์) */
 App.waterSyncNow = async function () {
+  if (SENSOR_PHASE1_READ_ONLY) { toast("Phase 1 ไม่ส่งตารางควบคุมขึ้นเซิร์ฟเวอร์"); return; }
   if (typeof Auth === "undefined" || !Auth.session) return;
   toast("กำลังซิงก์ระบบน้ำขึ้นเซิร์ฟเวอร์...");
   const r = await Auth.waterSync();
@@ -2009,6 +2033,7 @@ App.waterSyncNow = async function () {
 };
 
 App.waterAddDevice = async function () {
+  if (SENSOR_PHASE1_READ_ONLY) { toast("Phase 1 ปิดการออก Device Key สำหรับควบคุม"); return; }
   if (!(typeof Auth !== "undefined" && Auth.session)) { toast("ต้องล็อกอินก่อน"); return; }
   const r = await authCall("water_register", { token: Auth.session.token, name: "ESP32-" + new Date().toISOString().slice(5, 10) });
   if (!r.ok) { toast(r.error || "ทำรายการไม่สำเร็จ"); return; }
@@ -2027,6 +2052,7 @@ App.waterShowKey = function (key) {
     </div>`);
 };
 App.waterListDevices = async function () {
+  if (SENSOR_PHASE1_READ_ONLY) { toast("Phase 1 ปิดระบบอุปกรณ์ควบคุม"); return; }
   if (!(typeof Auth !== "undefined" && Auth.session)) { toast("ต้องล็อกอินก่อน"); return; }
   const r = await authCall("water_keys", { token: Auth.session.token });
   if (!r.ok) { toast(r.error || "โหลดไม่สำเร็จ"); return; }
@@ -2710,7 +2736,7 @@ function renderSettings() {
     ${editorHtml}
     <button class="btn btn-ghost btn-block" onclick="App.startTour()">${ic("compass")} แนะนำระบบ (Tour) อีกครั้ง</button>
     <button class="btn btn-danger-soft btn-block mt-8" onclick="App.resetData()">${ic("refresh")} รีเซ็ตข้อมูลทั้งหมด</button>
-    <div class="muted mt-8" style="font-size:.7rem;text-align:center">สภาพอากาศรายแปลงจาก Open-Meteo (ECMWF) — ฟรี ไม่ต้องใช้คีย์ · IoT จริงในเวอร์ชันถัดไป</div>`;
+    <div class="muted mt-8" style="font-size:.7rem;text-align:center">สภาพอากาศรายแปลงจาก Open-Meteo · เซนเซอร์ระดับน้ำจริงทำงานแบบ read-only ผ่าน Pi 5 · เอาต์พุตยัง SAFE_OFF</div>`;
 }
 /* เครื่องมือแก้ไข (ใช้ทั้งในหน้าตั้งค่า และ modal จากปุ่ม ✏️ แก้ไขหัวเว็บ) */
 function adminToolsHtml() {
@@ -4373,6 +4399,13 @@ try {
     if (saved.plotId) route.plotId = saved.plotId;
     if (saved.cycleId) route.cycleId = saved.cycleId;
     if (saved.year) route.year = saved.year;
+  }
+} catch (e) {}
+try {
+  const previewUrl = new URL(location.href);
+  const previewHost = String(location.hostname || "").toLowerCase();
+  if ((previewHost === "localhost" || previewHost === "127.0.0.1") && previewUrl.searchParams.get("sensorPreview") === "1") {
+    route.view = "iot";
   }
 } catch (e) {}
 render();

@@ -18,6 +18,16 @@ function shareTokenFromUrl() {
   catch (e) { return ""; }
 }
 
+function localSensorPreviewFromUrl() {
+  try {
+    const u = new URL(location.href);
+    const localHost = u.hostname === "127.0.0.1" || u.hostname === "localhost";
+    return localHost && u.searchParams.get("sensorPreview") === "1";
+  } catch (e) { return false; }
+}
+
+const LOCAL_SENSOR_PREVIEW = localSensorPreviewFromUrl();
+
 /* โหลดเซสชันค้างไว้จากเครื่องนี้ */
 const Auth = {
   session: null,
@@ -28,6 +38,9 @@ const Auth = {
   _askedThisLoad: false,
 };
 try { Auth.session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) {}
+if (LOCAL_SENSOR_PREVIEW) {
+  Auth.session = { token: "", email: "sensor-preview@local.invalid", name: "Sensor Preview", localPreview: true };
+}
 
 /* ล็อกทันทีตั้งแต่ไฟล์นี้โหลด (ก่อน app.js render) — เครื่องที่ไม่มีเซสชันจะเห็นแต่หน้าล็อกอิน */
 document.documentElement.classList.toggle("auth-locked", !(Auth.session || Auth.shareMode));
@@ -58,6 +71,12 @@ function setSession(s) {
 }
 function cloudTs() { return Number(localStorage.getItem(CLOUD_TS_KEY)) || 0; }
 function setCloudTs(ts) { localStorage.setItem(CLOUD_TS_KEY, String(Number(ts) || Date.now())); }
+function cloudSafeState(state) {
+  const copy = JSON.parse(JSON.stringify(state || {}));
+  /* adminPass เป็น UI gate เฉพาะเครื่อง ไม่ใช่สิทธิ์ backend และห้ามซิงก์ขึ้นคลาวด์ */
+  delete copy.adminPass;
+  return copy;
+}
 function localHasData() {
   return (S.plots && S.plots.length) || (S.cycles && S.cycles.length) ||
          (S.tasks && S.tasks.length) || (S.stock && S.stock.length) ||
@@ -132,17 +151,19 @@ Auth.switchAccount = function () {
 
 /* ---------- sync ---------- */
 Auth.queueSave = function () {
+  if (LOCAL_SENSOR_PREVIEW) return;
   if (!Auth.session || Auth.suppress) return;
   clearTimeout(Auth.timer);
   Auth.timer = setTimeout(() => Auth.saveNow(), 2500);
 };
 
 Auth.saveNow = async function () {
+  if (LOCAL_SENSOR_PREVIEW) return;
   if (!Auth.session || Auth.syncing) return;
   Auth.syncing = true;
   try {
     const ts = Date.now();
-    const r = await authCall("save", { token: Auth.session.token, data: JSON.stringify(S), updated_at: ts });
+    const r = await authCall("save", { token: Auth.session.token, data: JSON.stringify(cloudSafeState(S)), updated_at: ts });
     if (r.ok) setCloudTs(ts);
   } catch (e) { /* ออฟไลน์ — รอบันทึกครั้งถัดไป */ }
   Auth.syncing = false;
@@ -150,7 +171,10 @@ Auth.saveNow = async function () {
 
 function applyCloudState(cloudData, updatedAt) {
   Auth.suppress = true;
-  resetSTo(cloudData);
+  const localAdminPass = String(S.adminPass || "");
+  const safeCloudData = cloudSafeState(cloudData);
+  resetSTo(safeCloudData);
+  S.adminPass = localAdminPass;
   saveState(S);
   if (updatedAt) setCloudTs(updatedAt); /* กันถามซ้ำทันทีหลังโหลด */
   location.reload();
@@ -158,6 +182,7 @@ function applyCloudState(cloudData, updatedAt) {
 
 /* ---------- boot: เช็กคลาวด์ตอนเปิดเว็บ (มีเซสชันค้าง) ---------- */
 Auth.bootCheck = async function () {
+  if (LOCAL_SENSOR_PREVIEW) return;
   if (!Auth.session) { Auth.showGate(); return; }
   try {
     const r = await authCall("load", { token: Auth.session.token });
@@ -268,7 +293,7 @@ App.authRegister = async function () {
 Auth.gateEl = null;
 
 Auth.showGate = function () {
-  if (Auth.shareMode) return;
+  if (LOCAL_SENSOR_PREVIEW || Auth.shareMode) return;
   if (!Auth.gateEl) Auth.gateEl = document.getElementById("authGate");
   if (Auth.gateEl) Auth.gateEl.style.display = "flex";
 };
@@ -357,6 +382,9 @@ App.authSyncNow = async function () {
 
 /* ---------- ซิงก์ระบบน้ำ (ตารางอัตโนมัติ) ขึ้นเซิร์ฟเวอร์ — cron ใช้ตัดสินใจให้น้ำ ---------- */
 Auth.waterSync = async function () {
+  if (typeof SENSOR_PHASE1_READ_ONLY !== "undefined" && SENSOR_PHASE1_READ_ONLY) {
+    return { ok: false, disabled: true, error: "SENSOR_PHASE1_READ_ONLY" };
+  }
   if (!Auth.session) return null;
   const systems = (S.water.systems || []).map(sys => {
     const p = plotById(S, sys.plotId);
@@ -611,7 +639,10 @@ App.resetData = function () {
 
 /* เริ่มระบบ: ไม่มีเซสชัน = โชว์ประตูทันที (static gate — ปลอดภัยแม้ไฟล์อื่นโหลดไม่ครบ)
    มีเซสชัน = สลับเข้า slot ของบัญชีนั้นก่อน render (auth.js โหลดก่อน app.js) แล้วค่อยตรวจคลาวด์ */
-if (Auth.shareMode) {
+if (LOCAL_SENSOR_PREVIEW) {
+  document.documentElement.classList.remove("auth-locked");
+  Auth.hideGate();
+} else if (Auth.shareMode) {
   document.documentElement.classList.remove("auth-locked");
   Auth.hideGate();
 } else if (Auth.session) {

@@ -1,0 +1,102 @@
+{
+  "url": "http://127.0.0.1:4173/?sensorPreview=1&qa=1",
+  "mobileMetrics": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "scroll": {
+      "width": 390,
+      "height": 866
+    },
+    "auth": {
+      "locked": false,
+      "gateDisplay": "none",
+      "persistentSessionPresent": false
+    },
+    "bodyClass": "view-iot-digital-twin",
+    "digitalTwin": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 865.9375,
+      "bottom": 865.9375
+    },
+    "header": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 116,
+      "bottom": 116
+    },
+    "hero": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 526,
+      "bottom": 526
+    },
+    "panel": {
+      "x": 9,
+      "y": 526,
+      "width": 372,
+      "height": 331.9375,
+      "bottom": 857.9375
+    },
+    "footer": {
+      "x": 19,
+      "y": 826.25,
+      "width": 352,
+      "height": 23.6875,
+      "bottom": 849.9375
+    },
+    "title": "แหล่งน้ำหลัก",
+    "live": "LIVE · ข้อมูลปกติ",
+    "safeOff": "DATA ONLY · SAFE_OFF",
+    "forbiddenOutputText": false,
+    "canvases": [
+      {
+        "id": "sensorCapacityGauge",
+        "width": 58,
+        "height": 62,
+        "pixels": 3338
+      },
+      {
+        "id": "sensorDepthProfileChart",
+        "width": 220,
+        "height": 90,
+        "pixels": 8134
+      },
+      {
+        "id": "sensorHistoryChart",
+        "width": 220,
+        "height": 90,
+        "pixels": 8366
+      }
+    ]
+  },
+  "desktopMetrics": {
+    "viewport": {
+      "width": 1024,
+      "height": 1000
+    },
+    "scroll": {
+      "width": 1024,
+      "height": 1113
+    },
+    "appWidth": 760,
+    "twinWidth": 760
+  },
+  "interactions": {
+    "focusVisible": true,
+    "logoNavigationWorked": true,
+    "footerReachable": true
+  },
+  "consoleErrors": [],
+  "pageErrors": [],
+  "screenshots": {
+    "mobileViewport": "D:\\Agricultural irrigation system design\\integrations\\farmultimate-sensor-phase1\\qa\\implementation-mobile-390x844.png",
+    "mobileFull": "D:\\Agricultural irrigation system design\\integrations\\farmultimate-sensor-phase1\\qa\\implementation-mobile-390-full.png",
+    "desktopShot": "D:\\Agricultural irrigation system design\\integrations\\farmultimate-sensor-phase1\\qa\\implementation-desktop-1024x1000.png"
+  }
+}
