@@ -2225,52 +2225,142 @@ App.delWaterLog = function (id) {
 /* ---------------- ราคาตลาดวันนี้ (ข้อมูลจริงจาก สศก. + ตลาดไท) ---------------- */
 function renderPrices() {
   const cached = App._marketPrices;
-  const cards = cached ? cached.products.map(p => {
-    const same = p.min === p.max;
-    const detail = p.markets.map(m => esc(m.market) + " (" + esc(m.province) + ") = " + fmtNum(m.price) + " " + esc(p.unit)).join("<br>");
+  const searchKey = App._priceSearch || "";
+  
+  if (!cached) {
     return `
-    <details class="card" style="padding:12px 14px">
-      <summary style="cursor:pointer;list-style:none">
-        <div class="row">
-          <div class="plot-emoji chip-price">${ic("dollar")}</div>
-          <div class="grow">
-            <div class="bold" style="font-size:.86rem">${esc(p.product)}</div>
-            <div class="muted" style="font-size:.72rem">${esc(p.category)} · ${p.count} จุดรับซื้อ · ${dateLabel(p.date)}</div>
-          </div>
-          <div style="text-align:right">
-            <div class="bold price-trend-up" style="font-size:.92rem">${fmtNum(p.min)}${same ? "" : "-" + fmtNum(p.max)}</div>
-            <div class="muted" style="font-size:.68rem">${esc(p.unit)}</div>
-          </div>
-        </div>
-      </summary>
-      <div class="muted" style="font-size:.76rem;margin-top:8px;border-top:1px solid var(--line);padding-top:8px;line-height:1.7">${detail}</div>
-    </details>`;
-  }).join("") : `
-    <div class="card"><div class="empty"><div class="e-ico">${ic("dollar")}</div><div class="e-title">กดปุ่มด้านล่างเพื่อดึงราคาล่าสุด</div><div class="muted">ข้อมูลจริงจาก API สศก. (ศูนย์ข้อมูลเกษตรแห่งชาติ) — ราคารับซื้อรายวัน ณ ตลาดสำคัญทั่วประเทศ</div></div></div>`;
+      <div class="row row-between">
+        <div class="bold" style="font-size:1.02rem">${ic("dollar")} ราคาสินค้าเกษตรวันนี้</div>
+        <button class="btn btn-primary btn-sm" onclick="App.loadMarketPrices()">${ic("refresh")} ดึงราคาล่าสุด</button>
+      </div>
+      <div class="card" style="text-align:center;padding:40px 20px">
+        <div style="font-size:2rem;margin-bottom:12px">${ic("dollar")}</div>
+        <div class="bold" style="font-size:1rem;margin-bottom:8px">กดปุ่มดึงราคาล่าสุด</div>
+        <div class="muted" style="font-size:.78rem">ข้อมูลจริงจาก API สศก. (ศูนย์ข้อมูลเกษตรแห่งชาติ)<br>ราคารับซื้อรายวัน ณ ตลาดสำคัญทั่วประเทศ</div>
+      </div>`;
+  }
+  
+  /* แปลงข้อมูลเป็น flat array: หนึ่งแถวต่อหนึ่งสินค้า-ตลาด */
+  const rows = [];
+  (cached.products || []).forEach(p => {
+    (p.markets || []).forEach(m => {
+      rows.push({
+        product: p.product,
+        category: p.category,
+        market: m.market,
+        province: m.province,
+        price: Number(m.price) || 0,
+        unit: p.unit,
+        min: p.min,
+        max: p.max,
+        date: p.date
+      });
+    });
+  });
+  
+  /* นับจำนวนตลาดที่ไม่ซ้ำ */
+  const marketSet = new Set(rows.map(r => r.market));
+  const productSet = new Set(rows.map(r => r.product));
+  
+  /* ค้นหา */
+  const filtered = searchKey
+    ? rows.filter(r => r.product.toLowerCase().includes(searchKey.toLowerCase()) || r.market.toLowerCase().includes(searchKey.toLowerCase()))
+    : rows;
+  
+  /* จัดกลุ่มตามสินค้า */
+  const grouped = {};
+  filtered.forEach(r => {
+    if (!grouped[r.product]) grouped[r.product] = { product: r.product, category: r.category, unit: r.unit, min: r.min, max: r.max, markets: [] };
+    grouped[r.product].markets.push(r);
+  });
+  const groupedArr = Object.values(grouped).sort((a, b) => a.product.localeCompare(b.product, "th"));
+  
   return `
-    <div class="row row-between">
-      <div class="bold" style="font-size:1.02rem">ราคารับซื้อรายวัน <span class="badge badge-green">ข้อมูลจริง สศก.</span></div>
-      <button class="btn btn-primary btn-sm" onclick="App.loadMarketPrices()">${ic("refresh")} ${cached ? "รีเฟรช" : "ดึงราคาล่าสุด"}</button>
+    <div class="row row-between" style="margin-bottom:12px">
+      <div class="bold" style="font-size:1.02rem">${ic("dollar")} ราคาสินค้าเกษตรวันนี้</div>
+      <button class="btn btn-primary btn-sm" onclick="App.loadMarketPrices()">${ic("refresh")} รีเฟรช</button>
     </div>
-    ${cached ? `<div class="muted" style="font-size:.72rem;margin-bottom:8px">ข้อมูลวันที่ ${dateLabel(cached.date)} · ${cached.products.length} สินค้า — กดการ์ดเพื่อดูราคาแยกตามตลาด</div>` : ""}
-    <div class="card-grid">${cards}</div>
-
-    <div class="section-title">ราคาสินค้าเกษตรรายวัน (วิดเจ็ตอัปเดตอัตโนมัติ)</div>
-    <div class="card" id="rakaWidget"><div class="muted" style="font-size:.76rem;text-align:center;padding:6px">กำลังโหลดตารางราคา...</div></div>
-
-    <div class="section-title">แหล่งราคาทางการ (กดเปิดเว็บ)</div>
+    
+    <!-- Summary Cards -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+      <div class="card" style="text-align:center;padding:12px 8px">
+        <div style="font-size:1.4rem;font-weight:700;color:var(--green-deep)">${productSet.size}</div>
+        <div class="muted" style="font-size:.7rem">สินค้า</div>
+      </div>
+      <div class="card" style="text-align:center;padding:12px 8px">
+        <div style="font-size:1.4rem;font-weight:700;color:var(--blue-text)">${marketSet.size}</div>
+        <div class="muted" style="font-size:.7rem">ตลาด</div>
+      </div>
+      <div class="card" style="text-align:center;padding:12px 8px">
+        <div style="font-size:1.4rem;font-weight:700;color:var(--orange)">${rows.length}</div>
+        <div class="muted" style="font-size:.7rem">รายการ</div>
+      </div>
+    </div>
+    
+    <div class="muted" style="font-size:.72rem;margin-bottom:10px">ข้อมูลวันที่ ${dateLabel(cached.date)} · ${productSet.size} สินค้า · ${marketSet.size} ตลาด</div>
+    
+    <!-- ค้นหา -->
+    <div class="card" style="padding:8px 12px;margin-bottom:12px">
+      <div class="row" style="align-items:center;gap:8px">
+        <span style="opacity:.5">${ic("search")}</span>
+        <input type="text" class="input" placeholder="ค้นหาสินค้าหรือตลาด..." value="${esc(searchKey)}" oninput="App._priceSearch=this.value;render()" style="border:none;background:transparent;font-size:.84rem;flex:1">
+        ${searchKey ? `<button class="btn btn-ghost btn-sm" onclick="App._priceSearch='';render()" style="padding:2px 6px;font-size:.72rem">ล้าง</button>` : ""}
+      </div>
+    </div>
+    
+    ${filtered.length === 0 ? `<div class="card" style="text-align:center;padding:20px"><div class="muted">ไม่พบข้อมูลที่ค้นหา</div></div>` : ""}
+    
+    <!-- ตารางสินค้า -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+          <thead>
+            <tr style="background:var(--bg2);border-bottom:1px solid var(--line)">
+              <th style="text-align:left;padding:10px 12px;font-weight:600;color:var(--muted)">สินค้า</th>
+              <th style="text-align:left;padding:10px 8px;font-weight:600;color:var(--muted)">ตลาด</th>
+              <th style="text-align:right;padding:10px 12px;font-weight:600;color:var(--muted)">ราคา (${ic("dollar")} / หน่วย)</th>
+              <th style="text-align:center;padding:10px 8px;font-weight:600;color:var(--muted)">วันที่</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${groupedArr.map(g => {
+              const marketRows = g.markets.map((m, i) => `
+                <tr style="border-bottom:1px solid var(--line)">
+                  ${i === 0 ? `<td rowspan="${g.markets.length}" style="text-align:left;padding:10px 12px;font-weight:600;vertical-align:top;line-height:1.4">
+                    <div>${esc(g.product)}</div>
+                    <div style="font-size:.68rem;color:var(--muted);font-weight:400">${esc(g.category)}</div>
+                  </td>` : ""}
+                  <td style="text-align:left;padding:8px">
+                    <div style="font-size:.78rem">${esc(m.market)}</div>
+                    <div style="font-size:.66rem;color:var(--muted)">${esc(m.province)}</div>
+                  </td>
+                  <td style="text-align:right;padding:8px 12px;white-space:nowrap">
+                    <span style="font-weight:600;color:var(--green-deep)">${fmtNum(m.min)}${m.min === m.max ? "" : " - " + fmtNum(m.max)}</span>
+                    <span style="font-size:.66rem;color:var(--muted)"> ${esc(g.unit)}</span>
+                  </td>
+                  <td style="text-align:center;padding:8px;white-space:nowrap">
+                    <span style="font-size:.72rem;color:var(--muted)">${dateLabel(m.date)}</span>
+                  </td>
+                </tr>`).join("");
+              return marketRows;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <div class="section-title" style="margin-top:16px">แหล่งราคาทางการ</div>
     <div class="card">
       <div class="row-line" onclick="window.open('https://talaadthai.com/products','_blank')" role="button">
         <span class="task-ico" style="background:var(--green-light);color:var(--green-deep)">${ic("dollar")}</span>
-        <div class="grow"><div class="bold" style="font-size:.84rem">ตลาดไท — ราคาผักผลไม้ขายส่งรายวัน</div><div class="muted" style="font-size:.7rem">ราคาผักสดรายวัน (คะน้า ผักกาด และอื่น ๆ) — ที่มาข้อมูลจริงจากตลาดไท</div></div>
+        <div class="grow"><div class="bold" style="font-size:.84rem">ตลาดไท — ราคาผักผลไม้ขายส่งรายวัน</div><div class="muted" style="font-size:.7rem">ราคาผักสดรายวัน — ที่มาข้อมูลจริงจากตลาดไท</div></div>
         <span class="task-arrow">${ic("chevron")}</span>
       </div>
       <div class="row-line" onclick="window.open('https://pricelist.dit.go.th/main.php','_blank')" role="button">
         <span class="task-ico" style="background:var(--blue-light);color:var(--blue-text)">${ic("dollar")}</span>
-        <div class="grow"><div class="bold" style="font-size:.84rem">กรมการค้าภายใน — ราคาขายปลีก/ขายส่ง</div><div class="muted" style="font-size:.7rem">ราคาสินค้าเกษตรทางการรายวัน รวมตลาดดำหม้อ ตลาดบ้านเด่น</div></div>
+        <div class="grow"><div class="bold" style="font-size:.84rem">กรมการค้าภายใน — ราคาขายปลีก/ขายส่ง</div><div class="muted" style="font-size:.7rem">ราคาสินค้าเกษตรทางการรายวัน</div></div>
         <span class="task-arrow">${ic("chevron")}</span>
       </div>
-      <div class="muted mt-8" style="font-size:.7rem">${ic("info")} หมายเหตุ: ราคาผักสดรายวันยังไม่มี API เปิดเผย — ดูจากลิงก์ทางการด้านบน หรือดูราคาขายจริงของคุณเองจากใบเสร็จในหน้า "ขายสินค้า"</div>
     </div>`;
 }
 /* โหลดราคาจาก Worker (proxy กัน CORS) + ฝังวิดเจ็ตราคา */
