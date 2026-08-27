@@ -2223,6 +2223,71 @@ App.delWaterLog = function (id) {
 };
 
 /* ---------------- ราคาตลาดวันนี้ (ข้อมูลจริงจาก สศก. + ตลาดไท) ---------------- */
+/* สร้างตารางราคา (แยกเป็นฟังก์ชันเพื่ออัปเดตเฉพาะตารางไม่ rebuild ทั้งหน้า — focus ไม่หลุด) */
+function priceTableHtml() {
+  const cached = App._marketPrices;
+  const searchKey = App._priceSearch || "";
+  if (!cached) return "";
+  /* แปลงข้อมูลเป็น flat array: หนึ่งแถวต่อหนึ่งสินค้า-ตลาด */
+  const rows = [];
+  (cached.products || []).forEach(p => {
+    (p.markets || []).forEach(m => {
+      rows.push({ product: p.product, category: p.category, market: m.market, province: m.province, price: Number(m.price) || 0, unit: p.unit, min: p.min, max: p.max, date: p.date });
+    });
+  });
+  /* ค้นหา */
+  const filtered = searchKey
+    ? rows.filter(r => r.product.toLowerCase().includes(searchKey.toLowerCase()) || r.market.toLowerCase().includes(searchKey.toLowerCase()))
+    : rows;
+  /* จัดกลุ่มตามสินค้า */
+  const grouped = {};
+  filtered.forEach(r => {
+    if (!grouped[r.product]) grouped[r.product] = { product: r.product, category: r.category, unit: r.unit, min: r.min, max: r.max, markets: [] };
+    grouped[r.product].markets.push(r);
+  });
+  const groupedArr = Object.values(grouped).sort((a, b) => a.product.localeCompare(b.product, "th"));
+  if (!filtered.length) return `<div class="card" style="text-align:center;padding:20px"><div class="muted">ไม่พบข้อมูลที่ค้นหา</div></div>`;
+  return `<div class="card" style="padding:0;overflow:hidden">
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+        <thead>
+          <tr style="background:var(--bg2);border-bottom:1px solid var(--line)">
+            <th style="text-align:left;padding:10px 12px;font-weight:600;color:var(--muted)">สินค้า</th>
+            <th style="text-align:left;padding:10px 8px;font-weight:600;color:var(--muted)">ตลาด</th>
+            <th style="text-align:right;padding:10px 12px;font-weight:600;color:var(--muted)">ราคา (${ic("dollar")} / หน่วย)</th>
+            <th style="text-align:center;padding:10px 8px;font-weight:600;color:var(--muted)">วันที่</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${groupedArr.map(g => g.markets.map((m, i) => `
+            <tr style="border-bottom:1px solid var(--line)">
+              ${i === 0 ? `<td rowspan="${g.markets.length}" style="text-align:left;padding:10px 12px;font-weight:600;vertical-align:top;line-height:1.4">
+                <div>${esc(g.product)}</div>
+                <div style="font-size:.68rem;color:var(--muted);font-weight:400">${esc(g.category)}</div>
+              </td>` : ""}
+              <td style="text-align:left;padding:8px">
+                <div style="font-size:.78rem">${esc(m.market)}</div>
+                <div style="font-size:.66rem;color:var(--muted)">${esc(m.province)}</div>
+              </td>
+              <td style="text-align:right;padding:8px 12px;white-space:nowrap">
+                <span style="font-weight:600;color:var(--green-deep)">${fmtNum(m.min)}${m.min === m.max ? "" : " - " + fmtNum(m.max)}</span>
+                <span style="font-size:.66rem;color:var(--muted)"> ${esc(g.unit)}</span>
+              </td>
+              <td style="text-align:center;padding:8px;white-space:nowrap">
+                <span style="font-size:.72rem;color:var(--muted)">${dateLabel(m.date)}</span>
+              </td>
+            </tr>`).join("")).join("")}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+/* อัปเดตเฉพาะตารางราคา (ไม่ rebuild ทั้งหน้า = focus ช่องค้นหาไม่หลุด) */
+App.priceSearch = function (v) {
+  App._priceSearch = v;
+  const wrap = document.getElementById("priceTableWrap");
+  if (wrap) wrap.innerHTML = priceTableHtml();
+};
 function renderPrices() {
   const cached = App._marketPrices;
   const searchKey = App._priceSearch || "";
@@ -2240,40 +2305,13 @@ function renderPrices() {
       </div>`;
   }
   
-  /* แปลงข้อมูลเป็น flat array: หนึ่งแถวต่อหนึ่งสินค้า-ตลาด */
+  /* แปลงข้อมูลเป็น flat array: นับจำนวนตลาด/สินค้า/รายการ */
   const rows = [];
   (cached.products || []).forEach(p => {
-    (p.markets || []).forEach(m => {
-      rows.push({
-        product: p.product,
-        category: p.category,
-        market: m.market,
-        province: m.province,
-        price: Number(m.price) || 0,
-        unit: p.unit,
-        min: p.min,
-        max: p.max,
-        date: p.date
-      });
-    });
+    (p.markets || []).forEach(m => rows.push({ product: p.product, market: m.market }));
   });
-  
-  /* นับจำนวนตลาดที่ไม่ซ้ำ */
   const marketSet = new Set(rows.map(r => r.market));
   const productSet = new Set(rows.map(r => r.product));
-  
-  /* ค้นหา */
-  const filtered = searchKey
-    ? rows.filter(r => r.product.toLowerCase().includes(searchKey.toLowerCase()) || r.market.toLowerCase().includes(searchKey.toLowerCase()))
-    : rows;
-  
-  /* จัดกลุ่มตามสินค้า */
-  const grouped = {};
-  filtered.forEach(r => {
-    if (!grouped[r.product]) grouped[r.product] = { product: r.product, category: r.category, unit: r.unit, min: r.min, max: r.max, markets: [] };
-    grouped[r.product].markets.push(r);
-  });
-  const groupedArr = Object.values(grouped).sort((a, b) => a.product.localeCompare(b.product, "th"));
   
   return `
     <div class="row row-between" style="margin-bottom:12px">
@@ -2303,51 +2341,13 @@ function renderPrices() {
     <div class="card" style="padding:8px 12px;margin-bottom:12px">
       <div class="row" style="align-items:center;gap:8px">
         <span style="opacity:.5">${ic("search")}</span>
-        <input type="text" class="input" placeholder="ค้นหาสินค้าหรือตลาด..." value="${esc(searchKey)}" oninput="App._priceSearch=this.value;render()" style="border:none;background:transparent;font-size:.84rem;flex:1">
-        ${searchKey ? `<button class="btn btn-ghost btn-sm" onclick="App._priceSearch='';render()" style="padding:2px 6px;font-size:.72rem">ล้าง</button>` : ""}
+        <input type="text" class="input" placeholder="ค้นหาสินค้าหรือตลาด..." value="${esc(searchKey)}" oninput="App.priceSearch(this.value)" style="border:none;background:transparent;font-size:.84rem;flex:1">
+        ${searchKey ? `<button class="btn btn-ghost btn-sm" onclick="App.priceSearch('')" style="padding:2px 6px;font-size:.72rem">ล้าง</button>` : ""}
       </div>
     </div>
     
-    ${filtered.length === 0 ? `<div class="card" style="text-align:center;padding:20px"><div class="muted">ไม่พบข้อมูลที่ค้นหา</div></div>` : ""}
-    
-    <!-- ตารางสินค้า -->
-    <div class="card" style="padding:0;overflow:hidden">
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:.78rem">
-          <thead>
-            <tr style="background:var(--bg2);border-bottom:1px solid var(--line)">
-              <th style="text-align:left;padding:10px 12px;font-weight:600;color:var(--muted)">สินค้า</th>
-              <th style="text-align:left;padding:10px 8px;font-weight:600;color:var(--muted)">ตลาด</th>
-              <th style="text-align:right;padding:10px 12px;font-weight:600;color:var(--muted)">ราคา (${ic("dollar")} / หน่วย)</th>
-              <th style="text-align:center;padding:10px 8px;font-weight:600;color:var(--muted)">วันที่</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${groupedArr.map(g => {
-              const marketRows = g.markets.map((m, i) => `
-                <tr style="border-bottom:1px solid var(--line)">
-                  ${i === 0 ? `<td rowspan="${g.markets.length}" style="text-align:left;padding:10px 12px;font-weight:600;vertical-align:top;line-height:1.4">
-                    <div>${esc(g.product)}</div>
-                    <div style="font-size:.68rem;color:var(--muted);font-weight:400">${esc(g.category)}</div>
-                  </td>` : ""}
-                  <td style="text-align:left;padding:8px">
-                    <div style="font-size:.78rem">${esc(m.market)}</div>
-                    <div style="font-size:.66rem;color:var(--muted)">${esc(m.province)}</div>
-                  </td>
-                  <td style="text-align:right;padding:8px 12px;white-space:nowrap">
-                    <span style="font-weight:600;color:var(--green-deep)">${fmtNum(m.min)}${m.min === m.max ? "" : " - " + fmtNum(m.max)}</span>
-                    <span style="font-size:.66rem;color:var(--muted)"> ${esc(g.unit)}</span>
-                  </td>
-                  <td style="text-align:center;padding:8px;white-space:nowrap">
-                    <span style="font-size:.72rem;color:var(--muted)">${dateLabel(m.date)}</span>
-                  </td>
-                </tr>`).join("");
-              return marketRows;
-            }).join("")}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <!-- ตารางสินค้า (อัปเดตเฉพาะจุดนี้ ไม่ rebuild ทั้งหน้า) -->
+    <div id="priceTableWrap">${priceTableHtml()}</div>
     
     <div class="section-title" style="margin-top:16px">แหล่งราคาทางการ</div>
     <div class="card">
