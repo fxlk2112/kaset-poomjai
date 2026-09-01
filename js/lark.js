@@ -83,7 +83,7 @@ function larkStockLoading(sourceLabel) {
     "กำลังอัปเดตสต็อกในเว็บ..."
   ];
   openModal(`
-    <div class="lark-sync-loading">
+    <div class="lark-sync-loading modal-lock-backdrop">
       <div class="lark-sync-spinner" aria-hidden="true"></div>
       <h3>กำลังซิงก์สต็อกจาก Lark</h3>
       <div class="modal-sub">${esc(sourceLabel || "Base ที่เลือก")}</div>
@@ -176,7 +176,13 @@ function larkStockSplitPhotoConflicts(products) {
     const webPhotos = larkStockPhotosOf(old);
     const larkPhotos = larkStockPhotosOf(p);
     if (old && webPhotos.length && larkPhotos.length && !larkStockSamePhotos(old, p)) {
-      conflicts.push({ key: larkStockKeyOf(p), id: old.id, name: p.name || old.name, size: p.size || old.size || "", unit: p.unit || old.unit || "", supplier: p.supplier || old.supplier || "", webPhotos, larkPhotos });
+      conflicts.push({
+        key: larkStockKeyOf(p), id: old.id, code: p.code || old.code || "",
+        name: p.name || old.name, generic: p.generic || old.generic || "",
+        category: p.category || old.category || "", size: p.size || old.size || "",
+        unit: p.unit || old.unit || "", supplier: p.supplier || old.supplier || "",
+        webPhotos, larkPhotos
+      });
       clean.push(Object.assign({}, p, { photo: "", photos: [] }));
       return;
     }
@@ -202,7 +208,17 @@ function larkStockApplyPhotoChoice(conflicts, decisions) {
 function larkStockConflictModalHtml() {
   const pending = App._larkStockPhotoPending || {};
   const conflicts = pending.conflicts || [];
-  const rows = conflicts.map((c, i) => {
+  const query = String(pending.query || "").trim().toLowerCase();
+  const filter = pending.filter || "all";
+  const visible = conflicts.filter(c => {
+    const picked = (pending.decisions && pending.decisions[c.key]) || "web";
+    if (filter !== "all" && picked !== filter) return false;
+    if (!query) return true;
+    const hay = [c.name, c.code, c.generic, c.category, c.size, c.unit, c.supplier].join(" ").toLowerCase();
+    return hay.includes(query);
+  });
+  const chip = (key, label) => `<button class="chip ${filter === key ? "chip-active" : ""}" onclick="App.larkStockPhotoFilter('${key}')">${label}</button>`;
+  const rows = visible.map((c, i) => {
     const picked = (pending.decisions && pending.decisions[c.key]) || "web";
     const thumbs = arr => arr.slice(0, 4).map(p => `<img src="${esc(stockPhotoSrc({ photo: p }))}" alt="" loading="lazy" onerror="this.remove()">`).join("") || `<span class="muted">ไม่มีรูป</span>`;
     return `
@@ -210,7 +226,7 @@ function larkStockConflictModalHtml() {
         <div class="lpc-head">
           <div>
             <div class="bold">${esc(c.name)}</div>
-            <div class="muted">${c.size ? esc(c.size) + " · " : ""}${esc(c.unit || "")}${c.supplier ? " · " + esc(c.supplier) : ""}</div>
+            <div class="muted">${c.code ? "รหัส " + esc(c.code) + " · " : ""}${c.category ? esc(c.category) + " · " : ""}${c.size ? esc(c.size) + " · " : ""}${esc(c.unit || "")}${c.supplier ? " · " + esc(c.supplier) : ""}</div>
           </div>
           <span class="badge badge-amber">รูปไม่ตรง</span>
         </div>
@@ -232,11 +248,26 @@ function larkStockConflictModalHtml() {
     <button class="modal-x" onclick="App.larkStockPhotoCancel()">✕</button>
     <h3>${ic("image")} เจอรูปที่ไม่ตรงกัน</h3>
     <div class="modal-sub">ข้อมูลและจำนวนซิงก์เสร็จแล้ว เลือกรูปที่จะเก็บไว้สำหรับ ${fmtNum(conflicts.length)} รายการ</div>
+    <div class="lpc-tools">
+      <div class="stock-search lpc-search">
+        ${ic("search")}
+        <input type="text" value="${esc(pending.query || "")}" placeholder="ค้นหาชื่อสินค้า รหัส หมวด บริษัท..." oninput="App.larkStockPhotoSearch(this.value)">
+        ${pending.query ? `<button class="stock-search-clear" onclick="App.larkStockPhotoSearch('')">✕</button>` : ""}
+      </div>
+      <div class="lpc-filter-row">
+        <div class="stock-tabs">
+          ${chip("all", "ทั้งหมด")}
+          ${chip("web", "เลือกเว็บ")}
+          ${chip("lark", "เลือก Lark")}
+        </div>
+        <span class="muted">พบ ${fmtNum(visible.length)}/${fmtNum(conflicts.length)} รายการ</span>
+      </div>
+    </div>
     <div class="modal-actions lpc-top-actions">
       <button class="btn btn-outline" onclick="App.larkStockPhotoAll('web')">${ic("check")} ใช้รูปเว็บทั้งหมด</button>
       <button class="btn btn-outline" onclick="App.larkStockPhotoAll('lark')">${ic("check")} ใช้รูป Lark ทั้งหมด</button>
     </div>
-    <div class="lpc-list">${rows}</div>
+    <div class="lpc-list">${rows || `<div class="empty" style="padding:18px 8px"><div class="e-title">ไม่พบรายการที่ค้นหา</div><div class="muted">ลองลบคำค้นหรือเปลี่ยนตัวกรอง</div></div>`}</div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="App.larkStockPhotoCancel()">${ic("image")} ใช้รูปเว็บไว้ก่อน</button>
       <button class="btn btn-primary" onclick="App.larkStockPhotoApply()">${ic("save")} บันทึกตามที่เลือก</button>
@@ -263,7 +294,7 @@ function larkSerializeState() {
   const out = [];
   const push = (type, list) => (list || []).forEach(x => {
     out.push({ type, id: x.id, json: JSON.stringify(x), updated_at: Number(x.updatedAt) || Number(x.createdAt) || Date.now() });
-  });
+  }).join("");
   push("plots", S.plots);
   push("cycles", S.cycles);
   push("tasks", S.tasks);
@@ -455,6 +486,25 @@ App.larkStockPhotoAll = function (choice) {
   if (!pending) return;
   const v = choice === "lark" ? "lark" : "web";
   pending.decisions = Object.fromEntries((pending.conflicts || []).map(c => [c.key, v]));
+  openModal(larkStockConflictModalHtml());
+};
+
+App.larkStockPhotoSearch = function (q) {
+  const pending = App._larkStockPhotoPending;
+  if (!pending) return;
+  pending.query = String(q || "");
+  openModal(larkStockConflictModalHtml());
+  const input = document.querySelector(".lpc-search input");
+  if (input) {
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+};
+
+App.larkStockPhotoFilter = function (filter) {
+  const pending = App._larkStockPhotoPending;
+  if (!pending) return;
+  pending.filter = ["all", "web", "lark"].includes(filter) ? filter : "all";
   openModal(larkStockConflictModalHtml());
 };
 

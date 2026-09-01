@@ -3695,7 +3695,11 @@ function openModal(html) {
   const root = document.getElementById("modalRoot");
   root.innerHTML = `<div class="modal-backdrop"><div class="modal">${html}</div></div>`;
   const bd = root.querySelector(".modal-backdrop");
-  bd.addEventListener("click", e => { if (e.target === bd) closeModal(); });
+  bd.addEventListener("click", e => {
+    if (e.target !== bd) return;
+    if (root.querySelector(".modal-lock-backdrop")) return;
+    closeModal();
+  });
   lockBodyScroll();
   /* ซ่อนปุ่มลัด (FAB) ระหว่างเปิด modal — กันกด/เลื่อนตรงมุมขวาล่างไปโดนพื้นหลัง */
   const fd = document.getElementById("fabDock");
