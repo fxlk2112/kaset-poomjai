@@ -806,6 +806,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
 }
 .lpc-filter-row .stock-tabs { margin: 0; }
+.lark-photo-conflict[hidden], #lpc_empty[hidden], #lpc_search_clear[hidden] { display: none !important; }
 .lpc-top-actions { margin-top: 8px; }
 .lpc-list {
   display: flex; flex-direction: column; gap: 10px;

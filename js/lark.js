@@ -205,24 +205,32 @@ function larkStockApplyPhotoChoice(conflicts, decisions) {
   return changed;
 }
 
-function larkStockConflictModalHtml() {
-  const pending = App._larkStockPhotoPending || {};
+function larkStockConflictSearchText(c) {
+  return [c.name, c.code, c.generic, c.category, c.size, c.unit, c.supplier].join(" ").toLowerCase();
+}
+
+function larkStockVisibleConflictCount(pending) {
   const conflicts = pending.conflicts || [];
   const query = String(pending.query || "").trim().toLowerCase();
   const filter = pending.filter || "all";
-  const visible = conflicts.filter(c => {
+  return conflicts.filter(c => {
     const picked = (pending.decisions && pending.decisions[c.key]) || "web";
     if (filter !== "all" && picked !== filter) return false;
-    if (!query) return true;
-    const hay = [c.name, c.code, c.generic, c.category, c.size, c.unit, c.supplier].join(" ").toLowerCase();
-    return hay.includes(query);
-  });
-  const chip = (key, label) => `<button class="chip ${filter === key ? "chip-active" : ""}" onclick="App.larkStockPhotoFilter('${key}')">${label}</button>`;
-  const rows = visible.map((c, i) => {
+    return !query || larkStockConflictSearchText(c).includes(query);
+  }).length;
+}
+
+function larkStockConflictModalHtml() {
+  const pending = App._larkStockPhotoPending || {};
+  const conflicts = pending.conflicts || [];
+  const filter = pending.filter || "all";
+  const visibleCount = larkStockVisibleConflictCount(pending);
+  const chip = (key, label) => `<button type="button" data-lpc-filter="${key}" class="chip ${filter === key ? "chip-active" : ""}" onclick="App.larkStockPhotoFilter('${key}')">${label}</button>`;
+  const rows = conflicts.map((c, i) => {
     const picked = (pending.decisions && pending.decisions[c.key]) || "web";
     const thumbs = arr => arr.slice(0, 4).map(p => `<img src="${esc(stockPhotoSrc({ photo: p }))}" alt="" loading="lazy" onerror="this.remove()">`).join("") || `<span class="muted">ไม่มีรูป</span>`;
     return `
-      <div class="lark-photo-conflict">
+      <div class="lark-photo-conflict" data-lpc-key="${esc(c.key)}" data-choice="${esc(picked)}" data-search="${esc(larkStockConflictSearchText(c))}">
         <div class="lpc-head">
           <div>
             <div class="bold">${esc(c.name)}</div>
@@ -231,12 +239,12 @@ function larkStockConflictModalHtml() {
           <span class="badge badge-amber">รูปไม่ตรง</span>
         </div>
         <div class="lpc-choices">
-          <label class="${picked === "web" ? "selected" : ""}">
+          <label class="lpc-choice ${picked === "web" ? "selected" : ""}" data-lpc-choice="web">
             <input type="radio" name="lpc_${i}" ${picked === "web" ? "checked" : ""} onchange="${larkJsAttr(`App.larkStockPhotoPick(${larkJsArg(c.key)},"web")`)}">
             <span>ใช้รูปเว็บ</span>
             <div class="lpc-thumbs">${thumbs(c.webPhotos)}</div>
           </label>
-          <label class="${picked === "lark" ? "selected" : ""}">
+          <label class="lpc-choice ${picked === "lark" ? "selected" : ""}" data-lpc-choice="lark">
             <input type="radio" name="lpc_${i}" ${picked === "lark" ? "checked" : ""} onchange="${larkJsAttr(`App.larkStockPhotoPick(${larkJsArg(c.key)},"lark")`)}">
             <span>ใช้รูป Lark</span>
             <div class="lpc-thumbs">${thumbs(c.larkPhotos)}</div>
@@ -251,8 +259,8 @@ function larkStockConflictModalHtml() {
     <div class="lpc-tools">
       <div class="stock-search lpc-search">
         ${ic("search")}
-        <input type="text" value="${esc(pending.query || "")}" placeholder="ค้นหาชื่อสินค้า รหัส หมวด บริษัท..." oninput="App.larkStockPhotoSearch(this.value)">
-        ${pending.query ? `<button class="stock-search-clear" onclick="App.larkStockPhotoSearch('')">✕</button>` : ""}
+        <input id="lpc_search_input" type="text" value="${esc(pending.query || "")}" placeholder="ค้นหาชื่อสินค้า รหัส หมวด บริษัท..." oninput="App.larkStockPhotoSearch(this.value)">
+        <button id="lpc_search_clear" class="stock-search-clear" onclick="App.larkStockPhotoSearch('')" ${pending.query ? "" : "hidden"}>✕</button>
       </div>
       <div class="lpc-filter-row">
         <div class="stock-tabs">
@@ -260,14 +268,14 @@ function larkStockConflictModalHtml() {
           ${chip("web", "เลือกเว็บ")}
           ${chip("lark", "เลือก Lark")}
         </div>
-        <span class="muted">พบ ${fmtNum(visible.length)}/${fmtNum(conflicts.length)} รายการ</span>
+        <span id="lpc_visible_count" class="muted">พบ ${fmtNum(visibleCount)}/${fmtNum(conflicts.length)} รายการ</span>
       </div>
     </div>
     <div class="modal-actions lpc-top-actions">
       <button class="btn btn-outline" onclick="App.larkStockPhotoAll('web')">${ic("check")} ใช้รูปเว็บทั้งหมด</button>
       <button class="btn btn-outline" onclick="App.larkStockPhotoAll('lark')">${ic("check")} ใช้รูป Lark ทั้งหมด</button>
     </div>
-    <div class="lpc-list">${rows || `<div class="empty" style="padding:18px 8px"><div class="e-title">ไม่พบรายการที่ค้นหา</div><div class="muted">ลองลบคำค้นหรือเปลี่ยนตัวกรอง</div></div>`}</div>
+    <div class="lpc-list">${rows}<div id="lpc_empty" class="empty" style="padding:18px 8px" ${visibleCount ? "hidden" : ""}><div class="e-title">ไม่พบรายการที่ค้นหา</div><div class="muted">ลองลบคำค้นหรือเปลี่ยนตัวกรอง</div></div></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="App.larkStockPhotoCancel()">${ic("image")} ใช้รูปเว็บไว้ก่อน</button>
       <button class="btn btn-primary" onclick="App.larkStockPhotoApply()">${ic("save")} บันทึกตามที่เลือก</button>
@@ -459,6 +467,8 @@ App.larkStockRun = async function () {
       App._larkStockPhotoPending = {
         conflicts: split.conflicts,
         decisions: Object.fromEntries(split.conflicts.map(c => [c.key, "web"])),
+        query: "",
+        filter: "all",
         toast: baseToast
       };
       openModal(larkStockConflictModalHtml());
@@ -473,12 +483,56 @@ App.larkStockRun = async function () {
   }
 };
 
+function larkStockPhotoRow(key) {
+  const target = String(key || "");
+  return [...document.querySelectorAll(".lark-photo-conflict")].find(row => row.dataset.lpcKey === target) || null;
+}
+
+function larkStockPhotoSetRowChoice(row, choice) {
+  if (!row) return;
+  const v = choice === "lark" ? "lark" : "web";
+  row.dataset.choice = v;
+  row.querySelectorAll(".lpc-choice").forEach(label => {
+    const selected = label.dataset.lpcChoice === v;
+    label.classList.toggle("selected", selected);
+    const input = label.querySelector('input[type="radio"]');
+    if (input) input.checked = selected;
+  });
+}
+
+function larkStockPhotoRefreshList() {
+  const pending = App._larkStockPhotoPending;
+  if (!pending) return;
+  const query = String(pending.query || "").trim().toLowerCase();
+  const filter = pending.filter || "all";
+  let visible = 0;
+  document.querySelectorAll(".lark-photo-conflict").forEach(row => {
+    const choice = row.dataset.choice || "web";
+    const matchesFilter = filter === "all" || choice === filter;
+    const matchesSearch = !query || String(row.dataset.search || "").includes(query);
+    const show = matchesFilter && matchesSearch;
+    row.hidden = !show;
+    if (show) visible++;
+  });
+  document.querySelectorAll("[data-lpc-filter]").forEach(btn => {
+    btn.classList.toggle("chip-active", btn.dataset.lpcFilter === filter);
+  });
+  const count = document.getElementById("lpc_visible_count");
+  if (count) count.textContent = `พบ ${fmtNum(visible)}/${fmtNum((pending.conflicts || []).length)} รายการ`;
+  const empty = document.getElementById("lpc_empty");
+  if (empty) empty.hidden = visible > 0;
+  const clear = document.getElementById("lpc_search_clear");
+  if (clear) clear.hidden = !query;
+}
+
 App.larkStockPhotoPick = function (key, choice) {
   const pending = App._larkStockPhotoPending;
   if (!pending) return;
   pending.decisions = pending.decisions || {};
-  pending.decisions[String(key || "")] = choice === "lark" ? "lark" : "web";
-  openModal(larkStockConflictModalHtml());
+  const v = choice === "lark" ? "lark" : "web";
+  pending.decisions[String(key || "")] = v;
+  larkStockPhotoSetRowChoice(larkStockPhotoRow(key), v);
+  larkStockPhotoRefreshList();
 };
 
 App.larkStockPhotoAll = function (choice) {
@@ -486,26 +540,26 @@ App.larkStockPhotoAll = function (choice) {
   if (!pending) return;
   const v = choice === "lark" ? "lark" : "web";
   pending.decisions = Object.fromEntries((pending.conflicts || []).map(c => [c.key, v]));
-  openModal(larkStockConflictModalHtml());
+  document.querySelectorAll(".lark-photo-conflict").forEach(row => larkStockPhotoSetRowChoice(row, v));
+  larkStockPhotoRefreshList();
 };
 
 App.larkStockPhotoSearch = function (q) {
   const pending = App._larkStockPhotoPending;
   if (!pending) return;
   pending.query = String(q || "");
-  openModal(larkStockConflictModalHtml());
-  const input = document.querySelector(".lpc-search input");
-  if (input) {
-    input.focus();
-    input.setSelectionRange(input.value.length, input.value.length);
+  const input = document.getElementById("lpc_search_input");
+  if (input && input.value !== pending.query) {
+    input.value = pending.query;
   }
+  larkStockPhotoRefreshList();
 };
 
 App.larkStockPhotoFilter = function (filter) {
   const pending = App._larkStockPhotoPending;
   if (!pending) return;
   pending.filter = ["all", "web", "lark"].includes(filter) ? filter : "all";
-  openModal(larkStockConflictModalHtml());
+  larkStockPhotoRefreshList();
 };
 
 App.larkStockPhotoCancel = function () {
