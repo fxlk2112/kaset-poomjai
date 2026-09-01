@@ -141,17 +141,17 @@ function renderStock() {
       </div>
     </div>
     ${stockSourceSelectHtml()}
-    <div class="row row-between section-title" data-tkey="stockTitle">
+    <div class="row row-between section-title stock-title-row" data-tkey="stockTitle">
       <span>${readonly ? "สต็อกที่แชร์มา" : T("stockTitle")} (${data.length})</span>
-      <div class="row" style="gap:6px;flex-wrap:wrap">
+      <div class="row stock-toolbar" style="gap:6px;flex-wrap:wrap">
         <button class="btn btn-sm btn-primary" onclick="App.stockShareOpen()">${ic("user")} แชร์สต็อก</button>
         ${readonly ? `<button class="btn btn-sm btn-ghost" onclick="App.stockViewSet('own')">${ic("box")} กลับสต็อกของฉัน</button>` : `
           <button class="btn btn-sm btn-outline" onclick="App.larkStockSync()">${ic("refresh")} ซิงก์ Lark</button>
-          <button class="btn btn-sm btn-ghost" onclick="App.importProducts()">${ic("upload")} นำเข้าสินค้า</button>
+          <button class="btn btn-sm btn-ghost" onclick="App.importProducts()">${ic("upload")} นำเข้า</button>
           <button class="btn btn-sm btn-outline" onclick="App.saleHistory()" title="ประวัติการขาย">${ic("box")} ประวัติขาย</button>
-          <button class="btn btn-sm btn-outline" onclick="App.customerHistory()" title="ประวัติลูกค้า">${ic("user")} ประวัติลูกค้า</button>
+          <button class="btn btn-sm btn-outline" onclick="App.customerHistory()" title="ประวัติลูกค้า">${ic("user")} ลูกค้า</button>
           <button class="btn btn-sm btn-primary" onclick="App.modalSale()">${ic("dollar")} ขายสินค้า</button>
-          <button class="btn btn-sm btn-ghost" onclick="App.modalStock()">${ic("plus")} เพิ่มรายการ</button>
+          <button class="btn btn-sm btn-ghost" onclick="App.modalStock()">${ic("plus")} เพิ่มสินค้า</button>
         `}
       </div>
     </div>

@@ -50,7 +50,7 @@ body {
 
 #app { max-width: var(--maxw); margin: 0 auto; min-height: 100vh; position: relative; }
 
-button { font-family: inherit; border: none; background: none; cursor: pointer; color: inherit; }
+button { font-family: inherit; border: none; background: none; cursor: pointer; color: inherit; touch-action: manipulation; }
 input, select, textarea { font-family: inherit; font-size: 1rem; color: var(--text); }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); outline-offset: 1px; }
 
@@ -78,7 +78,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .brand-logo { font-size: 1.7rem; filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
 .brand-logo[src] { width: 40px; height: 40px; object-fit: contain; border-radius: 50%; background: #fff; padding: 2px; flex-shrink: 0; }
 .brand-text { min-width: 0; }
-.brand-name { font-weight: 800; font-size: 1.05rem; letter-spacing: .2px; white-space: nowrap; }
+.brand-name { font-weight: 800; font-size: 1.05rem; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .v-badge {
   display: inline-block; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.35);
   font-size: .62rem; font-weight: 700; padding: 1px 6px; border-radius: 999px; vertical-align: 2px; margin-left: 3px;
@@ -98,7 +98,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 .role-switch button {
   flex: 1; font-size: .78rem; font-weight: 600; color: #eafff1;
-  padding: 6px 4px; border-radius: 999px; transition: all .18s;
+  min-height: 36px; padding: 8px 4px; border-radius: 999px; transition: all .18s;
 }
 .role-switch button.active { background: #fff; color: var(--green-deep); font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
 
@@ -197,7 +197,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes riseIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 
-.section-title { font-size: 1.05rem; font-weight: 800; margin: 20px 2px 10px; display: flex; align-items: center; justify-content: space-between; }
+.section-title { font-size: 1.05rem; font-weight: 800; margin: 20px 2px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .section-title:first-child { margin-top: 4px; }
 
 /* ============ Cards ============ */
@@ -246,6 +246,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   font-weight: 700; font-size: .9rem; border-radius: 999px; padding: 11px 18px;
+  min-height: 42px; min-width: 42px; line-height: 1.2; text-align: center;
   transition: transform .12s, background .15s; user-select: none;
 }
 .btn:active { transform: scale(.97); }
@@ -267,7 +268,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   .btn-danger-soft:hover { background: #fbd5d5; }
   .btn-ghost:hover { background: var(--green-light); }
 }
-.btn-sm { padding: 7px 13px; font-size: .8rem; }
+.btn-sm { min-height: 38px; padding: 8px 12px; font-size: .8rem; }
 .btn-block { width: 100%; }
 .btn-icon { padding: 8px; border-radius: 10px; font-size: .9rem; }
 
@@ -314,7 +315,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 .nav-item {
   flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 4px 2px; font-size: .62rem; font-weight: 600; color: var(--muted); border-radius: 10px;
+  min-height: 50px; padding: 5px 2px; font-size: .62rem; font-weight: 600; color: var(--muted); border-radius: 10px;
 }
 .nav-item .nav-ico { font-size: 1.25rem; line-height: 1; }
 .nav-item.active { color: var(--green-dark); font-weight: 800; }
@@ -341,7 +342,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .fab-dock.open .fab-drawer { opacity: 1; transform: translateX(0); pointer-events: auto; }
 .fab-item {
   background: #fff; border-radius: 999px; box-shadow: 0 4px 14px rgba(16,60,32,.2);
-  padding: 10px 14px; font-size: .82rem; font-weight: 700; color: var(--text);
+  min-height: 42px; padding: 10px 14px; font-size: .82rem; font-weight: 700; color: var(--text);
   display: flex; align-items: center; gap: 8px; text-align: left;
   border: 1px solid var(--green-light);
 }
@@ -485,7 +486,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 /* แถวล่างของการ์ดสต็อก: มูลค่ารวม + ปุ่มจัดการ (แยกคนละบรรทัด ไม่ให้ยาวเกินไปดันปุ่ม) */
 .stock-value { font-size: .72rem; margin-bottom: 8px; }
 .stock-value .bold { font-size: .8rem; }
-.stock-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.stock-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.stock-actions .btn { width: 100%; min-width: 0; border-radius: 12px; padding-left: 8px; padding-right: 8px; white-space: normal; }
+.stock-actions .btn-danger-soft { grid-column: span 2; }
 /* ป้ายขนาดสินค้า */
 .stock-size {
   display: inline-block; font-size: .62rem; font-weight: 700;
@@ -574,7 +577,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 .sd-strip-item img:hover { border-color: var(--green); }
 .sd-strip-x {
-  position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%;
+  position: absolute; top: -8px; right: -8px; width: 28px; height: 28px; border-radius: 50%;
   border: 0; background: #ef4444; color: #fff; font-size: 11px; line-height: 1; cursor: pointer;
   display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.35);
 }
@@ -610,6 +613,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: .88rem;
 }
 .sd-row .k { color: var(--muted); flex-shrink: 0; }
+.sd-row .bold { min-width: 0; text-align: right; overflow-wrap: anywhere; }
 .stock-cat-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .stock-source-row {
   display: flex; align-items: center; gap: 8px; margin: 0 0 12px;
@@ -658,12 +662,12 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   padding: 11px 0; font-size: .9rem; min-width: 0;
 }
 .stock-search-clear {
-  background: var(--chip); border: 0; border-radius: 50%; width: 22px; height: 22px;
+  background: var(--chip); border: 0; border-radius: 50%; width: 28px; height: 28px;
   font-size: .7rem; font-weight: 700; color: var(--muted); flex-shrink: 0; cursor: pointer;
 }
 /* แท็บกรองหน้าสต็อก */
-.stock-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-.stock-tabs .chip { font-size: .78rem; padding: 7px 14px; }
+.stock-tabs { display: flex; gap: 8px; flex-wrap: nowrap; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; }
+.stock-tabs .chip { flex: 0 0 auto; min-height: 38px; font-size: .78rem; padding: 8px 14px; }
 .stock-tabs .chip .badge {
   font-size: .66rem; background: rgba(0,0,0,.08); color: inherit;
   border-radius: 999px; padding: 1px 7px; margin-left: 4px; font-weight: 800;
@@ -859,8 +863,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 .field .hint { font-size: .68rem; color: var(--muted); margin-top: 4px; }
 
-.modal-actions { display: flex; gap: 10px; margin-top: 18px; }
-.modal-actions .btn { flex: 1; }
+.modal-actions {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px; margin-top: 18px;
+}
+.modal-actions .btn { width: 100%; min-width: 0; white-space: normal; }
 
 /* ============ ฟอร์มเพิ่มกิจกรรม (แบบ Farm Command) ============ */
 /* ใช้ minmax(0,1fr) แทน 1fr — ป้องกันคอลัมน์ถูกดันกว้างตามขนาดเนื้อหาขั้นต่ำของช่อง (เช่น input[type=date] บน iOS Safari มี min-content กว้างกว่า)
@@ -907,7 +914,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 @media (max-width: 480px) {
   .form-row-2 { grid-template-columns: 1fr; }
 }
-.modal-x { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; border-radius: 50%; background: #f1f5f4; font-size: 1rem; font-weight: 700; color: var(--muted); transition: background .15s; z-index: 1; }
+.modal-x { position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; border-radius: 50%; background: #f1f5f4; font-size: 1rem; font-weight: 700; color: var(--muted); transition: background .15s; z-index: 1; }
 .modal-x:hover { background: #e5ece8; }
 .modal { position: relative; }
 
@@ -2040,3 +2047,81 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
 .adv-banner.adv-warn { background: #fef9c3; color: #854d0e; }
 .adv-banner.adv-danger { background: #fee2e2; color: #991b1b; }
 .adv-banner.adv-info { background: #dbeafe; color: #1e40af; }
+
+/* ===== Mobile UI polish: touch targets + compact controls ===== */
+@media (max-width: 639px) {
+  .view { padding: 14px 12px calc(var(--nav-h) + 118px + env(safe-area-inset-bottom)); }
+  .card { padding: 12px; }
+  .topbar { padding-left: 12px; padding-right: 12px; }
+  .topbar-row { gap: 6px; }
+  .topbar-actions { gap: 6px; }
+  .icon-btn { width: 40px; height: 40px; }
+  .btn-tour { min-height: 38px; padding: 7px 10px; font-size: .74rem; }
+  .role-switch { overflow-x: auto; border-radius: 14px; }
+  .role-switch button { flex: 1 0 104px; white-space: nowrap; }
+  .hero { padding: 16px 14px; }
+  .hero-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-left: -2px;
+    margin-right: -2px;
+    padding: 0 2px 3px;
+  }
+  .quick-chip { min-height: 38px; flex: 0 0 auto; }
+  .cal-nav, .cal-nav button { width: 38px; height: 38px; min-width: 38px; }
+  .cal-today { min-height: 36px; padding: 7px 12px; }
+  .stock-source-row { align-items: stretch; flex-wrap: wrap; }
+  .stock-source-select { flex: 1 1 100%; min-height: 42px; }
+  .stock-source-row .btn { flex: 1 1 120px; }
+  .stock-title-row { align-items: flex-start; }
+  .stock-title-row > span { width: 100%; }
+  .stock-toolbar {
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px !important;
+  }
+  .stock-toolbar .btn {
+    width: 100%;
+    min-width: 0;
+    padding-left: 8px;
+    padding-right: 8px;
+    border-radius: 12px;
+    white-space: normal;
+  }
+  .modal { max-height: 92dvh; padding: 18px 14px calc(14px + env(safe-area-inset-bottom)); }
+  .modal-actions {
+    position: sticky;
+    bottom: calc(-14px - env(safe-area-inset-bottom));
+    z-index: 3;
+    margin-left: -14px;
+    margin-right: -14px;
+    margin-bottom: calc(-14px - env(safe-area-inset-bottom));
+    padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, rgba(255,255,255,.72), var(--card) 28%);
+    border-top: 1px solid var(--line);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .modal-actions .btn { min-height: 42px; padding: 10px 8px; font-size: .84rem; border-radius: 12px; }
+  .modal-actions .btn:only-child { grid-column: 1 / -1; }
+  .modal-x { top: 10px; right: 10px; }
+  .sd-head { padding-right: 36px; }
+  .sd-strip-item, .sd-strip-item img { width: 64px; height: 64px; }
+  .sd-strip-x { width: 34px; height: 34px; top: -10px; right: -10px; font-size: 13px; }
+  .lpc-list { max-height: 48dvh; }
+  .lpc-top-actions { grid-template-columns: 1fr; }
+  .stock-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stock-actions .btn-danger-soft { grid-column: span 2; }
+}
+@media (max-width: 360px) {
+  .stock-toolbar, .stock-actions, .modal-actions, .lpc-choices { grid-template-columns: 1fr; }
+  .stock-actions .btn-danger-soft { grid-column: auto; }
+  .brand-name { font-size: .95rem; }
+  .btn-tour { max-width: 84px; overflow: hidden; text-overflow: ellipsis; }
+}
+@media (max-width: 639px) {
+  html[data-theme="dark"] .modal-actions {
+    background: linear-gradient(180deg, rgba(15,23,42,.34), var(--card) 28%);
+    border-color: var(--line);
+  }
+}
