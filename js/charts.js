@@ -88,7 +88,7 @@ const Charts = {
     const min = Math.min(0, ...items.map(i => i.value));
     const range = (max - min) || 1;
     const n = items.length;
-    const px = i => padL + (i / (n - 1)) * (W - padL - padR);
+    const px = i => n <= 1 ? W / 2 : padL + (i / (n - 1)) * (W - padL - padR);
     const py = v => padT + (1 - (v - min) / range) * (H - padT - padB);
     let pts = items.map((it, i) => `${px(i).toFixed(1)},${py(it.value).toFixed(1)}`).join(" ");
     let area = `${padL},${H - padB} ${pts} ${(W - padR).toFixed(1)},${H - padB}`;

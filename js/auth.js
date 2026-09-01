@@ -50,7 +50,15 @@ function authCall(action, extra) {
 }
 
 function setSession(s) {
+  const oldEmail = Auth.session && Auth.session.email;
   Auth.session = s;
+  const newEmail = s && s.email;
+  if (oldEmail !== newEmail) {
+    App._stockShares = { outgoing: [], incoming: [] };
+    App._stockSharesLoaded = false;
+    App._stockSharedCache = {};
+    try { if (typeof stockViewKey !== "undefined") stockViewKey = "own"; } catch (e) {}
+  }
   /* ล็อกทั้งระบบทันทีที่ระดับ DOM — ไม่ต้องรอ gate element */
   document.documentElement.classList.toggle("auth-locked", !(s || Auth.shareMode));
   if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s));

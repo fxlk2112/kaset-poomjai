@@ -64,6 +64,83 @@ async function lark(env, path, opts = {}) {
   return j.data;
 }
 
+async function larkDownload(env, path) {
+  const token = await tenantToken(env);
+  const r = await fetch(base(env) + path, { headers: { "Authorization": "Bearer " + token } });
+  if (!r.ok) throw new Error("ดาวน์โหลดไฟล์จาก Lark ไม่สำเร็จ (" + r.status + ")");
+  return {
+    bytes: await r.arrayBuffer(),
+    contentType: r.headers.get("content-type") || "application/octet-stream"
+  };
+}
+
+function textOfField(v) {
+  if (v == null) return "";
+  if (typeof v === "string" || typeof v === "number") return String(v);
+  if (Array.isArray(v)) return v.map(x => {
+    if (x == null) return "";
+    if (typeof x === "string" || typeof x === "number") return String(x);
+    return x.text || x.name || x.url || "";
+  }).join("");
+  if (typeof v === "object") return v.text || v.name || v.url || "";
+  return String(v);
+}
+
+function safeFileName(name, fallback) {
+  const raw = String(name || fallback || "image.jpg");
+  const dot = raw.lastIndexOf(".");
+  const baseName = (dot > 0 ? raw.slice(0, dot) : raw).replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").trim() || fallback || "image";
+  const ext = dot > 0 ? raw.slice(dot).replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_") : ".jpg";
+  return baseName + ext;
+}
+
+function cleanToken(v) {
+  const s = String(v || "").trim();
+  return /^[A-Za-z0-9]+$/.test(s) ? s : "";
+}
+
+function emailList(v) {
+  return String(v || "").split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
+}
+
+function larkStockDefaultAllowed(env, email) {
+  const allow = emailList(env.LARK_STOCK_DEFAULT_EMAILS);
+  const fallback = allow.length ? allow : adminEmails(env);
+  return fallback.includes(String(email || "").toLowerCase()) || isAdminEmail(env, email);
+}
+
+async function saveLarkStockPhoto(env, attachment) {
+  const token = String(attachment.file_token || "");
+  if (!token) return "";
+  const name = safeFileName(attachment.name, token);
+  const key = "lark/stock/" + token + "-" + name;
+  const origin = "https://farmbackup.carfork123.workers.dev";
+  if (!env.PHOTOS) return "images/products/" + name;
+  const old = await env.PHOTOS.get(key);
+  if (!old) {
+    const dl = await larkDownload(env, "/drive/v1/medias/" + token + "/download");
+    await env.PHOTOS.put(key, dl.bytes, {
+      httpMetadata: { contentType: attachment.type || dl.contentType || "image/jpeg" }
+    });
+  }
+  return origin + "/photo/" + key;
+}
+
+async function resolveStockTable(env, appToken, tableId) {
+  const requested = cleanToken(tableId);
+  if (requested) return { table_id: requested, name: "" };
+  const d = await lark(env, "/bitable/v1/apps/" + appToken + "/tables?page_size=100");
+  const items = d.items || [];
+  if (!items.length) throw new Error("Base นี้ยังไม่มีตาราง");
+  const preferred = String(env.LARK_STOCK_TABLE_NAME || "").trim();
+  const found = preferred
+    ? (items.find(t => String(t.name || "").trim() === preferred) ||
+       items.find(t => String(t.name || "").includes(preferred)) ||
+       items[0])
+    : items[0];
+  return { table_id: found.table_id, name: found.name || "" };
+}
+
 /* หา table_id: ใช้ env LARK_TABLE_ID ถ้าไม่ตั้ง ให้เลือกตารางแรกของ Base */
 async function resolveTable(env) {
   const appToken = need(env, "LARK_APP_TOKEN");
@@ -184,6 +261,61 @@ async function doStatus(env) {
   return { ok: true, table_id: tableId, records: list.length };
 }
 
+async function doStockLarkSync(env, p) {
+  const u = await authUser(env, p.token);
+  const suppliedAppToken = cleanToken(p.app_token) || cleanToken(p.appToken);
+  if (!suppliedAppToken && !larkStockDefaultAllowed(env, u.email)) {
+    throw new Error("บัญชีนี้ยังไม่มีแหล่ง Lark เริ่มต้น กรุณาวางลิงก์ Base ของคุณก่อนซิงก์");
+  }
+  const appToken = suppliedAppToken || cleanToken(env.LARK_STOCK_APP_TOKEN);
+  if (!appToken) throw new Error("ยังไม่ได้ตั้งค่าแหล่ง Lark เริ่มต้น กรุณาวางลิงก์ Base ก่อนซิงก์");
+  const tableInfo = await resolveStockTable(env, appToken, p.table_id || p.tableId || (suppliedAppToken ? "" : env.LARK_STOCK_TABLE_ID));
+  const tableId = tableInfo.table_id;
+  const fields = [
+    "รหัสสินค้าเดิม", "จำนวนที่นับ", "ชื่อสินค้า ไทย", "ชื่อสามัญ", "หมวดสินค้า",
+    "หน่วยนับ", "ขนาดสินค้า", "บริษัทจำหน่าย", "รูปถ่าย"
+  ];
+  const records = [];
+  let pageToken = "";
+  do {
+    const q = "?page_size=" + BATCH + (pageToken ? "&page_token=" + encodeURIComponent(pageToken) : "");
+    const d = await lark(env, "/bitable/v1/apps/" + appToken + "/tables/" + tableId + "/records/search" + q, {
+      method: "POST",
+      body: JSON.stringify({ field_names: fields })
+    });
+    (d.items || []).forEach(r => records.push(r));
+    pageToken = d.has_more ? d.page_token : "";
+  } while (pageToken);
+
+  let photoRefs = 0, photoSaved = 0;
+  const products = [];
+  for (const rec of records) {
+    const f = rec.fields || {};
+    const attachments = Array.isArray(f["รูปถ่าย"]) ? f["รูปถ่าย"] : [];
+    const photos = [];
+    for (const a of attachments) {
+      photoRefs++;
+      const url = await saveLarkStockPhoto(env, a);
+      if (url) { photos.push(url); photoSaved++; }
+    }
+    const name = textOfField(f["ชื่อสินค้า ไทย"]).trim();
+    if (!name) continue;
+    products.push({
+      code: textOfField(f["รหัสสินค้าเดิม"]).trim(),
+      name,
+      generic: textOfField(f["ชื่อสามัญ"]).trim(),
+      category: textOfField(f["หมวดสินค้า"]).trim(),
+      unit: textOfField(f["หน่วยนับ"]).trim() || "ชิ้น",
+      size: textOfField(f["ขนาดสินค้า"]).trim(),
+      supplier: textOfField(f["บริษัทจำหน่าย"]).trim(),
+      qty: Number(f["จำนวนที่นับ"]) || 0,
+      photo: photos[0] || "",
+      photos
+    });
+  }
+  return { table_name: tableInfo.name, records: records.length, products, photo_refs: photoRefs, photo_saved: photoSaved };
+}
+
 /* ==================== บัญชีผู้ใช้ + ข้อมูลรายบัญชี (D1) ====================
    register {email,password,name} → {token,email,name}
    login    {email,password}      → {token,email,name}
@@ -288,6 +420,11 @@ async function doAdminGet(env, p) {
 /* ราคาตลาด: ข้อมูล static จาก kasetpoomjai.com (ตลาดศรีเมือง + ตลาดสี่มุมเมือง)
    อัปเดตทุกครั้งที่ deploy worker — ข้อมูลมี 213 รายการ, 171 สินค้า */
 async function doMarketPrices(env, p) {
+  /* เปิดหน้าราคาแล้ว seed ประวัติวันนี้ทันทีด้วย
+     INSERT OR REPLACE ทำให้เรียกซ้ำได้ ไม่ต้องรอ cron รอบ 08:00 วันถัดไป */
+  if (env.DB) {
+    try { await doRecordPrices(env); } catch (e) { /* แสดงราคาปัจจุบันต่อได้ แม้บันทึก history ไม่สำเร็จ */ }
+  }
   return MARKET_DATA;
 }
 
@@ -334,37 +471,153 @@ async function doRecordPrices(env) {
     );
     await env.DB.batch(chunk.map(r => stmt.bind(r.product, r.market, r.date, r.price, r.min, r.max, r.unit, r.category, r.status, r.recorded_at)));
   }
-  /* ลบข้อมูลเก่ากว่า 90 วัน — กัน table โต */
-  const nowBkk90 = new Date(Date.now() + 7 * 3600 * 1000 - 90 * 86400 * 1000);
-  const cutoff = nowBkk90.toISOString().slice(0, 10);
+  /* เก็บย้อนหลัง 2 ปี เพื่อให้กราฟรายเดือน/รายปีมีข้อมูลพอใช้งาน */
+  const nowBkk730 = new Date(Date.now() + 7 * 3600 * 1000 - 730 * 86400 * 1000);
+  const cutoff = nowBkk730.toISOString().slice(0, 10);
   await env.DB.prepare("DELETE FROM price_history WHERE date < ?1").bind(cutoff).run();
   return { recorded: rows.length, date: today };
 }
 
-/* ดึงประวัติราคาของสินค้าหนึ่งชนิด (ทุกตลาด) ย้อนหลัง N วัน */
+function bkkDateAgo(days) {
+  return new Date(Date.now() + 7 * 3600 * 1000 - days * 86400 * 1000).toISOString().slice(0, 10);
+}
+
+/* ดึงประวัติราคาของสินค้าหนึ่งชนิด (ทุกตลาด): รายวัน / รายเดือน / รายปี */
 async function doMarketPriceHistory(env, p) {
   const product = String(p.product || "").trim();
   if (!product) throw new Error("กรุณาระบุชื่อสินค้า");
-  const days = Math.min(Math.max(Number(p.days) || 30, 7), 90);
+  const period = ["day", "month", "year"].includes(String(p.period || "day")) ? String(p.period || "day") : "day";
   /* ตรวจ table ก่อน */
   try { await env.DB.prepare("SELECT 1 FROM price_history LIMIT 1").first(); }
-  catch (e) { return { product, history: [], markets: [] }; }
-  const rows = await env.DB.prepare(
-    "SELECT date, market, price, min, max, status FROM price_history WHERE product = ?1 ORDER BY date ASC LIMIT ?2"
-  ).bind(product, days * 5).all(); /* 5 ตลาดสูงสุดต่อวัน */
+  catch (e) { return { product, period, history: {}, markets: [] }; }
+
+  let rows;
+  if (period === "month") {
+    const months = Math.min(Math.max(Number(p.months) || 12, 3), 24);
+    const from = bkkDateAgo(months * 31);
+    rows = await env.DB.prepare(
+      "SELECT substr(date,1,7) AS date, market, AVG(price) AS price, MIN(min) AS min, MAX(max) AS max, 'stable' AS status, COUNT(*) AS samples FROM price_history WHERE product = ?1 AND date >= ?2 GROUP BY market, substr(date,1,7) ORDER BY date ASC"
+    ).bind(product, from).all();
+  } else if (period === "year") {
+    const years = Math.min(Math.max(Number(p.years) || 5, 2), 5);
+    const fromYear = String(new Date(Date.now() + 7 * 3600 * 1000).getUTCFullYear() - years + 1) + "-01-01";
+    rows = await env.DB.prepare(
+      "SELECT substr(date,1,4) AS date, market, AVG(price) AS price, MIN(min) AS min, MAX(max) AS max, 'stable' AS status, COUNT(*) AS samples FROM price_history WHERE product = ?1 AND date >= ?2 GROUP BY market, substr(date,1,4) ORDER BY date ASC"
+    ).bind(product, fromYear).all();
+  } else {
+    const days = Math.min(Math.max(Number(p.days) || 30, 7), 365);
+    const from = bkkDateAgo(days);
+    rows = await env.DB.prepare(
+      "SELECT date, market, price, min, max, status, 1 AS samples FROM price_history WHERE product = ?1 AND date >= ?2 ORDER BY date ASC"
+    ).bind(product, from).all();
+  }
+
   /* จัดกลุ่มตามตลาด */
   const byMarket = {};
   for (const r of rows.results || []) {
     if (!byMarket[r.market]) byMarket[r.market] = [];
-    byMarket[r.market].push({ date: r.date, price: r.price, min: r.min, max: r.max, status: r.status });
+    byMarket[r.market].push({ date: r.date, price: Math.round((Number(r.price) || 0) * 100) / 100, min: r.min, max: r.max, status: r.status, samples: r.samples || 1 });
   }
-  return { product, markets: Object.keys(byMarket), history: byMarket };
+  return { product, period, markets: Object.keys(byMarket), history: byMarket };
 }
 
 /* ---------- แชร์แปลง: ลิงก์ดูอย่างเดียว + คอมเมนต์ ---------- */
 async function userState(env, userId) {
   const d = await env.DB.prepare("SELECT data FROM user_data WHERE user_id = ?1").bind(userId).first();
   try { return d && d.data ? JSON.parse(d.data) : {}; } catch (e) { return {}; }
+}
+
+/* ---------- แชร์สต็อกให้บัญชีอื่น (ดูอย่างเดียว) ---------- */
+async function ensureStockShares(env) {
+  await env.DB.prepare(
+    "CREATE TABLE IF NOT EXISTS stock_shares (owner_user_id TEXT NOT NULL, viewer_user_id TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (owner_user_id, viewer_user_id))"
+  ).run();
+  await env.DB.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_stock_shares_viewer ON stock_shares(viewer_user_id)"
+  ).run();
+}
+function stockSummaryFromState(state) {
+  const stock = Array.isArray(state.stock) ? state.stock : [];
+  const items = stock.length;
+  const qty = stock.reduce((a, x) => a + (Number(x.qty) || 0) + (Number(x.openQty) || 0), 0);
+  const value = stock.reduce((a, x) => a + ((Number(x.qty) || 0) + (Number(x.openQty) || 0)) * (Number(x.avgCost) || 0), 0);
+  const photos = stock.reduce((a, x) => {
+    const ps = Array.isArray(x.photos) ? x.photos : (x.photo ? [x.photo] : []);
+    return a + ps.filter(Boolean).length;
+  }, 0);
+  return { items, qty, value, photos };
+}
+function stockPublicList(state) {
+  return (Array.isArray(state.stock) ? state.stock : []).map(x => ({
+    id: String(x.id || ""),
+    code: String(x.code || ""),
+    name: String(x.name || ""),
+    generic: String(x.generic || ""),
+    category: String(x.category || ""),
+    unit: String(x.unit || "ชิ้น"),
+    size: String(x.size || ""),
+    supplier: String(x.supplier || ""),
+    qty: Number(x.qty) || 0,
+    openQty: Number(x.openQty) || 0,
+    avgCost: Number(x.avgCost) || 0,
+    salePrice: Number(x.salePrice) || 0,
+    photo: String(x.photo || ""),
+    photos: Array.isArray(x.photos) ? x.photos.map(p => String(p || "")).filter(Boolean) : (x.photo ? [String(x.photo)] : [])
+  })).filter(x => x.id && x.name);
+}
+async function doStockShareList(env, p) {
+  const u = await authUser(env, p.token);
+  await ensureStockShares(env);
+  const outgoingRows = await env.DB.prepare(
+    "SELECT u.email, u.name, ss.created_at FROM stock_shares ss JOIN users u ON u.id = ss.viewer_user_id WHERE ss.owner_user_id = ?1 ORDER BY ss.created_at DESC"
+  ).bind(u.user_id).all();
+  const incomingRows = await env.DB.prepare(
+    "SELECT u.id, u.email, u.name, ss.created_at, d.data, d.updated_at FROM stock_shares ss JOIN users u ON u.id = ss.owner_user_id LEFT JOIN user_data d ON d.user_id = u.id WHERE ss.viewer_user_id = ?1 ORDER BY ss.created_at DESC"
+  ).bind(u.user_id).all();
+  const incoming = [];
+  for (const r of incomingRows.results || []) {
+    let state = {};
+    try { state = r.data ? JSON.parse(r.data) : {}; } catch (e) { state = {}; }
+    incoming.push({ email: r.email, name: r.name, created_at: r.created_at, updated_at: r.updated_at || 0, summary: stockSummaryFromState(state) });
+  }
+  return { outgoing: outgoingRows.results || [], incoming };
+}
+async function doStockShareGrant(env, p) {
+  const owner = await authUser(env, p.token);
+  await ensureStockShares(env);
+  const email = String(p.email || "").trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) throw new Error("รูปแบบอีเมลไม่ถูกต้อง");
+  if (email === String(owner.email || "").toLowerCase()) throw new Error("ไม่ต้องแชร์ให้บัญชีตัวเอง");
+  const viewer = await env.DB.prepare("SELECT id, email, name FROM users WHERE email = ?1").bind(email).first();
+  if (!viewer) throw new Error("ไม่พบบัญชีนี้ในระบบ ให้เขาสมัคร/ล็อกอินเว็บก่อน");
+  await env.DB.prepare(
+    "INSERT INTO stock_shares (owner_user_id, viewer_user_id, created_at) VALUES (?1, ?2, ?3) ON CONFLICT(owner_user_id, viewer_user_id) DO UPDATE SET created_at = ?3"
+  ).bind(owner.user_id, viewer.id, Date.now()).run();
+  return { email: viewer.email, name: viewer.name || "" };
+}
+async function doStockShareRevoke(env, p) {
+  const owner = await authUser(env, p.token);
+  await ensureStockShares(env);
+  const email = String(p.email || "").trim().toLowerCase();
+  const viewer = await env.DB.prepare("SELECT id FROM users WHERE email = ?1").bind(email).first();
+  if (viewer) {
+    await env.DB.prepare("DELETE FROM stock_shares WHERE owner_user_id = ?1 AND viewer_user_id = ?2")
+      .bind(owner.user_id, viewer.id).run();
+  }
+  return { revoked: true };
+}
+async function doStockShareGet(env, p) {
+  const viewer = await authUser(env, p.token);
+  await ensureStockShares(env);
+  const ownerEmail = String(p.owner_email || p.ownerEmail || "").trim().toLowerCase();
+  if (!EMAIL_RE.test(ownerEmail)) throw new Error("ระบุบัญชีเจ้าของสต็อกไม่ถูกต้อง");
+  const owner = await env.DB.prepare("SELECT id, email, name FROM users WHERE email = ?1").bind(ownerEmail).first();
+  if (!owner) throw new Error("ไม่พบบัญชีเจ้าของสต็อก");
+  const allowed = await env.DB.prepare("SELECT 1 FROM stock_shares WHERE owner_user_id = ?1 AND viewer_user_id = ?2")
+    .bind(owner.id, viewer.user_id).first();
+  if (!allowed) throw new Error("บัญชีนี้ยังไม่ได้แชร์สต็อกให้คุณ หรือถูกยกเลิกแล้ว");
+  const state = await userState(env, owner.id);
+  return { owner: { email: owner.email, name: owner.name || "" }, stock: stockPublicList(state), summary: stockSummaryFromState(state) };
 }
 async function doShareCreate(env, p) {
   const u = await authUser(env, p.token);
@@ -712,6 +965,7 @@ export default {
       if (payload.action === "status") data = await doStatus(env);
       else if (payload.action === "push") data = await doPush(env, payload.records || []);
       else if (payload.action === "pull") data = await doPull(env);
+      else if (payload.action === "stock_lark_sync") data = await doStockLarkSync(env, payload);
       else if (payload.action === "register") data = await doRegister(env, request, payload);
       else if (payload.action === "login") data = await doLogin(env, request, payload);
       else if (payload.action === "logout") data = await doLogout(env, payload);
@@ -729,6 +983,10 @@ export default {
       else if (payload.action === "water_report") data = await doWaterReport(env, payload);
       else if (payload.action === "market_prices") data = await doMarketPrices(env, payload);
       else if (payload.action === "market_price_history") data = await doMarketPriceHistory(env, payload);
+      else if (payload.action === "stock_share_list") data = await doStockShareList(env, payload);
+      else if (payload.action === "stock_share_grant") data = await doStockShareGrant(env, payload);
+      else if (payload.action === "stock_share_revoke") data = await doStockShareRevoke(env, payload);
+      else if (payload.action === "stock_share_get") data = await doStockShareGet(env, payload);
       else if (payload.action === "share_create") data = await doShareCreate(env, payload);
       else if (payload.action === "share_list") data = await doShareList(env, payload);
       else if (payload.action === "share_revoke") data = await doShareRevoke(env, payload);

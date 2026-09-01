@@ -2,6 +2,8 @@
    App Secret เก็บไว้ฝั่ง Worker เท่านั้น ไม่หลุดมาเบราว์เซอร์
    ใช้ในหน้าตั้งค่า: ทดสอบการเชื่อมต่อ / อัปโหลด (push) / ดาวน์โหลด (pull) */
 const LARK_FN = "https://farmbackup.carfork123.workers.dev";
+const LARK_STOCK_SOURCE_KEY = "farmult-lark-stock-source-v1";
+let larkStockSyncTimer = null;
 
 /* เรียก Cloudflare Worker — คืน data หรือ throw พร้อมข้อความ */
 async function larkCall(action, body) {
@@ -13,6 +15,90 @@ async function larkCall(action, body) {
   const j = await r.json().catch(() => null);
   if (!r.ok || !j || j.ok !== true) throw new Error((j && j.error) || "เชื่อมต่อ Cloudflare Worker ไม่ได้");
   return j.data;
+}
+
+function larkStockSource() {
+  try { return JSON.parse(localStorage.getItem(LARK_STOCK_SOURCE_KEY) || "null") || {}; }
+  catch (e) { return {}; }
+}
+
+function larkStockParseSource(raw) {
+  const value = String(raw || "").trim();
+  if (!value) return {};
+  let appToken = "", tableId = "";
+  try {
+    const u = new URL(value);
+    const m = u.pathname.match(/\/base\/([A-Za-z0-9]+)/);
+    appToken = m ? m[1] : "";
+    tableId = u.searchParams.get("table") || "";
+  } catch (e) {
+    const m = value.match(/(?:base\/)?([A-Za-z0-9]{16,})/);
+    appToken = m ? m[1] : "";
+    const t = value.match(/(?:table=|table_id[:=\s]+)([A-Za-z0-9]+)/);
+    tableId = t ? t[1] : "";
+  }
+  return { raw: value, app_token: appToken, table_id: tableId };
+}
+
+function larkStockGuideHtml() {
+  return `
+    <div style="background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:12px;margin:12px 0">
+      <div class="bold" style="margin-bottom:8px">${ic("info")} ขั้นตอนดึงข้อมูลจาก Lark</div>
+      <ol style="margin:0;padding-left:20px;line-height:1.75;font-size:.84rem">
+        <li>ให้ผู้กรอกสร้างหรือคัดลอก Base จากเทมเพลตสต็อกเดียวกัน</li>
+        <li>ใน Lark ให้แชร์ Base นั้นให้ App/Bot ของระบบมีสิทธิ์อ่าน</li>
+        <li>เปิดตารางสต็อกตามเทมเพลตที่เตรียมไว้</li>
+        <li>คัดลอก URL จากแถบ address ของ Lark แล้วนำมาวางในช่อง Lark Base URL</li>
+        <li>กด <b>ซิงก์ตอนนี้</b> ระบบจะดึงจำนวนที่นับและรูปถ่ายเข้าเว็บ</li>
+      </ol>
+      <div class="hint" style="margin-top:10px">ตัวอย่าง URL: https://...larksuite.com/base/xxxx?table=tblxxxx</div>
+      <div class="hint">คอลัมน์ที่ควรมี: ชื่อสินค้า ไทย, จำนวนที่นับ, รูปถ่าย, รหัสสินค้าเดิม, หมวดสินค้า, หน่วยนับ, ขนาดสินค้า, บริษัทจำหน่าย</div>
+    </div>`;
+}
+
+function larkStockStopLoading() {
+  if (larkStockSyncTimer) clearInterval(larkStockSyncTimer);
+  larkStockSyncTimer = null;
+}
+
+function larkStockLoading(sourceLabel) {
+  larkStockStopLoading();
+  const steps = [
+    "กำลังเชื่อมต่อ Lark Base...",
+    "กำลังอ่านรายการสต็อก...",
+    "กำลังดึงไฟล์รูปถ่ายจาก Lark...",
+    "กำลังบันทึกรูปขึ้นคลาวด์...",
+    "กำลังอัปเดตสต็อกในเว็บ..."
+  ];
+  openModal(`
+    <div class="lark-sync-loading">
+      <div class="lark-sync-spinner" aria-hidden="true"></div>
+      <h3>กำลังซิงก์สต็อกจาก Lark</h3>
+      <div class="modal-sub">${esc(sourceLabel || "Base ที่เลือก")}</div>
+      <div class="lark-sync-step" id="larkSyncStep">${steps[0]}</div>
+      <div class="lark-sync-note">ถ้ามีรูปเยอะอาจใช้เวลาประมาณ 1-2 นาที กรุณาอย่าเพิ่งปิดหน้านี้</div>
+    </div>`);
+  let idx = 0;
+  larkStockSyncTimer = setInterval(() => {
+    idx = Math.min(idx + 1, steps.length - 1);
+    const el = document.getElementById("larkSyncStep");
+    if (el) el.textContent = steps[idx];
+  }, 2500);
+}
+
+function larkStockError(message) {
+  larkStockStopLoading();
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("alert")} ซิงก์ Lark ไม่สำเร็จ</h3>
+    <div class="modal-sub">${esc(message || "เกิดข้อผิดพลาดระหว่างซิงก์")}</div>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px;font-size:.8rem;color:#9a3412;line-height:1.6">
+      เช็กว่า Base ถูกแชร์ให้ App/Bot ของระบบแล้ว และลิงก์ที่วางเป็นลิงก์ของตารางสต็อกที่ใช้เทมเพลตเดียวกัน
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
+      <button class="btn btn-primary" onclick="App.larkStockSync()">${ic("refresh")} ลองใหม่</button>
+    </div>`);
 }
 
 /* แปลงข้อมูลทั้งหมดในแอปเป็น record สำหรับ Lark Base (1 record ต่อ 1 รายการ) */
@@ -85,4 +171,82 @@ App.larkPull = async function () {
         location.reload();
       } catch (e) { toast("ดาวน์โหลดไม่สำเร็จ: " + e.message); }
     });
+};
+
+App.larkStockSync = function () {
+  if (typeof Auth === "undefined" || !Auth.session) {
+    toast("กรุณาล็อกอินก่อนซิงก์สต็อกจาก Lark");
+    return;
+  }
+  const cfg = larkStockSource();
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("refresh")} ซิงก์สต็อกจาก Lark</h3>
+    <div class="modal-sub">ใช้สำหรับดึงข้อมูลเข้าสต็อกของบัญชีนี้เท่านั้น ถ้าจะให้บัญชีอื่นดู ให้ใช้ปุ่ม แชร์สต็อก ในหน้าสต็อกแทนการส่ง Lark Base</div>
+    ${larkStockGuideHtml()}
+    <div class="field">
+      <label>Lark Base URL</label>
+      <input id="lark_stock_url" value="${esc(cfg.raw || "")}" placeholder="https://...larksuite.com/base/...?...table=...">
+      <div class="hint">ต้องแชร์ Base นี้ให้ Lark App/Bot ของระบบอ่านได้ก่อน ถ้าแอดมินผูกแหล่งของบัญชีนี้ไว้แล้วสามารถเว้นว่างและกดซิงก์ได้</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="App.larkStockRun()">${ic("refresh")} ซิงก์ตอนนี้</button>
+    </div>`);
+};
+
+App.larkStockGuide = function () {
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("info")} วิธีดึงสต็อกจาก Lark</h3>
+    <div class="modal-sub">ใช้วิธีนี้แทน Excel เมื่ออยากดึงรูปถ่ายสินค้าเข้ามาด้วย</div>
+    ${larkStockGuideHtml()}
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px;font-size:.8rem;color:#9a3412;line-height:1.6">
+      ถ้ากดแล้วขึ้นว่าไม่มีสิทธิ์หรือไม่พบ Base ให้กลับไปที่ Lark แล้วแชร์ Base ให้ App/Bot ของระบบก่อน จากนั้นคัดลอกลิงก์ใหม่อีกครั้ง
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
+      <button class="btn btn-primary" onclick="App.larkStockSync()">${ic("refresh")} ไปหน้าซิงก์</button>
+    </div>`);
+};
+
+App.larkStockClearSource = function () {
+  localStorage.removeItem(LARK_STOCK_SOURCE_KEY);
+  const el = document.getElementById("lark_stock_url");
+  if (el) el.value = "";
+  App.larkStockRun();
+};
+
+App.larkStockRun = async function () {
+  if (typeof Auth === "undefined" || !Auth.session) {
+    toast("กรุณาล็อกอินก่อนซิงก์สต็อกจาก Lark");
+    return;
+  }
+  const input = document.getElementById("lark_stock_url");
+  const cfg = larkStockParseSource(input ? input.value : "");
+  if (cfg.raw && !cfg.app_token) {
+    toast("อ่านลิงก์ Base ไม่ได้ — ลองคัดลอก URL จากหน้า Lark Base อีกครั้ง");
+    return;
+  }
+  if (cfg.raw) localStorage.setItem(LARK_STOCK_SOURCE_KEY, JSON.stringify(cfg));
+  else localStorage.removeItem(LARK_STOCK_SOURCE_KEY);
+  larkStockLoading(cfg.raw ? "Base ที่เลือกจาก URL" : "แหล่งที่ผูกกับบัญชีนี้");
+  toast("กำลังซิงก์สต็อกจาก Lark...");
+  try {
+    const d = await larkCall("stock_lark_sync", {
+      token: Auth.session.token,
+      app_token: cfg.app_token || "",
+      table_id: cfg.table_id || ""
+    });
+    const result = mergeStockProducts(S, d.products || []);
+    saveState(S);
+    if (typeof Auth !== "undefined" && Auth.session) Auth.saveNow();
+    larkStockStopLoading();
+    closeModal();
+    render();
+    toast(`ซิงก์ Lark สำเร็จ: ${d.products.length} รายการ · รูป ${d.photo_saved}/${d.photo_refs} · เพิ่ม ${result.added} · อัปเดต ${result.updated}${result.skipped ? ` · ไม่เปลี่ยน ${result.skipped}` : ""}`);
+  } catch (e) {
+    larkStockError(e.message);
+    toast("ซิงก์ Lark ไม่สำเร็จ: " + e.message);
+  }
 };

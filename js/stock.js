@@ -2,10 +2,68 @@
 let stockFilter = "all"; // all | sealed | opened
 let stockQuery = "";    // คำค้นหาชื่อ/หน่วย/หมวด
 let stockCat = "";      // หมวดสินค้าที่กรอง ("" = ทั้งหมด, "__none__" = ไม่มีหมวด)
+let stockViewKey = "own"; // own | shared:<owner email>
+
+function stockShareState() {
+  if (!App._stockShares) App._stockShares = { outgoing: [], incoming: [] };
+  return App._stockShares;
+}
+function stockIsSharedView() {
+  return String(stockViewKey || "own").startsWith("shared:");
+}
+function stockViewOwnerEmail() {
+  return stockIsSharedView() ? String(stockViewKey).slice("shared:".length) : "";
+}
+function stockActiveList() {
+  if (!stockIsSharedView()) return S.stock || [];
+  const cached = App._stockSharedCache && App._stockSharedCache[stockViewOwnerEmail()];
+  return cached && Array.isArray(cached.stock) ? cached.stock : [];
+}
+function stockActiveById(id) {
+  return stockActiveList().find(x => String(x.id) === String(id));
+}
+function stockListValue(list) {
+  return (list || []).reduce((a, x) => a + ((Number(x.qty) || 0) + (Number(x.openQty) || 0)) * (Number(x.avgCost) || 0), 0);
+}
+function stockSourceLabel(email) {
+  if (!email) return "สต็อกของฉัน";
+  const src = (stockShareState().incoming || []).find(x => String(x.email || "").toLowerCase() === String(email).toLowerCase());
+  return (src && (src.name || src.email)) || email;
+}
+function jsArg(v) {
+  return JSON.stringify(String(v == null ? "" : v)).replace(/</g, "\\u003c");
+}
+function stockSourceSelectHtml() {
+  const incoming = stockShareState().incoming || [];
+  const options = [`<option value="own" ${stockViewKey === "own" ? "selected" : ""}>สต็อกของฉัน (${(S.stock || []).length})</option>`]
+    .concat(incoming.map(src => {
+      const email = String(src.email || "");
+      const n = src.summary && Number(src.summary.items) || 0;
+      return `<option value="shared:${esc(email)}" ${stockViewOwnerEmail() === email ? "selected" : ""}>${esc(src.name || email)} (${n})</option>`;
+    }));
+  return `
+    <div class="stock-source-row">
+      <select class="stock-source-select" onchange="App.stockViewSet(this.value)" aria-label="เลือกสต็อก">
+        ${options.join("")}
+      </select>
+      ${stockIsSharedView() ? `<span class="stock-readonly">${ic("eye")} อ่านอย่างเดียว</span>` : ""}
+      <button class="btn btn-sm btn-ghost" onclick="App.stockShareRefresh()">${ic("refresh")} รีเฟรช</button>
+    </div>`;
+}
+function stockPhotoError(img) {
+  const box = img && img.closest ? img.closest(".stock-thumb") : null;
+  if (box) box.innerHTML = ic("box");
+  else if (img) img.remove();
+}
+function stockThumbHtml(x) {
+  const photo = firstStockPhoto(x);
+  return photo ? `<img src="${esc(stockPhotoSrc({ photo }))}" alt="" loading="lazy" onerror="stockPhotoError(this)">` : ic("box");
+}
 /* HTML รายการสต็อก (กรองตามแท็บ + คำค้น) — แยกเป็นฟังก์ชันเพื่ออัปเดตเฉพาะส่วนนี้ ไม่ rebuild ทั้งหน้า */
 function stockListHtml() {
   const q = stockQuery.trim().toLowerCase();
-  const list = S.stock.filter(x => {
+  const readonly = stockIsSharedView();
+  const list = stockActiveList().filter(x => {
     const open = Number(x.openQty) || 0;
     const avail = (Number(x.qty) || 0) + open;
     if (stockFilter === "has" && avail <= 0) return false;
@@ -27,7 +85,7 @@ function stockListHtml() {
       return `
       <div class="card ${out ? "stock-card-out" : ""}">
         <div class="row">
-          <div class="stock-thumb" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${firstStockPhoto(x) ? `<img src="${esc(stockPhotoSrc({ photo: firstStockPhoto(x) }))}" alt="" loading="lazy" onerror="this.remove()">` : ic("box")}</div>
+          <div class="stock-thumb" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${stockThumbHtml(x)}</div>
           <div class="grow">
             <div class="plot-name" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${esc(x.name)} ${out ? `<span class="stock-out-badge">${ic("alert")} ยาหมด</span>` : `<span class="stock-detail-hint">${ic("info")}</span>`} ${x.category ? `<span class="stock-cat">${esc(x.category)}</span>` : ""} ${x.size ? `<span class="stock-size">${esc(x.size)}</span>` : ""}</div>
             ${x.code ? `<div class="muted">รหัส: <b>${esc(x.code)}</b></div>` : ""}
@@ -42,10 +100,12 @@ function stockListHtml() {
           <div class="muted stock-value">มูลค่ารวม <span class="bold">${fmtMoney((x.qty + open) * x.avgCost)} บาท</span>${open > 0 ? ` <span class="muted">(รวมของเปิดใช้แล้ว)</span>` : ""}</div>
           <div class="stock-actions">
             <button class="btn btn-sm btn-ghost" onclick="App.stockDetail('${x.id}')">${ic("info")} รายละเอียด</button>
-            <button class="btn btn-sm btn-ghost" onclick="App.modalStock('${x.id}')" title="แก้ไขรายการ">${ic("pencil")} แก้ไข</button>
-            <button class="btn btn-sm btn-primary" onclick="App.modalReceive('${x.id}')">${ic("down")} รับของเข้า</button>
-            <button class="btn btn-sm btn-outline" onclick="App.modalDeduct('${x.id}')">${ic("minus")} ตัดสต็อก</button>
-            <button class="btn btn-sm btn-danger-soft" onclick="App.deleteStock('${x.id}')">${ic("trash")}</button>
+            ${readonly ? `<span class="stock-readonly">${ic("eye")} ดูจาก ${esc(stockSourceLabel(stockViewOwnerEmail()))}</span>` : `
+              <button class="btn btn-sm btn-ghost" onclick="App.modalStock('${x.id}')" title="แก้ไขรายการ">${ic("pencil")} แก้ไข</button>
+              <button class="btn btn-sm btn-primary" onclick="App.modalReceive('${x.id}')">${ic("down")} รับของเข้า</button>
+              <button class="btn btn-sm btn-outline" onclick="App.modalDeduct('${x.id}')">${ic("minus")} ตัดสต็อก</button>
+              <button class="btn btn-sm btn-danger-soft" onclick="App.deleteStock('${x.id}')">${ic("trash")}</button>
+            `}
           </div>
         </div>
       </div>`;
@@ -54,14 +114,19 @@ function stockListHtml() {
   return emptyHtml + grid;
 }
 function renderStock() {
-  const total = totalStockValue(S);
-  const openedCount = S.stock.filter(x => (Number(x.openQty) || 0) > 0).length;
-  const sealedCount = S.stock.length - openedCount;
-  const hasCount = S.stock.filter(x => (Number(x.qty) || 0) + (Number(x.openQty) || 0) > 0).length;
-  const outCount = S.stock.length - hasCount;
+  if (typeof Auth !== "undefined" && Auth.session && !App._stockSharesLoaded && !App._stockSharesLoading) {
+    setTimeout(() => App.stockShareRefresh(true), 0);
+  }
+  const data = stockActiveList();
+  const readonly = stockIsSharedView();
+  const total = stockListValue(data);
+  const openedCount = data.filter(x => (Number(x.openQty) || 0) > 0).length;
+  const sealedCount = data.length - openedCount;
+  const hasCount = data.filter(x => (Number(x.qty) || 0) + (Number(x.openQty) || 0) > 0).length;
+  const outCount = data.length - hasCount;
   /* นับจำนวนต่อหมวด (ใช้ใน dropdown กรอง) */
   const catCounts = {};
-  S.stock.forEach(x => { const c = x.category || "__none__"; catCounts[c] = (catCounts[c] || 0) + 1; });
+  data.forEach(x => { const c = x.category || "__none__"; catCounts[c] = (catCounts[c] || 0) + 1; });
   const tab = (key, label, count) =>
     `<button class="chip ${stockFilter === key ? "chip-active" : ""}" onclick="App.stockFilter('${key}')">${label} ${count ? `<span class="badge">${count}</span>` : ""}</button>`;
   return `
@@ -70,22 +135,28 @@ function renderStock() {
         <div>
           <div style="font-size:.76rem;opacity:.85">มูลค่าสต็อกทั้งหมด</div>
           <div class="bold" style="font-size:1.5rem">${fmtMoney(total)} บาท</div>
+          ${readonly ? `<div style="font-size:.72rem;opacity:.9;margin-top:2px">กำลังดู: ${esc(stockSourceLabel(stockViewOwnerEmail()))}</div>` : ""}
         </div>
         <span style="font-size:2rem;color:#fff">${ic("box")}</span>
       </div>
     </div>
+    ${stockSourceSelectHtml()}
     <div class="row row-between section-title" data-tkey="stockTitle">
-      <span>${T("stockTitle")} (${S.stock.length})</span>
+      <span>${readonly ? "สต็อกที่แชร์มา" : T("stockTitle")} (${data.length})</span>
       <div class="row" style="gap:6px;flex-wrap:wrap">
-        <button class="btn btn-sm btn-ghost" onclick="App.importProducts()">${ic("upload")} นำเข้าสินค้า</button>
-        <button class="btn btn-sm btn-outline" onclick="App.saleHistory()" title="ประวัติการขาย">${ic("box")} ประวัติขาย</button>
-        <button class="btn btn-sm btn-outline" onclick="App.customerHistory()" title="ประวัติลูกค้า">${ic("user")} ประวัติลูกค้า</button>
-        <button class="btn btn-sm btn-primary" onclick="App.modalSale()">${ic("dollar")} ขายสินค้า</button>
-        <button class="btn btn-sm btn-ghost" onclick="App.modalStock()">${ic("plus")} เพิ่มรายการ</button>
+        <button class="btn btn-sm btn-primary" onclick="App.stockShareOpen()">${ic("user")} แชร์สต็อก</button>
+        ${readonly ? `<button class="btn btn-sm btn-ghost" onclick="App.stockViewSet('own')">${ic("box")} กลับสต็อกของฉัน</button>` : `
+          <button class="btn btn-sm btn-outline" onclick="App.larkStockSync()">${ic("refresh")} ซิงก์ Lark</button>
+          <button class="btn btn-sm btn-ghost" onclick="App.importProducts()">${ic("upload")} นำเข้าสินค้า</button>
+          <button class="btn btn-sm btn-outline" onclick="App.saleHistory()" title="ประวัติการขาย">${ic("box")} ประวัติขาย</button>
+          <button class="btn btn-sm btn-outline" onclick="App.customerHistory()" title="ประวัติลูกค้า">${ic("user")} ประวัติลูกค้า</button>
+          <button class="btn btn-sm btn-primary" onclick="App.modalSale()">${ic("dollar")} ขายสินค้า</button>
+          <button class="btn btn-sm btn-ghost" onclick="App.modalStock()">${ic("plus")} เพิ่มรายการ</button>
+        `}
       </div>
     </div>
     <div class="stock-tabs">
-      ${tab("all", "ทั้งหมด", S.stock.length)}
+      ${tab("all", "ทั้งหมด", data.length)}
       ${tab("has", "มีของ", hasCount)}
       ${tab("out", "ยาหมด", outCount)}
       ${tab("sealed", "ยังไม่เปิดใช้", sealedCount)}
@@ -93,7 +164,7 @@ function renderStock() {
     </div>
     <div class="stock-cat-wrap">
       <select class="stock-cat-select" id="stockCatSelect" onchange="App.stockCatFilter(this.value)" aria-label="กรองหมวดสินค้า">
-        <option value="">ทุกหมวดสินค้า (${S.stock.length})</option>
+        <option value="">ทุกหมวดสินค้า (${data.length})</option>
         ${Object.keys(catCounts).sort((a, b) => a === "__none__" ? 1 : b === "__none__" ? -1 : a.localeCompare(b, "th")).map(c => `<option value="${esc(c)}" ${stockCat === c ? "selected" : ""}>${c === "__none__" ? "(ไม่มีหมวด)" : esc(c)} (${catCounts[c]})</option>`).join("")}
       </select>
     </div>
@@ -121,7 +192,145 @@ App.stockSearch = function (v) {
   const clearBtn = document.querySelector(".stock-search-clear");
   if (clearBtn) clearBtn.style.display = v ? "" : "none";
 };
+function stockShareModalHtml() {
+  const st = stockShareState();
+  const outgoing = st.outgoing || [];
+  const incoming = st.incoming || [];
+  const incomingHtml = incoming.length ? incoming.map(src => {
+    const sum = src.summary || {};
+    return `
+      <div class="stock-share-item">
+        <div>
+          <div class="bold">${esc(src.name || src.email)}</div>
+          <div class="muted">${esc(src.email)} · ${fmtNum(sum.items || 0)} รายการ · รูป ${fmtNum(sum.photos || 0)}</div>
+        </div>
+        <button class="btn btn-sm btn-outline" onclick='App.stockShareUse(${jsArg(src.email)})'>${ic("eye")} ดูสต็อก</button>
+      </div>`;
+  }).join("") : `<div class="empty" style="padding:18px 8px"><div class="e-title">ยังไม่มีใครแชร์สต็อกให้บัญชีนี้</div><div class="muted">ให้เจ้าของสต็อกกดแชร์มาที่อีเมลบัญชีของคุณ</div></div>`;
+  const outgoingHtml = outgoing.length ? outgoing.map(row => `
+    <div class="stock-share-item">
+      <div>
+        <div class="bold">${esc(row.name || row.email)}</div>
+        <div class="muted">${esc(row.email)}</div>
+      </div>
+      <button class="btn btn-sm btn-danger-soft" onclick='App.stockShareRevoke(${jsArg(row.email)})'>${ic("trash")} ยกเลิก</button>
+    </div>`).join("") : `<div class="muted" style="font-size:.78rem;padding:8px 0">ยังไม่ได้แชร์ให้บัญชีอื่น</div>`;
+  return `
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("user")} แชร์สต็อก</h3>
+    <div class="modal-sub">แชร์สต็อกของบัญชีนี้ให้บัญชีอื่นดูได้ โดยไม่ต้องส่ง Lark Base และคนรับแชร์แก้ข้อมูลของคุณไม่ได้</div>
+    <div class="stock-share-box">
+      <div class="bold">${ic("upload")} แชร์สต็อกของฉันให้บัญชีอื่น</div>
+      <div class="stock-share-input">
+        <input id="stock_share_email" type="email" placeholder="email ที่สมัครในเว็บแล้ว">
+        <button class="btn btn-primary" onclick="App.stockShareGrant()">${ic("plus")} แชร์</button>
+      </div>
+      <div class="hint">บัญชีปลายทางต้องเคยสมัครหรือเคยล็อกอินในเว็บนี้ก่อน ระบบจึงจะหาเจอ</div>
+    </div>
+    <div class="stock-share-box">
+      <div class="bold">${ic("eye")} คนที่เห็นสต็อกของฉัน</div>
+      <div class="stock-share-list">${outgoingHtml}</div>
+    </div>
+    <div class="stock-share-box">
+      <div class="bold">${ic("box")} สต็อกที่คนอื่นแชร์ให้ฉัน</div>
+      <div class="stock-share-list">${incomingHtml}</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
+      <button class="btn btn-outline" onclick="App.stockShareRefresh()">${ic("refresh")} รีเฟรช</button>
+    </div>`;
+}
+App.stockShareRefresh = async function (silent) {
+  if (typeof Auth === "undefined" || !Auth.session) return;
+  App._stockSharesLoading = true;
+  const r = await authCall("stock_share_list", { token: Auth.session.token }).catch(() => ({ ok: false, error: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้" }));
+  App._stockSharesLoading = false;
+  App._stockSharesLoaded = true;
+  if (!r.ok) {
+    if (!silent) toast(r.error || "โหลดรายการแชร์ไม่สำเร็จ");
+    return false;
+  }
+  App._stockShares = r.data || { outgoing: [], incoming: [] };
+  const incoming = App._stockShares.incoming || [];
+  if (stockIsSharedView() && !incoming.find(x => String(x.email || "").toLowerCase() === stockViewOwnerEmail().toLowerCase())) {
+    stockViewKey = "own";
+    toast("สต็อกที่เคยดูถูกยกเลิกแชร์แล้ว");
+  }
+  const modal = document.querySelector(".modal");
+  if (modal && modal.querySelector("#stock_share_email")) modal.innerHTML = stockShareModalHtml();
+  if (route.view === "stock") rerender();
+  if (!silent) toast("อัปเดตรายการแชร์แล้ว");
+  return true;
+};
+App.stockShareOpen = async function () {
+  if (typeof Auth === "undefined" || !Auth.session) {
+    toast("กรุณาล็อกอินก่อนแชร์สต็อก");
+    return;
+  }
+  openModal(`
+    <div class="lark-sync-loading">
+      <div class="lark-sync-spinner" aria-hidden="true"></div>
+      <h3>กำลังโหลดรายการแชร์</h3>
+      <div class="lark-sync-note">กำลังตรวจบัญชีที่เห็นสต็อกของคุณและสต็อกที่คนอื่นแชร์มา</div>
+    </div>`);
+  const ok = await App.stockShareRefresh(true);
+  if (!ok) {
+    openModal(`
+      <button class="modal-x" onclick="App.closeModal()">✕</button>
+      <h3>${ic("alert")} โหลดรายการแชร์ไม่สำเร็จ</h3>
+      <div class="modal-sub">ลองเช็กอินเทอร์เน็ตหรือเข้าสู่ระบบใหม่ แล้วกดเปิดแชร์สต็อกอีกครั้ง</div>
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button></div>`);
+    return;
+  }
+  openModal(stockShareModalHtml());
+};
+App.stockShareGrant = async function () {
+  const input = document.getElementById("stock_share_email");
+  const email = (input && input.value || "").trim().toLowerCase();
+  if (!email) { toast("กรอกอีเมลที่ต้องการแชร์ก่อน"); return; }
+  toast("กำลังแชร์สต็อก...");
+  const r = await authCall("stock_share_grant", { token: Auth.session.token, email }).catch(() => ({ ok: false, error: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้" }));
+  if (!r.ok) { toast(r.error || "แชร์ไม่สำเร็จ"); return; }
+  await App.stockShareRefresh(true);
+  openModal(stockShareModalHtml());
+  toast("แชร์สต็อกแล้ว");
+};
+App.stockShareRevoke = function (email) {
+  App.confirm("ยกเลิกแชร์สต็อก?", `บัญชี ${email} จะไม่เห็นสต็อกของคุณอีก`, async () => {
+    const r = await authCall("stock_share_revoke", { token: Auth.session.token, email }).catch(() => ({ ok: false, error: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้" }));
+    if (!r.ok) { toast(r.error || "ยกเลิกแชร์ไม่สำเร็จ"); return; }
+    await App.stockShareRefresh(true);
+    openModal(stockShareModalHtml());
+    toast("ยกเลิกแชร์แล้ว");
+  });
+};
+App.stockShareUse = async function (email) {
+  await App.stockViewSet("shared:" + email);
+  closeModal();
+};
+App.stockViewSet = async function (value) {
+  const v = String(value || "own");
+  if (v === "own") {
+    stockViewKey = "own";
+    rerender();
+    return;
+  }
+  const email = v.startsWith("shared:") ? v.slice("shared:".length) : "";
+  if (!email) return;
+  if (!App._stockSharedCache) App._stockSharedCache = {};
+  if (!App._stockSharedCache[email]) {
+    toast("กำลังโหลดสต็อกที่แชร์มา...");
+    const r = await authCall("stock_share_get", { token: Auth.session.token, owner_email: email }).catch(() => ({ ok: false, error: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้" }));
+    if (!r.ok) { toast(r.error || "โหลดสต็อกที่แชร์มาไม่สำเร็จ"); return; }
+    App._stockSharedCache[email] = r.data || { stock: [] };
+  }
+  stockViewKey = "shared:" + email;
+  stockCat = "";
+  stockQuery = "";
+  rerender();
+};
 App.deleteStock = function (id) {
+  if (stockIsSharedView()) { toast("สต็อกที่แชร์มาเป็นโหมดอ่านอย่างเดียว"); return; }
   App.confirm("ลบรายการวัสดุ?", "", () => {
     S.stock = S.stock.filter(x => x.id !== id);
     saveState(S);
@@ -132,25 +341,26 @@ App.deleteStock = function (id) {
 
 /* ---------------- รายละเอียดสินค้า (กดที่การ์ดสต็อก) ---------------- */
 App.stockDetail = function (id) {
-  const x = stockById(S, id);
+  const x = stockActiveById(id);
   if (!x) return;
+  const readonly = stockIsSharedView();
   const open = Number(x.openQty) || 0;
   const photos = stockPhotos(x);
   const row = (k, v) => v ? `<div class="sd-row"><span class="k">${k}</span><span class="bold">${v}</span></div>` : "";
   const stripHtml = photos.length
-    ? `<div class="sd-strip">${photos.map((p, i) => `<div class="sd-strip-item"><img src="${esc(stockPhotoSrc({ photo: p }))}" alt="" loading="lazy" onclick="App.viewPhoto('${x.id}', ${i})" onerror="this.remove()"><button class="sd-strip-x" onclick="event.stopPropagation();App.stockPhotoRemoveOne('${x.id}', ${i})" title="ลบรูปนี้">✕</button></div>`).join("")}</div>`
-    : `<div class="sd-no-photo">${ic("image")} ยังไม่มีรูป — กดเพิ่มรูปด้านล่าง</div>`;
+    ? `<div class="sd-strip">${photos.map((p, i) => `<div class="sd-strip-item"><img src="${esc(stockPhotoSrc({ photo: p }))}" alt="" loading="lazy" onclick="App.viewPhoto('${x.id}', ${i})" onerror="this.remove()">${readonly ? "" : `<button class="sd-strip-x" onclick="event.stopPropagation();App.stockPhotoRemoveOne('${x.id}', ${i})" title="ลบรูปนี้">✕</button>`}</div>`).join("")}</div>`
+    : `<div class="sd-no-photo">${ic("image")} ${readonly ? "ยังไม่มีรูปในสต็อกที่แชร์มา" : "ยังไม่มีรูป — กดเพิ่มรูปด้านล่าง"}</div>`;
   openModal(`
     <div class="sd-head">
       <div>
         <h3 style="margin:0">${esc(x.name)}</h3>
-        <div class="modal-sub">${x.category ? esc(x.category) : "ไม่มีหมวด"}${x.unit ? ` · ${esc(x.unit)}` : ""}</div>
+        <div class="modal-sub">${x.category ? esc(x.category) : "ไม่มีหมวด"}${x.unit ? ` · ${esc(x.unit)}` : ""}${readonly ? ` · จาก ${esc(stockSourceLabel(stockViewOwnerEmail()))}` : ""}</div>
       </div>
     </div>
     ${stripHtml}
-    <div class="sd-photo-actions">
+    ${readonly ? "" : `<div class="sd-photo-actions">
       <button class="btn btn-sm btn-ghost" onclick="App.stockPhoto('${x.id}')">${ic("camera")} เพิ่มรูป${photos.length ? ` (${photos.length})` : ""}</button>
-    </div>
+    </div>`}
     <div class="sd-rows">
       ${row("รหัสสินค้า", x.code)}
       ${row("ชื่อสามัญ", x.generic)}
@@ -165,10 +375,12 @@ App.stockDetail = function (id) {
       <div class="sd-row"><span class="k">มูลค่ารวม</span><span class="bold">${fmtMoney((x.qty + open) * x.avgCost)} บาท</span></div>
     </div>
     <div class="modal-actions" style="margin-top:14px">
-      <button class="btn btn-primary" onclick="App.modalReceive('${x.id}')">${ic("down")} รับของเข้า</button>
-      <button class="btn btn-outline" onclick="App.modalDeduct('${x.id}')">${ic("minus")} ตัดสต็อก</button>
-      <button class="btn btn-ghost" onclick="App.modalStock('${x.id}')">${ic("pencil")} แก้ไข</button>
-      <button class="btn btn-danger-soft" onclick="App.deleteStock('${x.id}')">${ic("trash")} ลบ</button>
+      ${readonly ? `<button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>` : `
+        <button class="btn btn-primary" onclick="App.modalReceive('${x.id}')">${ic("down")} รับของเข้า</button>
+        <button class="btn btn-outline" onclick="App.modalDeduct('${x.id}')">${ic("minus")} ตัดสต็อก</button>
+        <button class="btn btn-ghost" onclick="App.modalStock('${x.id}')">${ic("pencil")} แก้ไข</button>
+        <button class="btn btn-danger-soft" onclick="App.deleteStock('${x.id}')">${ic("trash")} ลบ</button>
+      `}
     </div>`);
 };
 /* ย่อรูปอัตโนมัติ (กัน localStorage เต็ม) แล้วคืนเป็น data URL */
@@ -192,6 +404,7 @@ function downscaleImage(file, maxSide, quality) {
   });
 }
 App.stockPhoto = function (id) {
+  if (stockIsSharedView()) { toast("สต็อกที่แชร์มาเป็นโหมดอ่านอย่างเดียว"); return; }
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "image/*";
@@ -225,6 +438,7 @@ App.stockPhoto = function (id) {
   input.click();
 };
 App.stockPhotoRemoveOne = function (id, idx) {
+  if (stockIsSharedView()) { toast("สต็อกที่แชร์มาเป็นโหมดอ่านอย่างเดียว"); return; }
   const x = stockById(S, id);
   if (!x || !Array.isArray(x.photos)) return;
   const gone = x.photos[idx];
@@ -242,7 +456,7 @@ App.stockPhotoRemoveOne = function (id, idx) {
 /* ดูภาพใหญ่ (lightbox) — กดที่รูปในป๊อปอัป */
 let lightboxEl = null;
 App.viewPhoto = function (id, idx) {
-  const photos = stockPhotos(stockById(S, id));
+  const photos = stockPhotos(stockActiveById(id));
   if (!photos.length) return;
   const n = photos.length;
   const cur = ((idx % n) + n) % n;
@@ -380,7 +594,7 @@ async function parseXlsxProducts(file) {
   };
   const iName = findCol("ชื่อสินค้า"), iCode = findCol("รหัสสินค้า"), iGeneric = findCol("ชื่อสามัญ"), iCat = findCol("หมวดสินค้า"),
         iUnit = findCol("หน่วยนับ"), iSize = findCol("ขนาดสินค้า"), iSupp = findCol("บริษัทจำหน่าย"),
-        iPhoto = findCol("รูปถ่าย"), iSale = findCol("ราคาขาย");
+        iPhoto = findCol("รูปถ่าย"), iSale = findCol("ราคาขาย"), iQty = findCol("จำนวนที่นับ");
   const products = [];
   /* แปลงตัวเลขจาก Excel: ตัดเครื่องหมายคั่น/สกุลเงิน/ช่องว่างออก */
   const toNum = v => {
@@ -400,7 +614,8 @@ async function parseXlsxProducts(file) {
       unit: String(row[iUnit] || "").trim() || "ชิ้น",
       supplier: String(row[iSupp] || "").trim(),
       photo: String(row[iPhoto] || "").trim(),
-      salePrice: iSale >= 0 ? toNum(row[iSale]) : 0
+      qty: iQty >= 0 ? toNum(row[iQty]) : undefined,
+      salePrice: iSale >= 0 ? toNum(row[iSale]) : undefined
     });
   }
   return { products, sheetName };
@@ -415,7 +630,8 @@ App.importProducts = function () {
     ["หมวดสินค้า", "ไม่จำเป็น", "ยากำจัดศัตรูพืช"],
     ["หน่วยนับ", "ไม่จำเป็น (ว่าง = ชิ้น)", "ขวด"],
     ["ขนาดสินค้า", "ไม่จำเป็น", "1,000 ซีซี"],
-    ["บริษัทจำหน่าย", "ไม่จำเป็น", "FLYTECH"],
+    ["บริษัทจำหน่าย", "ไม่จำเป็น", "บริษัทตัวอย่าง"],
+    ["จำนวนที่นับ", "ไม่จำเป็น", "12"],
     ["รูปถ่าย", "ไม่จำเป็น", "photo_123.jpeg"],
     ["ราคาขาย", "ไม่จำเป็น", "250"],
   ];
@@ -429,8 +645,8 @@ App.importProducts = function () {
       <div class="td-row"><span class="td-k">นามสกุล</span><span class="td-v">.xlsx เท่านั้น (Excel 2007+ / Google Sheets) — .xls อ่านไม่ได้</span></div>
       <div class="td-row"><span class="td-k">ชีต</span><span class="td-v">ระบบอ่านเฉพาะชีตแรก (Sheet 1)</span></div>
       <div class="td-row"><span class="td-k">หัวตาราง</span><span class="td-v">ต้องมีแถวที่มีคำว่า "${req[0]}" — ข้อมูลเริ่มจากแถวถัดไป</span></div>
-      <div class="td-row"><span class="td-k">สินค้าซ้ำ</span><span class="td-v">ชื่อ+ขนาด+หน่วย+บริษัท ซ้ำ → ข้ามอัตโนมัติ</span></div>
-      <div class="td-row"><span class="td-k">จำนวน</span><span class="td-v">นำเข้าแค่รายการสินค้า — จำนวนคงเหลือเริ่มที่ 0 ต้องไปรับของเข้าก่อน</span></div>
+      <div class="td-row"><span class="td-k">สินค้าซ้ำ</span><span class="td-v">ชื่อ+ขนาด+หน่วย+บริษัท ซ้ำ → อัปเดตข้อมูล/จำนวนให้ตรงไฟล์</span></div>
+      <div class="td-row"><span class="td-k">จำนวน</span><span class="td-v">ถ้ามีคอลัมน์ "จำนวนที่นับ" ระบบจะตั้งเป็นจำนวนคงเหลือในสต็อก</span></div>
     </div>
 
     <div class="bold" style="font-size:.86rem;margin:14px 0 6px">${ic("menu")} คอลัมน์ในหัวตาราง</div>
@@ -464,10 +680,10 @@ App.pickImportFile = function () {
     try {
       const { products, sheetName } = await parseXlsxProducts(file);
       if (!products.length) { toast("ไม่พบรายการสินค้าในไฟล์"); return; }
-      const { added, skipped } = mergeStockProducts(S, products);
+      const { added, updated, skipped } = mergeStockProducts(S, products);
       saveState(S);
       render();
-      toast(`นำเข้าสินค้าแล้ว ${added} รายการ${skipped ? ` (ข้าม ${skipped} รายการที่ซ้ำ)` : ""}${sheetName ? ` จากชีต "${sheetName}"` : ""}`);
+      toast(`นำเข้าสินค้าแล้ว ${added} รายการ${updated ? ` · อัปเดต ${updated}` : ""}${skipped ? ` · ไม่เปลี่ยน ${skipped}` : ""}${sheetName ? ` จากชีต "${sheetName}"` : ""}`);
     } catch (err) {
       toast("อ่านไฟล์ไม่สำเร็จ: " + (err && err.message ? err.message : "ไฟล์ไม่ใช่ .xlsx"));
       console.error(err);

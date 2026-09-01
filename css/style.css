@@ -610,6 +610,34 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 .sd-row .k { color: var(--muted); flex-shrink: 0; }
 .stock-cat-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.stock-source-row {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 12px;
+  padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: #fff;
+}
+.stock-source-select {
+  flex: 1; min-width: 0; padding: 9px 11px; font-size: .84rem; color: var(--text);
+  background: var(--soft); border: 1px solid var(--line); border-radius: 10px; outline: 0;
+}
+.stock-readonly {
+  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+  font-size: .68rem; font-weight: 800; color: #1e40af;
+  background: var(--blue-light); border-radius: 999px; padding: 3px 9px;
+}
+.stock-readonly .ic { width: .95em; height: .95em; }
+.stock-share-box {
+  border: 1px solid var(--line); border-radius: 12px; padding: 11px; margin-top: 10px; background: #fff;
+}
+.stock-share-input { display: flex; gap: 8px; margin-top: 8px; }
+.stock-share-input input {
+  flex: 1; min-width: 0; padding: 10px 12px; font-size: .85rem; color: var(--text);
+  background: var(--soft); border: 1.5px solid var(--line); border-radius: 10px; outline: 0;
+}
+.stock-share-input input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(22, 163, 74, .12); background: #fff; }
+.stock-share-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.stock-share-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft);
+}
 .stock-cat-select {
   flex: 1; min-width: 0; padding: 10px 12px; font-size: .85rem; color: var(--text);
   background: #fff; border: 1.5px solid var(--line); border-radius: 12px; outline: 0;
@@ -737,6 +765,21 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 .modal h3 { font-size: 1.08rem; font-weight: 800; margin-bottom: 4px; }
 .modal .modal-sub { font-size: .78rem; color: var(--muted); margin-bottom: 14px; }
+.lark-sync-loading { text-align: center; padding: 18px 8px 20px; }
+.lark-sync-loading h3 { margin-top: 12px; }
+.lark-sync-spinner {
+  width: 52px; height: 52px; border-radius: 999px; margin: 0 auto;
+  border: 5px solid #dcfce7; border-top-color: var(--green);
+  animation: spin .8s linear infinite;
+}
+.lark-sync-step {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 34px; padding: 8px 12px; border-radius: 10px;
+  background: var(--soft); border: 1px solid var(--line);
+  color: var(--green-dark); font-weight: 800; font-size: .86rem;
+}
+.lark-sync-note { margin-top: 10px; color: var(--muted); font-size: .76rem; line-height: 1.55; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .field { margin-bottom: 12px; }
 .field label { display: block; font-size: .78rem; font-weight: 700; color: var(--muted); margin-bottom: 5px; }
@@ -1791,6 +1834,8 @@ html[data-theme="dark"] .stock-picker .sp-search,
 html[data-theme="dark"] .stock-pick-list,
 html[data-theme="dark"] .stock-cat-select,
 html[data-theme="dark"] .stock-search,
+html[data-theme="dark"] .stock-source-row,
+html[data-theme="dark"] .stock-share-box,
 html[data-theme="dark"] .cycle-filter > input,
 html[data-theme="dark"] .task-cycle-assign,
 html[data-theme="dark"] .tour-bubble {
@@ -1802,6 +1847,13 @@ html[data-theme="dark"] .tour-bubble {
 html[data-theme="dark"] .field input,
 html[data-theme="dark"] .field select,
 html[data-theme="dark"] .field textarea {
+  background: var(--soft);
+  color: var(--text);
+  border-color: var(--card-border);
+}
+html[data-theme="dark"] .stock-source-select,
+html[data-theme="dark"] .stock-share-input input,
+html[data-theme="dark"] .stock-share-item {
   background: var(--soft);
   color: var(--text);
   border-color: var(--card-border);

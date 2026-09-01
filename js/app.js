@@ -2307,18 +2307,81 @@ function priceTableHtml() {
 }
 
 /* ===== modal ประวัติราคา + กราฟ ===== */
+const PRICE_HISTORY_MODES = {
+  day30: { label: "30 วัน", sub: "รายวัน 30 วัน", req: { period: "day", days: 30 } },
+  day90: { label: "90 วัน", sub: "รายวัน 90 วัน", req: { period: "day", days: 90 } },
+  month: { label: "รายเดือน", sub: "เฉลี่ยรายเดือน 12 เดือน", req: { period: "month", months: 12 } },
+  year: { label: "รายปี", sub: "เฉลี่ยรายปี 5 ปี", req: { period: "year", years: 5 } }
+};
+function priceHistoryMode() {
+  return PRICE_HISTORY_MODES[App._phMode] ? App._phMode : "day30";
+}
+function priceHistoryLabel(bucket, mode) {
+  if (mode === "year") return bucket;
+  if (mode === "month") {
+    const m = Number(String(bucket).slice(5, 7));
+    return (THAI_MONTHS_SHORT[m - 1] || String(bucket).slice(5, 7)) + " " + String(bucket).slice(2, 4);
+  }
+  return String(bucket).slice(5);
+}
+function currentPricePoints(product, mode) {
+  const cached = App._marketPrices;
+  const prod = cached && (cached.products || []).find(p => p.product === product);
+  if (!prod) return {};
+  const bucket = mode === "year" ? String(prod.date || cached.date || todayISO()).slice(0, 4)
+    : mode === "month" ? String(prod.date || cached.date || todayISO()).slice(0, 7)
+    : String(prod.date || cached.date || todayISO()).slice(0, 10);
+  const out = {};
+  (prod.markets || []).forEach(m => {
+    out[m.market] = {
+      date: bucket,
+      price: Number(m.price) || ((Number(prod.min) + Number(prod.max)) / 2),
+      min: Number(prod.min) || 0,
+      max: Number(prod.max) || 0,
+      status: m.status || "stable",
+      samples: 0,
+      current: true
+    };
+  });
+  return out;
+}
+function mergedPriceHistory(product, mode, history, markets) {
+  const cur = currentPricePoints(product, mode);
+  const byMarket = {};
+  (markets || []).forEach(m => { byMarket[m] = (history && history[m] ? history[m] : []).slice(); });
+  Object.keys(cur).forEach(m => {
+    if (!byMarket[m]) byMarket[m] = [];
+    if (!byMarket[m].some(p => p.date === cur[m].date)) byMarket[m].push(cur[m]);
+  });
+  Object.keys(byMarket).forEach(m => byMarket[m].sort((a, b) => String(a.date).localeCompare(String(b.date))));
+  return { history: byMarket, markets: Object.keys(byMarket) };
+}
+function priceHistoryModeButtons(product, unit) {
+  const mode = priceHistoryMode();
+  const pArg = String(product || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const uArg = String(unit || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  return `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+    ${Object.keys(PRICE_HISTORY_MODES).map(k => `
+      <button class="chip ${mode === k ? "chip-active" : ""}"
+              onclick="App._phMode='${k}';App.showPriceHistory('${pArg}','${uArg}')">
+        ${PRICE_HISTORY_MODES[k].label}
+      </button>`).join("")}
+  </div>`;
+}
 App.showPriceHistory = async function (product, unit) {
+  const mode = priceHistoryMode();
+  const meta = PRICE_HISTORY_MODES[mode];
   /* เปิด modal ทันทีด้วย loading state */
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${ic("chart")} ${esc(product)}</h3>
-    <div class="muted" style="font-size:.78rem;margin-bottom:14px">ประวัติราคาย้อนหลัง</div>
+    <div class="muted" style="font-size:.78rem;margin-bottom:14px">ประวัติราคา · ${meta.sub}</div>
     <div id="phModalBody" style="text-align:center;padding:32px 0">
       <div class="muted">${ic("refresh")} กำลังโหลดข้อมูล...</div>
     </div>`);
 
   try {
-    const r = await authCall("market_price_history", { product, days: 30 });
+    const r = await authCall("market_price_history", Object.assign({ product }, meta.req));
     const el = document.getElementById("phModalBody");
     if (!el) return;
 
@@ -2328,10 +2391,13 @@ App.showPriceHistory = async function (product, unit) {
       return;
     }
 
-    const { history, markets } = r.data;
+    const priceData = r.data || {};
+    const merged = mergedPriceHistory(product, mode, priceData.history || {}, priceData.markets || []);
+    const history = merged.history;
+    const markets = merged.markets;
 
     /* ยังไม่มีประวัติ (เพิ่งเริ่มบันทึก) — แสดงราคาปัจจุบันจาก cache แทน */
-    const hasHistory = markets && markets.length && Object.values(history).some(arr => arr.length > 1);
+    const hasHistory = markets && markets.length && Object.values(history).some(arr => arr.length);
     if (!hasHistory) {
       /* สร้าง mock จากข้อมูล snapshot ปัจจุบัน */
       const cached = App._marketPrices;
@@ -2356,18 +2422,9 @@ App.showPriceHistory = async function (product, unit) {
     }
 
     /* มีประวัติ — วาดกราฟแยกตามตลาด */
-    const daysPicker = `
-      <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
-        ${[7,14,30,60,90].map(d => `
-          <button class="chip ${(App._phDays||30)===d?"chip-active":""}"
-                  onclick="App._phDays=${d};App.showPriceHistory('${product.replace(/'/g,"\\'")}','${(unit||"").replace(/'/g,"\\'")}')">
-            ${d} วัน
-          </button>`).join("")}
-      </div>`;
-
     const MARKET_COLORS = ["#16a34a","#2563eb","#f97316","#8b5cf6","#e11d48"];
     const chartSections = markets.map((mkt, mi) => {
-      const pts = (history[mkt] || []).slice(-(App._phDays || 30));
+      const pts = (history[mkt] || []);
       if (!pts.length) return "";
       const last = pts[pts.length - 1];
       const first = pts[0];
@@ -2378,10 +2435,13 @@ App.showPriceHistory = async function (product, unit) {
       /* label ย่อ — แสดงทุก N วัน เพื่อไม่ให้แน่น */
       const step = pts.length > 14 ? Math.ceil(pts.length / 7) : 1;
       const chartItems = pts.map((pt, i) => ({
-        label: i % step === 0 ? pt.date.slice(5) : "",   /* MM-DD */
+        label: i % step === 0 ? priceHistoryLabel(pt.date, mode) : "",
         value: pt.price
       }));
       const color = MARKET_COLORS[mi % MARKET_COLORS.length];
+      const sampleText = pts.length === 1
+        ? `<div class="muted" style="font-size:.7rem;margin-top:6px">มีข้อมูล 1 จุด ระบบจะต่อกราฟเมื่อ cron บันทึกราคาเพิ่ม</div>`
+        : "";
       return `
         <div style="margin-bottom:18px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -2396,22 +2456,21 @@ App.showPriceHistory = async function (product, unit) {
             </div>
           </div>
           <div id="ph_chart_${mi}" style="width:100%;overflow:hidden"></div>
+          ${sampleText}
         </div>`;
     }).join("");
 
-    el.innerHTML = daysPicker + chartSections;
+    el.innerHTML = priceHistoryModeButtons(product, unit) + chartSections;
 
     /* วาดกราฟทุกตลาด */
     markets.forEach((mkt, mi) => {
-      const pts = (history[mkt] || []).slice(-(App._phDays || 30));
+      const pts = (history[mkt] || []);
       if (!pts.length) return;
       const step = pts.length > 14 ? Math.ceil(pts.length / 7) : 1;
-      const chartItems = pts.map((pt, i) => ({ label: i % step === 0 ? pt.date.slice(5) : "", value: pt.price }));
+      const chartItems = pts.map((pt, i) => ({ label: i % step === 0 ? priceHistoryLabel(pt.date, mode) : "", value: pt.price }));
       const color = MARKET_COLORS[mi % MARKET_COLORS.length];
       const container = document.getElementById("ph_chart_" + mi);
       if (!container) return;
-      /* override สี line ชั่วคราว */
-      const origHTML = container.innerHTML;
       Charts.line(container, chartItems, { color });
       /* แก้สีเส้น + จุด + area ให้ตรงกับตลาด */
       const svg = container.querySelector("svg");
@@ -2424,11 +2483,10 @@ App.showPriceHistory = async function (product, unit) {
 
   } catch (e) {
     const el = document.getElementById("phModalBody");
-    if (el) el.innerHTML = `<div class="muted">เชื่อมต่อไม่ได้ กรุณาลองใหม่</div>`;
+    if (el) App._showPriceFromCache(el, product, unit);
   }
 };
-/* reset days picker เมื่อปิด modal */
-App._phDays = 30;
+App._phMode = "day30";
 
 /* helper: แสดงราคาปัจจุบันจาก cache เมื่อ worker ยังไม่มี price_history */
 App._showPriceFromCache = function (el, product, unit) {
@@ -2439,7 +2497,12 @@ App._showPriceFromCache = function (el, product, unit) {
     el.innerHTML = `<div class="muted" style="padding:24px 0">ไม่พบข้อมูลราคาในขณะนี้</div>`;
     return;
   }
+  const mode = priceHistoryMode();
+  const points = currentPricePoints(product, mode);
+  const markets = (prod.markets || []).map(m => m.market).filter(m => points[m]);
+  const MARKET_COLORS = ["#16a34a","#2563eb","#f97316","#8b5cf6","#e11d48"];
   el.innerHTML = `
+    ${priceHistoryModeButtons(product, unit)}
     <div style="padding:4px 0 12px">
       ${prod.markets.map(m => {
         const badge = m.status === "up"
@@ -2458,10 +2521,38 @@ App._showPriceFromCache = function (el, product, unit) {
           </div>`;
       }).join("")}
     </div>
-    <div class="muted" style="font-size:.74rem;text-align:center;margin-top:8px;padding:10px 14px;background:var(--bg);border-radius:8px;line-height:1.6">
-      ${ic("chart")} กราฟประวัติราคาจะแสดงเมื่อ deploy worker เวอร์ชันใหม่แล้ว<br>
-      <span style="font-size:.7rem">ระบบจะเริ่มสะสมข้อมูลรายวันโดยอัตโนมัติ</span>
-    </div>`;
+    ${markets.map((mkt, mi) => {
+      const pt = points[mkt];
+      const color = MARKET_COLORS[mi % MARKET_COLORS.length];
+      return `
+      <div style="margin-bottom:18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color}"></span>
+            <span style="font-size:.8rem;font-weight:600">${esc(mkt)}</span>
+          </div>
+          <div style="font-size:.78rem">
+            <span style="font-weight:700;color:var(--green-deep)">${fmtNum(pt.price)}</span>
+            <span style="font-size:.68rem;color:var(--muted)"> /${esc(prod.unit)}</span>
+          </div>
+        </div>
+        <div id="ph_cache_chart_${mi}" style="width:100%;overflow:hidden"></div>
+        <div class="muted" style="font-size:.7rem;margin-top:6px">เริ่มกราฟจากราคาปัจจุบัน ระบบจะต่อเส้นเมื่อมีประวัติสะสมเพิ่ม</div>
+      </div>`;
+    }).join("")}`;
+  markets.forEach((mkt, mi) => {
+    const pt = points[mkt];
+    const color = MARKET_COLORS[mi % MARKET_COLORS.length];
+    const container = document.getElementById("ph_cache_chart_" + mi);
+    if (!container || !pt) return;
+    Charts.line(container, [{ label: priceHistoryLabel(pt.date, mode), value: pt.price }], { color });
+    const svg = container.querySelector("svg");
+    if (svg) {
+      svg.querySelectorAll("polyline").forEach(el => el.setAttribute("stroke", color));
+      svg.querySelectorAll("circle").forEach(el => el.setAttribute("fill", color));
+      svg.querySelectorAll("polygon").forEach(el => { el.setAttribute("fill", color); el.setAttribute("opacity","0.1"); });
+    }
+  });
 };
 
 /* ===== summary banner แบบ kasetpoomjai (ราคาขึ้น / ลง / คงที่ ใน 1 แถวเดียว) ===== */
@@ -2955,6 +3046,100 @@ function storageBreakdown() {
   if (wx) rows.push({ label: "🌦️ แคชพยากรณ์อากาศ", count: null, bytes: wx });
   return rows.sort((a, b) => b.bytes - a.bytes);
 }
+function clearDataOptions() {
+  const linkedCycleIds = new Set((S.cycles || []).map(c => c.id));
+  const customCount = Object.keys(S.texts || {}).length + (S.customMenus || []).length + (S.customCostCats || []).length;
+  return [
+    {
+      key: "plots", icon: "leaf", label: "ข้อมูลแปลง",
+      count: (S.plots || []).length,
+      note: "ลบแปลงทั้งหมด พร้อมรอบปลูก งาน และระบบน้ำที่ผูกกับแปลง",
+      clear: () => { S.plots = []; S.cycles = []; S.tasks = []; S.water = { sources: [], systems: [], logs: [] }; S.valves = []; }
+    },
+    {
+      key: "cycles", icon: "leaf", label: "รอบปลูก",
+      count: (S.cycles || []).length,
+      note: "ลบรอบปลูกทั้งหมด และลบงานที่อยู่ในรอบปลูกเหล่านั้น",
+      clear: () => { S.cycles = []; S.tasks = (S.tasks || []).filter(t => !linkedCycleIds.has(t.cycleId)); }
+    },
+    {
+      key: "tasks", icon: "menu", label: "งาน/กิจกรรม",
+      count: (S.tasks || []).length,
+      note: "ลบงาน แผนงาน กิจกรรม และประวัติต้นทุนจากงานทั้งหมด",
+      clear: () => { S.tasks = []; }
+    },
+    {
+      key: "stock", icon: "box", label: "สต็อกยา/ปุ๋ย",
+      count: (S.stock || []).length,
+      note: "ลบรายการสต็อกทั้งหมด แต่เก็บงานและประวัติขายไว้ โดยตัดการผูก stock id ออก",
+      clear: () => {
+        S.stock = [];
+        (S.tasks || []).forEach(t => {
+          t.stockId = null; t.stockLog = [];
+          (t.costItems || []).forEach(ci => { ci.stockId = ""; });
+        });
+        (S.sales || []).forEach(s => (s.items || []).forEach(it => { it.stockId = ""; }));
+      }
+    },
+    {
+      key: "sales", icon: "dollar", label: "การขาย/ใบเสร็จ",
+      count: (S.sales || []).length,
+      note: "ลบประวัติการขาย ใบเสร็จ และข้อมูลลูกค้าจากการขายทั้งหมด",
+      clear: () => { S.sales = []; }
+    },
+    {
+      key: "equipment", icon: "truck", label: "อุปกรณ์",
+      count: (S.equipment || []).length,
+      note: "ลบรายการเครื่องจักร อุปกรณ์ และข้อมูลค่าเสื่อมทั้งหมด",
+      clear: () => { S.equipment = []; }
+    },
+    {
+      key: "water", icon: "droplet", label: "ระบบน้ำ",
+      count: ((S.water && S.water.systems) || []).length + ((S.water && S.water.sources) || []).length + ((S.water && S.water.logs) || []).length + (S.valves || []).length,
+      note: "ลบแหล่งน้ำ ระบบน้ำ บันทึกการให้น้ำ และวาล์วทั้งหมด",
+      clear: () => { S.water = { sources: [], systems: [], logs: [] }; S.valves = []; }
+    },
+    {
+      key: "workers", icon: "user", label: "ข้อมูลแรงงาน",
+      count: Number((S.workers || {}).total) || Number((S.workers || {}).working) || 0,
+      note: "ล้างตัวเลขแรงงานที่กำลังทำงาน พัก ลา และจำนวนรวม",
+      clear: () => { S.workers = { working: 0, resting: 0, leave: 0, total: 0 }; }
+    },
+    {
+      key: "custom", icon: "wrench", label: "การตั้งค่าที่ปรับเอง",
+      count: customCount,
+      note: "ล้างคำที่แก้เอง เมนูที่เพิ่มเอง หมวดต้นทุนที่เพิ่มเอง ลำดับหน้าแรก และสถานะทัวร์",
+      clear: () => {
+        S.texts = {}; S.customMenus = []; S.customCostCats = [];
+        S.homeOrder = ["cal", "tasks", "profit", "activity"];
+        S.role = "general"; S.tourDone = false;
+      }
+    }
+  ];
+}
+function clearDataToolsHtml() {
+  return clearDataOptions().map(o => `
+    <div class="ed-row">
+      <span class="mc-ico" style="width:auto">${ic(o.icon)}</span>
+      <div class="grow">
+        <div class="bold" style="font-size:.86rem">${esc(o.label)} <span class="badge badge-gray">${fmtNum(o.count)} รายการ</span></div>
+        <div class="muted" style="font-size:.7rem;line-height:1.45">${esc(o.note)}</div>
+      </div>
+      <button class="btn btn-sm btn-danger-soft" onclick="App.clearDataSection('${o.key}')">${ic("trash")} ลบ</button>
+    </div>`).join("");
+}
+App.clearDataSection = function (key) {
+  const opt = clearDataOptions().find(o => o.key === key);
+  if (!opt) return;
+  App.confirm("ลบ" + opt.label + "?", opt.note + " — ถ้าล็อกอินอยู่ ระบบจะซิงก์การลบนี้ขึ้นคลาวด์ด้วย ต้องการดำเนินการต่อหรือไม่?", async () => {
+    opt.clear();
+    ensureDefaults(S);
+    saveState(S);
+    if (typeof Auth !== "undefined" && Auth.session) await Auth.saveNow();
+    render();
+    toast("ลบ" + opt.label + "แล้ว");
+  });
+};
 /* ดูข้อมูลดิบรายหมวดเป็น JSON (แสดง 8,000 ตัวอักษรแรก — ก๊อปได้ทั้งก้อน) */
 App._rawKey = "plots";
 App.viewRawData = function (key) {
@@ -3118,6 +3303,11 @@ function renderSettings() {
     </div>
     ${editorHtml}
     <button class="btn btn-ghost btn-block" onclick="App.startTour()">${ic("compass")} แนะนำระบบ (Tour) อีกครั้ง</button>
+    <div class="section-title">${ic("trash")} ล้างข้อมูลบางส่วน</div>
+    <div class="card">
+      <div class="muted" style="font-size:.76rem;margin-bottom:8px">เลือกลบเฉพาะหมวดที่ไม่ต้องการแล้วได้ โดยไม่กระทบข้อมูลหมวดอื่นที่ไม่เกี่ยวข้อง</div>
+      ${clearDataToolsHtml()}
+    </div>
     <button class="btn btn-danger-soft btn-block mt-8" onclick="App.resetData()">${ic("refresh")} รีเซ็ตข้อมูลทั้งหมด</button>
     <div class="muted mt-8" style="font-size:.7rem;text-align:center">สภาพอากาศรายแปลงจาก Open-Meteo (ECMWF) — ฟรี ไม่ต้องใช้คีย์ · IoT จริงในเวอร์ชันถัดไป</div>`;
 }
@@ -3448,8 +3638,12 @@ App.importMerge = function () {
 };
 
 App.resetData = function () {
-  App.confirm("รีเซ็ตข้อมูลทั้งหมด?", "ข้อมูลที่บันทึกไว้ทั้งหมดจะถูกล้างให้ว่างเปล่า (เริ่มต้นใหม่ — กรอกเอง) ต้องการดำเนินการต่อหรือไม่?", () => {
-    localStorage.removeItem(STORAGE_KEY);
+  App.confirm("รีเซ็ตข้อมูลทั้งหมด?", "ข้อมูลที่บันทึกไว้ทั้งหมดจะถูกล้างให้ว่างเปล่า และถ้าล็อกอินอยู่จะซิงก์การลบนี้ขึ้นคลาวด์ด้วย ต้องการดำเนินการต่อหรือไม่?", async () => {
+    const fresh = typeof blankState === "function" ? blankState() : seed();
+    resetSTo(fresh);
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    saveState(S);
+    if (typeof Auth !== "undefined" && Auth.session) await Auth.saveNow();
     location.reload();
   });
 };
@@ -3771,12 +3965,12 @@ App.submitCycle = function (e, cycleId) {
 };
 
 /* ---- stock forms ---- */
-/* รายชื่อบริษัท/ผู้จำหน่ายที่เคยใช้ — จากสต็อกปัจจุบัน + ฐานข้อมูลสินค้า FLYTECH
+/* รายชื่อบริษัท/ผู้จำหน่ายที่เคยใช้ — จากสต็อกปัจจุบัน + รายการตั้งต้นถ้ามี
    ใช้เป็นตัวเลือกค้นหา (datalist) ในฟอร์มเพิ่ม/แก้ไข */
 function stockSuppliers() {
   const set = new Set();
   (S.stock || []).forEach(x => { const v = String(x.supplier || "").trim(); if (v) set.add(v); });
-  (typeof FLYTECH_MASTER !== "undefined" ? FLYTECH_MASTER : []).forEach(p => { const v = String(p.supplier || "").trim(); if (v) set.add(v); });
+  (typeof STOCK_MASTER_PRESETS !== "undefined" ? STOCK_MASTER_PRESETS : []).forEach(p => { const v = String(p.supplier || "").trim(); if (v) set.add(v); });
   return [...set].sort((a, b) => a.localeCompare(b, "th"));
 }
 App.modalStock = function (id) {

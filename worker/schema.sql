@@ -16,3 +16,10 @@ CREATE TABLE IF NOT EXISTS user_data (
   data       TEXT NOT NULL,              -- สถานะทั้งหมดของแอปของบัญชีนั้น (JSON)
   updated_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS stock_shares (
+  owner_user_id  TEXT NOT NULL,
+  viewer_user_id TEXT NOT NULL,
+  created_at     INTEGER NOT NULL,
+  PRIMARY KEY (owner_user_id, viewer_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_stock_shares_viewer ON stock_shares(viewer_user_id);
