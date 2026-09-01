@@ -126,6 +126,123 @@ function larkStockSetStep(text) {
   if (el) el.textContent = text;
 }
 
+function larkStockKeyOf(x) {
+  return (x.name || x.productName || "").trim().toLowerCase() + "|" +
+    (x.size || "") + "|" + ((x.unit || "").trim() || "ชิ้น") + "|" + (x.supplier || x.company || "");
+}
+
+function larkJsArg(v) {
+  return JSON.stringify(String(v == null ? "" : v)).replace(/</g, "\\u003c");
+}
+function larkJsAttr(code) {
+  return esc(String(code || ""));
+}
+
+function larkStockPhotosOf(x) {
+  return (Array.isArray(x && x.photos) ? x.photos : (x && x.photo ? [x.photo] : []))
+    .map(p => String(p || "").trim()).filter(Boolean);
+}
+
+function larkStockFindExisting(p) {
+  const key = larkStockKeyOf(p);
+  return (S.stock || []).find(x => larkStockKeyOf(x) === key) || null;
+}
+
+function larkStockSamePhotos(a, b) {
+  const aa = larkStockPhotosOf(a);
+  const bb = larkStockPhotosOf(b);
+  return aa.length === bb.length && aa.every((p, i) => p === bb[i]);
+}
+
+function larkStockRememberProducts(map, products) {
+  (products || []).forEach(p => {
+    const key = larkStockKeyOf(p);
+    if (!key || key === "|||") return;
+    const old = map.get(key);
+    const photos = [...(old ? larkStockPhotosOf(old) : []), ...larkStockPhotosOf(p)]
+      .filter((v, i, arr) => v && arr.indexOf(v) === i);
+    map.set(key, Object.assign({}, old || {}, p, {
+      photo: photos[0] || "",
+      photos,
+      appendPhotos: false
+    }));
+  });
+}
+
+function larkStockSplitPhotoConflicts(products) {
+  const clean = [], conflicts = [];
+  (products || []).forEach(p => {
+    const old = larkStockFindExisting(p);
+    const webPhotos = larkStockPhotosOf(old);
+    const larkPhotos = larkStockPhotosOf(p);
+    if (old && webPhotos.length && larkPhotos.length && !larkStockSamePhotos(old, p)) {
+      conflicts.push({ key: larkStockKeyOf(p), id: old.id, name: p.name || old.name, size: p.size || old.size || "", unit: p.unit || old.unit || "", supplier: p.supplier || old.supplier || "", webPhotos, larkPhotos });
+      clean.push(Object.assign({}, p, { photo: "", photos: [] }));
+      return;
+    }
+    clean.push(p);
+  });
+  return { clean, conflicts };
+}
+
+function larkStockApplyPhotoChoice(conflicts, decisions) {
+  let changed = 0;
+  (conflicts || []).forEach(c => {
+    const useLark = decisions && decisions[c.key] === "lark";
+    if (!useLark) return;
+    const item = (S.stock || []).find(x => x.id === c.id) || null;
+    if (!item) return;
+    item.photos = [...c.larkPhotos];
+    item.photo = item.photos[0] || "";
+    changed++;
+  });
+  return changed;
+}
+
+function larkStockConflictModalHtml() {
+  const pending = App._larkStockPhotoPending || {};
+  const conflicts = pending.conflicts || [];
+  const rows = conflicts.map((c, i) => {
+    const picked = (pending.decisions && pending.decisions[c.key]) || "web";
+    const thumbs = arr => arr.slice(0, 4).map(p => `<img src="${esc(stockPhotoSrc({ photo: p }))}" alt="" loading="lazy" onerror="this.remove()">`).join("") || `<span class="muted">ไม่มีรูป</span>`;
+    return `
+      <div class="lark-photo-conflict">
+        <div class="lpc-head">
+          <div>
+            <div class="bold">${esc(c.name)}</div>
+            <div class="muted">${c.size ? esc(c.size) + " · " : ""}${esc(c.unit || "")}${c.supplier ? " · " + esc(c.supplier) : ""}</div>
+          </div>
+          <span class="badge badge-amber">รูปไม่ตรง</span>
+        </div>
+        <div class="lpc-choices">
+          <label class="${picked === "web" ? "selected" : ""}">
+            <input type="radio" name="lpc_${i}" ${picked === "web" ? "checked" : ""} onchange="${larkJsAttr(`App.larkStockPhotoPick(${larkJsArg(c.key)},"web")`)}">
+            <span>ใช้รูปเว็บ</span>
+            <div class="lpc-thumbs">${thumbs(c.webPhotos)}</div>
+          </label>
+          <label class="${picked === "lark" ? "selected" : ""}">
+            <input type="radio" name="lpc_${i}" ${picked === "lark" ? "checked" : ""} onchange="${larkJsAttr(`App.larkStockPhotoPick(${larkJsArg(c.key)},"lark")`)}">
+            <span>ใช้รูป Lark</span>
+            <div class="lpc-thumbs">${thumbs(c.larkPhotos)}</div>
+          </label>
+        </div>
+      </div>`;
+  }).join("");
+  return `
+    <button class="modal-x" onclick="App.larkStockPhotoCancel()">✕</button>
+    <h3>${ic("image")} เจอรูปที่ไม่ตรงกัน</h3>
+    <div class="modal-sub">ข้อมูลและจำนวนซิงก์เสร็จแล้ว เลือกรูปที่จะเก็บไว้สำหรับ ${fmtNum(conflicts.length)} รายการ</div>
+    <div class="modal-actions lpc-top-actions">
+      <button class="btn btn-outline" onclick="App.larkStockPhotoAll('web')">${ic("check")} ใช้รูปเว็บทั้งหมด</button>
+      <button class="btn btn-outline" onclick="App.larkStockPhotoAll('lark')">${ic("check")} ใช้รูป Lark ทั้งหมด</button>
+    </div>
+    <div class="lpc-list">${rows}</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.larkStockPhotoCancel()">${ic("image")} ใช้รูปเว็บไว้ก่อน</button>
+      <button class="btn btn-primary" onclick="App.larkStockPhotoApply()">${ic("save")} บันทึกตามที่เลือก</button>
+    </div>`;
+}
+
 function larkStockError(message) {
   larkStockStopLoading();
   openModal(`
@@ -277,7 +394,7 @@ App.larkStockRun = async function () {
     const PHOTO_LIMIT = 18;
     const MAX_BATCHES = 12;
     let offset = 0, batch = 0, last = null;
-    const totalResult = { added: 0, updated: 0, skipped: 0 };
+    const synced = new Map();
     do {
       batch++;
       larkStockSetStep(batch === 1 ? "กำลังอ่านรายการและดึงรูปชุดแรก..." : `กำลังดึงรูปชุดที่ ${batch}...`);
@@ -289,10 +406,7 @@ App.larkStockRun = async function () {
         photo_limit: PHOTO_LIMIT,
         photo_offset: offset
       }, { timeoutMs: 55000 });
-      const part = mergeStockProducts(S, last.products || []);
-      totalResult.added += part.added || 0;
-      totalResult.updated += part.updated || 0;
-      totalResult.skipped += part.skipped || 0;
+      larkStockRememberProducts(synced, last.products || []);
       offset = Number(last.photo_next_offset) || 0;
       const totalPhotos = Number(last.photo_refs) || 0;
       const donePhotos = offset || totalPhotos;
@@ -300,15 +414,66 @@ App.larkStockRun = async function () {
       if (offset) larkStockSetStep(`ดึงรูปแล้ว ${fmtNum(donePhotos)}/${fmtNum(totalPhotos || donePhotos)} รูป กำลังไปต่อ...`);
     } while (offset && batch < MAX_BATCHES);
     larkStockSetProgress(100, 100, "บันทึกข้อมูลเสร็จแล้ว");
+    const syncedProducts = [...synced.values()];
+    const split = larkStockSplitPhotoConflicts(syncedProducts);
+    const totalResult = mergeStockProducts(S, split.clean);
     saveState(S);
     if (typeof Auth !== "undefined" && Auth.session) Auth.saveNow();
     larkStockStopLoading();
-    closeModal();
     render();
     const more = offset && last ? ` · ยังเหลือรูปประมาณ ${fmtNum(last.photo_deferred || 0)} รูป กดซิงก์อีกครั้งเพื่อเก็บต่อ` : "";
-    toast(`ซิงก์ Lark สำเร็จ: ${last.products.length} รายการ · รูป ${fmtNum(Math.min(Number(last.photo_next_offset) || Number(last.photo_refs) || 0, Number(last.photo_refs) || 0))}/${fmtNum(last.photo_refs)} · เพิ่ม ${totalResult.added} · อัปเดต ${totalResult.updated}${totalResult.skipped ? ` · ไม่เปลี่ยน ${totalResult.skipped}` : ""}${more}`);
+    const donePhotos = Math.min(Number(offset || (last && last.photo_refs) || 0), Number((last && last.photo_refs) || 0));
+    const baseToast = `ซิงก์ Lark สำเร็จ: ${syncedProducts.length} รายการ · รูป ${fmtNum(donePhotos)}/${fmtNum(last.photo_refs)} · เพิ่ม ${totalResult.added} · อัปเดต ${totalResult.updated}${totalResult.skipped ? ` · ไม่เปลี่ยน ${totalResult.skipped}` : ""}${more}`;
+    if (split.conflicts.length) {
+      App._larkStockPhotoPending = {
+        conflicts: split.conflicts,
+        decisions: Object.fromEntries(split.conflicts.map(c => [c.key, "web"])),
+        toast: baseToast
+      };
+      openModal(larkStockConflictModalHtml());
+      toast(`เจอรูปไม่ตรงกัน ${split.conflicts.length} รายการ เลือกรูปก่อนจบซิงก์`);
+    } else {
+      closeModal();
+      toast(baseToast);
+    }
   } catch (e) {
     larkStockError(e.message);
     toast("ซิงก์ Lark ไม่สำเร็จ: " + e.message);
   }
+};
+
+App.larkStockPhotoPick = function (key, choice) {
+  const pending = App._larkStockPhotoPending;
+  if (!pending) return;
+  pending.decisions = pending.decisions || {};
+  pending.decisions[String(key || "")] = choice === "lark" ? "lark" : "web";
+  openModal(larkStockConflictModalHtml());
+};
+
+App.larkStockPhotoAll = function (choice) {
+  const pending = App._larkStockPhotoPending;
+  if (!pending) return;
+  const v = choice === "lark" ? "lark" : "web";
+  pending.decisions = Object.fromEntries((pending.conflicts || []).map(c => [c.key, v]));
+  openModal(larkStockConflictModalHtml());
+};
+
+App.larkStockPhotoCancel = function () {
+  const pending = App._larkStockPhotoPending;
+  App._larkStockPhotoPending = null;
+  closeModal();
+  render();
+  toast((pending && pending.toast ? pending.toast + " · ใช้รูปเว็บเดิม" : "ใช้รูปเว็บเดิมแล้ว"));
+};
+
+App.larkStockPhotoApply = function () {
+  const pending = App._larkStockPhotoPending;
+  if (!pending) return;
+  const changed = larkStockApplyPhotoChoice(pending.conflicts || [], pending.decisions || {});
+  saveState(S);
+  if (typeof Auth !== "undefined" && Auth.session) Auth.saveNow();
+  App._larkStockPhotoPending = null;
+  closeModal();
+  render();
+  toast((pending.toast || "ซิงก์ Lark สำเร็จ") + (changed ? ` · ใช้รูป Lark ${changed} รายการ` : " · ใช้รูปเว็บเดิม"));
 };
