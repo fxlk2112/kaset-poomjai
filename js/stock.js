@@ -351,6 +351,7 @@ App.stockDetail = function (id) {
     ? `<div class="sd-strip">${photos.map((p, i) => `<div class="sd-strip-item"><img src="${esc(stockPhotoSrc({ photo: p }))}" alt="" loading="lazy" onclick="App.viewPhoto('${x.id}', ${i})" onerror="this.remove()">${readonly ? "" : `<button class="sd-strip-x" onclick="event.stopPropagation();App.stockPhotoRemoveOne('${x.id}', ${i})" title="ลบรูปนี้">✕</button>`}</div>`).join("")}</div>`
     : `<div class="sd-no-photo">${ic("image")} ${readonly ? "ยังไม่มีรูปในสต็อกที่แชร์มา" : "ยังไม่มีรูป — กดเพิ่มรูปด้านล่าง"}</div>`;
   openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
     <div class="sd-head">
       <div>
         <h3 style="margin:0">${esc(x.name)}</h3>
