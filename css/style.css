@@ -336,7 +336,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .fab-drawer {
   position: absolute; right: 84px; bottom: 64px; transform: translateX(12px);
   display: flex; flex-direction: column; gap: 8px; opacity: 0; pointer-events: none;
-  transition: all .22s ease; width: 200px;
+  transition: all .22s ease; width: 210px;
 }
 .fab-dock.open .fab-drawer { opacity: 1; transform: translateX(0); pointer-events: auto; }
 .fab-item {
@@ -347,6 +347,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 .fab-item:active { background: var(--green-soft); transform: scale(.97); }
 .fab-item span { font-size: 1.05rem; }
+.quick-chip { flex-shrink: 0; }
 
 /* ============ List rows ============ */
 .row { display: flex; align-items: center; gap: 10px; }

@@ -512,13 +512,14 @@ function renderHome() {
     </div>`;
   })();
 
-  /* ปุ่มลัดบันทึกงานประจำวันบนหน้าแรก */
+  /* ปุ่มลัดงานหลักบนหน้าแรก */
   const quickActs = [
-    { type: "inspect", ico: "search", label: "ตรวจแปลง" },
-    { type: "fertilize", ico: "leaf", label: "ใส่ปุ๋ย" },
-    { type: "harvest", ico: "box", label: "เก็บเกี่ยว" },
-    { type: "water", ico: "droplet", label: "รดน้ำ" },
-  ].map(a => `<button class="chip" onclick="App.modalTask('${today}', { type: '${a.type}', title: '${a.label}' })">${ic(a.ico)} ${a.label}</button>`).join("");
+    { action: "task", ico: "plus", label: "เพิ่มกิจกรรม" },
+    { action: "lark", ico: "refresh", label: "ซิงก์ Lark" },
+    { action: "stock", ico: "box", label: "เพิ่มสินค้า" },
+    { action: "sale", ico: "dollar", label: "ขายสินค้า" },
+    { action: "plot", ico: "map", label: "เพิ่มแปลง" },
+  ].map(a => `<button class="chip quick-chip" onclick="App.quickAction('${a.action}')">${ic(a.ico)} ${a.label}</button>`).join("");
 
   let extra = "";
   if (S.role === "business") {
@@ -4901,14 +4902,38 @@ const fabDock = document.getElementById("fabDock");
 const fabBtn = document.getElementById("fabBtn");
 function closeFAB() { fabDock.classList.remove("open"); }
 fabBtn.addEventListener("click", () => fabDock.classList.toggle("open"));
+App.quickAction = function (act) {
+  closeFAB();
+  if (act === "task") {
+    App.modalTask(todayISO());
+    return;
+  }
+  if (act === "lark") {
+    route.view = "stock";
+    render();
+    requestAnimationFrame(() => App.larkStockSync());
+    return;
+  }
+  if (act === "stock") {
+    route.view = "stock";
+    render();
+    requestAnimationFrame(() => App.modalStock());
+    return;
+  }
+  if (act === "sale") {
+    App.modalSale();
+    return;
+  }
+  if (act === "plot") {
+    route.view = "plots";
+    route.tab = "plots";
+    render();
+    requestAnimationFrame(() => App.modalPlot());
+  }
+};
 fabDock.querySelectorAll(".fab-item").forEach(btn => {
   btn.addEventListener("click", () => {
-    closeFAB();
-    const act = btn.dataset.action;
-    if (act === "harvest") App.modalTask(todayISO(), { type: "harvest", title: "บันทึกเก็บเกี่ยว" });
-    else if (act === "expense") App.modalTask(todayISO(), { type: "fertilize", title: "บันทึกใส่ปุ๋ย / จ่าย" });
-    else if (act === "sale") App.modalSale();
-    else App.modalTask(todayISO(), { type: "work", title: "เพิ่มกิจกรรมทั่วไป" });
+    App.quickAction(btn.dataset.action);
   });
 });
 
@@ -4916,7 +4941,7 @@ fabDock.querySelectorAll(".fab-item").forEach(btn => {
 const TOUR_STEPS = [
   { sel: ".role-switch", title: "1 · สลับโหมดการใช้งาน", text: "กดที่แถบด้านบนเพื่อเปลี่ยนมุมมองแดชบอร์ด — เกษตรกร ฟาร์มใหญ่ หรือ ธุรกิจ เมนูจะปรับตามโหมดอัตโนมัติ", pos: "below" },
   { sel: "#kpiRow", title: "2 · ตัวเลขสำคัญ (KPI)", text: "กำไรสุทธิ พื้นที่ และรอบปลูก จัดเรียงแนวนอนเสมอ อ่านง่ายทั้งบนคอมและมือถือ เขียว = กำไร แดง = ขาดทุน", pos: "below" },
-  { sel: "#fabBtn", title: "3 · ปุ่มลัด (FAB)", text: "ปุ่มกลมมุมขวาล่าง กดแล้วยืดออกเป็นเมนู — บันทึกเก็บเกี่ยว ใส่ปุ๋ย/จ่าย และเพิ่มกิจกรรมทั่วไป ได้ทันที", pos: "left" },
+  { sel: "#fabBtn", title: "3 · ปุ่มลัด", text: "ปุ่มกลมมุมขวาล่างสำหรับงานที่ใช้บ่อย: เพิ่มกิจกรรม ซิงก์ Lark เพิ่มสินค้า ขายสินค้า และเพิ่มแปลง", pos: "left" },
   { sel: "#bottomNav", title: "4 · เมนูหลัก", text: "หน้าแรก แปลง สต็อก กิจกรรม และวิเคราะห์ — บนคอมอยู่เมนูซ้าย บนมือถืออยู่แถบล่าง กดเพื่อสลับหน้าได้ทันที", pos: "below" },
   { sel: "#tourBtn", title: "5 · จบการแนะนำ", text: "พร้อมแล้ว! กดปุ่มแนะนำระบบได้ทุกเมื่อเพื่อดูทัวร์อีกครั้ง ขอให้เพาะปลูกสำเร็จ", pos: "below" },
 ];
