@@ -87,6 +87,13 @@ function larkStockLoading(sourceLabel) {
       <div class="lark-sync-spinner" aria-hidden="true"></div>
       <h3>กำลังซิงก์สต็อกจาก Lark</h3>
       <div class="modal-sub">${esc(sourceLabel || "Base ที่เลือก")}</div>
+      <div class="lark-sync-progress" aria-label="ความคืบหน้าการซิงก์">
+        <div class="lark-sync-progress-top">
+          <span id="larkSyncProgressText">เริ่มซิงก์</span>
+          <b id="larkSyncProgressPct">5%</b>
+        </div>
+        <div class="lark-sync-progress-track"><div id="larkSyncProgressBar" style="width:5%"></div></div>
+      </div>
       <div class="lark-sync-step" id="larkSyncStep">${steps[0]}</div>
       <div class="lark-sync-note">ถ้ามีรูปเยอะอาจใช้เวลาประมาณ 1-2 นาที กรุณาอย่าเพิ่งปิดหน้านี้</div>
     </div>`);
@@ -96,6 +103,18 @@ function larkStockLoading(sourceLabel) {
     const el = document.getElementById("larkSyncStep");
     if (el) el.textContent = steps[idx];
   }, 2500);
+}
+
+function larkStockSetProgress(done, total, text) {
+  const d = Math.max(Number(done) || 0, 0);
+  const t = Math.max(Number(total) || 0, 0);
+  const pct = t ? Math.min(100, Math.max(1, Math.round((d / t) * 100))) : Math.min(95, Math.max(5, Math.round(d) || 5));
+  const bar = document.getElementById("larkSyncProgressBar");
+  const pctEl = document.getElementById("larkSyncProgressPct");
+  const txtEl = document.getElementById("larkSyncProgressText");
+  if (bar) bar.style.width = pct + "%";
+  if (pctEl) pctEl.textContent = pct + "%";
+  if (txtEl) txtEl.textContent = text || (t ? `รูป ${fmtNum(d)}/${fmtNum(t)}` : "กำลังเตรียมข้อมูล");
 }
 
 function larkStockSetStep(text) {
@@ -252,6 +271,7 @@ App.larkStockRun = async function () {
   if (cfg.raw) localStorage.setItem(LARK_STOCK_SOURCE_KEY, JSON.stringify(cfg));
   else localStorage.removeItem(LARK_STOCK_SOURCE_KEY);
   larkStockLoading(cfg.raw ? "Base ที่เลือกจาก URL" : "แหล่งที่ผูกกับบัญชีนี้");
+  larkStockSetProgress(5, 100, "กำลังเชื่อมต่อ");
   toast("กำลังซิงก์สต็อกจาก Lark...");
   try {
     const PHOTO_LIMIT = 18;
@@ -261,6 +281,7 @@ App.larkStockRun = async function () {
     do {
       batch++;
       larkStockSetStep(batch === 1 ? "กำลังอ่านรายการและดึงรูปชุดแรก..." : `กำลังดึงรูปชุดที่ ${batch}...`);
+      if (!last) larkStockSetProgress(12, 100, "กำลังอ่านรายการ");
       last = await larkCall("stock_lark_sync", {
         token: Auth.session.token,
         app_token: cfg.app_token || "",
@@ -273,8 +294,12 @@ App.larkStockRun = async function () {
       totalResult.updated += part.updated || 0;
       totalResult.skipped += part.skipped || 0;
       offset = Number(last.photo_next_offset) || 0;
-      if (offset) larkStockSetStep(`ดึงรูปแล้ว ${Math.min(offset, last.photo_refs || offset)}/${last.photo_refs || offset} รูป กำลังไปต่อ...`);
+      const totalPhotos = Number(last.photo_refs) || 0;
+      const donePhotos = offset || totalPhotos;
+      larkStockSetProgress(donePhotos, totalPhotos, totalPhotos ? `รูป ${fmtNum(donePhotos)}/${fmtNum(totalPhotos)}` : "ไม่มีรูปที่ต้องดึง");
+      if (offset) larkStockSetStep(`ดึงรูปแล้ว ${fmtNum(donePhotos)}/${fmtNum(totalPhotos || donePhotos)} รูป กำลังไปต่อ...`);
     } while (offset && batch < MAX_BATCHES);
+    larkStockSetProgress(100, 100, "บันทึกข้อมูลเสร็จแล้ว");
     saveState(S);
     if (typeof Auth !== "undefined" && Auth.session) Auth.saveNow();
     larkStockStopLoading();
