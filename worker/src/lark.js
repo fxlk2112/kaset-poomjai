@@ -287,14 +287,20 @@ async function doStockLarkSync(env, p) {
     pageToken = d.has_more ? d.page_token : "";
   } while (pageToken);
 
-  let photoRefs = 0, photoSaved = 0;
+  const photoLimit = Math.min(Math.max(Number(p.photo_limit) || 18, 0), 40);
+  const photoOffset = Math.max(Number(p.photo_offset) || 0, 0);
+  let photoRefs = 0, photoSaved = 0, photoProcessed = 0;
   const products = [];
   for (const rec of records) {
     const f = rec.fields || {};
     const attachments = Array.isArray(f["รูปถ่าย"]) ? f["รูปถ่าย"] : [];
     const photos = [];
+    let skippedBefore = 0, deferredAfter = 0;
     for (const a of attachments) {
-      photoRefs++;
+      const photoIndex = photoRefs++;
+      if (photoIndex < photoOffset) { skippedBefore++; continue; }
+      if (photoProcessed >= photoLimit) { deferredAfter++; continue; }
+      photoProcessed++;
       const url = await saveLarkStockPhoto(env, a);
       if (url) { photos.push(url); photoSaved++; }
     }
@@ -310,10 +316,17 @@ async function doStockLarkSync(env, p) {
       supplier: textOfField(f["บริษัทจำหน่าย"]).trim(),
       qty: Number(f["จำนวนที่นับ"]) || 0,
       photo: photos[0] || "",
-      photos
+      photos,
+      appendPhotos: skippedBefore > 0 || deferredAfter > 0
     });
   }
-  return { table_name: tableInfo.name, records: records.length, products, photo_refs: photoRefs, photo_saved: photoSaved };
+  const nextOffset = photoOffset + photoProcessed < photoRefs ? photoOffset + photoProcessed : 0;
+  return {
+    table_name: tableInfo.name, records: records.length, products,
+    photo_refs: photoRefs, photo_saved: photoSaved, photo_processed: photoProcessed,
+    photo_offset: photoOffset, photo_next_offset: nextOffset,
+    photo_deferred: nextOffset ? Math.max(photoRefs - nextOffset, 0) : 0
+  };
 }
 
 /* ==================== บัญชีผู้ใช้ + ข้อมูลรายบัญชี (D1) ====================

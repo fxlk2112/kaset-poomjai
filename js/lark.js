@@ -6,12 +6,24 @@ const LARK_STOCK_SOURCE_KEY = "farmult-lark-stock-source-v1";
 let larkStockSyncTimer = null;
 
 /* เรียก Cloudflare Worker — คืน data หรือ throw พร้อมข้อความ */
-async function larkCall(action, body) {
-  const r = await fetch(LARK_FN, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(Object.assign({ action }, body || {}))
-  });
+async function larkCall(action, body, opts) {
+  const timeoutMs = (opts && opts.timeoutMs) || 60000;
+  const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : null;
+  let r;
+  try {
+    r = await fetch(LARK_FN, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.assign({ action }, body || {})),
+      signal: ctl ? ctl.signal : undefined
+    });
+  } catch (e) {
+    if (e && e.name === "AbortError") throw new Error("ซิงก์ใช้เวลานานเกินไป ลองกดซิงก์อีกครั้งหรือเช็กจำนวนรูปใน Lark");
+    throw e;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
   const j = await r.json().catch(() => null);
   if (!r.ok || !j || j.ok !== true) throw new Error((j && j.error) || "เชื่อมต่อ Cloudflare Worker ไม่ได้");
   return j.data;
@@ -84,6 +96,15 @@ function larkStockLoading(sourceLabel) {
     const el = document.getElementById("larkSyncStep");
     if (el) el.textContent = steps[idx];
   }, 2500);
+}
+
+function larkStockSetStep(text) {
+  if (larkStockSyncTimer) {
+    clearInterval(larkStockSyncTimer);
+    larkStockSyncTimer = null;
+  }
+  const el = document.getElementById("larkSyncStep");
+  if (el) el.textContent = text;
 }
 
 function larkStockError(message) {
@@ -233,18 +254,34 @@ App.larkStockRun = async function () {
   larkStockLoading(cfg.raw ? "Base ที่เลือกจาก URL" : "แหล่งที่ผูกกับบัญชีนี้");
   toast("กำลังซิงก์สต็อกจาก Lark...");
   try {
-    const d = await larkCall("stock_lark_sync", {
-      token: Auth.session.token,
-      app_token: cfg.app_token || "",
-      table_id: cfg.table_id || ""
-    });
-    const result = mergeStockProducts(S, d.products || []);
+    const PHOTO_LIMIT = 18;
+    const MAX_BATCHES = 12;
+    let offset = 0, batch = 0, last = null;
+    const totalResult = { added: 0, updated: 0, skipped: 0 };
+    do {
+      batch++;
+      larkStockSetStep(batch === 1 ? "กำลังอ่านรายการและดึงรูปชุดแรก..." : `กำลังดึงรูปชุดที่ ${batch}...`);
+      last = await larkCall("stock_lark_sync", {
+        token: Auth.session.token,
+        app_token: cfg.app_token || "",
+        table_id: cfg.table_id || "",
+        photo_limit: PHOTO_LIMIT,
+        photo_offset: offset
+      }, { timeoutMs: 55000 });
+      const part = mergeStockProducts(S, last.products || []);
+      totalResult.added += part.added || 0;
+      totalResult.updated += part.updated || 0;
+      totalResult.skipped += part.skipped || 0;
+      offset = Number(last.photo_next_offset) || 0;
+      if (offset) larkStockSetStep(`ดึงรูปแล้ว ${Math.min(offset, last.photo_refs || offset)}/${last.photo_refs || offset} รูป กำลังไปต่อ...`);
+    } while (offset && batch < MAX_BATCHES);
     saveState(S);
     if (typeof Auth !== "undefined" && Auth.session) Auth.saveNow();
     larkStockStopLoading();
     closeModal();
     render();
-    toast(`ซิงก์ Lark สำเร็จ: ${d.products.length} รายการ · รูป ${d.photo_saved}/${d.photo_refs} · เพิ่ม ${result.added} · อัปเดต ${result.updated}${result.skipped ? ` · ไม่เปลี่ยน ${result.skipped}` : ""}`);
+    const more = offset && last ? ` · ยังเหลือรูปประมาณ ${fmtNum(last.photo_deferred || 0)} รูป กดซิงก์อีกครั้งเพื่อเก็บต่อ` : "";
+    toast(`ซิงก์ Lark สำเร็จ: ${last.products.length} รายการ · รูป ${fmtNum(Math.min(Number(last.photo_next_offset) || Number(last.photo_refs) || 0, Number(last.photo_refs) || 0))}/${fmtNum(last.photo_refs)} · เพิ่ม ${totalResult.added} · อัปเดต ${totalResult.updated}${totalResult.skipped ? ` · ไม่เปลี่ยน ${totalResult.skipped}` : ""}${more}`);
   } catch (e) {
     larkStockError(e.message);
     toast("ซิงก์ Lark ไม่สำเร็จ: " + e.message);

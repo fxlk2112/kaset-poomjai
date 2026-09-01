@@ -133,16 +133,25 @@ function mergeStockProducts(s, products) {
     const old = existing.get(key);
     if (old) {
       let changed = false;
-      ["code", "generic", "category", "photo"].forEach(k => {
+      ["code", "generic", "category"].forEach(k => {
         if (item[k] !== "" && old[k] !== item[k]) { old[k] = item[k]; changed = true; }
       });
       if (p.salePrice !== undefined && Number(old.salePrice) !== item.salePrice) {
         old.salePrice = item.salePrice;
         changed = true;
       }
-      if (photos.length && JSON.stringify(old.photos || []) !== JSON.stringify(photos)) {
-        old.photos = photos;
-        old.photo = photos[0];
+      if (photos.length) {
+        const nextPhotos = p.appendPhotos
+          ? [...(old.photos || (old.photo ? [old.photo] : [])), ...photos].filter((v, i, arr) => v && arr.indexOf(v) === i)
+          : photos;
+        if (JSON.stringify(old.photos || []) !== JSON.stringify(nextPhotos)) {
+          old.photos = nextPhotos;
+          old.photo = nextPhotos[0] || "";
+          changed = true;
+        }
+      }
+      if (photos.length && !old.photo) {
+        old.photo = (old.photos || [])[0] || photos[0] || "";
         changed = true;
       }
       if (p.qty !== undefined && Number(old.qty) !== item.qty) {
