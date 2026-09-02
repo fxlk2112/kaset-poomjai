@@ -3713,6 +3713,13 @@ function openModal(html) {
   const actionBars = modalEl ? Array.from(modalEl.querySelectorAll(".modal-actions")) : [];
   const actions = actionBars[actionBars.length - 1];
   if (modalEl && actions) {
+    const form = actions.closest("form");
+    if (form) {
+      if (!form.id) form.id = "modalForm_" + uid();
+      actions.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(btn => {
+        if (!btn.getAttribute("form")) btn.setAttribute("form", form.id);
+      });
+    }
     modalEl.classList.add("modal-has-actions");
     modalEl.appendChild(actions);
   }

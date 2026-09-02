@@ -2119,6 +2119,20 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .stock-source-row { align-items: stretch; flex-wrap: wrap; }
   .stock-source-select { flex: 1 1 100%; min-height: 42px; }
   .stock-source-row .btn { flex: 1 1 120px; }
+  input,
+  select,
+  textarea,
+  .field input,
+  .field select,
+  .field textarea,
+  .stock-search input,
+  .stock-source-select,
+  .stock-cat-select,
+  .stock-share-input input,
+  .cycle-filter > input,
+  .cycf {
+    font-size: 16px !important;
+  }
   .stock-title-row { align-items: flex-start; }
   .stock-title-row > span { width: 100%; }
   .stock-toolbar {
