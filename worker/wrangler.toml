@@ -3,6 +3,11 @@ main = "src/lark.js"
 compatibility_date = "2025-01-01"
 workers_dev = true
 
+[vars]
+# Fail closed. A separate output commissioning approval is required before this
+# can ever become true.
+OUTPUT_CONTROL_ENABLED = "false"
+
 [triggers]
 crons = ["* * * * *"]
 

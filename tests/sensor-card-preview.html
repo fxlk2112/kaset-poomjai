@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Phase 1 Sensor Card — Local Preview</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    body { padding: 24px 12px; }
+    main { width: min(100%, 760px); margin: 0 auto; }
+    .preview-label { margin-bottom: 10px; color: var(--muted); font-size: .76rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="preview-label">LOCAL FIXTURE · ไม่มีการเชื่อมต่อคลาวด์หรืออุปกรณ์จริง</div>
+    <div id="preview"></div>
+  </main>
+  <script>function fmtNum(n){return Number(n||0).toLocaleString("th-TH");}</script>
+  <script src="../js/charts.js"></script>
+  <script src="../js/sensors.js"></script>
+  <script>
+    window.App = { refreshMainWaterSensor(){}, setSensorHistoryHours(){} };
+    const now = Date.now();
+    Object.assign(SensorTelemetry.state, {
+      status: "GOOD",
+      ageS: 18,
+      hours: 24,
+      current: {
+        observed_at: new Date(now - 18000).toISOString(),
+        observed_ts: now - 18000,
+        quality: "GOOD",
+        depth_m: 0.577,
+        volume_m3: 104.9,
+        capacity_percent: 13.1,
+        current_ma: 6.40,
+        volume_model_id: "OWNER_CONFIRMED_APPROXIMATE_LEGACY_BASELINE"
+      },
+      history: Array.from({length: 10}, (_, i) => ({
+        observed_at: new Date(now - (9-i)*2*3600000).toISOString(),
+        quality: "GOOD",
+        volume_m3: 99.6 + i * 0.6
+      }))
+    });
+    document.getElementById("preview").innerHTML = SensorTelemetry.cardHtml();
+    SensorTelemetry.mountChart();
+  </script>
+</body>
+</html>

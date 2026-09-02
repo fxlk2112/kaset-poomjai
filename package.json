@@ -1,0 +1,9 @@
+{
+  "name": "farmultimate-sensor-phase1-local",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "preview": "node scripts/serve-local.mjs",
+    "check": "node --check worker/src/lark.js && node --check js/runtime-config.js && node --check js/auth.js && node --check js/sensors.js && node --check js/farm-map.js && node --check js/app.js && node --test worker/tests/*.test.mjs js/tests/*.test.mjs"
+  }
+}
