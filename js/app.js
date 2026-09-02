@@ -3677,26 +3677,45 @@ function renderMore() {
 }
 
 /* ---------------- Modals ---------------- */
-/* ล็อกการเลื่อนพื้นหลังตอนเปิด modal — กันพื้นหลังเลื่อนตาม/จอกระตุกบนมือถือ
-   ใช้ overflow:hidden บน html+body: ปลอดภัยกว่า position:fixed เพราะ
-   1) ตำแหน่งเลื่อนเดิมคงอยู่เอง ไม่เด้งไปหัวหน้า 2) ไม่มี state ค้าง (ปิด modal แล้วเลื่อนได้เสมอ)
-   3) ไม่มีบั๊ก iOS ตอนคีย์บอร์ดเด้งขึ้น (position:fixed + คีย์บอร์ด ทำให้หน้าไถ่/ค้างเลื่อนไม่ได้) */
+/* ล็อกการเลื่อนพื้นหลังตอนเปิด modal — กัน iOS/มือถือเลื่อนหน้าหลัง modal ตาม */
 function lockBodyScroll() {
+  const y = window.scrollY || document.documentElement.scrollTop || 0;
+  document.body.dataset.scrollLockY = String(y);
+  document.documentElement.classList.add("modal-open");
   document.documentElement.style.overflow = "hidden";
   document.body.style.overflow = "hidden";
+  document.body.style.position = "fixed";
+  document.body.style.top = `-${y}px`;
+  document.body.style.left = "0";
+  document.body.style.right = "0";
+  document.body.style.width = "100%";
 }
 function unlockBodyScroll() {
+  const y = Number(document.body.dataset.scrollLockY || 0);
+  delete document.body.dataset.scrollLockY;
+  document.documentElement.classList.remove("modal-open");
   document.documentElement.style.overflow = "";
   document.body.style.overflow = "";
+  document.body.style.position = "";
+  document.body.style.top = "";
+  document.body.style.left = "";
+  document.body.style.right = "";
+  document.body.style.width = "";
+  if (y) window.scrollTo(0, y);
 }
 function openModal(html) {
   /* ปิดแผงแจ้งเตือนเมื่อเปิด modal (กดแถวงานในแผง → ดูรายละเอียด) */
   const np = document.getElementById("notifPanel");
   if (np) np.hidden = true;
   const root = document.getElementById("modalRoot");
-  root.innerHTML = `<div class="modal-backdrop"><div class="modal">${html}</div></div>`;
+  root.innerHTML = `<div class="modal-backdrop"><div class="modal"><div class="modal-scroll">${html}</div></div></div>`;
   const modalEl = root.querySelector(".modal");
-  if (modalEl && modalEl.querySelector(".modal-actions")) modalEl.classList.add("modal-has-actions");
+  const actionBars = modalEl ? Array.from(modalEl.querySelectorAll(".modal-actions")) : [];
+  const actions = actionBars[actionBars.length - 1];
+  if (modalEl && actions) {
+    modalEl.classList.add("modal-has-actions");
+    modalEl.appendChild(actions);
+  }
   const bd = root.querySelector(".modal-backdrop");
   bd.addEventListener("click", e => {
     if (e.target !== bd) return;

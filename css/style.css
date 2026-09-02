@@ -758,17 +758,34 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .modal-backdrop {
   position: fixed; inset: 0; background: rgba(15, 23, 42, .5); z-index: 70;
   display: flex; align-items: flex-end; justify-content: center; animation: fadeIn .18s ease;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 .modal {
   background: #fff;
-  width: 100%; max-width: var(--maxw); max-height: 88vh; max-height: 88dvh; overflow-y: auto;
+  width: 100%; max-width: var(--maxw); max-height: 88vh; max-height: 88dvh; overflow: hidden;
   border-radius: 20px 20px 0 0; padding: 18px 18px calc(20px + env(safe-area-inset-bottom));
   box-shadow: 0 -8px 30px rgba(16, 60, 32, .12);
   animation: slideUp .28s cubic-bezier(.22, .8, .3, 1);
   overscroll-behavior: contain; /* เลื่อน modal สุดแล้วไม่ลากพื้นหลัง */
+  display: flex;
+  flex-direction: column;
+}
+.modal-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .modal form { min-width: 0; max-width: 100%; overflow-x: hidden; }
+html.modal-open, html.modal-open body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
 @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 .modal h3 { font-size: 1.08rem; font-weight: 800; margin-bottom: 4px; }
 .modal .modal-sub { font-size: .78rem; color: var(--muted); margin-bottom: 14px; }
@@ -2119,24 +2136,16 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
     white-space: normal;
   }
   .modal { max-height: 92dvh; padding: 18px 14px calc(14px + env(safe-area-inset-bottom)); }
-  .modal.modal-has-actions,
-  .modal:has(.modal-actions) {
-    padding-bottom: calc(150px + env(safe-area-inset-bottom));
-  }
   .modal-actions {
-    position: fixed;
-    left: max(0px, calc((100vw - var(--maxw)) / 2));
-    right: max(0px, calc((100vw - var(--maxw)) / 2));
-    bottom: 0;
-    z-index: 90;
-    margin: 0;
+    position: relative;
+    z-index: 3;
+    flex: 0 0 auto;
+    margin: 12px -14px calc(-14px - env(safe-area-inset-bottom));
     padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
     background: linear-gradient(180deg, rgba(255,255,255,.72), var(--card) 28%);
     border-top: 1px solid var(--line);
     box-shadow: 0 -10px 26px rgba(16, 60, 32, .12);
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    max-height: 38dvh;
-    overflow-y: auto;
   }
   .modal-actions .btn { min-height: 42px; padding: 10px 8px; font-size: .84rem; border-radius: 12px; }
   .modal-actions .btn:only-child { grid-column: 1 / -1; }
