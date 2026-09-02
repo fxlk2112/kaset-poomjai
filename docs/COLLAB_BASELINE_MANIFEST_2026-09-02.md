@@ -136,7 +136,7 @@ These files remain local and must not be staged into the collaboration baseline:
 ## Reconciliation result
 
 - Local integration branch: `pick/collab-baseline-prep-20260902`
-- Parent: current `origin/master` at `86a2780`
+- Parent: current `origin/master` at `33ce343`
 - Method: local squash into an isolated worktree; raw source history was not
   attached to the integration branch
 - Conflicts resolved: `.gitignore`, `css/style.css`, `index.html`, `js/app.js`,
@@ -153,7 +153,11 @@ These files remain local and must not be staged into the collaboration baseline:
   nonessential local QA artifacts were excluded
 - Runtime private integrations now fail closed unless an approved machine-local
   configuration is injected before `js/runtime-config.js` loads
-- Final local state: `SANITIZED_BASELINE_READY_FOR_OWNER_REVIEW`
+- Before publication, the baseline was refreshed onto the latest master commit
+  `33ce343`; the two cache/version conflicts in `index.html` and `sw.js` were
+  reconciled without changing the deployment workflow
+- Functional baseline commit: `c7b92e3`
+- Final state: `FEATURE_BRANCH_PUBLISHED_AWAITING_DEVELOP_APPROVAL`
 
 ### Reconciliation validation
 
@@ -166,5 +170,5 @@ These files remain local and must not be staged into the collaboration baseline:
 - Browser mobile `390 x 844`: `PASS`
 - E5 selection, pond handoff, Home/Stock/Water preservation: `PASS`
 - Browser console warnings/errors: `0`
-- Push: `NO`
+- Feature-branch push and remote hash readback: `PASS`
 - Deploy: `NO`

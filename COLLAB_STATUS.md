@@ -1,15 +1,17 @@
 # FARMULTIMATE Collaboration Status
 
-- Updated: `2026-09-02 Asia/Bangkok`
-- State: `LOCAL_SANITIZED_BASELINE_READY_FOR_OWNER_REVIEW`
+- Updated: `2026-09-03 Asia/Bangkok`
+- State: `FEATURE_BRANCH_PUBLISHED_AWAITING_DEVELOP_APPROVAL`
 - Production branch: `master`
 - Integration branch: `develop` — `NOT_PUBLISHED`
 - Local baseline branch: `pick/collab-baseline-prep-20260902`
-- Baseline parent: current `origin/master` at `86a2780`
+- Remote feature branch: `origin/pick/collab-baseline-prep-20260902`
+- Baseline parent: current `origin/master` at `33ce343`
+- Functional baseline commit: `c7b92e3`
 - Raw source branch: `sucha/sensor-phase1-local` — `LOCAL_ONLY_DO_NOT_PUSH`
 - Production deploy trigger: push to `master`
 - Working tree after baseline commit: expected `CLEAN`
-- Push performed by baseline preparation: `NO`
+- Feature-branch push and remote hash readback: `PASS`
 - Deployment performed by baseline preparation: `NO`
 
 ## Validation
@@ -29,17 +31,17 @@
 
 | Area | Owner | Branch | Status | Notes |
 |---|---|---|---|---|
-| Sanitized shared baseline | Pick + SUCHA | `pick/collab-baseline-prep-20260902` | `LOCAL_REVIEW_READY` | Squashed onto current master; no raw private lineage |
+| Sanitized shared baseline | Pick + SUCHA | `pick/collab-baseline-prep-20260902` | `REMOTE_PUBLISHED` | Functional baseline `c7b92e3`; no raw private lineage |
 | Raw dashboard source | Pick + SUCHA | `sucha/sensor-phase1-local` | `LOCAL_ONLY_DO_NOT_PUSH` | Preserved as evidence and recovery source |
-| Folk workstation onboarding | Folk | none | `BLOCKED_WAITING_FOR_BASELINE` | Remains blocked until approved branch and `develop` are published |
+| Folk workstation onboarding | Folk | none | `BLOCKED_WAITING_FOR_DEVELOP` | Feature branch is available; wait for approved `develop` publication before starting shared work |
 
 ## Hotspot Locks
 
 | File/Area | Owner | Lock state |
 |---|---|---|
-| Master Map and E1-E5 UI | Pick + SUCHA | `BASELINE_REVIEW` |
-| Pond telemetry and runtime config | Pick + SUCHA | `BASELINE_REVIEW` |
-| Stock/Lark integration from master | Pick + SUCHA | `PRESERVED_REVIEW` |
+| Master Map and E1-E5 UI | Pick + SUCHA | `PUBLISHED_BASELINE` |
+| Pond telemetry and runtime config | Pick + SUCHA | `PUBLISHED_BASELINE` |
+| Stock/Lark integration from master | Pick + SUCHA | `PRESERVED_IN_PUBLISHED_BASELINE` |
 | `.github/workflows/deploy.yml` | Pick | `PRODUCTION_GATE_DO_NOT_EDIT` |
 
 ## Baseline Checklist
@@ -53,12 +55,15 @@
 - [x] Split the conflicting database migrations into `schema4` and `schema5`.
 - [x] Remove private staging configuration and nonessential QA artifacts.
 - [x] Run tests, schema validation, privacy scan, and browser QA.
-- [ ] Receive `APPROVE_FEATURE_PUSH` from Pick.
-- [ ] Push the sanitized feature branch without touching `master`.
+- [x] Receive `APPROVE_FEATURE_PUSH` from Pick.
+- [x] Rebase onto the latest `origin/master` and rerun safety validation.
+- [x] Push the sanitized feature branch without touching `master`.
+- [x] Independently read back the remote feature hash.
 - [ ] Review the remote branch and create approved `develop`.
-- [ ] Change state to `BASELINE_READY` after remote readback.
+- [ ] Change state to `BASELINE_READY` after approved `develop` publication and readback.
 
 ## Next Action
 
-Owner reviews the local sanitized baseline and, if accepted, grants
-`APPROVE_FEATURE_PUSH` for `pick/collab-baseline-prep-20260902` only.
+Owner reviews the published feature branch and, if accepted as the shared
+integration baseline, grants `APPROVE_DEVELOP_PUBLISH`. No pull request,
+`master` push, or deployment is authorized by the completed feature push.
