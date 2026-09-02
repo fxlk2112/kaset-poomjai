@@ -1,6 +1,6 @@
 /* ============================================================
    FARMULTIMATE SOLUTIONS v52 — app logic
-   dashboard, role switcher, plots, stock, equipment, cycles,
+   dashboard, plots, stock, equipment, cycles,
    activity planner, IoT, analytics, FAB drawer, interactive tour
    ============================================================ */
 "use strict";
@@ -20,6 +20,8 @@ function saveRoute() {
 }
 let plotTaskCycle = "";   // กรองงาน/กิจกรรมของแปลงตามรอบการปลูก ("" = ทั้งหมด, "__none__" = ไม่มีรอบ)
 let cycTaskFilter = { sort: "new", type: "", status: "", costOnly: false }; // ตัวกรอง/เรียง "งาน/กิจกรรมของรอบนี้" ในหน้ารายละเอียดรอบ
+let plotFilter = { q: "", status: "all" }; // ตัวกรองหน้าแปลง: q=ค้นหา, status=all|growing|idle|inactive
+let plannerFilter = "today"; // มุมมองกิจกรรม: today|week|overdue|done
 let collapsedCycles = {}; // หน้ารอบการปลูก: แปลงที่กดย่อไว้ (plotId -> true) กันหน้ายาวเกิน
 let cycleFilter = { q: "", status: "all" }; // ตัวกรองหน้ารอบการปลูก: q=ค้นหา (ชื่อแปลง/พืช), status=all|active|idle
 let cal = { y: new Date().getFullYear(), m: new Date().getMonth(), sel: todayISO() };
@@ -694,27 +696,64 @@ function renderHome() {
 
 /* ---------------- Plots & cycles ---------------- */
 function renderPlots() {
-  const active = S.plots.filter(p => p.status === "active");
-  const inactive = S.plots.filter(p => p.status !== "active");
+  const plotRowsAll = S.plots.map(p => {
+    const activeCycle = S.cycles.find(x => x.plotId === p.id && x.status === "active");
+    const status = p.status !== "active" ? "inactive" : (activeCycle ? "growing" : "idle");
+    const searchText = [p.name, p.crop, activeCycle && activeCycle.plant, p.lat, p.lng].filter(Boolean).join(" ").toLowerCase();
+    return { p, activeCycle, status, searchText };
+  });
+  const plotQ = plotFilter.q.trim().toLowerCase();
+  const plotRows = plotRowsAll.filter(row => {
+    if (plotFilter.status !== "all" && row.status !== plotFilter.status) return false;
+    if (plotQ && !row.searchText.includes(plotQ)) return false;
+    return true;
+  });
+  const counts = {
+    all: plotRowsAll.length,
+    growing: plotRowsAll.filter(x => x.status === "growing").length,
+    idle: plotRowsAll.filter(x => x.status === "idle").length,
+    inactive: plotRowsAll.filter(x => x.status === "inactive").length
+  };
+  const activeCount = plotRowsAll.filter(x => x.p.status === "active").length;
+  const plotFilterActive = plotFilter.status !== "all" || !!plotQ;
   const cycles = [...S.cycles].sort((a, b) => b.startDate.localeCompare(a.startDate));
 
   const plotsTab = `
     <div class="row row-between">
-      <div class="bold" style="font-size:1.02rem" data-tkey="plotsTitle">${T("plotsTitle")} ${active.length}/${S.plots.length}</div>
+      <div class="bold" style="font-size:1.02rem" data-tkey="plotsTitle">${T("plotsTitle")} ${activeCount}/${S.plots.length}</div>
       <button class="btn btn-primary btn-sm" onclick="App.modalPlot()">＋ แปลงใหม่</button>
     </div>
-    <div class="muted mt-4" style="font-size:.72rem">${ic("pin")} ปักหมุดพิกัด GPS ทุกแปลง เพื่อให้ระบบดึงข้อมูลสภาพอากาศได้แม่นยำ (เร็วๆ นี้)</div>
-    ${active.length + inactive.length === 0 ? `
+    <div class="plot-filter-panel">
+      <div class="stock-search plot-search">
+        ${ic("search")}
+        <input id="plotSearchInput" type="text" value="${esc(plotFilter.q)}" placeholder="ค้นหาชื่อแปลง พืช หรือพิกัด..." oninput="App.plotFilterQ(this.value)">
+        <button class="stock-search-clear" onclick="App.plotFilterQ('')" style="${plotFilter.q ? "" : "display:none"}">✕</button>
+      </div>
+      <div class="quick-filter-row" aria-label="กรองแปลง">
+        <button class="quick-filter ${plotFilter.status === "all" ? "active" : ""}" onclick="App.plotFilterStatus('all')">ทั้งหมด <span>${counts.all}</span></button>
+        <button class="quick-filter ${plotFilter.status === "growing" ? "active" : ""}" onclick="App.plotFilterStatus('growing')">กำลังปลูก <span>${counts.growing}</span></button>
+        <button class="quick-filter ${plotFilter.status === "idle" ? "active" : ""}" onclick="App.plotFilterStatus('idle')">พักแปลง <span>${counts.idle}</span></button>
+        <button class="quick-filter ${plotFilter.status === "inactive" ? "active" : ""}" onclick="App.plotFilterStatus('inactive')">ปิดใช้ <span>${counts.inactive}</span></button>
+      </div>
+      <div class="stock-filter-status ${plotFilterActive ? "" : "is-clear"}">
+        <span>${plotFilterActive ? `แสดง ${fmtNum(plotRows.length)} จาก ${fmtNum(plotRowsAll.length)} แปลง` : `${ic("pin")} ปักหมุด GPS ทุกแปลง เพื่อให้สภาพอากาศแม่นขึ้น`}</span>
+        ${plotFilterActive ? `<button class="btn btn-sm btn-ghost" onclick="App.plotFilterClear()">${ic("refresh")} ล้างตัวกรอง</button>` : ""}
+      </div>
+    </div>
+    ${plotRowsAll.length === 0 ? `
     <div class="card"><div class="empty"><div class="e-ico">${ic("map")}</div><div class="e-title">ยังไม่มีแปลง</div><div class="muted">กด "＋ แปลงใหม่" เพื่อเริ่มต้น</div></div></div>` : ""}
+    ${plotRowsAll.length && plotRows.length === 0 ? `
+    <div class="card"><div class="empty"><div class="e-ico">${ic("search")}</div><div class="e-title">ไม่พบแปลงที่ตรงกับตัวกรอง</div><div class="muted">ลองเปลี่ยนคำค้นหรือสถานะ</div><button class="btn btn-ghost btn-block mt-8" onclick="App.plotFilterClear()">${ic("refresh")} ล้างตัวกรอง</button></div></div>` : ""}
     <div class="card-grid">
-    ${[...active, ...inactive].map(p => {
-      const c = S.cycles.find(x => x.plotId === p.id && x.status === "active");
+    ${plotRows.map(({ p, activeCycle: c, status }) => {
+      const statusBadge = status === "growing" ? `<span class="badge badge-green">กำลังปลูก</span>` : (status === "idle" ? `<span class="badge badge-amber">พักแปลง</span>` : `<span class="badge badge-gray">ปิดใช้</span>`);
       return `
       <div class="card plot-card">
         <div class="plot-top clickable" onclick="App.openPlot('${p.id}')">
           <div class="plot-emoji">${cropEmoji(p.crop)}</div>
           <div class="grow">
-            <div class="plot-name">${esc(p.name)} ${p.status === "active" ? `<span class="badge badge-green">Active</span>` : `<span class="badge badge-gray">ว่าง</span>`}</div>
+            <div class="plot-name">${esc(p.name)} ${statusBadge}</div>
+            <div class="muted" style="font-size:.72rem">${c ? `${esc(c.plant)} · อายุ ${ageDays(c.startDate)} วัน` : "ยังไม่มีรอบปลูกที่เปิดอยู่"}</div>
           </div>
           <span class="muted" style="font-size:1.1rem">›</span>
         </div>
@@ -824,6 +863,24 @@ function renderPlots() {
 App.plotsTab = function (tab) { route.tab = tab; render(); };
 App.goCycles = function () { route.view = "plots"; route.tab = "cycles"; render(); };
 App.goPlots = function () { route.view = "plots"; route.tab = "plots"; render(); };
+App.plotFilterStatus = function (status) {
+  plotFilter.status = status || "all";
+  rerender();
+};
+App.plotFilterQ = function (v) {
+  plotFilter.q = v || "";
+  const pos = (document.getElementById("plotSearchInput") || {}).selectionStart;
+  rerender();
+  const el = document.getElementById("plotSearchInput");
+  if (el) {
+    el.focus();
+    try { el.setSelectionRange(pos || el.value.length, pos || el.value.length); } catch (e) {}
+  }
+};
+App.plotFilterClear = function () {
+  plotFilter = { q: "", status: "all" };
+  rerender();
+};
 /* ย่อ/ขยายกลุ่มแปลงในหน้ารอบการปลูก — กดหัวแปลงสลับได้ */
 App.togglePlotCycles = function (plotId) {
   collapsedCycles[plotId] = !collapsedCycles[plotId];
@@ -1544,21 +1601,79 @@ App.toggleTask = function (id) {
 function renderPlanner() {
   const { sel } = cal;
   const selTasks = sel ? tasksOn(S, sel).sort((a, b) => (a.status === "done" ? 1 : 0) - (b.status === "done" ? 1 : 0)) : [];
+  const today = todayISO();
+  const weekEnd = addDaysISO(today, 6);
+  const pending = t => t.status !== "done";
+  const counts = {
+    today: S.tasks.filter(t => t.date === today && pending(t)).length,
+    week: S.tasks.filter(t => t.date >= today && t.date <= weekEnd && pending(t)).length,
+    overdue: S.tasks.filter(t => taskStatusOf(t) === "overdue").length,
+    done: S.tasks.filter(t => t.status === "done").length
+  };
+  const modes = {
+    today: { label: "วันนี้", hint: "งานที่ต้องจัดการในวันนี้", ico: "calendar" },
+    week: { label: "สัปดาห์นี้", hint: "งานที่ยังไม่เสร็จใน 7 วันข้างหน้า", ico: "leaf" },
+    overdue: { label: "เลยกำหนด", hint: "งานค้างที่ควรเคลียร์ก่อน", ico: "alert" },
+    done: { label: "เสร็จแล้ว", hint: "ประวัติงานที่ปิดงานแล้ว", ico: "check" }
+  };
+  const mode = modes[plannerFilter] ? plannerFilter : "today";
+  const plannerItems = S.tasks.filter(t => {
+    if (mode === "today") return t.date === today && pending(t);
+    if (mode === "week") return t.date >= today && t.date <= weekEnd && pending(t);
+    if (mode === "overdue") return taskStatusOf(t) === "overdue";
+    if (mode === "done") return t.status === "done";
+    return false;
+  }).sort((a, b) => {
+    if (mode === "done") return b.date.localeCompare(a.date);
+    if (mode === "overdue") return a.date.localeCompare(b.date);
+    return a.date.localeCompare(b.date);
+  });
+  const filterBtn = (key, count) => `
+    <button class="planner-filter ${mode === key ? "active" : ""}" onclick="App.plannerFilter('${key}')">
+      ${ic(modes[key].ico)} <span>${modes[key].label}</span><b>${fmtNum(count)}</b>
+    </button>`;
 
   return `
-    ${calCardHtml()}
-
     <div class="row row-between section-title">
-      <span data-tkey="plannerTitle">${sel ? `${T("plannerTitle")} ${sel}` : "กดวันที่เพื่อดูงาน"}</span>
-      ${sel ? `<button class="btn btn-primary btn-sm" onclick="App.modalTask('${sel}')">${ic("plus")} เพิ่มกิจกรรม</button>` : ""}
+      <span data-tkey="plannerTitle">${T("plannerTitle")}</span>
+      <button class="btn btn-primary btn-sm" onclick="App.modalTask('${today}')">${ic("plus")} เพิ่มกิจกรรม</button>
     </div>
-    <div class="card">
-      ${!sel ? `<div class="muted" style="text-align:center;padding:10px">เลือกวันที่ในปฏิทินด้านบน</div>` : ""}
-      ${selTasks.length === 0 && sel ? `<div class="empty"><div class="e-ico">${ic("calendar")}</div><div class="e-title">ไม่มีงานในวันนี้</div><div class="muted">กด + เพิ่มกิจกรรม เพื่อวางแผน</div></div>` : ""}
-      ${selTasks.map(t => taskRowHtml(t, { showDate: true, showNote: true, showDelete: true, showPlot: true })).join("")}
+    <div class="planner-filters">
+      ${filterBtn("today", counts.today)}
+      ${filterBtn("week", counts.week)}
+      ${filterBtn("overdue", counts.overdue)}
+      ${filterBtn("done", counts.done)}
     </div>
+    <div class="card planner-list-card">
+      <div class="planner-list-head">
+        <div>
+          <div class="bold">${modes[mode].label}</div>
+          <div class="muted">${modes[mode].hint}</div>
+        </div>
+        <span class="badge ${mode === "overdue" ? "badge-red" : "badge-green"}">${fmtNum(plannerItems.length)} งาน</span>
+      </div>
+      ${plannerItems.length === 0 ? `<div class="empty compact-empty"><div class="e-ico">${ic(mode === "done" ? "check" : "calendar")}</div><div class="e-title">${mode === "overdue" ? "ไม่มีงานเลยกำหนด" : (mode === "done" ? "ยังไม่มีงานที่เสร็จแล้ว" : "ไม่มีงานในช่วงนี้")}</div><div class="muted">กดเพิ่มกิจกรรมเมื่อต้องวางแผนงานใหม่</div></div>` : ""}
+      ${plannerItems.map(t => taskRowHtml(t, { showDate: true, showNote: true, showDelete: true, showPlot: true })).join("")}
+    </div>
+    <details class="planner-calendar-panel">
+      <summary>${ic("calendar")} ปฏิทินเต็ม <span>${sel ? dateLabel(sel) : "เลือกวันที่เพื่อดูงาน"}</span></summary>
+      ${calCardHtml()}
+      <div class="card">
+        <div class="row row-between" style="margin-bottom:8px">
+          <div class="bold">${sel ? `${T("plannerTitle")} ${dateLabel(sel)}` : "กดวันที่เพื่อดูงาน"}</div>
+          ${sel ? `<button class="btn btn-primary btn-sm" onclick="App.modalTask('${sel}')">${ic("plus")} เพิ่มกิจกรรม</button>` : ""}
+        </div>
+        ${!sel ? `<div class="muted" style="text-align:center;padding:10px">เลือกวันที่ในปฏิทินด้านบน</div>` : ""}
+        ${selTasks.length === 0 && sel ? `<div class="empty compact-empty"><div class="e-ico">${ic("calendar")}</div><div class="e-title">ไม่มีงานในวันนี้</div><div class="muted">กด + เพิ่มกิจกรรม เพื่อวางแผน</div></div>` : ""}
+        ${selTasks.map(t => taskRowHtml(t, { showDate: true, showNote: true, showDelete: true, showPlot: true })).join("")}
+      </div>
+    </details>
     <div class="muted" style="font-size:.72rem;text-align:center">${ic("refresh")} เมื่อบันทึกงานที่ใช้วัสดุ (เช่น ใส่ปุ๋ย) ระบบจะตัดสต็อกและบันทึกต้นทุนเข้าสู่รอบปลูกทันที</div>`;
 }
+App.plannerFilter = function (key) {
+  plannerFilter = key || "today";
+  rerender();
+};
 App.pickDay = function (d) {
   if (d) cal.sel = d;
   rerender();
@@ -1635,6 +1750,46 @@ function renderAnalytics() {
   const costRev = costs.map(c => ({ ...c, pct: totalCost ? (c.value / totalCost * 100).toFixed(0) : 0 }));
   const plotRows = plotYearProfits(S, yr);
   const chemRows = plotChemUse(S, yr);
+  const overdueTasks = S.tasks.filter(t => taskStatusOf(t) === "overdue").sort((a, b) => a.date.localeCompare(b.date));
+  const weekEnd = addDaysISO(todayISO(), 6);
+  const weekTasks = S.tasks.filter(t => t.status !== "done" && t.date >= todayISO() && t.date <= weekEnd);
+  const outStock = (S.stock || []).filter(x => (Number(x.qty) || 0) + (Number(x.openQty) || 0) <= 0);
+  const lowStock = (S.stock || [])
+    .map(x => ({ ...x, avail: (Number(x.qty) || 0) + (Number(x.openQty) || 0) }))
+    .filter(x => x.avail > 0 && x.avail <= 5)
+    .sort((a, b) => a.avail - b.avail);
+  const bestPlot = plotRows[0] || null;
+  const weakPlot = [...plotRows].reverse().find(p => p.net < 0) || null;
+  const bestCrop = [...crops].filter(c => c.revenue > 0).sort((a, b) => b.margin - a.margin)[0] || null;
+  const insightItems = [
+    overdueTasks.length ? { icon: "alert", tone: "red", title: `${fmtNum(overdueTasks.length)} งานเลยกำหนด`, sub: "ควรเคลียร์ก่อนเริ่มงานใหม่", action: "App.nav('planner')" } : { icon: "check", tone: "green", title: "ไม่มีงานเลยกำหนด", sub: "ตารางงานสะอาดดี", action: "App.nav('planner')" },
+    outStock.length ? { icon: "box", tone: "red", title: `${fmtNum(outStock.length)} รายการสต็อกหมด`, sub: outStock.slice(0, 2).map(x => x.name).join(" · "), action: "App.nav('stock')" } : { icon: "box", tone: "green", title: "ไม่มีสต็อกหมด", sub: lowStock.length ? `${fmtNum(lowStock.length)} รายการใกล้หมด` : "จำนวนคงเหลือยังดูดี", action: "App.nav('stock')" },
+    weakPlot ? { icon: "chart", tone: "amber", title: `แปลงขาดทุน: ${weakPlot.name}`, sub: `${fmtMoney(weakPlot.net)} บาท ในพ.ศ. ${beYr}`, action: `App.openPlot('${weakPlot.plotId}')` } : { icon: "chart", tone: "green", title: bestPlot ? `แปลงเด่น: ${bestPlot.name}` : "ยังไม่มีข้อมูลกำไรแปลง", sub: bestPlot ? `กำไร ${fmtMoney(bestPlot.net)} บาท` : "บันทึกงาน/ขายเพื่อเริ่มวิเคราะห์", action: bestPlot ? `App.openPlot('${bestPlot.plotId}')` : "App.nav('planner')" },
+    bestCrop ? { icon: "leaf", tone: "blue", title: `พืชมาร์จินดี: ${bestCrop.crop}`, sub: `Margin ${fmtNum(bestCrop.margin)}%`, action: "App.analyticsTab('farm')" } : { icon: "leaf", tone: "blue", title: "รอข้อมูลพืช", sub: "เมื่อมีรายได้และต้นทุนจะจัดอันดับให้", action: "App.nav('plots')" }
+  ];
+  const analyticsBrief = `
+    <div class="analytics-brief">
+      <button class="analytics-brief-card" onclick="App.nav('planner')">
+        <b>${fmtNum(weekTasks.length)}</b><span>งาน 7 วัน</span><small>${overdueTasks.length ? `${fmtNum(overdueTasks.length)} งานค้าง` : "ไม่มีงานค้าง"}</small>
+      </button>
+      <button class="analytics-brief-card" onclick="App.nav('stock')">
+        <b>${fmtNum(outStock.length)}</b><span>สต็อกหมด</span><small>${lowStock.length ? `${fmtNum(lowStock.length)} ใกล้หมด` : "คงเหลือปกติ"}</small>
+      </button>
+      <button class="analytics-brief-card" onclick="App.analyticsTab('farm')">
+        <b>${fmtMoney(ytd.net)}</b><span>กำไรฟาร์ม</span><small>Margin ${ytd.margin.toFixed(1)}%</small>
+      </button>
+      <button class="analytics-brief-card" onclick="App.analyticsTab('shop')">
+        <b>${fmtMoney(salesProfitYTD(S, yr))}</b><span>กำไรร้าน</span><small>${salesYearCount(S, yr)} ใบเสร็จ</small>
+      </button>
+    </div>
+    <div class="analytics-insights">
+      ${insightItems.map(it => `
+        <button class="analytics-insight ${it.tone}" onclick="${it.action}">
+          <span class="action-ico">${ic(it.icon)}</span>
+          <span><b>${esc(it.title)}</b><small>${esc(it.sub || "")}</small></span>
+          <span class="more-chevron">${ic("chevron")}</span>
+        </button>`).join("")}
+    </div>`;
   const farmHtml = `
     <div class="kpi-row">
       <div class="kpi green"><div class="kpi-icon">${ic("dollar")}</div><div class="kpi-label">รายได้</div><div class="kpi-value">${fmtMoney(ytd.revenue)}</div><div class="kpi-sub">บาท</div></div>
@@ -1770,6 +1925,7 @@ function renderAnalytics() {
   return `
     <div class="section-title" data-tkey="analyticsTitle">${T("analyticsTitle")} พ.ศ. ${beYr}</div>
     ${yearNav}
+    ${analyticsBrief}
     <div class="tabs">
       <button class="${tab === "farm" ? "active" : ""}" onclick="App.analyticsTab('farm')">${ic("leaf")} ฟาร์ม (แปลง)</button>
       <button class="${tab === "shop" ? "active" : ""}" onclick="App.analyticsTab('shop')">${ic("dollar")} ร้านค้า</button>
@@ -3650,35 +3806,42 @@ App.resetData = function () {
 
 /* ---------------- More ---------------- */
 function renderMore() {
-  const moreGrid = html => `<div class="more-grid">${html}</div>`;
-  const customMenus = (S.customMenus || []).map(m => `
-      <button class="more-card" onclick="App.goTarget('${esc(m.target || "")}')"><span class="mc-ico">${m.ico && ICONS[m.ico] ? ic(m.ico) : esc(m.ico || "")}</span><span class="mc-name">${esc(m.name)}</span><span class="mc-desc">${esc(m.desc || "")}</span></button>`).join("");
+  const moreList = html => `<div class="action-list more-list">${html}</div>`;
+  const item = (ico, name, desc, action) => `
+    <button class="action-item more-item" onclick="${action}">
+      <span class="action-ico">${ico}</span>
+      <span><b>${esc(name)}</b><small>${esc(desc)}</small></span>
+      <span class="more-chevron">${ic("chevron")}</span>
+    </button>`;
+  const customMenus = (S.customMenus || []).map(m =>
+    item(m.ico && ICONS[m.ico] ? ic(m.ico) : esc(m.ico || ""), m.name || "เมนู", m.desc || "เมนูที่ผู้ดูแลเพิ่มไว้", `App.goTarget('${esc(m.target || "")}')`)
+  ).join("");
   return `
     <div class="section-title" data-tkey="moreTitle">${T("moreTitle")}</div>
     <section class="more-section">
       <div class="more-section-head">
         <div><b>เครื่องมือฟาร์ม</b><span>ข้อมูลเสริมที่ไม่ได้อยู่ในแถบล่าง</span></div>
       </div>
-      ${moreGrid(`
-      <button class="more-card" onclick="App.nav('equipment')"><span class="mc-ico">${ic("truck")}</span><span class="mc-name">อุปกรณ์</span><span class="mc-desc">ค่าเสื่อม · ซ่อมบำรุง</span></button>
-      <button class="more-card" onclick="App.nav('prices')"><span class="mc-ico">${ic("dollar")}</span><span class="mc-name">ราคาตลาด</span><span class="mc-desc">ราคาผักผลไม้รายวัน</span></button>
-      <button class="more-card" onclick="App.openWeather('')"><span class="mc-ico">${ic("droplet")}</span><span class="mc-name">สภาพอากาศ</span><span class="mc-desc">เทียบพยากรณ์ 5 แหล่ง</span></button>
-      <button class="more-card" onclick="App.nav('iot')"><span class="mc-ico">${ic("droplet")}</span><span class="mc-name">ระบบน้ำ</span><span class="mc-desc">วาล์ว · ตารางให้น้ำ</span></button>`)}
+      ${moreList(`
+      ${item(ic("truck"), "อุปกรณ์", "ค่าเสื่อม ซ่อมบำรุง และมูลค่าเครื่องจักร", "App.nav('equipment')")}
+      ${item(ic("dollar"), "ราคาตลาด", "ราคาผักผลไม้รายวันและกราฟย้อนหลัง", "App.nav('prices')")}
+      ${item(ic("droplet"), "สภาพอากาศ", "เทียบพยากรณ์และแผนที่จากแปลง", "App.openWeather('')")}
+      ${item(ic("droplet"), "ระบบน้ำ", "วาล์ว ตารางให้น้ำ และอุปกรณ์ IoT", "App.nav('iot')")}`)}
     </section>
     <section class="more-section">
       <div class="more-section-head">
         <div><b>ระบบและข้อมูล</b><span>ตั้งค่า สำรองข้อมูล และทัวร์ใช้งาน</span></div>
       </div>
-      ${moreGrid(`
-      <button class="more-card" onclick="App.nav('settings')"><span class="mc-ico">${ic("gear")}</span><span class="mc-name">ตั้งค่า</span><span class="mc-desc">ข้อมูล · รีเซ็ต · สำรอง</span></button>
-      <button class="more-card" onclick="App.startTour()"><span class="mc-ico">${ic("compass")}</span><span class="mc-name">แนะนำระบบ</span><span class="mc-desc">ทัวร์ใช้งานเร็ว</span></button>`)}
+      ${moreList(`
+      ${item(ic("gear"), "ตั้งค่า", "บัญชี สำรองข้อมูล เครื่องมือเสริม และล้างข้อมูล", "App.nav('settings')")}
+      ${item(ic("compass"), "แนะนำระบบ", "เปิดทัวร์ใช้งานเร็วอีกครั้ง", "App.startTour()")}`)}
     </section>
     ${customMenus ? `
     <section class="more-section">
       <div class="more-section-head">
         <div><b>เมนูที่เพิ่มเอง</b><span>ลิงก์หรือหน้าที่ผู้ดูแลเพิ่มไว้</span></div>
       </div>
-      ${moreGrid(customMenus)}
+      ${moreList(customMenus)}
     </section>` : ""}`;
 }
 

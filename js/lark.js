@@ -220,6 +220,39 @@ function larkStockVisibleConflictCount(pending) {
   }).length;
 }
 
+function larkStockSummaryCardsHtml(summary) {
+  const s = summary || {};
+  const card = (label, value, sub, cls) => `
+    <div class="lark-sync-result ${cls || ""}">
+      <b>${esc(value)}</b>
+      <span>${esc(label)}</span>
+      ${sub ? `<small>${esc(sub)}</small>` : ""}
+    </div>`;
+  return `
+    <div class="lark-sync-results">
+      ${card("รายการทั้งหมด", fmtNum(s.total || 0), "อ่านจาก Lark", "green")}
+      ${card("เพิ่มใหม่", fmtNum(s.added || 0), "ยังไม่เคยมีในเว็บ", "")}
+      ${card("อัปเดต", fmtNum(s.updated || 0), "ข้อมูลเดิมที่เปลี่ยน", "blue")}
+      ${card("ไม่เปลี่ยน", fmtNum(s.skipped || 0), "ข้อมูลตรงกันอยู่แล้ว", "")}
+      ${card("รูปที่ดึงได้", `${fmtNum(s.photosDone || 0)}/${fmtNum(s.photosTotal || 0)}`, s.photoDeferred ? `ยังเหลือ ${fmtNum(s.photoDeferred)} รูป` : "ครบตามรอบนี้", "amber")}
+      ${card("รูปไม่ตรง", fmtNum(s.conflicts || 0), s.conflicts ? "ต้องเลือกรูปก่อนจบ" : "ไม่มีรายการต้องเลือก", s.conflicts ? "red" : "")}
+    </div>`;
+}
+
+function larkStockSummaryModalHtml(summary) {
+  return `
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("check")} ซิงก์ Lark เสร็จแล้ว</h3>
+    <div class="modal-sub">สรุปผลรอบล่าสุด เพื่อให้เห็นชัดว่าเพิ่ม อัปเดต หรือข้ามอะไรไปบ้าง</div>
+    ${larkStockSummaryCardsHtml(summary)}
+    ${summary && summary.photoDeferred ? `
+      <div class="lark-sync-summary-note">${ic("info")} ยังมีรูปที่รอดึงต่อ เพราะจำกัดจำนวนต่อรอบเพื่อไม่ให้โหลดค้าง กดซิงก์ Lark อีกครั้งเพื่อเก็บรูปต่อ</div>` : ""}
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
+      <button class="btn btn-primary" onclick="App.closeModal();App.nav('stock')">${ic("box")} ไปหน้าสต็อก</button>
+    </div>`;
+}
+
 function larkStockConflictModalHtml() {
   const pending = App._larkStockPhotoPending || {};
   const conflicts = pending.conflicts || [];
@@ -256,6 +289,7 @@ function larkStockConflictModalHtml() {
     <button class="modal-x" onclick="App.larkStockPhotoCancel()">✕</button>
     <h3>${ic("image")} เจอรูปที่ไม่ตรงกัน</h3>
     <div class="modal-sub">ข้อมูลและจำนวนซิงก์เสร็จแล้ว เลือกรูปที่จะเก็บไว้สำหรับ ${fmtNum(conflicts.length)} รายการ</div>
+    ${pending.summary ? larkStockSummaryCardsHtml(pending.summary) : ""}
     <div class="lpc-tools">
       <div class="stock-search lpc-search">
         ${ic("search")}
@@ -462,6 +496,16 @@ App.larkStockRun = async function () {
     render();
     const more = offset && last ? ` · ยังเหลือรูปประมาณ ${fmtNum(last.photo_deferred || 0)} รูป กดซิงก์อีกครั้งเพื่อเก็บต่อ` : "";
     const donePhotos = Math.min(Number(offset || (last && last.photo_refs) || 0), Number((last && last.photo_refs) || 0));
+    const summary = {
+      total: syncedProducts.length,
+      added: totalResult.added,
+      updated: totalResult.updated,
+      skipped: totalResult.skipped || 0,
+      photosDone: donePhotos,
+      photosTotal: Number(last && last.photo_refs) || 0,
+      photoDeferred: Number(last && last.photo_deferred) || 0,
+      conflicts: split.conflicts.length
+    };
     const baseToast = `ซิงก์ Lark สำเร็จ: ${syncedProducts.length} รายการ · รูป ${fmtNum(donePhotos)}/${fmtNum(last.photo_refs)} · เพิ่ม ${totalResult.added} · อัปเดต ${totalResult.updated}${totalResult.skipped ? ` · ไม่เปลี่ยน ${totalResult.skipped}` : ""}${more}`;
     if (split.conflicts.length) {
       App._larkStockPhotoPending = {
@@ -469,12 +513,13 @@ App.larkStockRun = async function () {
         decisions: Object.fromEntries(split.conflicts.map(c => [c.key, "web"])),
         query: "",
         filter: "all",
+        summary,
         toast: baseToast
       };
       openModal(larkStockConflictModalHtml());
       toast(`เจอรูปไม่ตรงกัน ${split.conflicts.length} รายการ เลือกรูปก่อนจบซิงก์`);
     } else {
-      closeModal();
+      openModal(larkStockSummaryModalHtml(summary));
       toast(baseToast);
     }
   } catch (e) {
