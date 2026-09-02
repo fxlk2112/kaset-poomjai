@@ -311,9 +311,6 @@ const NAV_ALL = [
   { key: "more", label: "เพิ่มเติม", ico: "menu" },
 ];
 function visibleNav() {
-  const role = S.role;
-  if (role === "large") return NAV_ALL.filter(n => n.key !== "analytics");
-  if (role === "business") return NAV_ALL.filter(n => ["home", "analytics", "more"].includes(n.key));
   return NAV_ALL;
 }
 const ROLE_META = {
@@ -340,12 +337,6 @@ function render() {
   }
   const fd = document.getElementById("fabDock");
   if (fd) fd.style.display = "";
-  // role switch
-  const rs = document.getElementById("roleSwitch");
-  rs.innerHTML = Object.keys(ROLE_META).map(k =>
-    `<button class="${S.role === k ? "active" : ""}" onclick="App.setRole('${k}')">${ic(ROLE_META[k].ico)} ${ROLE_META[k].label}</button>`
-  ).join("");
-
   // keep route valid for role (sub-views group under their parent nav item)
   const keys = visibleNav().map(n => n.key);
   const VIEW_GROUP = { equipment: "more", iot: "more", settings: "more", prices: "more", weather: "plots", plotDetail: "plots", cycleDetail: "plots" };
@@ -512,31 +503,7 @@ function renderHome() {
     { action: "sale", ico: "dollar", label: "ขายสินค้า" },
   ].map(a => `<button class="chip quick-chip" onclick="App.quickAction('${a.action}')">${ic(a.ico)} ${a.label}</button>`).join("");
 
-  let extra = "";
-  if (S.role === "business") {
-    extra = `
-      <div class="section-title">สรุปการเงิน <span class="badge badge-blue">${ROLE_META.business.label}</span></div>
-      <div class="card">
-        <div class="row row-between"><span class="muted">รายได้รวม (พ.ศ. ${curBE})</span><span class="bold">${fmtMoney(ytd.revenue)} บาท</span></div>
-        <div class="row row-between mt-4"><span class="muted">ต้นทุนรวม (พ.ศ. ${curBE})</span><span class="bold">${fmtMoney(ytd.cost)} บาท</span></div>
-        <div class="divider"></div>
-        <div class="row row-between"><span class="bold">กำไรสุทธิ</span><span class="bold ${kpiProfit ? "price-trend-up" : "price-trend-down"}">${fmtMoney(ytd.net)} บาท</span></div>
-        <div class="row row-between mt-4"><span class="muted">อัตรากำไร (Margin)</span><span class="bold">${ytd.margin.toFixed(1)}%</span></div>
-        <button class="btn btn-primary btn-block mt-12" onclick="App.nav('analytics')">${ic("chart")} ดูการวิเคราะห์เชิงลึก</button>
-      </div>`;
-  } else if (S.role === "large") {
-    const w = S.workers;
-    extra = `
-      <div class="section-title">สถานะคนงาน <span class="badge badge-blue">${ROLE_META.large.label}</span></div>
-      <div class="card">
-        <div class="meta-grid">
-          <div class="meta-box"><div class="lb">กำลังทำงาน</div><div class="vl price-trend-up">${w.working} คน</div></div>
-          <div class="meta-box"><div class="lb">พัก / รอคิว</div><div class="vl" style="color:var(--amber)">${w.resting} คน</div></div>
-          <div class="meta-box"><div class="lb">ลา</div><div class="vl" style="color:var(--red)">${w.leave} คน</div></div>
-          <div class="meta-box"><div class="lb">แปลง Active</div><div class="vl">${S.plots.filter(p => p.status === "active").length} แปลง</div></div>
-        </div>
-      </div>`;
-  }
+  const extra = "";
 
   const welcome = S.tourDone ? "" : `
     <div class="welcome-strip">
@@ -583,7 +550,7 @@ function renderHome() {
       <div class="hero-row">
         <div>
           <div class="hero-greet" data-tkey="heroGreet">${T("heroGreet")}</div>
-          <div class="hero-sub">${thaiDateStr(new Date())} · โหมด ${ROLE_META[S.role].label}</div>
+          <div class="hero-sub">${thaiDateStr(new Date())}</div>
         </div>
         <span class="hero-ver">${S.version === 52 ? "อัปเดตล่าสุด v52" : "v" + S.version}</span>
       </div>
@@ -3235,11 +3202,11 @@ function renderSettings() {
   }
   return `
     <div class="section-title" data-tkey="settingsTitle">${T("settingsTitle")}</div>
-    <section class="settings-group">
-      <div class="settings-group-head">
+    <details class="settings-group" name="settingsGroups" open>
+      <summary class="settings-group-head">
         <b>${ic("gear")} บัญชีและข้อมูลระบบ</b>
         <span>สถานะบัญชี เวอร์ชัน และข้อมูลหลักของเว็บ</span>
-      </div>
+      </summary>
     <div class="card">
       <div class="row">
         <div class="plot-emoji">${ic("leaf")}</div>
@@ -3250,16 +3217,15 @@ function renderSettings() {
       </div>
       <div class="divider"></div>
       <div class="row row-between"><span class="muted">ข้อมูลทั้งหมด</span><span class="small bold">บันทึกในเบราว์เซอร์ (LocalStorage)</span></div>
-      <div class="row row-between mt-8"><span class="muted">โหมดเริ่มต้น</span><span class="small bold">${ROLE_META[S.role].label}</span></div>
       <div class="row row-between mt-8"><span class="muted">เวอร์ชัน</span><span class="small bold">v${S.version}</span></div>
     </div>
     ${typeof Auth !== "undefined" ? Auth.cardHtml() : ""}
-    </section>
-    <section class="settings-group">
-      <div class="settings-group-head">
+    </details>
+    <details class="settings-group" name="settingsGroups">
+      <summary class="settings-group-head">
         <b>${ic("save")} สำรองและพื้นที่เก็บข้อมูล</b>
         <span>นำเข้า ส่งออก และตรวจขนาดข้อมูลก่อนพื้นที่เต็ม</span>
-      </div>
+      </summary>
     <div class="section-title">${ic("save")} สำรองข้อมูล (Export / Import)</div>
     <div class="card">
       <div class="muted" style="font-size:.76rem;margin-bottom:10px">ดาวน์โหลดข้อมูลทั้งหมด (งาน / สต็อก / แปลง / ค่าใช้จ่าย) เป็นไฟล์ .json เพื่อสำรอง หรือนำเข้าไฟล์สำรองกลับมาใช้งาน — ข้อมูลบันทึกในเบราว์เซอร์เท่านั้น</div>
@@ -3293,12 +3259,12 @@ function renderSettings() {
       <div class="row row-between mt-8"><span class="muted">ซิงก์ล่าสุด</span><span class="small bold">${typeof cloudTs === "function" && cloudTs() ? dateLabel(new Date(cloudTs()).toISOString().slice(0, 10)) + " " + new Date(cloudTs()).toTimeString().slice(0, 5) : "—"}</span></div>
       <button class="btn btn-ghost btn-block mt-8" onclick="App.checkCloudSize()">${ic("refresh")} ตรวจขนาดข้อมูลบนคลาวด์</button>
     </div>
-    </section>
-    <section class="settings-group">
-      <div class="settings-group-head">
+    </details>
+    <details class="settings-group" name="settingsGroups">
+      <summary class="settings-group-head">
         <b>${ic("wrench")} เครื่องมือเสริม</b>
         <span>Lark หมวดต้นทุน และแหล่งข้อมูลภายนอก</span>
-      </div>
+      </summary>
     ${adminUnlocked() ? `
     <div class="section-title">${ic("upload")} ซิงก์กับ Lark Base (ผู้ดูแลระบบ) <span class="badge badge-gray">ระดับแอดมิน</span></div>
     <div class="card">
@@ -3323,27 +3289,27 @@ function renderSettings() {
       <div class="muted" style="font-size:.76rem;margin-bottom:10px">สภาพอากาศของแต่ละแปลงดึงจาก <b>Open-Meteo</b> (แบบจำลอง ECMWF IFS ของยุโรป — แบบจำลองที่แม่นที่สุดในโลก) ตามพิกัด GPS ที่ปักหมุด — <b>ฟรี ไม่ต้องใช้คีย์ ไม่ต้องสมัคร</b></div>
       <div class="muted" style="font-size:.72rem">🌍 แหล่งข้อมูล: open-meteo.com · อัปเดตข้อมูลทุก ~15 นาที · แสดงผลแคช 30 นาที (เลขนิ่ง ไม่กระโดดเมื่อรีเฟรช)</div>
     </div>
-    </section>
-    <section class="settings-group">
-      <div class="settings-group-head">
+    </details>
+    <details class="settings-group" name="settingsGroups">
+      <summary class="settings-group-head">
         <b>${ic("pencil")} ปรับแต่งเว็บ</b>
         <span>แก้คำ เมนู หน้าแรก และเปิดทัวร์ใช้งานอีกครั้ง</span>
-      </div>
+      </summary>
     ${editorHtml}
     <button class="btn btn-ghost btn-block" onclick="App.startTour()">${ic("compass")} แนะนำระบบ (Tour) อีกครั้ง</button>
-    </section>
-    <section class="settings-group danger">
-      <div class="settings-group-head">
+    </details>
+    <details class="settings-group danger" name="settingsGroups">
+      <summary class="settings-group-head">
         <b>${ic("trash")} ล้างข้อมูล</b>
         <span>ลบเฉพาะหมวด หรือรีเซ็ตทุกอย่างเมื่อจำเป็น</span>
-      </div>
+      </summary>
     <div class="section-title">${ic("trash")} ล้างข้อมูลบางส่วน</div>
     <div class="card">
       <div class="muted" style="font-size:.76rem;margin-bottom:8px">เลือกลบเฉพาะหมวดที่ไม่ต้องการแล้วได้ โดยไม่กระทบข้อมูลหมวดอื่นที่ไม่เกี่ยวข้อง</div>
       ${clearDataToolsHtml()}
     </div>
     <button class="btn btn-danger-soft btn-block mt-8" onclick="App.resetData()">${ic("refresh")} รีเซ็ตข้อมูลทั้งหมด</button>
-    </section>
+    </details>
     <div class="muted mt-8" style="font-size:.7rem;text-align:center">สภาพอากาศรายแปลงจาก Open-Meteo (ECMWF) — ฟรี ไม่ต้องใช้คีย์ · IoT จริงในเวอร์ชันถัดไป</div>`;
 }
 /* เครื่องมือแก้ไข (ใช้ทั้งในหน้าตั้งค่า และ modal จากปุ่ม ✏️ แก้ไขหัวเว็บ) */
@@ -5069,11 +5035,11 @@ fabDock.querySelectorAll(".fab-item").forEach(btn => {
 
 /* ---------------- Interactive tour ---------------- */
 const TOUR_STEPS = [
-  { sel: ".role-switch", title: "1 · สลับโหมดการใช้งาน", text: "กดที่แถบด้านบนเพื่อเปลี่ยนมุมมองแดชบอร์ด — เกษตรกร ฟาร์มใหญ่ หรือ ธุรกิจ เมนูจะปรับตามโหมดอัตโนมัติ", pos: "below" },
-  { sel: "#kpiRow", title: "2 · ตัวเลขสำคัญ (KPI)", text: "กำไรสุทธิ พื้นที่ และรอบปลูก จัดเรียงแนวนอนเสมอ อ่านง่ายทั้งบนคอมและมือถือ เขียว = กำไร แดง = ขาดทุน", pos: "below" },
+  { sel: ".today-card", title: "1 · งานวันนี้", text: "ดูงานที่ต้องจัดการวันนี้ก่อน และกดเพิ่มงานใหม่จากตรงนี้ได้ทันที", pos: "below" },
+  { sel: "#kpiRow", title: "2 · ตัวเลขสำคัญ", text: "กำไรสุทธิ พื้นที่ และรอบปลูก สรุปให้ดูเร็วบนหน้าแรก", pos: "below" },
   { sel: "#fabBtn", title: "3 · ปุ่มลัด", text: "ปุ่มกลมมุมขวาล่างสำหรับสร้างข้อมูลเร็ว เช่น เพิ่มกิจกรรม เพิ่มสินค้า ขายสินค้า และเพิ่มแปลง", pos: "left" },
-  { sel: "#bottomNav", title: "4 · เมนูหลัก", text: "หน้าแรก แปลง สต็อก กิจกรรม และวิเคราะห์ — บนคอมอยู่เมนูซ้าย บนมือถืออยู่แถบล่าง กดเพื่อสลับหน้าได้ทันที", pos: "below" },
-  { sel: "#tourBtn", title: "5 · จบการแนะนำ", text: "พร้อมแล้ว! กดปุ่มแนะนำระบบได้ทุกเมื่อเพื่อดูทัวร์อีกครั้ง ขอให้เพาะปลูกสำเร็จ", pos: "below" },
+  { sel: "#bottomNav", title: "4 · เมนูหลัก", text: "หน้าแรก แปลง สต็อก กิจกรรม วิเคราะห์ และเพิ่มเติม กดเพื่อสลับหน้าได้ทันที", pos: "below" },
+  { sel: "#tourBtn", title: "5 · จบการแนะนำ", text: "พร้อมแล้ว กดปุ่มแนะนำระบบได้ทุกเมื่อเพื่อดูทัวร์อีกครั้ง", pos: "below" },
 ];
 App.startTour = function () {
   closeFAB();

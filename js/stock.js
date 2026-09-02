@@ -128,6 +128,27 @@ function stockFilterOptionsHtml() {
   ];
   return rows.map(([key, label, count]) => `<option value="${key}" ${stockFilter === key ? "selected" : ""}>${label} (${fmtNum(count)})</option>`).join("");
 }
+function stockFilterLabel() {
+  const map = { all: "ทั้งหมด", has: "มีของ", out: "ยาหมด", sealed: "ยังไม่เปิดใช้", opened: "เปิดใช้แล้ว" };
+  return map[stockFilter] || "ทั้งหมด";
+}
+function stockCatLabel() {
+  if (!stockCat) return "";
+  return stockCat === "__none__" ? "(ไม่มีหมวด)" : stockCat;
+}
+function stockFilterStatusHtml() {
+  const parts = [];
+  const q = stockQuery.trim();
+  if (stockFilter !== "all") parts.push("สถานะ: " + stockFilterLabel());
+  if (stockCat) parts.push("หมวด: " + stockCatLabel());
+  if (q) parts.push("ค้นหา: " + q);
+  const active = parts.length > 0;
+  return `
+    <div class="stock-filter-status ${active ? "" : "is-clear"}" id="stockFilterStatus">
+      <span>${active ? "กำลังกรอง " + esc(parts.join(" · ")) : "แสดงสต็อกทั้งหมด"}</span>
+      <button class="btn btn-sm btn-ghost" onclick="App.stockResetFilters()" ${active ? "" : "disabled"}>${ic("refresh")} ล้างตัวกรอง</button>
+    </div>`;
+}
 function renderStock() {
   if (typeof Auth !== "undefined" && Auth.session && !App._stockSharesLoaded && !App._stockSharesLoading) {
     setTimeout(() => App.stockShareRefresh(true), 0);
@@ -178,6 +199,7 @@ function renderStock() {
         </select>
       </label>
     </div>
+    ${stockFilterStatusHtml()}
     <div class="stock-search">
       ${ic("search")}
       <input type="text" id="stockSearchInput" placeholder="ค้นหาปุ๋ย/ยา/เมล็ดพันธุ์..." value="${esc(stockQuery)}" oninput="App.stockSearch(this.value)">
@@ -192,6 +214,12 @@ App.stockFilter = function (key) {
 };
 App.stockCatFilter = function (v) {
   stockCat = v;
+  rerender();
+};
+App.stockResetFilters = function () {
+  stockFilter = "all";
+  stockCat = "";
+  stockQuery = "";
   rerender();
 };
 App.stockToolsOpen = function () {
@@ -228,8 +256,12 @@ App.stockToolsOpen = function () {
 /* พิมพ์ค้นหา -> อัปเดตเฉพาะรายการ (ไม่ rebuild ทั้งหน้า = focus ไม่หลุด พิมพ์ต่อเนื่องได้) */
 App.stockSearch = function (v) {
   stockQuery = v;
+  const input = document.getElementById("stockSearchInput");
+  if (input && input.value !== v) input.value = v;
   const wrap = document.getElementById("stockListWrap");
   if (wrap) wrap.innerHTML = stockListHtml();
+  const status = document.getElementById("stockFilterStatus");
+  if (status) status.outerHTML = stockFilterStatusHtml();
   const clearBtn = document.querySelector(".stock-search-clear");
   if (clearBtn) clearBtn.style.display = v ? "" : "none";
 };

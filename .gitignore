@@ -9,3 +9,7 @@ tmp/
 tmp_farm.zip
 tmp_dump.txt
 import-plotC-round.json
+
+# Product images (stored in R2 cloud storage)
+images/products/
+images/product_urls.json
