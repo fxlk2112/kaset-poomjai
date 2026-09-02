@@ -33,7 +33,7 @@ const EDITABLE_TEXTS = [
   { key: "heroGreet", label: "คำทักทายหน้าแรก", def: "สวัสดีครับ" },
   { key: "titleTasks", label: "หัวข้อ: งานที่ต้องทำเร็วๆ นี้", def: "งานที่ต้องทำเร็วๆ นี้" },
   { key: "titleProfit", label: "หัวข้อ: กำไร/ขาดทุนรายแปลง", def: "กำไร/ขาดทุนรายแปลง" },
-  { key: "titleCal", label: "หัวข้อ: ปฏิทินงาน", def: "ปฏิทินงาน" },
+  { key: "titleCal", label: "หัวข้อ: งานวันนี้", def: "งานวันนี้" },
   { key: "titleActivity", label: "หัวข้อ: กิจกรรมล่าสุด", def: "กิจกรรมล่าสุด" },
   { key: "titleCycles", label: "หัวข้อ: รอบปลูกที่กำลังดำเนินการ", def: "รอบปลูกที่กำลังดำเนินการ" },
   { key: "titleKpi", label: "หัวข้อ: ตัวเลขสำคัญ", def: "ตัวเลขสำคัญ" },
@@ -442,7 +442,7 @@ function maybeWarnStorage() {
 }
 
 /* ---------------- Dashboard ---------------- */
-/* ลำดับ section หน้าแรก — ผู้ดูแลเลื่อนได้ที่หน้าตั้งค่า (ค่าเริ่มต้น: ปฏิทิน → งาน → กำไร → กิจกรรม) */
+/* ลำดับ section หน้าแรก — งานวันนี้ล็อกไว้ด้านบน ส่วนที่เหลือผู้ดูแลเลื่อนได้ที่หน้าตั้งค่า */
 function homeOrder() {
   const o = S.homeOrder && S.homeOrder.length === 4 ? S.homeOrder : ["cal", "tasks", "profit", "activity"];
   return o.filter(k => ["cal", "tasks", "profit", "activity"].includes(k));
@@ -450,10 +450,6 @@ function homeOrder() {
 /* สร้าง grid-template-areas สำหรับจอคอมตามลำดับที่ผู้ใช้เลือก
    slot 0 = คอลัมน์ซ้ายยาว 2 แถว, 1 = ขวาบน, 2 = ขวาล่าง, 3 = เต็มความกว้างล่าง
    ใช้ single quote ('...') เพื่อไม่ให้ชนกับเครื่องหมาย " ใน attribute style= */
-function homeFlowAreas() {
-  const o = homeOrder();
-  return `'${o[0]} ${o[1]}' '${o[0]} ${o[2]}' '${o[3]} ${o[3]}'`;
-}
 function renderHome() {
   const ytd = ytdFinance(S);
   const curBE = Number(todayISO().slice(0, 4)) + 543; // ปี พ.ศ. ปัจจุบัน (แสดงกำไรของปีนี้)
@@ -479,9 +475,6 @@ function renderHome() {
   const recent = [...S.tasks]
     .sort((a, b) => tsOf(b) - tsOf(a))
     .slice(0, 5);
-  const selDate = cal.sel || today;
-  const selTasks = tasksOn(S, selDate).sort((a, b) => (a.status === "done" ? 1 : 0) - (b.status === "done" ? 1 : 0));
-
   const kpiProfit = ytd.net >= 0;
   const kpiClass = kpiProfit ? "pos" : "neg";
   /* กำไรตามแปลง: ใช้ปีปัจจุบัน (สอดคล้องกับ KPI กำไรสุทธิ) — ไม่ใช้ทุกปีปนกัน */
@@ -546,16 +539,44 @@ function renderHome() {
   }
 
   const welcome = S.tourDone ? "" : `
-    <div class="card" style="border:1.5px solid var(--green-light);background:linear-gradient(135deg,var(--green-soft),var(--card))">
-      <div class="row">
-        <span class="plot-emoji" style="background:var(--green-light);color:var(--green-deep)">${ic("compass")}</span>
-        <div class="grow">
-          <div class="bold" style="color:var(--green-deep)">ยินดีต้อนรับสู่ระบบจัดการฟาร์มและร้านค้า</div>
-          <div class="muted">จัดการแปลง รอบการปลูก งานรายวัน สต็อกยา/ปุ๋ย ออกใบส่งสินค้า และวิเคราะห์กำไร — ทั้งฟาร์มและร้านค้าในที่เดียว</div>
-        </div>
+    <div class="welcome-strip">
+      <span class="plot-emoji sm">${ic("compass")}</span>
+      <div class="grow">
+        <div class="bold">เริ่มตั้งค่าฟาร์ม</div>
+        <div class="muted">แปลง สต็อก งานรายวัน และยอดขาย</div>
       </div>
-      <button class="btn btn-primary btn-block mt-12" onclick="App.startTour()">${ic("compass")} เริ่มแนะนำระบบ</button>
+      <button class="btn btn-primary btn-sm" onclick="App.startTour()">${ic("compass")} แนะนำ</button>
     </div>`;
+
+  const todayPanel = `
+    <section class="sec-cal">
+      <div class="row row-between section-title" data-tkey="titleCal">
+        <span>${T("titleCal")}</span>
+        <button class="btn btn-ghost btn-sm" onclick="App.nav('planner')">${ic("calendar")} ปฏิทินเต็ม</button>
+      </div>
+      <div class="card today-card">
+        <div class="today-head">
+          <div>
+            <div class="today-date">${thaiDateStr(new Date(today + "T12:00:00"))}</div>
+            <div class="muted">วันนี้ก่อน แล้วค่อยเปิดปฏิทินเต็ม</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="App.modalTask('${today}')">${ic("plus")} เพิ่ม</button>
+        </div>
+        <div class="today-stats">
+          <div><b>${tToday.length}</b><span>งานวันนี้</span></div>
+          <div><b>${doneToday}</b><span>เสร็จแล้ว</span></div>
+          <div><b>${overdue.length}</b><span>เลยกำหนด</span></div>
+        </div>
+        ${tToday.length === 0 ? `
+          <div class="empty compact-empty">
+            <div class="e-ico">${ic("check")}</div>
+            <div class="e-title">วันนี้ยังไม่มีงาน</div>
+            <div class="muted">พร้อมวางแผนงานถัดไป</div>
+          </div>` : ""}
+        ${tToday.slice(0, 4).map(t => taskRowHtml(t, { showPlot: true })).join("")}
+        ${tToday.length > 4 ? `<button class="btn btn-ghost btn-block mt-8" onclick="App.nav('planner')">ดูอีก ${tToday.length - 4} งานในปฏิทิน</button>` : ""}
+      </div>
+    </section>`;
 
   return `
     <div class="hero">
@@ -577,6 +598,7 @@ function renderHome() {
     </div>
 
     ${welcome}
+    ${todayPanel}
 
     <div class="section-title" data-tkey="titleKpi">${T("titleKpi")}</div>
     <div class="kpi-row" id="kpiRow">
@@ -604,24 +626,8 @@ function renderHome() {
 
     ${extra}
 
-    <div class="home-flow" style="--flow-areas:${homeFlowAreas()}">
-      ${homeOrder().map(k => {
-        if (k === "cal") return `
-      <section class="sec-cal">
-        <div class="row row-between section-title" data-tkey="titleCal">
-          <span>${T("titleCal")}</span>
-          <button class="btn btn-primary btn-sm" onclick="App.nav('planner')">เปิดเต็ม</button>
-        </div>
-        ${calCardHtml(true)}
-        <div class="card">
-        <div class="row row-between" style="margin-bottom:4px">
-          <div class="bold" style="font-size:.9rem">${ic("calendar")} งานวันที่ ${selDate}</div>
-            <button class="btn btn-sm btn-ghost" onclick="App.nav('planner')">${ic("calendar")} เปิดเต็ม</button>
-          </div>
-          ${selTasks.length === 0 ? `<div class="muted" style="text-align:center;padding:10px">ไม่มีงานในวันนี้</div>` : ""}
-          ${selTasks.map(t => taskRowHtml(t, { showPlot: true })).join("")}
-        </div>
-      </section>`;
+    <div class="home-flow" style="--flow-areas:'tasks profit' 'tasks activity'">
+      ${homeOrder().filter(k => k !== "cal").map(k => {
         if (k === "tasks") return `
       <section class="sec-tasks">
         <div class="row row-between section-title" data-tkey="titleTasks">
@@ -3313,7 +3319,7 @@ function renderSettings() {
 /* เครื่องมือแก้ไข (ใช้ทั้งในหน้าตั้งค่า และ modal จากปุ่ม ✏️ แก้ไขหัวเว็บ) */
 function adminToolsHtml() {
   const order = homeOrder();
-  const HOME_LABELS = { cal: "ปฏิทิน + งานวันที่", tasks: "งานที่ต้องทำเร็วๆ นี้", profit: "กำไร/ขาดทุนรายแปลง", activity: "กิจกรรมล่าสุด" };
+  const HOME_LABELS = { cal: "งานวันนี้ (ล็อกไว้ด้านบน)", tasks: "งานที่ต้องทำเร็วๆ นี้", profit: "กำไร/ขาดทุนรายแปลง", activity: "กิจกรรมล่าสุด" };
   return `
       <div class="row row-between section-title">
         <span>${ic("wrench")} โหมดแก้ไขเว็บ <span class="badge badge-green">ปลดล็อกแล้ว</span></span>
@@ -3330,12 +3336,12 @@ function adminToolsHtml() {
 
       <div class="section-title">เรียงลำดับหน้าแรก</div>
       <div class="card">
-        <div class="muted" style="font-size:.72rem;margin-bottom:6px">เลื่อนขึ้น/ลง เพื่อจัดตำแหน่ง section บนหน้าแรก (จอคอม: ช่องที่ 1 อยู่คอลัมน์ซ้ายยาว · จอเล็ก: เรียงตามลำดับ)</div>
+        <div class="muted" style="font-size:.72rem;margin-bottom:6px">งานวันนี้อยู่ด้านบนเสมอ เลื่อนขึ้น/ลงได้เฉพาะ section ถัดไป</div>
         ${order.map((k, i) => `
         <div class="ed-row">
           <span class="grow">${HOME_LABELS[k] || k}</span>
-          <button class="btn btn-sm btn-ghost" onclick="App.homeMove(${i}, -1)" ${i === 0 ? "disabled" : ""}>↑</button>
-          <button class="btn btn-sm btn-ghost" onclick="App.homeMove(${i}, 1)" ${i === order.length - 1 ? "disabled" : ""}>↓</button>
+          <button class="btn btn-sm btn-ghost" onclick="App.homeMove(${i}, -1)" ${i === 0 || k === "cal" || order[i - 1] === "cal" ? "disabled" : ""}>↑</button>
+          <button class="btn btn-sm btn-ghost" onclick="App.homeMove(${i}, 1)" ${i === order.length - 1 || k === "cal" ? "disabled" : ""}>↓</button>
         </div>`).join("")}
         <button class="btn btn-ghost btn-block mt-8" onclick="App.homeReset()">${ic("refresh")} คืนค่าเริ่มต้น</button>
       </div>

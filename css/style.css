@@ -436,6 +436,54 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .legend { display: flex; gap: 14px; font-size: .72rem; color: var(--muted); margin: 10px 2px; flex-wrap: wrap; }
 .legend span { display: flex; align-items: center; gap: 5px; }
 .legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.today-card { display: grid; gap: 12px; }
+.today-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.today-date { font-size: 1rem; font-weight: 800; color: var(--green-deep); }
+.today-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.today-stats div {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--soft);
+  padding: 9px 8px;
+  text-align: center;
+}
+.today-stats b {
+  display: block;
+  font-size: 1.05rem;
+  color: var(--green-deep);
+  line-height: 1.1;
+}
+.today-stats span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 700;
+}
+.compact-empty { padding: 18px 10px; }
+.compact-empty .e-ico { font-size: 1.55rem; margin-bottom: 5px; }
+.welcome-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--shadow-soft);
+}
+.welcome-strip .bold { color: var(--green-deep); font-size: .92rem; }
+.welcome-strip .muted { font-size: .72rem; line-height: 1.25; }
+.welcome-strip .btn { flex: 0 0 auto; }
 
 /* ============ Task rows (สไตล์ Farm Command: จุดสถานะ + แถวเรียบ) ============ */
 .task-row { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--soft); border-radius: 12px; animation: riseIn .35s ease both; }
