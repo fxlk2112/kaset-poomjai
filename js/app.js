@@ -3235,6 +3235,11 @@ function renderSettings() {
   }
   return `
     <div class="section-title" data-tkey="settingsTitle">${T("settingsTitle")}</div>
+    <section class="settings-group">
+      <div class="settings-group-head">
+        <b>${ic("gear")} บัญชีและข้อมูลระบบ</b>
+        <span>สถานะบัญชี เวอร์ชัน และข้อมูลหลักของเว็บ</span>
+      </div>
     <div class="card">
       <div class="row">
         <div class="plot-emoji">${ic("leaf")}</div>
@@ -3249,6 +3254,12 @@ function renderSettings() {
       <div class="row row-between mt-8"><span class="muted">เวอร์ชัน</span><span class="small bold">v${S.version}</span></div>
     </div>
     ${typeof Auth !== "undefined" ? Auth.cardHtml() : ""}
+    </section>
+    <section class="settings-group">
+      <div class="settings-group-head">
+        <b>${ic("save")} สำรองและพื้นที่เก็บข้อมูล</b>
+        <span>นำเข้า ส่งออก และตรวจขนาดข้อมูลก่อนพื้นที่เต็ม</span>
+      </div>
     <div class="section-title">${ic("save")} สำรองข้อมูล (Export / Import)</div>
     <div class="card">
       <div class="muted" style="font-size:.76rem;margin-bottom:10px">ดาวน์โหลดข้อมูลทั้งหมด (งาน / สต็อก / แปลง / ค่าใช้จ่าย) เป็นไฟล์ .json เพื่อสำรอง หรือนำเข้าไฟล์สำรองกลับมาใช้งาน — ข้อมูลบันทึกในเบราว์เซอร์เท่านั้น</div>
@@ -3282,6 +3293,12 @@ function renderSettings() {
       <div class="row row-between mt-8"><span class="muted">ซิงก์ล่าสุด</span><span class="small bold">${typeof cloudTs === "function" && cloudTs() ? dateLabel(new Date(cloudTs()).toISOString().slice(0, 10)) + " " + new Date(cloudTs()).toTimeString().slice(0, 5) : "—"}</span></div>
       <button class="btn btn-ghost btn-block mt-8" onclick="App.checkCloudSize()">${ic("refresh")} ตรวจขนาดข้อมูลบนคลาวด์</button>
     </div>
+    </section>
+    <section class="settings-group">
+      <div class="settings-group-head">
+        <b>${ic("wrench")} เครื่องมือเสริม</b>
+        <span>Lark หมวดต้นทุน และแหล่งข้อมูลภายนอก</span>
+      </div>
     ${adminUnlocked() ? `
     <div class="section-title">${ic("upload")} ซิงก์กับ Lark Base (ผู้ดูแลระบบ) <span class="badge badge-gray">ระดับแอดมิน</span></div>
     <div class="card">
@@ -3306,14 +3323,27 @@ function renderSettings() {
       <div class="muted" style="font-size:.76rem;margin-bottom:10px">สภาพอากาศของแต่ละแปลงดึงจาก <b>Open-Meteo</b> (แบบจำลอง ECMWF IFS ของยุโรป — แบบจำลองที่แม่นที่สุดในโลก) ตามพิกัด GPS ที่ปักหมุด — <b>ฟรี ไม่ต้องใช้คีย์ ไม่ต้องสมัคร</b></div>
       <div class="muted" style="font-size:.72rem">🌍 แหล่งข้อมูล: open-meteo.com · อัปเดตข้อมูลทุก ~15 นาที · แสดงผลแคช 30 นาที (เลขนิ่ง ไม่กระโดดเมื่อรีเฟรช)</div>
     </div>
+    </section>
+    <section class="settings-group">
+      <div class="settings-group-head">
+        <b>${ic("pencil")} ปรับแต่งเว็บ</b>
+        <span>แก้คำ เมนู หน้าแรก และเปิดทัวร์ใช้งานอีกครั้ง</span>
+      </div>
     ${editorHtml}
     <button class="btn btn-ghost btn-block" onclick="App.startTour()">${ic("compass")} แนะนำระบบ (Tour) อีกครั้ง</button>
+    </section>
+    <section class="settings-group danger">
+      <div class="settings-group-head">
+        <b>${ic("trash")} ล้างข้อมูล</b>
+        <span>ลบเฉพาะหมวด หรือรีเซ็ตทุกอย่างเมื่อจำเป็น</span>
+      </div>
     <div class="section-title">${ic("trash")} ล้างข้อมูลบางส่วน</div>
     <div class="card">
       <div class="muted" style="font-size:.76rem;margin-bottom:8px">เลือกลบเฉพาะหมวดที่ไม่ต้องการแล้วได้ โดยไม่กระทบข้อมูลหมวดอื่นที่ไม่เกี่ยวข้อง</div>
       ${clearDataToolsHtml()}
     </div>
     <button class="btn btn-danger-soft btn-block mt-8" onclick="App.resetData()">${ic("refresh")} รีเซ็ตข้อมูลทั้งหมด</button>
+    </section>
     <div class="muted mt-8" style="font-size:.7rem;text-align:center">สภาพอากาศรายแปลงจาก Open-Meteo (ECMWF) — ฟรี ไม่ต้องใช้คีย์ · IoT จริงในเวอร์ชันถัดไป</div>`;
 }
 /* เครื่องมือแก้ไข (ใช้ทั้งในหน้าตั้งค่า และ modal จากปุ่ม ✏️ แก้ไขหัวเว็บ) */
@@ -3655,29 +3685,36 @@ App.resetData = function () {
 
 /* ---------------- More ---------------- */
 function renderMore() {
+  const moreGrid = html => `<div class="more-grid">${html}</div>`;
+  const customMenus = (S.customMenus || []).map(m => `
+      <button class="more-card" onclick="App.goTarget('${esc(m.target || "")}')"><span class="mc-ico">${m.ico && ICONS[m.ico] ? ic(m.ico) : esc(m.ico || "")}</span><span class="mc-name">${esc(m.name)}</span><span class="mc-desc">${esc(m.desc || "")}</span></button>`).join("");
   return `
     <div class="section-title" data-tkey="moreTitle">${T("moreTitle")}</div>
-    <div class="more-grid">
+    <section class="more-section">
+      <div class="more-section-head">
+        <div><b>เครื่องมือฟาร์ม</b><span>ข้อมูลเสริมที่ไม่ได้อยู่ในแถบล่าง</span></div>
+      </div>
+      ${moreGrid(`
       <button class="more-card" onclick="App.nav('equipment')"><span class="mc-ico">${ic("truck")}</span><span class="mc-name">อุปกรณ์</span><span class="mc-desc">ค่าเสื่อม · ซ่อมบำรุง</span></button>
       <button class="more-card" onclick="App.nav('prices')"><span class="mc-ico">${ic("dollar")}</span><span class="mc-name">ราคาตลาด</span><span class="mc-desc">ราคาผักผลไม้รายวัน</span></button>
       <button class="more-card" onclick="App.openWeather('')"><span class="mc-ico">${ic("droplet")}</span><span class="mc-name">สภาพอากาศ</span><span class="mc-desc">เทียบพยากรณ์ 5 แหล่ง</span></button>
-      <button class="more-card" onclick="App.nav('iot')"><span class="mc-ico">${ic("droplet")}</span><span class="mc-name">ระบบน้ำ</span><span class="mc-desc">วาล์ว · ตารางให้น้ำ</span></button>
+      <button class="more-card" onclick="App.nav('iot')"><span class="mc-ico">${ic("droplet")}</span><span class="mc-name">ระบบน้ำ</span><span class="mc-desc">วาล์ว · ตารางให้น้ำ</span></button>`)}
+    </section>
+    <section class="more-section">
+      <div class="more-section-head">
+        <div><b>ระบบและข้อมูล</b><span>ตั้งค่า สำรองข้อมูล และทัวร์ใช้งาน</span></div>
+      </div>
+      ${moreGrid(`
       <button class="more-card" onclick="App.nav('settings')"><span class="mc-ico">${ic("gear")}</span><span class="mc-name">ตั้งค่า</span><span class="mc-desc">ข้อมูล · รีเซ็ต · สำรอง</span></button>
-      <button class="more-card" onclick="App.startTour()"><span class="mc-ico">${ic("compass")}</span><span class="mc-name">แนะนำระบบ</span><span class="mc-desc">ทัวร์ใช้งานเร็ว</span></button>
-      ${(S.customMenus || []).map(m => `
-      <button class="more-card" onclick="App.goTarget('${esc(m.target || "")}')"><span class="mc-ico">${m.ico && ICONS[m.ico] ? ic(m.ico) : esc(m.ico || "")}</span><span class="mc-name">${esc(m.name)}</span><span class="mc-desc">${esc(m.desc || "")}</span></button>`).join("")}
-    </div>
-    <div class="card mt-12">
-      <div class="bold" style="font-size:.9rem">${ic("info")} ฟีเจอร์หลักของระบบ</div>
-      <ul style="margin:8px 0 0 18px;font-size:.8rem;color:var(--muted);line-height:1.9">
-        <li>แปลง + รอบการปลูกอัตโนมัติ (รอบ 1, รอบ 2...) พร้อมต้นทุนรายรอบและปฏิทินกิจกรรม</li>
-        <li>งานรายวัน: กิจกรรม + ค่าใช้จ่าย/ตัดสต็อกหลายรายการ + ราคาเลือกได้ (ต้นทุน/ขาย/พิมพ์เอง)</li>
-        <li>สต็อกยา/ปุ๋ย: นำเข้า Excel, รหัสสินค้า, เปิดใช้/เหลือเศษ, แจ้งเตือน</li>
-        <li>ขายสินค้า + ใบส่งสินค้า A4 + ประวัติลูกค้า</li>
-        <li>วิเคราะห์รายปี (พ.ศ.): กำไรรายแปลง, การใช้ยา, ร้านค้า — ดูย้อนหลังทุกปี</li>
-        <li>ติดตั้งเป็นแอปบนมือถือ (PWA) + ใช้แบบออฟไลน์ได้</li>
-      </ul>
-    </div>`;
+      <button class="more-card" onclick="App.startTour()"><span class="mc-ico">${ic("compass")}</span><span class="mc-name">แนะนำระบบ</span><span class="mc-desc">ทัวร์ใช้งานเร็ว</span></button>`)}
+    </section>
+    ${customMenus ? `
+    <section class="more-section">
+      <div class="more-section-head">
+        <div><b>เมนูที่เพิ่มเอง</b><span>ลิงก์หรือหน้าที่ผู้ดูแลเพิ่มไว้</span></div>
+      </div>
+      ${moreGrid(customMenus)}
+    </section>` : ""}`;
 }
 
 /* ---------------- Modals ---------------- */

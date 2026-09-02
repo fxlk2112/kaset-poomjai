@@ -662,7 +662,26 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 .sd-row .k { color: var(--muted); flex-shrink: 0; }
 .sd-row .bold { min-width: 0; text-align: right; overflow-wrap: anywhere; }
-.stock-cat-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.stock-filter-panel {
+  display: grid;
+  grid-template-columns: minmax(150px, .7fr) minmax(180px, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--soft);
+  margin-bottom: 12px;
+}
+.stock-filter-field {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+.stock-filter-field > span {
+  font-size: .7rem;
+  font-weight: 800;
+  color: var(--muted);
+}
 .stock-source-row {
   display: flex; align-items: center; gap: 8px; margin: 0 0 12px;
   padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: #fff;
@@ -691,11 +710,13 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft);
 }
+.stock-filter-select,
 .stock-cat-select {
   flex: 1; min-width: 0; padding: 10px 12px; font-size: .85rem; color: var(--text);
   background: #fff; border: 1.5px solid var(--line); border-radius: 12px; outline: 0;
   transition: border-color .18s, box-shadow .18s;
 }
+.stock-filter-select:focus,
 .stock-cat-select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(22, 163, 74, .12); }
 .stock-search {
   display: flex; align-items: center; gap: 8px;
@@ -789,6 +810,26 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .switch.on::after { transform: translateX(20px); }
 
 /* ============ More menu grid ============ */
+.more-section { margin-bottom: 16px; }
+.more-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 4px 2px 8px;
+}
+.more-section-head b {
+  display: block;
+  font-size: .9rem;
+  color: var(--green-deep);
+}
+.more-section-head span {
+  display: block;
+  margin-top: 1px;
+  font-size: .7rem;
+  color: var(--muted);
+  font-weight: 600;
+}
 .more-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .more-card {
   background: var(--card);
@@ -801,6 +842,30 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .more-card .mc-ico { font-size: 1.9rem; }
 .more-card .mc-name { font-weight: 800; font-size: .9rem; }
 .more-card .mc-desc { font-size: .7rem; color: var(--muted); }
+.settings-group { margin-bottom: 18px; }
+.settings-group-head {
+  display: grid;
+  gap: 2px;
+  margin: 4px 2px 10px;
+  padding-left: 10px;
+  border-left: 4px solid var(--green);
+}
+.settings-group-head b {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--green-deep);
+  font-size: .94rem;
+}
+.settings-group-head b .ic { width: 1em; height: 1em; }
+.settings-group-head span {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.settings-group.danger .settings-group-head { border-left-color: var(--red); }
+.settings-group.danger .settings-group-head b { color: var(--red); }
 .action-list { display: grid; gap: 8px; margin-top: 12px; }
 .action-item {
   width: 100%;
@@ -2033,6 +2098,8 @@ html[data-theme="dark"] .year-nav-btn,
 html[data-theme="dark"] .year-chip,
 html[data-theme="dark"] .stock-picker .sp-search,
 html[data-theme="dark"] .stock-pick-list,
+html[data-theme="dark"] .stock-filter-panel,
+html[data-theme="dark"] .stock-filter-select,
 html[data-theme="dark"] .stock-cat-select,
 html[data-theme="dark"] .stock-search,
 html[data-theme="dark"] .stock-source-row,
@@ -2125,6 +2192,9 @@ html[data-theme="dark"] .td-cost-row b,
 html[data-theme="dark"] .gps-box .gps-coords,
 html[data-theme="dark"] .stock-qty,
 html[data-theme="dark"] .hero-greet { color: #86efac; }
+html[data-theme="dark"] .more-section-head b { color: #86efac; }
+html[data-theme="dark"] .settings-group-head b { color: #86efac; }
+html[data-theme="dark"] .settings-group.danger .settings-group-head b { color: #fca5a5; }
 
 html[data-theme="dark"] .task-row { background: var(--soft); }
 html[data-theme="dark"] .task-row:hover,
@@ -2234,6 +2304,7 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .field textarea,
   .stock-search input,
   .stock-source-select,
+  .stock-filter-select,
   .stock-cat-select,
   .stock-share-input input,
   .cycle-filter > input,
@@ -2294,7 +2365,7 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .more-card .mc-desc { font-size: .72rem; }
 }
 @media (max-width: 360px) {
-  .stock-toolbar, .stock-actions, .lpc-choices { grid-template-columns: 1fr; }
+  .stock-toolbar, .stock-actions, .lpc-choices, .stock-filter-panel { grid-template-columns: 1fr; }
   .stock-actions .btn-danger-soft { grid-column: auto; }
   .brand-name { font-size: .95rem; }
   .btn-tour { max-width: 84px; overflow: hidden; text-overflow: ellipsis; }

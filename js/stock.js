@@ -113,6 +113,21 @@ function stockListHtml() {
     </div>`;
   return emptyHtml + grid;
 }
+function stockFilterOptionsHtml() {
+  const data = stockActiveList();
+  const openedCount = data.filter(x => (Number(x.openQty) || 0) > 0).length;
+  const sealedCount = data.length - openedCount;
+  const hasCount = data.filter(x => (Number(x.qty) || 0) + (Number(x.openQty) || 0) > 0).length;
+  const outCount = data.length - hasCount;
+  const rows = [
+    ["all", "ทั้งหมด", data.length],
+    ["has", "มีของ", hasCount],
+    ["out", "ยาหมด", outCount],
+    ["sealed", "ยังไม่เปิดใช้", sealedCount],
+    ["opened", "เปิดใช้แล้ว", openedCount]
+  ];
+  return rows.map(([key, label, count]) => `<option value="${key}" ${stockFilter === key ? "selected" : ""}>${label} (${fmtNum(count)})</option>`).join("");
+}
 function renderStock() {
   if (typeof Auth !== "undefined" && Auth.session && !App._stockSharesLoaded && !App._stockSharesLoading) {
     setTimeout(() => App.stockShareRefresh(true), 0);
@@ -120,15 +135,9 @@ function renderStock() {
   const data = stockActiveList();
   const readonly = stockIsSharedView();
   const total = stockListValue(data);
-  const openedCount = data.filter(x => (Number(x.openQty) || 0) > 0).length;
-  const sealedCount = data.length - openedCount;
-  const hasCount = data.filter(x => (Number(x.qty) || 0) + (Number(x.openQty) || 0) > 0).length;
-  const outCount = data.length - hasCount;
   /* นับจำนวนต่อหมวด (ใช้ใน dropdown กรอง) */
   const catCounts = {};
   data.forEach(x => { const c = x.category || "__none__"; catCounts[c] = (catCounts[c] || 0) + 1; });
-  const tab = (key, label, count) =>
-    `<button class="chip ${stockFilter === key ? "chip-active" : ""}" onclick="App.stockFilter('${key}')">${label} ${count ? `<span class="badge">${count}</span>` : ""}</button>`;
   return `
     <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none">
       <div class="row row-between">
@@ -154,18 +163,20 @@ function renderStock() {
         `}
       </div>
     </div>
-    <div class="stock-tabs">
-      ${tab("all", "ทั้งหมด", data.length)}
-      ${tab("has", "มีของ", hasCount)}
-      ${tab("out", "ยาหมด", outCount)}
-      ${tab("sealed", "ยังไม่เปิดใช้", sealedCount)}
-      ${tab("opened", "เปิดใช้แล้ว", openedCount)}
-    </div>
-    <div class="stock-cat-wrap">
-      <select class="stock-cat-select" id="stockCatSelect" onchange="App.stockCatFilter(this.value)" aria-label="กรองหมวดสินค้า">
-        <option value="">ทุกหมวดสินค้า (${data.length})</option>
-        ${Object.keys(catCounts).sort((a, b) => a === "__none__" ? 1 : b === "__none__" ? -1 : a.localeCompare(b, "th")).map(c => `<option value="${esc(c)}" ${stockCat === c ? "selected" : ""}>${c === "__none__" ? "(ไม่มีหมวด)" : esc(c)} (${catCounts[c]})</option>`).join("")}
-      </select>
+    <div class="stock-filter-panel">
+      <label class="stock-filter-field">
+        <span>สถานะ</span>
+        <select class="stock-filter-select" id="stockStatusSelect" onchange="App.stockFilter(this.value)" aria-label="กรองสถานะสต็อก">
+          ${stockFilterOptionsHtml()}
+        </select>
+      </label>
+      <label class="stock-filter-field">
+        <span>หมวด</span>
+        <select class="stock-cat-select" id="stockCatSelect" onchange="App.stockCatFilter(this.value)" aria-label="กรองหมวดสินค้า">
+          <option value="">ทุกหมวดสินค้า (${data.length})</option>
+          ${Object.keys(catCounts).sort((a, b) => a === "__none__" ? 1 : b === "__none__" ? -1 : a.localeCompare(b, "th")).map(c => `<option value="${esc(c)}" ${stockCat === c ? "selected" : ""}>${c === "__none__" ? "(ไม่มีหมวด)" : esc(c)} (${catCounts[c]})</option>`).join("")}
+        </select>
+      </label>
     </div>
     <div class="stock-search">
       ${ic("search")}
