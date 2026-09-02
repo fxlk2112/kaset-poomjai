@@ -766,7 +766,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   box-shadow: 0 -8px 30px rgba(16, 60, 32, .12);
   animation: slideUp .28s cubic-bezier(.22, .8, .3, 1);
   overscroll-behavior: contain; /* เลื่อน modal สุดแล้วไม่ลากพื้นหลัง */
+  overflow-x: hidden;
 }
+.modal form { min-width: 0; max-width: 100%; overflow-x: hidden; }
 @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 .modal h3 { font-size: 1.08rem; font-weight: 800; margin-bottom: 4px; }
 .modal .modal-sub { font-size: .78rem; color: var(--muted); margin-bottom: 14px; }
@@ -848,13 +850,18 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
    2) Safari/iOS เติม padding ภายใน (shadow DOM ของช่องวัน/เดือน/ปี) ทำให้ช่องสูง-ยาวไม่เท่ากับช่องอื่น
       → ลบ padding นั้นออก ให้สัดส่วนเท่ากับช่องกรอกทั่วไป */
 .field input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
   display: block;
-  width: 100%;
-  min-width: 0;
-  min-inline-size: 0;
-  max-width: 100%;
-  max-inline-size: 100%;
-  height: 45px;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-inline-size: 0 !important;
+  max-width: 100% !important;
+  max-inline-size: 100% !important;
+  height: 45px !important;
+  min-height: 45px;
+  max-height: 45px;
+  padding: 11px 12px;
   line-height: 1.2;
   overflow: hidden;
 }
