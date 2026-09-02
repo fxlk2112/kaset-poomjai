@@ -3703,6 +3703,66 @@ function unlockBodyScroll() {
   document.body.style.width = "";
   if (y) window.scrollTo(0, y);
 }
+function modalFieldLabel(el) {
+  const field = el.closest(".field");
+  const raw = field && field.querySelector("label") ? field.querySelector("label").textContent : "";
+  return String(raw || el.getAttribute("aria-label") || el.placeholder || "ช่องนี้").replace(/\s*\*\s*/g, "").trim();
+}
+function modalValidationMessage(el) {
+  const label = modalFieldLabel(el);
+  const v = el.validity || {};
+  if (v.valueMissing) return `${el.tagName === "SELECT" || el.type === "date" ? "กรุณาเลือก" : "กรุณากรอก"}${label}`;
+  if (v.typeMismatch) return `รูปแบบ${label}ไม่ถูกต้อง`;
+  if (v.rangeUnderflow) return `${label}ต้องไม่ต่ำกว่า ${el.getAttribute("min")}`;
+  if (v.rangeOverflow) return `${label}ต้องไม่เกิน ${el.getAttribute("max")}`;
+  if (v.stepMismatch || v.badInput) return `กรุณากรอก${label}ให้ถูกต้อง`;
+  return el.validationMessage || `กรุณาตรวจสอบ${label}`;
+}
+function setModalFieldError(el, message) {
+  const field = el.closest(".field") || el.parentElement;
+  if (!field) return;
+  field.classList.add("field-invalid");
+  el.setAttribute("aria-invalid", "true");
+  let err = field.querySelector(".field-error");
+  if (!err) {
+    err = document.createElement("div");
+    err.className = "field-error";
+    field.appendChild(err);
+  }
+  if (!err.id) err.id = (el.id || ("field_" + uid())) + "_error";
+  err.textContent = message;
+  const describedBy = (el.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
+  if (!describedBy.includes(err.id)) el.setAttribute("aria-describedby", describedBy.concat(err.id).join(" "));
+}
+function clearModalFieldError(el) {
+  const field = el.closest(".field") || el.parentElement;
+  if (!field) return;
+  if (!el.validity || !el.validity.valid) return;
+  field.classList.remove("field-invalid");
+  el.removeAttribute("aria-invalid");
+  const err = field.querySelector(".field-error");
+  if (err) err.remove();
+}
+function focusModalInvalidField(form) {
+  const first = form.querySelector(":invalid");
+  if (!first) return;
+  setModalFieldError(first, modalValidationMessage(first));
+  const target = first.closest(".field") || first;
+  target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+  setTimeout(() => {
+    try { first.focus({ preventScroll: true }); } catch (e) { first.focus(); }
+  }, 220);
+}
+function installModalValidation(form) {
+  form.addEventListener("invalid", e => {
+    e.preventDefault();
+    setModalFieldError(e.target, modalValidationMessage(e.target));
+    clearTimeout(form._modalInvalidTimer);
+    form._modalInvalidTimer = setTimeout(() => focusModalInvalidField(form), 0);
+  }, true);
+  form.addEventListener("input", e => clearModalFieldError(e.target), true);
+  form.addEventListener("change", e => clearModalFieldError(e.target), true);
+}
 function openModal(html) {
   /* ปิดแผงแจ้งเตือนเมื่อเปิด modal (กดแถวงานในแผง → ดูรายละเอียด) */
   const np = document.getElementById("notifPanel");
@@ -3723,6 +3783,7 @@ function openModal(html) {
     modalEl.classList.add("modal-has-actions");
     modalEl.appendChild(actions);
   }
+  if (modalEl) modalEl.querySelectorAll("form").forEach(installModalValidation);
   const bd = root.querySelector(".modal-backdrop");
   bd.addEventListener("click", e => {
     if (e.target !== bd) return;
