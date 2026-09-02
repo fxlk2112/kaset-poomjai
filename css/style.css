@@ -51,7 +51,7 @@ body {
 #app { max-width: var(--maxw); margin: 0 auto; min-height: 100vh; position: relative; }
 
 button { font-family: inherit; border: none; background: none; cursor: pointer; color: inherit; touch-action: manipulation; }
-input, select, textarea { font-family: inherit; font-size: 1rem; color: var(--text); }
+input, select, textarea { font-family: inherit; font-size: 1rem; color: var(--text); min-width: 0; max-width: 100%; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); outline-offset: 1px; }
 
 /* ============ Top bar ============ */
@@ -835,7 +835,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.field { margin-bottom: 12px; }
+.field { margin-bottom: 12px; min-width: 0; }
 .field label { display: block; font-size: .78rem; font-weight: 700; color: var(--muted); margin-bottom: 5px; }
 .field input, .field select, .field textarea {
   width: 100%; padding: 11px 12px; border: 1.5px solid var(--line); border-radius: var(--radius-sm);
@@ -847,13 +847,34 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
       → min-width:0 + max-width:100% ให้ย่อได้เท่ากับช่องอื่น (ใช้คู่กับ .form-row-2 ที่เป็น minmax(0,1fr))
    2) Safari/iOS เติม padding ภายใน (shadow DOM ของช่องวัน/เดือน/ปี) ทำให้ช่องสูง-ยาวไม่เท่ากับช่องอื่น
       → ลบ padding นั้นออก ให้สัดส่วนเท่ากับช่องกรอกทั่วไป */
-.field input[type="date"] { min-width: 0; max-width: 100%; }
+.field input[type="date"] {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-inline-size: 0;
+  max-width: 100%;
+  max-inline-size: 100%;
+  height: 45px;
+  line-height: 1.2;
+  overflow: hidden;
+}
 .field input[type="date"]::-webkit-datetime-edit,
 .field input[type="date"]::-webkit-datetime-edit-fields-wrapper,
 .field input[type="date"]::-webkit-datetime-edit-text,
 .field input[type="date"]::-webkit-datetime-edit-day-field,
 .field input[type="date"]::-webkit-datetime-edit-month-field,
 .field input[type="date"]::-webkit-datetime-edit-year-field {
+  padding: 0;
+  min-width: 0;
+}
+.field input[type="date"]::-webkit-date-and-time-value {
+  min-width: 0;
+  margin: 0;
+  text-align: left;
+}
+.field input[type="date"]::-webkit-calendar-picker-indicator {
+  flex: 0 0 auto;
+  margin-left: 2px;
   padding: 0;
 }
 .field input[type="date"]::-webkit-inner-spin-button { height: auto; }
