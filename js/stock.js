@@ -146,7 +146,7 @@ function stockFilterStatusHtml() {
   return `
     <div class="stock-filter-status ${active ? "" : "is-clear"}" id="stockFilterStatus">
       <span>${active ? "กำลังกรอง " + esc(parts.join(" · ")) : "แสดงสต็อกทั้งหมด"}</span>
-      <button class="btn btn-sm btn-ghost" onclick="App.stockResetFilters()" ${active ? "" : "disabled"}>${ic("refresh")} ล้างตัวกรอง</button>
+      ${active ? `<button class="btn btn-sm btn-ghost" onclick="App.stockResetFilters()">${ic("refresh")} ล้างตัวกรอง</button>` : ""}
     </div>`;
 }
 function renderStock() {
@@ -203,7 +203,7 @@ function renderStock() {
     <div class="stock-search">
       ${ic("search")}
       <input type="text" id="stockSearchInput" placeholder="ค้นหาปุ๋ย/ยา/เมล็ดพันธุ์..." value="${esc(stockQuery)}" oninput="App.stockSearch(this.value)">
-      ${stockQuery ? `<button class="stock-search-clear" onclick="App.stockSearch('')">✕</button>` : ""}
+      <button class="stock-search-clear" onclick="App.stockSearch('')" style="${stockQuery ? "" : "display:none"}">✕</button>
     </div>
     <div id="stockListWrap">${stockListHtml()}</div>
     <div class="muted" style="font-size:.72rem;text-align:center;padding:6px">${ic("info")} สต็อกหลักเก็บเป็นหน่วยเต็ม · เมื่อใช้ของไม่หมด ของที่เหลือจากการเปิดใช้จะนำไปใช้ก่อนเสมอ · วิธีคิดต้นทุนแบบถัวเฉลี่ยถ่วงน้ำหนัก (Weighted Average)</div>`;

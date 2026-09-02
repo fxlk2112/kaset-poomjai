@@ -313,11 +313,6 @@ const NAV_ALL = [
 function visibleNav() {
   return NAV_ALL;
 }
-const ROLE_META = {
-  general: { label: "เกษตรกร", ico: "user", desc: "งานรายวัน · ปฏิทิน · สิ่งที่ต้องทำ" },
-  large: { label: "ฟาร์มใหญ่", ico: "truck", desc: "ภาพรวมพื้นที่ · แปลง · สถานะคนงาน" },
-  business: { label: "ธุรกิจ", ico: "briefcase", desc: "ตัวเลขการเงิน · กำไรขาดทุน · วิเคราะห์เชิงลึก" },
-};
 
 /* ใช้กัน animation กระพริบซ้ำ — animation จะเล่นเฉพาะตอนเปลี่ยนหน้า
    (กด nav) แต่จะถูกปิดตอน re-render ในหน้าเดิม เช่น กดวันที่/เปลี่ยนเดือน */
@@ -337,7 +332,7 @@ function render() {
   }
   const fd = document.getElementById("fabDock");
   if (fd) fd.style.display = "";
-  // keep route valid for role (sub-views group under their parent nav item)
+  // keep route valid for the current nav (sub-views group under their parent nav item)
   const keys = visibleNav().map(n => n.key);
   const VIEW_GROUP = { equipment: "more", iot: "more", settings: "more", prices: "more", weather: "plots", plotDetail: "plots", cycleDetail: "plots" };
   const navKey = VIEW_GROUP[route.view] || route.view;
@@ -372,6 +367,7 @@ function render() {
   if (route.view === "weather" || route.view === "plotDetail") renderPlotWeather();
   /* หน้าระบบน้ำ: ดึงโน้ตล่าสุดจากเซิร์ฟเวอร์ (ข้ามรอบเพราะฝน ฯลฯ) */
   if (route.view === "iot" && typeof App.waterPullStatus === "function") App.waterPullStatus();
+  if (route.view === "settings") wireSettingsAccordion();
   /* หน้าราคาตลาด: reset _priceLoading เมื่อเปลี่ยนออกจากหน้า prices เพื่อให้โหลดใหม่ได้ครั้งถัดไป */
   if (viewChanged && route.view !== "prices") App._priceLoading = false;
   /* เลื่อนกลับหัวหน้าเฉพาะตอนเปลี่ยนหน้า (เช่น กดเมนู) — ถ้าแค่ re-render ในหน้าเดิม (กดวันปฏิทิน/กรอง/ติ๊กงาน)
@@ -407,12 +403,6 @@ App.nav = function (key) {
   const np = document.getElementById("notifPanel");
   if (np) np.hidden = true;
 };
-App.setRole = function (role) {
-  S.role = role;
-  saveState(S);
-  render();
-  toast(`สลับโหมด: ${ROLE_META[role].label} — ${ROLE_META[role].desc}`);
-};
 /* re-render แบบไม่กระโดดกลับหัวหน้า (ใช้กับปุ่มในหน้า เช่น ติ๊กงาน / กดวันที่ปฏิทิน) */
 function rerender() {
   const sy = window.scrollY;
@@ -430,6 +420,17 @@ function maybeWarnStorage() {
       try { toast("⚠️ พื้นที่เก็บข้อมูลใกล้เต็ม (" + pct + "%) — ไปที่ ตั้งค่า เพื่อสำรอง/จัดการพื้นที่"); } catch (e) {}
     }, 1200);
   }
+}
+function wireSettingsAccordion() {
+  const groups = Array.from(document.querySelectorAll("details.settings-group"));
+  groups.forEach(g => {
+    if (g.dataset.wired) return;
+    g.dataset.wired = "1";
+    g.addEventListener("toggle", () => {
+      if (!g.open) return;
+      groups.forEach(other => { if (other !== g) other.open = false; });
+    });
+  });
 }
 
 /* ---------------- Dashboard ---------------- */
@@ -2809,8 +2810,6 @@ App.renderShareView = function () {
   if (nav) nav.innerHTML = "";
   if (fd) fd.style.display = "none";
   ["notifBtn", "profileBtn", "tourBtn", "editBtn"].forEach(id => { const b = document.getElementById(id); if (b) b.style.display = "none"; });
-  const rs = document.getElementById("roleSwitch");
-  if (rs) rs.innerHTML = "";
   if (v.dataset.shareLoaded) return;
   v.dataset.shareLoaded = "1";
   v.innerHTML = `<div class="card"><div class="muted" style="text-align:center;padding:20px">${ic("droplet")} กำลังโหลดแปลงที่แชร์...</div></div>`;
