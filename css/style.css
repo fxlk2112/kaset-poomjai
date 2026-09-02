@@ -735,15 +735,15 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 
 /* ช่องค้นหาหน้าสต็อก */
 .stock-thumb {
-  width: 42px; height: 42px; flex-shrink: 0; border-radius: 10px;
+  width: 48px; height: 48px; flex-shrink: 0; border-radius: 11px;
   background: var(--bg); color: var(--muted);
   display: flex; align-items: center; justify-content: center;
   overflow: hidden; cursor: pointer;
 }
-.stock-thumb .ic { width: 20px; height: 20px; }
+.stock-thumb .ic { width: 21px; height: 21px; }
 .stock-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.stock-thumb.lg { width: 92px; height: 92px; border-radius: 14px; flex-shrink: 0; }
-.stock-thumb.lg .ic { width: 34px; height: 34px; }
+.stock-thumb.lg { width: 104px; height: 104px; border-radius: 14px; flex-shrink: 0; }
+.stock-thumb.lg .ic { width: 36px; height: 36px; }
 .stock-detail-hint { color: var(--muted); opacity: .55; }
 .plot-name[onclick] { cursor: pointer; transition: color .15s; }
 .plot-name[onclick]:hover { color: var(--green); }
@@ -751,13 +751,26 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .stock-detail-hint .ic { width: .82em; height: .82em; }
 .sd-head { display: flex; gap: 12px; align-items: center; }
 .sd-photo-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
-.sd-strip { display: flex; gap: 8px; overflow-x: auto; padding: 12px 2px 4px; }
-.sd-strip-item { position: relative; flex-shrink: 0; width: 72px; height: 72px; }
+.sd-strip { display: flex; gap: 10px; overflow-x: auto; padding: 12px 3px 6px; }
+.sd-strip-item { position: relative; flex-shrink: 0; width: 88px; height: 88px; }
+.sd-strip-item.is-main img { border-color: var(--green); box-shadow: 0 0 0 2px rgba(22, 163, 74, .18); }
 .sd-strip-item img {
-  width: 72px; height: 72px; object-fit: cover; border-radius: 10px; display: block;
+  width: 88px; height: 88px; object-fit: cover; border-radius: 12px; display: block;
   border: 1.5px solid var(--line); cursor: zoom-in; transition: border-color .15s;
 }
 .sd-strip-item img:hover { border-color: var(--green); }
+.sd-main-badge {
+  position: absolute; left: 5px; bottom: 5px; max-width: calc(100% - 10px);
+  border-radius: 999px; background: rgba(21, 128, 61, .92); color: #fff;
+  font-size: .58rem; font-weight: 800; line-height: 1; padding: 4px 6px;
+  white-space: nowrap; pointer-events: none;
+}
+.sd-main-btn {
+  position: absolute; left: -8px; bottom: -8px; width: 28px; height: 28px; border-radius: 50%;
+  border: 0; background: var(--green); color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.35);
+}
+.sd-main-btn .ic { width: 14px; height: 14px; }
 .sd-strip-x {
   position: absolute; top: -8px; right: -8px; width: 28px; height: 28px; border-radius: 50%;
   border: 0; background: #ef4444; color: #fff; font-size: 11px; line-height: 1; cursor: pointer;
@@ -2542,6 +2555,31 @@ html[data-theme="dark"] .adv-banner.adv-danger { background: #3f1d1d; color: #fe
 html[data-theme="dark"] .adv-banner.adv-info { background: #17254a; color: #bfdbfe; }
 
 /* ===== แถบกรอง/เรียงงานของรอบ (หน้ารายละเอียดรอบปลูก) ===== */
+.detail-tabs {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px; margin: 12px 0;
+}
+.detail-tabs-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.detail-tab {
+  min-width: 0; min-height: 46px; border: 1.5px solid var(--line);
+  background: var(--card); color: var(--muted); border-radius: 12px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 9px; font: inherit; font-size: .78rem; font-weight: 800;
+  cursor: pointer; transition: border-color .15s, background .15s, color .15s, box-shadow .15s;
+}
+.detail-tab .ic { width: 1em; height: 1em; flex-shrink: 0; }
+.detail-tab span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detail-tab b {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  background: var(--soft); color: var(--muted); display: inline-flex; align-items: center; justify-content: center;
+  font-size: .68rem;
+}
+.detail-tab.active {
+  border-color: var(--green); background: var(--green-soft); color: var(--green-deep);
+  box-shadow: 0 4px 14px rgba(22, 163, 74, .12);
+}
+.detail-tab.active b { background: var(--green); color: #fff; }
+.cycle-overview-card .meta-grid { margin-top: 0; }
 .cycf-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px; margin-bottom: 10px; }
 .cycf { flex: 1 1 auto; min-width: 0; padding: 8px 10px; border-radius: 10px; border: 1.5px solid var(--line, #e5e7eb); background: var(--card, #fff); font: inherit; font-size: .76rem; color: inherit; outline: none; cursor: pointer; }
 .cycf:focus { border-color: var(--green, #16a34a); }
@@ -2633,8 +2671,22 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .modal-actions .btn:only-child { grid-column: 1 / -1; }
   .modal-x { top: 10px; right: 10px; }
   .sd-head { padding-right: 36px; }
-  .sd-strip-item, .sd-strip-item img { width: 64px; height: 64px; }
+  .stock-thumb { width: 46px; height: 46px; }
+  .stock-thumb.lg { width: 96px; height: 96px; }
+  .sd-strip-item, .sd-strip-item img { width: 78px; height: 78px; }
   .sd-strip-x { width: 34px; height: 34px; top: -10px; right: -10px; font-size: 13px; }
+  .sd-main-btn { width: 34px; height: 34px; left: -10px; bottom: -10px; }
+  .detail-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    position: sticky;
+    top: calc(var(--top-h, 72px) + env(safe-area-inset-top));
+    z-index: 5;
+    background: linear-gradient(180deg, var(--bg) 70%, rgba(255,255,255,0));
+    padding: 4px 0 8px;
+  }
+  .detail-tabs-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .detail-tab { min-height: 42px; padding: 7px 6px; font-size: .73rem; border-radius: 11px; }
   .lpc-list { max-height: 48dvh; }
   .lpc-top-actions { grid-template-columns: 1fr; }
   .stock-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }

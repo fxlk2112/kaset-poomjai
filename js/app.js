@@ -20,6 +20,8 @@ function saveRoute() {
 }
 let plotTaskCycle = "";   // กรองงาน/กิจกรรมของแปลงตามรอบการปลูก ("" = ทั้งหมด, "__none__" = ไม่มีรอบ)
 let cycTaskFilter = { sort: "new", type: "", status: "", costOnly: false }; // ตัวกรอง/เรียง "งาน/กิจกรรมของรอบนี้" ในหน้ารายละเอียดรอบ
+let plotDetailTab = "overview"; // แยกหน้ารายละเอียดแปลงให้ไม่ยาวเกินบนมือถือ
+let cycleDetailTab = "overview"; // แยกหน้ารายละเอียดรอบปลูกให้อ่านง่ายขึ้น
 let plotFilter = { q: "", status: "all" }; // ตัวกรองหน้าแปลง: q=ค้นหา, status=all|growing|idle|inactive
 let plannerFilter = "today"; // มุมมองกิจกรรม: today|week|overdue|done
 let collapsedCycles = {}; // หน้ารอบการปลูก: แปลงที่กดย่อไว้ (plotId -> true) กันหน้ายาวเกิน
@@ -133,6 +135,8 @@ const ICONS = {
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
   upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
   qr: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h2v2h-2z"/><path d="M19 14h2v2h-2z"/><path d="M14 19h2v2h-2z"/><path d="M18 18h3v3h-3z"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
   printer: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
   camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
@@ -1263,50 +1267,12 @@ function renderPlotDetail() {
   const noCycleTasks = tasks.filter(t => !t.cycleId || !cycles.some(c => c.id === t.cycleId));
   const shownTasks = plotTaskCycle === "__none__" ? noCycleTasks
     : (plotTaskCycle ? tasks.filter(t => t.cycleId === plotTaskCycle) : tasks);
-  return `
-    <div class="row" style="margin-bottom:10px">
-      <button class="btn btn-sm btn-ghost" onclick="App.goPlots()">← กลับไปแปลงทั้งหมด</button>
-    </div>
-    <div class="card">
-      <div class="plot-top">
-        <div class="plot-emoji">${cropEmoji(p.crop)}</div>
-        <div class="grow">
-          <div class="plot-name">${esc(p.name)} ${p.status === "active" ? `<span class="badge badge-green">Active</span>` : `<span class="badge badge-gray">ว่าง</span>`}</div>
-        </div>
-      </div>
-      <div class="meta-grid">
-        <div class="meta-box"><div class="lb">ขนาดพื้นที่</div><div class="vl">${fmtNum(p.sizeRai)} ไร่</div></div>
-        <div class="meta-box"><div class="lb">พิกัด GPS</div><div class="vl" style="font-size:.72rem"><a class="gps-link" href="${mapLink(p.lat, p.lng)}" target="_blank" rel="noopener">${ic("map")} ${p.lat}, ${p.lng}</a></div></div>
-        <div class="meta-box"><div class="lb">รอบที่กำลังปลูก</div><div class="vl" style="font-size:.78rem">${activeCycle ? esc(activeCycle.plant) : "—"}</div></div>
-        <div class="meta-box"><div class="lb">จำนวนรอบ</div><div class="vl">${cycles.length} รอบ</div></div>
-      </div>
-      <div class="actions-row">
-        <button class="btn btn-sm btn-outline" onclick="App.modalPlot('${p.id}')">${ic("pencil")} แก้ไขแปลง</button>
-        <button class="btn btn-sm btn-outline" onclick="App.modalShare('${p.id}')">${ic("user")} แชร์</button>
-        ${activeCycle ? "" : `<button class="btn btn-sm btn-primary" onclick="App.modalCycle('${p.id}')">${ic("leaf")} เริ่มปลูก</button>`}
-        <button class="btn btn-sm btn-primary" onclick="App.modalTask(todayISO(), { plotId: '${p.id}' })">${ic("plus")} เพิ่มกิจกรรม</button>
-      </div>
-    </div>
-
-    ${plotPhotoCard(p)}
-
-    ${plotWeatherCard(p)}
-
-    ${plotWaterCard(p)}
-
-    <div class="section-title">กำไร/ขาดทุนของแปลงนี้</div>
-    <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none">
-      <div class="row row-between">
-        <div>
-          <div style="font-size:.75rem;opacity:.85">กำไรสุทธิ (รวมทุกรอบ)</div>
-          <div class="bold" style="font-size:1.5rem">${fmtMoney(fin.net)} บาท</div>
-          <div style="font-size:.7rem;opacity:.85">รายได้ ${fmtMoney(fin.revenue)} · ต้นทุน ${fmtMoney(fin.cost)}</div>
-          ${p.sizeRai > 0 ? `<div style="font-size:.7rem;opacity:.85;margin-top:4px">ต่อไร่: ต้นทุน <b>${fmtMoney(Math.round(fin.cost / p.sizeRai))}</b> · กำไรสุทธิ <b>${fmtMoney(Math.round(fin.net / p.sizeRai))}</b> บ./ไร่</div>` : ""}
-        </div>
-        <span class="kpi-icon" style="font-size:2rem">${ic(fin.net >= 0 ? "chart" : "alert")}</span>
-      </div>
-    </div>
-
+  const tab = ["overview", "cycles", "tasks"].includes(plotDetailTab) ? plotDetailTab : "overview";
+  const tabBtn = (key, icon, label, count) => `
+    <button class="detail-tab ${tab === key ? "active" : ""}" onclick="App.plotDetailTab('${key}')">
+      ${ic(icon)} <span>${label}</span>${count != null ? `<b>${fmtNum(count)}</b>` : ""}
+    </button>`;
+  const cyclesHtml = `
     <div class="section-title">รอบการปลูก (${cycles.length})</div>
     ${cycles.length === 0 ? `<div class="card"><div class="empty"><div class="e-ico">${ic("leaf")}</div><div class="e-title">ยังไม่มีรอบการปลูก</div><div class="muted">กดเริ่มปลูกได้เลย</div></div></div>` : ""}
     <div class="card-grid">
@@ -1336,8 +1302,8 @@ function renderPlotDetail() {
         <div class="cycle-open-hint">${ic("chevron")} ดู ${n} กิจกรรมของรอบนี้</div>
       </div>`;
     }).join("")}
-    </div>
-
+    </div>`;
+  const tasksHtml = `
     <div class="section-title">งาน/กิจกรรมของแปลงนี้ (${shownTasks.length})</div>
     <div class="stock-cat-wrap">
       <select class="stock-cat-select" onchange="App.plotTaskFilter(this.value)" aria-label="กรองรอบการปลูก">
@@ -1350,8 +1316,65 @@ function renderPlotDetail() {
       ${shownTasks.length === 0 ? `<div class="muted" style="text-align:center;padding:8px">${plotTaskCycle === "__none__" ? "ไม่มีงานที่ยังไม่ผูกกับรอบการปลูก" : (plotTaskCycle ? "ยังไม่มีบันทึกงานในรอบนี้" : "ยังไม่มีบันทึกงาน — กด + เพิ่มกิจกรรม ได้เลย")}</div>` : ""}
       ${shownTasks.map(t => taskRowHtml(t, { showDate: true, showNote: true, showDelete: true, cycleOptions: cycles })).join("")}
     </div>`;
+  const overviewHtml = `
+    ${plotPhotoCard(p)}
+    ${plotWeatherCard(p)}
+    ${plotWaterCard(p)}
+    <div class="section-title">กำไร/ขาดทุนของแปลงนี้</div>
+    <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none">
+      <div class="row row-between">
+        <div>
+          <div style="font-size:.75rem;opacity:.85">กำไรสุทธิ (รวมทุกรอบ)</div>
+          <div class="bold" style="font-size:1.5rem">${fmtMoney(fin.net)} บาท</div>
+          <div style="font-size:.7rem;opacity:.85">รายได้ ${fmtMoney(fin.revenue)} · ต้นทุน ${fmtMoney(fin.cost)}</div>
+          ${p.sizeRai > 0 ? `<div style="font-size:.7rem;opacity:.85;margin-top:4px">ต่อไร่: ต้นทุน <b>${fmtMoney(Math.round(fin.cost / p.sizeRai))}</b> · กำไรสุทธิ <b>${fmtMoney(Math.round(fin.net / p.sizeRai))}</b> บ./ไร่</div>` : ""}
+        </div>
+        <span class="kpi-icon" style="font-size:2rem">${ic(fin.net >= 0 ? "chart" : "alert")}</span>
+      </div>
+    </div>`;
+  const content = tab === "cycles" ? cyclesHtml : (tab === "tasks" ? tasksHtml : overviewHtml);
+  return `
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn btn-sm btn-ghost" onclick="App.goPlots()">← กลับไปแปลงทั้งหมด</button>
+    </div>
+    <div class="card">
+      <div class="plot-top">
+        <div class="plot-emoji">${cropEmoji(p.crop)}</div>
+        <div class="grow">
+          <div class="plot-name">${esc(p.name)} ${p.status === "active" ? `<span class="badge badge-green">Active</span>` : `<span class="badge badge-gray">ว่าง</span>`}</div>
+        </div>
+      </div>
+      <div class="meta-grid">
+        <div class="meta-box"><div class="lb">ขนาดพื้นที่</div><div class="vl">${fmtNum(p.sizeRai)} ไร่</div></div>
+        <div class="meta-box"><div class="lb">พิกัด GPS</div><div class="vl" style="font-size:.72rem"><a class="gps-link" href="${mapLink(p.lat, p.lng)}" target="_blank" rel="noopener">${ic("map")} ${p.lat}, ${p.lng}</a></div></div>
+        <div class="meta-box"><div class="lb">รอบที่กำลังปลูก</div><div class="vl" style="font-size:.78rem">${activeCycle ? esc(activeCycle.plant) : "—"}</div></div>
+        <div class="meta-box"><div class="lb">จำนวนรอบ</div><div class="vl">${cycles.length} รอบ</div></div>
+      </div>
+      <div class="actions-row">
+        <button class="btn btn-sm btn-outline" onclick="App.modalPlot('${p.id}')">${ic("pencil")} แก้ไขแปลง</button>
+        <button class="btn btn-sm btn-outline" onclick="App.modalShare('${p.id}')">${ic("user")} แชร์</button>
+        ${activeCycle ? "" : `<button class="btn btn-sm btn-primary" onclick="App.modalCycle('${p.id}')">${ic("leaf")} เริ่มปลูก</button>`}
+        <button class="btn btn-sm btn-primary" onclick="App.modalTask(todayISO(), { plotId: '${p.id}' })">${ic("plus")} เพิ่มกิจกรรม</button>
+      </div>
+    </div>
+    <div class="detail-tabs">
+      ${tabBtn("overview", "chart", "ภาพรวม", null)}
+      ${tabBtn("cycles", "leaf", "รอบปลูก", cycles.length)}
+      ${tabBtn("tasks", "calendar", "กิจกรรม", tasks.length)}
+    </div>
+    ${content}`;
 }
-App.openPlot = function (id) { route.view = "plotDetail"; route.plotId = id; plotTaskCycle = ""; render(); };
+App.openPlot = function (id) {
+  route.view = "plotDetail";
+  route.plotId = id;
+  plotTaskCycle = "";
+  plotDetailTab = "overview";
+  render();
+};
+App.plotDetailTab = function (tab) {
+  plotDetailTab = ["overview", "cycles", "tasks"].includes(tab) ? tab : "overview";
+  rerender();
+};
 App.plotTaskFilter = function (v) { plotTaskCycle = v; rerender(); };
 /* ผูกงานที่ยังไม่มีรอบเข้ากับรอบการปลูก (จากหน้าแปลง — งานที่ไม่มีรอบมี dropdown ให้เลือก) */
 App.assignTaskCycle = function (id, cycleId) {
@@ -1476,6 +1499,57 @@ function renderCycleDetail() {
     const color = (cat && cat.color) || "#64748b";
     return `<div class="cc-box"><div class="cc-label"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${color};flex-shrink:0"></i>${esc(cat ? cat.label : "อื่นๆ")}</div><div class="cc-val">${fmtMoney(costByCat[k])} บาท</div></div>`;
   }).join("");
+  const tab = ["overview", "calendar", "costs", "tasks"].includes(cycleDetailTab) ? cycleDetailTab : "overview";
+  const tabBtn = (key, icon, label, count) => `
+    <button class="detail-tab ${tab === key ? "active" : ""}" onclick="App.cycleDetailTab('${key}')">
+      ${ic(icon)} <span>${label}</span>${count != null ? `<b>${fmtNum(count)}</b>` : ""}
+    </button>`;
+  const overviewHtml = `
+    <div class="section-title">ภาพรวมรอบนี้</div>
+    <div class="card cycle-overview-card">
+      <div class="meta-grid">
+        <div class="meta-box"><div class="lb">แปลง</div><div class="vl" style="font-size:.78rem">${p ? esc(p.name) : "แปลงถูกลบ"}</div></div>
+        <div class="meta-box"><div class="lb">วันที่เริ่ม</div><div class="vl">${dateLabel(c.startDate)}</div></div>
+        <div class="meta-box"><div class="lb">จำนวนกิจกรรม</div><div class="vl">${fmtNum(allTasks.length)} รายการ</div></div>
+        <div class="meta-box"><div class="lb">ต้นทุนที่บันทึก</div><div class="vl">${fmtMoney(totalCost)} บาท</div></div>
+      </div>
+      <div class="hint" style="margin-top:10px">ใช้แท็บด้านบนเพื่อดูปฏิทิน ต้นทุน หรือรายการกิจกรรมของรอบนี้โดยไม่ต้องเลื่อนยาว</div>
+    </div>`;
+  const calendarHtml = `
+    <div class="section-title">ปฏิทินกิจกรรมของรอบนี้</div>
+    ${cycleCalCardHtml(c)}`;
+  const costsHtml = `
+    <div class="section-title">สรุปต้นทุนรายหมวด ${totalCost > 0 ? `<span class="muted" style="font-size:.75rem;font-weight:600">รวม ${fmtMoney(totalCost)} บาท</span>` : ""}</div>
+    <div class="card">
+      ${catRows ? `<div class="cc-grid">${catRows}</div>` : `<div class="muted" style="text-align:center;padding:8px">ยังไม่มีต้นทุนในรอบนี้</div>`}
+    </div>`;
+  const tasksHtml = `
+    <div class="section-title">งาน/กิจกรรมของรอบนี้ <span class="muted" style="font-size:.75rem;font-weight:600">${tasks.length === allTasks.length ? allTasks.length : "แสดง " + tasks.length + " จาก " + allTasks.length}</span></div>
+    ${allTasks.length === 0 ? `
+    <div class="card"><div class="muted" style="text-align:center;padding:8px">ยังไม่มีบันทึกงานในรอบนี้ — กด + เพิ่มกิจกรรม ได้เลย</div></div>` : `
+    <div class="card cycf-bar">
+      <select class="cycf" onchange="App.cycTaskFilter('sort', this.value)" title="เรียงลำดับ">
+        <option value="new" ${f.sort === "new" ? "selected" : ""}>ใหม่ → เก่า</option>
+        <option value="old" ${f.sort === "old" ? "selected" : ""}>เก่า → ใหม่</option>
+        <option value="cost" ${f.sort === "cost" ? "selected" : ""}>ต้นทุนสูง → ต่ำ</option>
+      </select>
+      <select class="cycf" onchange="App.cycTaskFilter('type', this.value)" title="กรองประเภท">
+        <option value="">ทุกประเภท</option>
+        ${[...new Set(allTasks.map(t => t.type))].map(tp => `<option value="${tp}" ${f.type === tp ? "selected" : ""}>${TYPE_LABELS[tp] || tp}</option>`).join("")}
+      </select>
+      <select class="cycf" onchange="App.cycTaskFilter('status', this.value)" title="กรองสถานะ">
+        <option value="" ${!f.status ? "selected" : ""}>ทุกสถานะ</option>
+        <option value="planned" ${f.status === "planned" ? "selected" : ""}>ยังไม่เสร็จ</option>
+        <option value="done" ${f.status === "done" ? "selected" : ""}>เสร็จแล้ว</option>
+      </select>
+      <label class="cycf-cost"><input type="checkbox" ${f.costOnly ? "checked" : ""} onchange="App.cycTaskFilter('costOnly', this.checked)"> มีค่าใช้จ่าย</label>
+      ${(f.sort !== "new" || f.type || f.status || f.costOnly) ? `<button class="btn btn-sm btn-ghost" onclick="App.cycTaskFilter('reset')" title="ล้างตัวกรอง">✕ ล้าง</button>` : ""}
+    </div>
+    <div class="card">
+      ${tasks.length === 0 ? `<div class="muted" style="text-align:center;padding:8px">ไม่มีงานตรงกับตัวกรอง — ลองล้างตัวกรอง</div>` : ""}
+      ${tasks.map(t => taskRowHtml(t, { showDate: true, showNote: true, showDelete: true })).join("")}
+    </div>`}`;
+  const content = tab === "calendar" ? calendarHtml : (tab === "costs" ? costsHtml : (tab === "tasks" ? tasksHtml : overviewHtml));
   return `
     <div class="row" style="margin-bottom:10px">
       <button class="btn btn-sm btn-ghost" onclick="App.openPlot('${c.plotId}')">← กลับไป ${p ? esc(p.name) : "แปลง"}</button>
@@ -1501,40 +1575,13 @@ function renderCycleDetail() {
         ${c.status === "active" ? `<button class="btn btn-sm btn-ghost" onclick="App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : `<button class="btn btn-sm btn-outline" onclick="App.reopenCycle('${c.id}')">${ic("refresh")} เปิดรอบการปลูกอีกครั้ง</button>`}
       </div>
     </div>
-
-    <div class="section-title">ปฏิทินกิจกรรมของรอบนี้</div>
-    ${cycleCalCardHtml(c)}
-
-    <div class="section-title">สรุปต้นทุนรายหมวด ${totalCost > 0 ? `<span class="muted" style="font-size:.75rem;font-weight:600">รวม ${fmtMoney(totalCost)} บาท</span>` : ""}</div>
-    <div class="card">
-      ${catRows ? `<div class="cc-grid">${catRows}</div>` : `<div class="muted" style="text-align:center;padding:8px">ยังไม่มีต้นทุนในรอบนี้</div>`}
+    <div class="detail-tabs detail-tabs-4">
+      ${tabBtn("overview", "chart", "ภาพรวม", null)}
+      ${tabBtn("calendar", "calendar", "ปฏิทิน", null)}
+      ${tabBtn("costs", "dollar", "ต้นทุน", Object.keys(costByCat).length)}
+      ${tabBtn("tasks", "check", "กิจกรรม", allTasks.length)}
     </div>
-
-    <div class="section-title">งาน/กิจกรรมของรอบนี้ <span class="muted" style="font-size:.75rem;font-weight:600">${tasks.length === allTasks.length ? allTasks.length : "แสดง " + tasks.length + " จาก " + allTasks.length}</span></div>
-    ${allTasks.length === 0 ? `
-    <div class="card"><div class="muted" style="text-align:center;padding:8px">ยังไม่มีบันทึกงานในรอบนี้ — กด + เพิ่มกิจกรรม ได้เลย</div></div>` : `
-    <div class="card cycf-bar">
-      <select class="cycf" onchange="App.cycTaskFilter('sort', this.value)" title="เรียงลำดับ">
-        <option value="new" ${f.sort === "new" ? "selected" : ""}>⏱ ใหม่ → เก่า</option>
-        <option value="old" ${f.sort === "old" ? "selected" : ""}>⏱ เก่า → ใหม่ (งานแรกของรอบ)</option>
-        <option value="cost" ${f.sort === "cost" ? "selected" : ""}>💰 ต้นทุนสูง → ต่ำ</option>
-      </select>
-      <select class="cycf" onchange="App.cycTaskFilter('type', this.value)" title="กรองประเภท">
-        <option value="">ทุกประเภท</option>
-        ${[...new Set(allTasks.map(t => t.type))].map(tp => `<option value="${tp}" ${f.type === tp ? "selected" : ""}>${TYPE_LABELS[tp] || tp}</option>`).join("")}
-      </select>
-      <select class="cycf" onchange="App.cycTaskFilter('status', this.value)" title="กรองสถานะ">
-        <option value="" ${!f.status ? "selected" : ""}>ทุกสถานะ</option>
-        <option value="planned" ${f.status === "planned" ? "selected" : ""}>ยังไม่เสร็จ</option>
-        <option value="done" ${f.status === "done" ? "selected" : ""}>เสร็จแล้ว</option>
-      </select>
-      <label class="cycf-cost"><input type="checkbox" ${f.costOnly ? "checked" : ""} onchange="App.cycTaskFilter('costOnly', this.checked)"> มีค่าใช้จ่าย</label>
-      ${(f.sort !== "new" || f.type || f.status || f.costOnly) ? `<button class="btn btn-sm btn-ghost" onclick="App.cycTaskFilter('reset')" title="ล้างตัวกรอง">✕ ล้าง</button>` : ""}
-    </div>
-    <div class="card">
-      ${tasks.length === 0 ? `<div class="muted" style="text-align:center;padding:8px">ไม่มีงานตรงกับตัวกรอง — ลองล้างตัวกรอง</div>` : ""}
-      ${tasks.map(t => taskRowHtml(t, { showDate: true, showNote: true, showDelete: true })).join("")}
-    </div>`}`;
+    ${content}`;
 }
 /* ตั้งค่าตัวกรอง/เรียง "งาน/กิจกรรมของรอบนี้" — re-render หน้าเดิม (ไม่เลื่อนขึ้นหัว) */
 App.cycTaskFilter = function (key, val) {
@@ -1544,6 +1591,7 @@ App.cycTaskFilter = function (key, val) {
 };
 App.openCycle = function (id) {
   route.view = "cycleDetail"; route.cycleId = id;
+  cycleDetailTab = "overview";
   /* ปฏิทินรายรอบเริ่มที่เดือนเริ่มปลูกรอบนี้ */
   const c = cycleById(S, id);
   if (c && c.startDate) {
@@ -1551,6 +1599,10 @@ App.openCycle = function (id) {
     cycleCal = { y: d.getFullYear(), m: d.getMonth(), sel: null };
   }
   render();
+};
+App.cycleDetailTab = function (tab) {
+  cycleDetailTab = ["overview", "calendar", "costs", "tasks"].includes(tab) ? tab : "overview";
+  rerender();
 };
 App.completeCycle = function (id) {
   App.confirm("ปิดรอบการปลูก?", "รอบนี้จะถูกปิดและไม่สามารถเพิ่มกิจกรรมได้ — ถ้าปิดผิดสามารถกดเปิดรอบอีกครั้งได้ภายหลัง", () => {

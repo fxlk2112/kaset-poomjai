@@ -193,6 +193,56 @@ function emptyRowsHtml(n) {
   for (let i = n; i < 8; i++) h += `<tr class="receipt-empty-row"><td colspan="7"></td></tr>`;
   return h;
 }
+function saleShareText(sale) {
+  const total = saleTotal(sale);
+  const disc = Number(sale.discount) || 0;
+  const grand = saleGrandTotal(sale);
+  const payTxt = sale.payMethod === "transfer" ? `โอนเงิน${sale.account ? ` (${sale.account})` : ""}` : "เงินสด";
+  const lines = [
+    `${T("brandName")} - ใบส่งสินค้า #${sale.no}`,
+    `วันที่ ${dateLabel(sale.date)}${sale.customer ? ` | ลูกค้า ${sale.customer}` : ""}`,
+    "",
+    ...(sale.items || []).map((it, i) => `${i + 1}. ${it.name}${it.code ? ` (${it.code})` : ""} ${fmtNum(it.qty)} ${it.unit || ""} x ${fmtMoney(it.price)} = ${fmtMoney(it.total)} บาท`),
+    "",
+    `รวม ${fmtMoney(total)} บาท`,
+    disc > 0 ? `ส่วนลด ${fmtMoney(disc)} บาท` : "",
+    `ยอดสุทธิ ${fmtMoney(grand)} บาท`,
+    `ชำระโดย ${payTxt}`,
+    sale.note ? `หมายเหตุ: ${sale.note}` : ""
+  ];
+  return lines.filter((line, idx, arr) => line || (arr[idx - 1] && arr[idx + 1])).join("\n");
+}
+App.copySaleSummary = async function (id) {
+  const sale = (S.sales || []).find(x => x.id === id);
+  if (!sale) return;
+  const text = saleShareText(sale);
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      toast("คัดลอกสรุปใบส่งสินค้าแล้ว");
+      return;
+    }
+  } catch (e) {}
+  window.prompt("คัดลอกข้อความนี้ส่งลูกค้า", text);
+};
+App.shareSaleSummary = async function (id) {
+  const sale = (S.sales || []).find(x => x.id === id);
+  if (!sale) return;
+  const text = saleShareText(sale);
+  const title = `ใบส่งสินค้า #${sale.no}`;
+  try {
+    if (navigator.share) {
+      await navigator.share({ title, text });
+      toast("เปิดหน้าต่างแชร์แล้ว");
+      return;
+    }
+  } catch (e) {
+    if (e && e.name === "AbortError") return;
+  }
+  const url = "https://line.me/R/msg/text/?" + encodeURIComponent(text);
+  window.open(url, "_blank", "noopener");
+  toast("เปิด LINE สำหรับส่งใบสินค้าแล้ว");
+};
 /* ใบส่งสินค้า (A4) — รูปแบบตามไฟล์ตัวอย่าง */
 App.viewSale = function (id) {
   const sale = (S.sales || []).find(x => x.id === id);
@@ -247,9 +297,11 @@ App.viewSale = function (id) {
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
+      <button class="btn btn-primary" onclick="App.shareSaleSummary('${sale.id}')">${ic("share")} แชร์</button>
+      <button class="btn btn-outline" onclick="App.copySaleSummary('${sale.id}')">${ic("copy")} คัดลอกส่งลูกค้า</button>
       <button class="btn btn-outline" onclick="App.modalSale('${sale.id}')">${ic("pencil")} แก้ไข</button>
       <button class="btn btn-danger-soft" onclick="App.voidSale('${sale.id}')">${ic("trash")} ยกเลิกใบ</button>
-      <button class="btn btn-primary" onclick="App.printSale()">${ic("save")} พิมพ์ A4</button>
+      <button class="btn btn-outline" onclick="App.printSale()">${ic("save")} พิมพ์ A4</button>
     </div>`);
 };
 /* พิมพ์ใบเสร็จ — พิมพ์เฉพาะส่วน .receipt */

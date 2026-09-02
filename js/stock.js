@@ -421,7 +421,7 @@ App.stockDetail = function (id) {
   const photos = stockPhotos(x);
   const row = (k, v) => v ? `<div class="sd-row"><span class="k">${k}</span><span class="bold">${v}</span></div>` : "";
   const stripHtml = photos.length
-    ? `<div class="sd-strip">${photos.map((p, i) => `<div class="sd-strip-item"><img src="${esc(stockPhotoSrc({ photo: p }))}" alt="" loading="lazy" onclick="App.viewPhoto('${x.id}', ${i})" onerror="this.remove()">${readonly ? "" : `<button class="sd-strip-x" onclick="event.stopPropagation();App.stockPhotoRemoveOne('${x.id}', ${i})" title="ลบรูปนี้">✕</button>`}</div>`).join("")}</div>`
+    ? `<div class="sd-strip">${photos.map((p, i) => `<div class="sd-strip-item ${i === 0 ? "is-main" : ""}"><img src="${esc(stockPhotoSrc({ photo: p }))}" alt="" loading="lazy" onclick="App.viewPhoto('${x.id}', ${i})" onerror="this.remove()">${i === 0 ? `<span class="sd-main-badge">รูปหลัก</span>` : ""}${readonly ? "" : `<button class="sd-strip-x" onclick="event.stopPropagation();App.stockPhotoRemoveOne('${x.id}', ${i})" title="ลบรูปนี้">✕</button>${i > 0 ? `<button class="sd-main-btn" onclick="event.stopPropagation();App.stockPhotoSetMain('${x.id}', ${i})" title="ตั้งเป็นรูปหลัก">${ic("check")}</button>` : ""}`}</div>`).join("")}</div>`
     : `<div class="sd-no-photo">${ic("image")} ${readonly ? "ยังไม่มีรูปในสต็อกที่แชร์มา" : "ยังไม่มีรูป — กดเพิ่มรูปด้านล่าง"}</div>`;
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
@@ -510,6 +510,18 @@ App.stockPhoto = function (id) {
     } catch (e) { toast("อ่านรูปไม่สำเร็จ — ลองไฟล์ JPG/PNG"); console.error(e); }
   };
   input.click();
+};
+App.stockPhotoSetMain = function (id, idx) {
+  if (stockIsSharedView()) { toast("สต็อกที่แชร์มาเป็นโหมดอ่านอย่างเดียว"); return; }
+  const x = stockById(S, id);
+  if (!x || !Array.isArray(x.photos) || !x.photos[idx]) return;
+  const chosen = x.photos.splice(idx, 1)[0];
+  x.photos.unshift(chosen);
+  x.photo = chosen;
+  saveState(S);
+  render();
+  App.stockDetail(id);
+  toast("ตั้งเป็นรูปหลักแล้ว");
 };
 App.stockPhotoRemoveOne = function (id, idx) {
   if (stockIsSharedView()) { toast("สต็อกที่แชร์มาเป็นโหมดอ่านอย่างเดียว"); return; }

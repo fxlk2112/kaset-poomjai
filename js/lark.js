@@ -3,6 +3,7 @@
    ใช้ในหน้าตั้งค่า: ทดสอบการเชื่อมต่อ / อัปโหลด (push) / ดาวน์โหลด (pull) */
 const LARK_FN = "https://farmbackup.carfork123.workers.dev";
 const LARK_STOCK_SOURCE_KEY = "farmult-lark-stock-source-v1";
+const LARK_PHOTO_POLICY_KEY = "farmult-lark-photo-policy-v1";
 let larkStockSyncTimer = null;
 
 /* เรียก Cloudflare Worker — คืน data หรือ throw พร้อมข้อความ */
@@ -32,6 +33,17 @@ async function larkCall(action, body, opts) {
 function larkStockSource() {
   try { return JSON.parse(localStorage.getItem(LARK_STOCK_SOURCE_KEY) || "null") || {}; }
   catch (e) { return {}; }
+}
+
+function larkStockPhotoPolicy() {
+  const v = localStorage.getItem(LARK_PHOTO_POLICY_KEY) || "ask";
+  return ["ask", "web", "lark"].includes(v) ? v : "ask";
+}
+
+function larkStockPhotoPolicyLabel(v) {
+  if (v === "web") return "ใช้รูปเว็บเสมอ";
+  if (v === "lark") return "ใช้รูป Lark เสมอ";
+  return "ถามก่อนทับรูป";
 }
 
 function larkStockParseSource(raw) {
@@ -228,6 +240,9 @@ function larkStockSummaryCardsHtml(summary) {
       <span>${esc(label)}</span>
       ${sub ? `<small>${esc(sub)}</small>` : ""}
     </div>`;
+  const conflictSub = s.conflicts
+    ? (s.photoPolicy && s.photoPolicy !== "ถามก่อนทับรูป" ? "จัดการตามกติกาแล้ว" : "ต้องเลือกรูปก่อนจบ")
+    : "ไม่มีรายการต้องเลือก";
   return `
     <div class="lark-sync-results">
       ${card("รายการทั้งหมด", fmtNum(s.total || 0), "อ่านจาก Lark", "green")}
@@ -235,7 +250,8 @@ function larkStockSummaryCardsHtml(summary) {
       ${card("อัปเดต", fmtNum(s.updated || 0), "ข้อมูลเดิมที่เปลี่ยน", "blue")}
       ${card("ไม่เปลี่ยน", fmtNum(s.skipped || 0), "ข้อมูลตรงกันอยู่แล้ว", "")}
       ${card("รูปที่ดึงได้", `${fmtNum(s.photosDone || 0)}/${fmtNum(s.photosTotal || 0)}`, s.photoDeferred ? `ยังเหลือ ${fmtNum(s.photoDeferred)} รูป` : "ครบตามรอบนี้", "amber")}
-      ${card("รูปไม่ตรง", fmtNum(s.conflicts || 0), s.conflicts ? "ต้องเลือกรูปก่อนจบ" : "ไม่มีรายการต้องเลือก", s.conflicts ? "red" : "")}
+      ${card("รูปไม่ตรง", fmtNum(s.conflicts || 0), conflictSub, s.conflicts ? "red" : "")}
+      ${s.photoPolicy ? card("กติกาทับรูป", s.photoPolicy, "ตั้งจากหน้าซิงก์ Lark", "blue") : ""}
     </div>`;
 }
 
@@ -409,6 +425,7 @@ App.larkStockSync = function () {
     return;
   }
   const cfg = larkStockSource();
+  const photoPolicy = larkStockPhotoPolicy();
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${ic("refresh")} ซิงก์สต็อกจาก Lark</h3>
@@ -418,6 +435,15 @@ App.larkStockSync = function () {
       <label>Lark Base URL</label>
       <input id="lark_stock_url" value="${esc(cfg.raw || "")}" placeholder="https://...larksuite.com/base/...?...table=...">
       <div class="hint">ต้องแชร์ Base นี้ให้ Lark App/Bot ของระบบอ่านได้ก่อน ถ้าแอดมินผูกแหล่งของบัญชีนี้ไว้แล้วสามารถเว้นว่างและกดซิงก์ได้</div>
+    </div>
+    <div class="field">
+      <label>ถ้ารูปจาก Lark ไม่ตรงกับรูปในเว็บ</label>
+      <select id="lark_photo_policy">
+        <option value="ask" ${photoPolicy === "ask" ? "selected" : ""}>ถามก่อนทับรูป</option>
+        <option value="web" ${photoPolicy === "web" ? "selected" : ""}>ใช้รูปเว็บเสมอ</option>
+        <option value="lark" ${photoPolicy === "lark" ? "selected" : ""}>ใช้รูป Lark เสมอ</option>
+      </select>
+      <div class="hint">แนะนำให้ใช้ “ถามก่อนทับรูป” ถ้ามีคนแก้รูปสินค้าในเว็บบ่อย</div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
@@ -454,12 +480,15 @@ App.larkStockRun = async function () {
   }
   const input = document.getElementById("lark_stock_url");
   const cfg = larkStockParseSource(input ? input.value : "");
+  const policyEl = document.getElementById("lark_photo_policy");
+  const photoPolicy = ["ask", "web", "lark"].includes(policyEl && policyEl.value) ? policyEl.value : larkStockPhotoPolicy();
   if (cfg.raw && !cfg.app_token) {
     toast("อ่านลิงก์ Base ไม่ได้ — ลองคัดลอก URL จากหน้า Lark Base อีกครั้ง");
     return;
   }
   if (cfg.raw) localStorage.setItem(LARK_STOCK_SOURCE_KEY, JSON.stringify(cfg));
   else localStorage.removeItem(LARK_STOCK_SOURCE_KEY);
+  localStorage.setItem(LARK_PHOTO_POLICY_KEY, photoPolicy);
   larkStockLoading(cfg.raw ? "Base ที่เลือกจาก URL" : "แหล่งที่ผูกกับบัญชีนี้");
   larkStockSetProgress(5, 100, "กำลังเชื่อมต่อ");
   toast("กำลังซิงก์สต็อกจาก Lark...");
@@ -489,7 +518,8 @@ App.larkStockRun = async function () {
     larkStockSetProgress(100, 100, "บันทึกข้อมูลเสร็จแล้ว");
     const syncedProducts = [...synced.values()];
     const split = larkStockSplitPhotoConflicts(syncedProducts);
-    const totalResult = mergeStockProducts(S, split.clean);
+    const mergeProducts = photoPolicy === "lark" ? syncedProducts : split.clean;
+    const totalResult = mergeStockProducts(S, mergeProducts);
     saveState(S);
     if (typeof Auth !== "undefined" && Auth.session) Auth.saveNow();
     larkStockStopLoading();
@@ -504,10 +534,11 @@ App.larkStockRun = async function () {
       photosDone: donePhotos,
       photosTotal: Number(last && last.photo_refs) || 0,
       photoDeferred: Number(last && last.photo_deferred) || 0,
-      conflicts: split.conflicts.length
+      conflicts: split.conflicts.length,
+      photoPolicy: larkStockPhotoPolicyLabel(photoPolicy)
     };
     const baseToast = `ซิงก์ Lark สำเร็จ: ${syncedProducts.length} รายการ · รูป ${fmtNum(donePhotos)}/${fmtNum(last.photo_refs)} · เพิ่ม ${totalResult.added} · อัปเดต ${totalResult.updated}${totalResult.skipped ? ` · ไม่เปลี่ยน ${totalResult.skipped}` : ""}${more}`;
-    if (split.conflicts.length) {
+    if (photoPolicy === "ask" && split.conflicts.length) {
       App._larkStockPhotoPending = {
         conflicts: split.conflicts,
         decisions: Object.fromEntries(split.conflicts.map(c => [c.key, "web"])),
