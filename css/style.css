@@ -863,6 +863,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   max-height: 45px;
   padding: 11px 12px;
   line-height: 1.2;
+  text-align: center;
   overflow: hidden;
 }
 .field input[type="date"]::-webkit-datetime-edit,
@@ -877,7 +878,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .field input[type="date"]::-webkit-date-and-time-value {
   min-width: 0;
   margin: 0;
-  text-align: left;
+  text-align: center;
 }
 .field input[type="date"]::-webkit-calendar-picker-indicator {
   flex: 0 0 auto;
@@ -2118,17 +2119,24 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
     white-space: normal;
   }
   .modal { max-height: 92dvh; padding: 18px 14px calc(14px + env(safe-area-inset-bottom)); }
+  .modal.modal-has-actions,
+  .modal:has(.modal-actions) {
+    padding-bottom: calc(150px + env(safe-area-inset-bottom));
+  }
   .modal-actions {
-    position: sticky;
-    bottom: calc(-14px - env(safe-area-inset-bottom));
-    z-index: 3;
-    margin-left: -14px;
-    margin-right: -14px;
-    margin-bottom: calc(-14px - env(safe-area-inset-bottom));
+    position: fixed;
+    left: max(0px, calc((100vw - var(--maxw)) / 2));
+    right: max(0px, calc((100vw - var(--maxw)) / 2));
+    bottom: 0;
+    z-index: 90;
+    margin: 0;
     padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
     background: linear-gradient(180deg, rgba(255,255,255,.72), var(--card) 28%);
     border-top: 1px solid var(--line);
+    box-shadow: 0 -10px 26px rgba(16, 60, 32, .12);
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 38dvh;
+    overflow-y: auto;
   }
   .modal-actions .btn { min-height: 42px; padding: 10px 8px; font-size: .84rem; border-radius: 12px; }
   .modal-actions .btn:only-child { grid-column: 1 / -1; }
@@ -2142,7 +2150,7 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .stock-actions .btn-danger-soft { grid-column: span 2; }
 }
 @media (max-width: 360px) {
-  .stock-toolbar, .stock-actions, .modal-actions, .lpc-choices { grid-template-columns: 1fr; }
+  .stock-toolbar, .stock-actions, .lpc-choices { grid-template-columns: 1fr; }
   .stock-actions .btn-danger-soft { grid-column: auto; }
   .brand-name { font-size: .95rem; }
   .btn-tour { max-width: 84px; overflow: hidden; text-overflow: ellipsis; }

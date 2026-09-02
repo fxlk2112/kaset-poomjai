@@ -3695,6 +3695,8 @@ function openModal(html) {
   if (np) np.hidden = true;
   const root = document.getElementById("modalRoot");
   root.innerHTML = `<div class="modal-backdrop"><div class="modal">${html}</div></div>`;
+  const modalEl = root.querySelector(".modal");
+  if (modalEl && modalEl.querySelector(".modal-actions")) modalEl.classList.add("modal-has-actions");
   const bd = root.querySelector(".modal-backdrop");
   bd.addEventListener("click", e => {
     if (e.target !== bd) return;
