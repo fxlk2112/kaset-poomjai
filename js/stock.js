@@ -144,14 +144,13 @@ function renderStock() {
     <div class="row row-between section-title stock-title-row" data-tkey="stockTitle">
       <span>${readonly ? "สต็อกที่แชร์มา" : T("stockTitle")} (${data.length})</span>
       <div class="row stock-toolbar" style="gap:6px;flex-wrap:wrap">
-        <button class="btn btn-sm btn-primary" onclick="App.stockShareOpen()">${ic("user")} แชร์สต็อก</button>
-        ${readonly ? `<button class="btn btn-sm btn-ghost" onclick="App.stockViewSet('own')">${ic("box")} กลับสต็อกของฉัน</button>` : `
-          <button class="btn btn-sm btn-outline" onclick="App.larkStockSync()">${ic("refresh")} ซิงก์ Lark</button>
-          <button class="btn btn-sm btn-ghost" onclick="App.importProducts()">${ic("upload")} นำเข้า</button>
-          <button class="btn btn-sm btn-outline" onclick="App.saleHistory()" title="ประวัติการขาย">${ic("box")} ประวัติขาย</button>
-          <button class="btn btn-sm btn-outline" onclick="App.customerHistory()" title="ประวัติลูกค้า">${ic("user")} ลูกค้า</button>
-          <button class="btn btn-sm btn-primary" onclick="App.modalSale()">${ic("dollar")} ขายสินค้า</button>
-          <button class="btn btn-sm btn-ghost" onclick="App.modalStock()">${ic("plus")} เพิ่มสินค้า</button>
+        ${readonly ? `
+          <button class="btn btn-sm btn-primary" onclick="App.stockViewSet('own')">${ic("box")} สต็อกของฉัน</button>
+          <button class="btn btn-sm btn-ghost" onclick="App.stockShareOpen()">${ic("user")} แชร์สต็อก</button>
+        ` : `
+          <button class="btn btn-sm btn-primary" onclick="App.modalStock()">${ic("plus")} เพิ่มสินค้า</button>
+          <button class="btn btn-sm btn-outline" onclick="App.modalSale()">${ic("dollar")} ขายสินค้า</button>
+          <button class="btn btn-sm btn-ghost" onclick="App.stockToolsOpen()">${ic("menu")} จัดการสต็อก</button>
         `}
       </div>
     </div>
@@ -183,6 +182,37 @@ App.stockFilter = function (key) {
 App.stockCatFilter = function (v) {
   stockCat = v;
   rerender();
+};
+App.stockToolsOpen = function () {
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("box")} จัดการสต็อก</h3>
+    <div class="modal-sub">คำสั่งเสริมสำหรับนำเข้า ซิงก์ แชร์ และดูประวัติ แยกไว้ตรงนี้เพื่อให้หน้าสต็อกหลักอ่านง่ายขึ้น</div>
+    <div class="action-list">
+      <button class="action-item" onclick="App.closeModal();App.stockShareOpen()">
+        <span class="action-ico">${ic("user")}</span>
+        <span><b>แชร์สต็อก</b><small>ให้บัญชีอื่นดูสต็อกของคุณ</small></span>
+      </button>
+      <button class="action-item" onclick="App.closeModal();App.larkStockSync()">
+        <span class="action-ico">${ic("refresh")}</span>
+        <span><b>ซิงก์ Lark</b><small>ดึงจำนวนและรูปจาก Lark Base</small></span>
+      </button>
+      <button class="action-item" onclick="App.closeModal();App.importProducts()">
+        <span class="action-ico">${ic("upload")}</span>
+        <span><b>นำเข้า Excel</b><small>เพิ่มรายการจากไฟล์สินค้า/สต็อก</small></span>
+      </button>
+      <button class="action-item" onclick="App.closeModal();App.saleHistory()">
+        <span class="action-ico">${ic("box")}</span>
+        <span><b>ประวัติขาย</b><small>ดูใบส่งสินค้าและยอดขายย้อนหลัง</small></span>
+      </button>
+      <button class="action-item" onclick="App.closeModal();App.customerHistory()">
+        <span class="action-ico">${ic("user")}</span>
+        <span><b>ลูกค้า</b><small>ดูประวัติลูกค้าและรายการที่เคยซื้อ</small></span>
+      </button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
+    </div>`);
 };
 /* พิมพ์ค้นหา -> อัปเดตเฉพาะรายการ (ไม่ rebuild ทั้งหน้า = focus ไม่หลุด พิมพ์ต่อเนื่องได้) */
 App.stockSearch = function (v) {

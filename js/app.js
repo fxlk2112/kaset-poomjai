@@ -515,10 +515,8 @@ function renderHome() {
   /* ปุ่มลัดงานหลักบนหน้าแรก */
   const quickActs = [
     { action: "task", ico: "plus", label: "เพิ่มกิจกรรม" },
-    { action: "lark", ico: "refresh", label: "ซิงก์ Lark" },
     { action: "stock", ico: "box", label: "เพิ่มสินค้า" },
     { action: "sale", ico: "dollar", label: "ขายสินค้า" },
-    { action: "plot", ico: "map", label: "เพิ่มแปลง" },
   ].map(a => `<button class="chip quick-chip" onclick="App.quickAction('${a.action}')">${ic(a.ico)} ${a.label}</button>`).join("");
 
   let extra = "";
@@ -616,9 +614,9 @@ function renderHome() {
         </div>
         ${calCardHtml(true)}
         <div class="card">
-          <div class="row row-between" style="margin-bottom:4px">
-            <div class="bold" style="font-size:.9rem">${ic("calendar")} งานวันที่ ${selDate}</div>
-            <button class="btn btn-sm btn-ghost" onclick="App.modalTask('${selDate}')">${ic("plus")} เพิ่มกิจกรรม</button>
+        <div class="row row-between" style="margin-bottom:4px">
+          <div class="bold" style="font-size:.9rem">${ic("calendar")} งานวันที่ ${selDate}</div>
+            <button class="btn btn-sm btn-ghost" onclick="App.nav('planner')">${ic("calendar")} เปิดเต็ม</button>
           </div>
           ${selTasks.length === 0 ? `<div class="muted" style="text-align:center;padding:10px">ไม่มีงานในวันนี้</div>` : ""}
           ${selTasks.map(t => taskRowHtml(t, { showPlot: true })).join("")}
@@ -628,7 +626,7 @@ function renderHome() {
       <section class="sec-tasks">
         <div class="row row-between section-title" data-tkey="titleTasks">
           <span>${T("titleTasks")} ${todays.length ? `<span class="badge badge-amber">${todays.length} รายการ</span>` : ""}</span>
-          <button class="btn btn-primary btn-sm" onclick="App.modalTask('${today}')">${ic("plus")} เพิ่มกิจกรรม</button>
+          <button class="btn btn-primary btn-sm" onclick="App.modalTask('${today}')">${ic("plus")} เพิ่ม</button>
         </div>
         <div class="card">
           ${todays.length === 0 ? `
@@ -3654,12 +3652,12 @@ function renderMore() {
   return `
     <div class="section-title" data-tkey="moreTitle">${T("moreTitle")}</div>
     <div class="more-grid">
-      <button class="more-card" onclick="App.nav('equipment')"><span class="mc-ico">${ic("truck")}</span><span class="mc-name">จัดการอุปกรณ์</span><span class="mc-desc">เครื่องจักร ค่าเสื่อมราคา ซ่อมบำรุง</span></button>
-      <button class="more-card" onclick="App.nav('prices')"><span class="mc-ico">${ic("dollar")}</span><span class="mc-name">ราคาตลาดวันนี้</span><span class="mc-desc">ราคาจริงจาก สศก. + ตลาดไท</span></button>
-      <button class="more-card" onclick="App.openWeather('')"><span class="mc-ico">${ic("droplet")}</span><span class="mc-name">สภาพอากาศ 5 สถานี</span><span class="mc-desc">เทียบพยากรณ์ Open-Meteo · ECMWF · GFS · ICON · MET Norway</span></button>
-      <button class="more-card" onclick="App.nav('iot')"><span class="mc-ico">${ic("droplet")}</span><span class="mc-name">ระบบน้ำอัตโนมัติ</span><span class="mc-desc">แยกตามแปลง · ตารางให้น้ำ · บันทึกการให้น้ำ</span></button>
-      <button class="more-card" onclick="App.nav('settings')"><span class="mc-ico">${ic("gear")}</span><span class="mc-name">ตั้งค่า</span><span class="mc-desc">ข้อมูลระบบ รีเซ็ต ทัวร์</span></button>
-      <button class="more-card" onclick="App.startTour()"><span class="mc-ico">${ic("compass")}</span><span class="mc-name">แนะนำระบบ</span><span class="mc-desc">ทัวร์หน้าจอทีละขั้นตอน</span></button>
+      <button class="more-card" onclick="App.nav('equipment')"><span class="mc-ico">${ic("truck")}</span><span class="mc-name">อุปกรณ์</span><span class="mc-desc">ค่าเสื่อม · ซ่อมบำรุง</span></button>
+      <button class="more-card" onclick="App.nav('prices')"><span class="mc-ico">${ic("dollar")}</span><span class="mc-name">ราคาตลาด</span><span class="mc-desc">ราคาผักผลไม้รายวัน</span></button>
+      <button class="more-card" onclick="App.openWeather('')"><span class="mc-ico">${ic("droplet")}</span><span class="mc-name">สภาพอากาศ</span><span class="mc-desc">เทียบพยากรณ์ 5 แหล่ง</span></button>
+      <button class="more-card" onclick="App.nav('iot')"><span class="mc-ico">${ic("droplet")}</span><span class="mc-name">ระบบน้ำ</span><span class="mc-desc">วาล์ว · ตารางให้น้ำ</span></button>
+      <button class="more-card" onclick="App.nav('settings')"><span class="mc-ico">${ic("gear")}</span><span class="mc-name">ตั้งค่า</span><span class="mc-desc">ข้อมูล · รีเซ็ต · สำรอง</span></button>
+      <button class="more-card" onclick="App.startTour()"><span class="mc-ico">${ic("compass")}</span><span class="mc-name">แนะนำระบบ</span><span class="mc-desc">ทัวร์ใช้งานเร็ว</span></button>
       ${(S.customMenus || []).map(m => `
       <button class="more-card" onclick="App.goTarget('${esc(m.target || "")}')"><span class="mc-ico">${m.ico && ICONS[m.ico] ? ic(m.ico) : esc(m.ico || "")}</span><span class="mc-name">${esc(m.name)}</span><span class="mc-desc">${esc(m.desc || "")}</span></button>`).join("")}
     </div>
@@ -5030,7 +5028,7 @@ fabDock.querySelectorAll(".fab-item").forEach(btn => {
 const TOUR_STEPS = [
   { sel: ".role-switch", title: "1 · สลับโหมดการใช้งาน", text: "กดที่แถบด้านบนเพื่อเปลี่ยนมุมมองแดชบอร์ด — เกษตรกร ฟาร์มใหญ่ หรือ ธุรกิจ เมนูจะปรับตามโหมดอัตโนมัติ", pos: "below" },
   { sel: "#kpiRow", title: "2 · ตัวเลขสำคัญ (KPI)", text: "กำไรสุทธิ พื้นที่ และรอบปลูก จัดเรียงแนวนอนเสมอ อ่านง่ายทั้งบนคอมและมือถือ เขียว = กำไร แดง = ขาดทุน", pos: "below" },
-  { sel: "#fabBtn", title: "3 · ปุ่มลัด", text: "ปุ่มกลมมุมขวาล่างสำหรับงานที่ใช้บ่อย: เพิ่มกิจกรรม ซิงก์ Lark เพิ่มสินค้า ขายสินค้า และเพิ่มแปลง", pos: "left" },
+  { sel: "#fabBtn", title: "3 · ปุ่มลัด", text: "ปุ่มกลมมุมขวาล่างสำหรับสร้างข้อมูลเร็ว เช่น เพิ่มกิจกรรม เพิ่มสินค้า ขายสินค้า และเพิ่มแปลง", pos: "left" },
   { sel: "#bottomNav", title: "4 · เมนูหลัก", text: "หน้าแรก แปลง สต็อก กิจกรรม และวิเคราะห์ — บนคอมอยู่เมนูซ้าย บนมือถืออยู่แถบล่าง กดเพื่อสลับหน้าได้ทันที", pos: "below" },
   { sel: "#tourBtn", title: "5 · จบการแนะนำ", text: "พร้อมแล้ว! กดปุ่มแนะนำระบบได้ทุกเมื่อเพื่อดูทัวร์อีกครั้ง ขอให้เพาะปลูกสำเร็จ", pos: "below" },
 ];
