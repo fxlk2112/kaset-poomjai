@@ -172,3 +172,20 @@ These files remain local and must not be staged into the collaboration baseline:
 - Browser console warnings/errors: `0`
 - Feature-branch push and remote hash readback: `PASS`
 - Deploy: `NO`
+
+## Post-push remote branch audit
+
+- The authorized push refspec named only
+  `pick/collab-baseline-prep-20260902`
+- A separate legacy remote branch, `origin/sucha/sensor-phase1-local`, was found
+  at `9674741`; its remote-tracking reflog records an update by push on
+  `2026-08-27 10:59:35 +0700`
+- The legacy remote hash differs from the newer local raw branch and was not
+  modified by this feature-branch publication
+- A masked targeted scan found hard-coded cloud staging host literals in three
+  files on that legacy branch; it found no credential, token, or private-key
+  pattern
+- The legacy branch is quarantined in documentation only. No deletion or force
+  update is authorized; removal requires `APPROVE_RAW_REMOTE_REMOVAL`
+- `develop`, `master`, the production deploy workflow, and deployment remain
+  untouched

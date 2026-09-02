@@ -1,7 +1,7 @@
 # FARMULTIMATE Collaboration Status
 
 - Updated: `2026-09-03 Asia/Bangkok`
-- State: `FEATURE_BRANCH_PUBLISHED_AWAITING_DEVELOP_APPROVAL`
+- State: `FEATURE_BRANCH_PUBLISHED_RAW_REMOTE_CLEANUP_REQUIRED`
 - Production branch: `master`
 - Integration branch: `develop` — `NOT_PUBLISHED`
 - Local baseline branch: `pick/collab-baseline-prep-20260902`
@@ -9,6 +9,8 @@
 - Baseline parent: current `origin/master` at `33ce343`
 - Functional baseline commit: `c7b92e3`
 - Raw source branch: `sucha/sensor-phase1-local` — `LOCAL_ONLY_DO_NOT_PUSH`
+- Legacy remote raw branch: `origin/sucha/sensor-phase1-local` at `9674741` —
+  `QUARANTINE_NEEDS_EXPLICIT_REMOVAL_APPROVAL`
 - Production deploy trigger: push to `master`
 - Working tree after baseline commit: expected `CLEAN`
 - Feature-branch push and remote hash readback: `PASS`
@@ -33,7 +35,8 @@
 |---|---|---|---|---|
 | Sanitized shared baseline | Pick + SUCHA | `pick/collab-baseline-prep-20260902` | `REMOTE_PUBLISHED` | Functional baseline `c7b92e3`; no raw private lineage |
 | Raw dashboard source | Pick + SUCHA | `sucha/sensor-phase1-local` | `LOCAL_ONLY_DO_NOT_PUSH` | Preserved as evidence and recovery source |
-| Folk workstation onboarding | Folk | none | `BLOCKED_WAITING_FOR_DEVELOP` | Feature branch is available; wait for approved `develop` publication before starting shared work |
+| Legacy raw remote | Pick approval required | `origin/sucha/sensor-phase1-local` | `QUARANTINED_NEEDS_REMOVAL_APPROVAL` | Older remote copy contains hard-coded cloud staging host literals; no credential match found by the targeted scan |
+| Folk workstation onboarding | Folk | none | `BLOCKED_WAITING_FOR_REMOTE_CLEANUP_AND_DEVELOP` | Feature branch is available; do not start shared work until the legacy raw remote is resolved and approved `develop` is published |
 
 ## Hotspot Locks
 
@@ -59,11 +62,13 @@
 - [x] Rebase onto the latest `origin/master` and rerun safety validation.
 - [x] Push the sanitized feature branch without touching `master`.
 - [x] Independently read back the remote feature hash.
+- [ ] Remove the legacy remote raw branch after explicit destructive-action approval.
 - [ ] Review the remote branch and create approved `develop`.
 - [ ] Change state to `BASELINE_READY` after approved `develop` publication and readback.
 
 ## Next Action
 
-Owner reviews the published feature branch and, if accepted as the shared
-integration baseline, grants `APPROVE_DEVELOP_PUBLISH`. No pull request,
-`master` push, or deployment is authorized by the completed feature push.
+Owner first grants `APPROVE_RAW_REMOTE_REMOVAL` if the legacy remote raw branch
+may be deleted. After verified cleanup, review the published sanitized feature
+branch before authorizing `develop`. No pull request, `master` push, or
+deployment is authorized by the completed feature push.
