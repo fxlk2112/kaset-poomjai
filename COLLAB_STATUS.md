@@ -8,6 +8,8 @@
 - Remote feature branch: `origin/pick/collab-baseline-prep-20260902`
 - Baseline parent: current `origin/master` at `33ce343`
 - Functional baseline commit: `c7b92e3`
+- Codex relay branch: `pick/codex-relay-setup` — `REMOTE_HANDSHAKE_READY`
+- Codex host discovery: `local` only; Folk is not currently a directly addressable host
 - Raw source branch: `sucha/sensor-phase1-local` — `LOCAL_ONLY_DO_NOT_PUSH`
 - Legacy remote raw branch: `origin/sucha/sensor-phase1-local` at `9674741` —
   `QUARANTINE_NEEDS_EXPLICIT_REMOVAL_APPROVAL`
@@ -28,15 +30,19 @@
 - Desktop browser: `1280 x 720`, no horizontal overflow, no console warning/error
 - Mobile browser: `390 x 844`, no horizontal overflow, no console warning/error
 - E5, pond handoff, G/J correction, Home, Stock, and Water navigation: `PASS`
+- Codex relay tests: `4/4 PASS`; total Node tests: `60/60 PASS`
+- Relay envelope validation: `1/1 PASS`
+- Relay transport: Git only; no LAN listener or firewall change
 
 ## Current Work Queue
 
 | Area | Owner | Branch | Status | Notes |
 |---|---|---|---|---|
 | Sanitized shared baseline | Pick + SUCHA | `pick/collab-baseline-prep-20260902` | `REMOTE_PUBLISHED` | Functional baseline `c7b92e3`; no raw private lineage |
+| Codex relay handshake | SUCHA → Folk | `pick/codex-relay-setup` | `REMOTE_HANDSHAKE_READY` | One validated handshake request; Git transport only |
 | Raw dashboard source | Pick + SUCHA | `sucha/sensor-phase1-local` | `LOCAL_ONLY_DO_NOT_PUSH` | Preserved as evidence and recovery source |
 | Legacy raw remote | Pick approval required | `origin/sucha/sensor-phase1-local` | `QUARANTINED_NEEDS_REMOVAL_APPROVAL` | Older remote copy contains hard-coded cloud staging host literals; no credential match found by the targeted scan |
-| Folk workstation onboarding | Folk | none | `BLOCKED_WAITING_FOR_REMOTE_CLEANUP_AND_DEVELOP` | Feature branch is available; do not start shared work until the legacy raw remote is resolved and approved `develop` is published |
+| Folk workstation onboarding | Folk | `folk/codex-relay` | `HANDSHAKE_ALLOWED_FEATURE_WORK_BLOCKED` | Relay handshake may proceed; feature work waits for legacy remote resolution and approved `develop` |
 
 ## Hotspot Locks
 
@@ -68,7 +74,8 @@
 
 ## Next Action
 
-Owner first grants `APPROVE_RAW_REMOTE_REMOVAL` if the legacy remote raw branch
-may be deleted. After verified cleanup, review the published sanitized feature
-branch before authorizing `develop`. No pull request, `master` push, or
-deployment is authorized by the completed feature push.
+Send `docs/FOLK_CODEX_RELAY_PROMPT_TH.md` to Codex on Folk's workstation and
+receive a validated handshake on `folk/codex-relay`. The relay does not remove
+the separate requirement for `APPROVE_RAW_REMOTE_REMOVAL` before baseline
+cleanup and approved `develop` publication. No pull request, `master` push, or
+deployment is authorized.

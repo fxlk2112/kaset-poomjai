@@ -17,6 +17,7 @@ images/product_urls.json
 # Local test/runtime caches
 __pycache__/
 *.py[cod]
+.codex-relay/
 
 # Generated Cloudflare Worker static-assets staging directory
 .cloudflare-staging-dist/

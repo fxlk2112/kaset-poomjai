@@ -14,6 +14,10 @@
 
 Codex Worktree ใช้แยกงานหลายชิ้นภายในเครื่องเดียวได้ แต่ไม่ใช่ตัวซิงก์ข้ามเครื่อง. การส่งงานข้ามเครื่องใช้ commit, feature branch และ Pull Request.
 
+การสื่อสาร Codex-to-Codex ใช้ message envelope บน branch แยกตาม
+`docs/CODEX_RELAY_PROTOCOL_TH.md`. Relay ใช้ส่ง task/status/handoff เท่านั้น,
+ไม่ใช้แทน source branch, Pull Request หรือ owner approval.
+
 ## One-time Setup Gates
 
 1. Consolidate และ review งานที่ยังอยู่บน `sucha/sensor-phase1-local`.

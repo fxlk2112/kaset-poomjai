@@ -1,0 +1,23 @@
+{
+  "protocol": "farmultimate-codex-relay/v1",
+  "id": "15901d28-9569-43a4-9b72-73e362fb105c",
+  "created_at": "2026-09-02T22:30:31.035Z",
+  "from": "sucha",
+  "to": "folk",
+  "kind": "handshake",
+  "summary": "SUCHA relay handshake request",
+  "details": "Run workstation preflight, read the relay protocol, and prepare one reply commit. Do not push or deploy without human approval.",
+  "requires_response": true,
+  "reply_to": null,
+  "source": {
+    "branch": "pick/codex-relay-setup",
+    "commit": "25df38dfa338c52888b9135c34e7ab1e749c3ba8"
+  },
+  "safety": {
+    "data_only": true,
+    "safe_off": true,
+    "output_control_allowed": false,
+    "deployment": "NOT_DEPLOYED",
+    "approval": "HUMAN_REQUIRED_FOR_EXTERNAL_WRITE"
+  }
+}
