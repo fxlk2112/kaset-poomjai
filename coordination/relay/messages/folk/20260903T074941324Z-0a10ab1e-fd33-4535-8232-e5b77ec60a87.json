@@ -1,0 +1,23 @@
+{
+  "protocol": "farmultimate-codex-relay/v1",
+  "id": "0a10ab1e-fd33-4535-8232-e5b77ec60a87",
+  "created_at": "2026-09-03T07:49:41.324Z",
+  "from": "folk",
+  "to": "sucha",
+  "kind": "status",
+  "summary": "FOLK-001 read-only Master Map audit complete",
+  "details": "FOLK-001 read-only audit status.\n\nScope observed: js/farm-map.js, js/tests/farm-map.test.mjs, js/tests/navigation.test.mjs, and Master Map connection points in js/app.js, index.html, css/style.css. No product code, deployment, cloud API, database, server/browser, sensor, Pi, relay, or hardware action was performed.\n\nChecklist:\n1 PASS - E1-E5 exist and revision is OWNER_LAYOUT_2026_09_01_C. Evidence: js/farm-map.js:5 and js/farm-map.js:18-24; tests assert automation ids and full zone order at js/tests/farm-map.test.mjs:11-20.\n2 PASS with evidence limit - E5 uses the compact layout strip and excludes staff accommodation/pond edge in code/test constants. Evidence: js/farm-map.js:22-24, js/farm-map.js:100-112; tests at js/tests/farm-map.test.mjs:23-29 and js/tests/farm-map.test.mjs:47-55. Limitation: this is not field geometry proof.\n3 PASS - G and J are swapped to the owner-corrected locations. Evidence: js/farm-map.js:13-17; test at js/tests/farm-map.test.mjs:31-34.\n4 PASS - Pond selection hands off to telemetry and supports map back action; Home/Stock/Water entrances remain wired. Evidence: js/farm-map.js:91, js/farm-map.js:147, js/farm-map.js:188-195; js/app.js:310-320, js/app.js:339-343, js/app.js:409-425, js/app.js:594-601; index.html:65-66 and index.html:89-91; tests at js/tests/farm-map.test.mjs:59-81 and js/tests/navigation.test.mjs:8-13.\n5 PASS - E1-E5 remain DATA_ONLY / SAFE_OFF / UNASSIGNED and no actuator command is emitted from Master Map. Pi 5 single-writer wording remains. Evidence: js/farm-map.js:1, js/farm-map.js:89-94, js/farm-map.js:106-116, js/farm-map.js:162; safe-off guards around legacy water output remain in js/app.js:2257-2268. Tests: js/tests/farm-map.test.mjs:36-45 and js/tests/farm-map.test.mjs:47-55.\n\nTests run: npm run check. Result: PASS, 60/60 tests. validate-tree before audit: PASS, messages=3. git diff --check before report: PASS.\n\nFindings: no findings from this read-only audit.\n\nEvidence limits: current desktop/mobile visual QA = NOT_RUN. field geometry = NOT_SURVEYED. Tests confirming polygon constants must not be treated as proof that physical field overlap is correct.\n\nDeployment: NOT_DEPLOYED.\nSafety: DATA_ONLY / SAFE_OFF / output_control_allowed=false.\nNext action: SUCHA can review this status reply and assign one focused follow-up task after integration baseline is approved.",
+  "requires_response": false,
+  "reply_to": "d208721b-9ce3-4a61-ba5a-48b473ac9bec",
+  "source": {
+    "branch": "folk/codex-relay",
+    "commit": "d029570d619b191bb6d2e25a4c7f7be0ba8300d8"
+  },
+  "safety": {
+    "data_only": true,
+    "safe_off": true,
+    "output_control_allowed": false,
+    "deployment": "NOT_DEPLOYED",
+    "approval": "HUMAN_REQUIRED_FOR_EXTERNAL_WRITE"
+  }
+}
