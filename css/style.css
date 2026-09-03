@@ -1454,6 +1454,61 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .trial-card .meta-grid { margin-top: 9px; }
 .trial-hero .plot-name .ic,
 .trial-intro .ic { width: 1em; height: 1em; vertical-align: -0.15em; }
+.trial-treatment-list {
+  display: grid;
+  gap: 8px;
+}
+.trial-treatment-row {
+  display: grid;
+  grid-template-columns: 8px 78px minmax(150px, 1fr) minmax(170px, 1fr) 38px;
+  gap: 8px;
+  align-items: end;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--soft);
+}
+.trial-treatment-color {
+  width: 8px;
+  height: 38px;
+  border-radius: 999px;
+  background: var(--tr-color, var(--green));
+  align-self: center;
+}
+.trial-treatment-remove {
+  width: 38px;
+  min-width: 38px;
+  padding-left: 0;
+  padding-right: 0;
+}
+.trial-add-treatment { margin-top: 8px; }
+.trial-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0 0 10px;
+}
+.trial-legend span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 750;
+}
+.trial-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.trial-legend b { color: var(--text); }
 .trial-layout {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1486,6 +1541,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   min-height: 78px;
   padding: 9px 8px;
   border: 1px solid var(--line);
+  border-left: 4px solid var(--tr-color, var(--green));
   border-radius: 12px;
   background: #f8faf9;
   color: var(--text);
@@ -1494,7 +1550,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   gap: 2px;
   text-align: center;
 }
-.trial-unit b { color: var(--green-deep); font-size: .94rem; }
+.trial-unit b { color: var(--tr-color, var(--green-deep)); font-size: .94rem; }
 .trial-unit span {
   min-width: 0;
   overflow: hidden;
@@ -1520,6 +1576,26 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   font-size: .8rem;
   font-weight: 800;
   line-height: 1.45;
+}
+.trial-missing {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 10px 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(245, 158, 11, .35);
+  border-radius: 12px;
+  background: var(--amber-light);
+  color: var(--amber-text);
+  font-size: .74rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+.trial-missing .ic {
+  width: 1em;
+  height: 1em;
+  margin-top: .15em;
+  flex: 0 0 auto;
 }
 .trial-stat-table {
   display: grid;
@@ -2970,10 +3046,17 @@ html[data-theme="dark"] .trial-finding {
 }
 html[data-theme="dark"] .trial-block,
 html[data-theme="dark"] .trial-unit,
-html[data-theme="dark"] .trial-stat-row {
+html[data-theme="dark"] .trial-stat-row,
+html[data-theme="dark"] .trial-treatment-row,
+html[data-theme="dark"] .trial-legend span {
   background: var(--card);
   color: var(--text);
   border-color: var(--card-border);
+}
+html[data-theme="dark"] .trial-missing {
+  background: rgba(245, 158, 11, .14);
+  color: #fde68a;
+  border-color: rgba(253, 230, 138, .22);
 }
 html[data-theme="dark"] .trial-block-head,
 html[data-theme="dark"] .trial-stat-row {
@@ -3497,6 +3580,15 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .trial-analysis-grid { grid-template-columns: 1fr; }
   .trial-layout { grid-template-columns: 1fr; }
   .trial-unit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .trial-treatment-row {
+    grid-template-columns: 8px minmax(0, 1fr) 38px;
+    align-items: end;
+  }
+  .trial-treatment-row .trt-code { grid-column: 2; }
+  .trial-treatment-row .trt-name,
+  .trial-treatment-row .trt-desc { grid-column: 1 / -1; }
+  .trial-treatment-color { grid-row: 1; }
+  .trial-treatment-remove { grid-column: 3; grid-row: 1; }
   .trial-stat-table { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
   .trial-stat-head,
   .trial-stat-row {

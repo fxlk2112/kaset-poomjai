@@ -471,6 +471,13 @@ function ensureDefaults(s) {
   s.trials = Array.isArray(s.trials) ? s.trials : [];
   s.trials.forEach(tr => {
     if (!tr.id) tr.id = uid();
+    if (typeof tr.plotId !== "string") tr.plotId = "";
+    if (typeof tr.plotName !== "string") tr.plotName = "";
+    if (typeof tr.status !== "string") tr.status = "active";
+    if (typeof tr.design !== "string") tr.design = "RCBD";
+    if (typeof tr.crop !== "string") tr.crop = "";
+    if (typeof tr.metric !== "string") tr.metric = "ผลผลิต";
+    if (typeof tr.metricUnit !== "string") tr.metricUnit = "กก.";
     if (!Array.isArray(tr.treatments)) tr.treatments = [];
     if (!Array.isArray(tr.units)) tr.units = [];
     if (!Array.isArray(tr.observations)) tr.observations = [];
@@ -490,6 +497,8 @@ function ensureDefaults(s) {
       if (!o.id) o.id = uid();
       if (!Array.isArray(o.photos)) o.photos = [];
       o.photos = o.photos.map(p => String(p || "").trim()).filter(Boolean);
+      if (typeof o.metric !== "string") o.metric = tr.metric || "ผลผลิต";
+      if (typeof o.unit !== "string") o.unit = tr.metricUnit || "กก.";
     });
   });
   /* ระบบน้ำรายแปลง: แหล่งน้ำ / ระบบต่อแปลง / บันทึกการให้น้ำ */

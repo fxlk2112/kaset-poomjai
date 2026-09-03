@@ -950,6 +950,19 @@ function trialTreatment(tr, id) { return (tr.treatments || []).find(t => t.id ==
 function trialUnit(tr, id) { return (tr.units || []).find(u => u.id === id); }
 function trialMetric(tr) { return (tr.metric || "ผลผลิต").trim(); }
 function trialUnitLabel(tr) { return (tr.metricUnit || "กก.").trim(); }
+const TRIAL_COLORS = ["#16a34a", "#2563eb", "#f59e0b", "#8b5cf6", "#e11d48", "#06b6d4", "#84cc16", "#f97316"];
+function trialPlotName(tr) {
+  const p = plotById(S, tr.plotId);
+  return p ? p.name : ((tr.plotName || "").trim() || "แปลงนอกระบบ");
+}
+function trialTreatmentColor(tr, treatmentId) {
+  const idx = Math.max(0, (tr.treatments || []).findIndex(t => t.id === treatmentId));
+  return TRIAL_COLORS[idx % TRIAL_COLORS.length];
+}
+function trialEffectiveStatus(tr) {
+  if ((tr.status || "active") === "done") return "done";
+  return trialAnalysis(tr).complete ? "ready" : "active";
+}
 function trialTreatmentsFromText(text, old) {
   const oldByCode = Object.fromEntries((old || []).map(t => [String(t.code || "").trim().toUpperCase(), t]));
   return String(text || "").split(/\n+/).map((line, i) => {
@@ -966,6 +979,29 @@ function trialTreatmentsFromText(text, old) {
 function trialTreatmentsText(tr) {
   return (tr && tr.treatments || []).map(t => `${t.code}: ${t.name}${t.desc ? " | " + t.desc : ""}`).join("\n")
     || "T1: สูตรเดิม\nT2: สูตรใหม่\nT3: สูตรใหม่ + เสริม";
+}
+function trialTreatmentRowsHtml(treatments, startIndex) {
+  const rows = (treatments && treatments.length ? treatments : trialTreatmentsFromText(trialTreatmentsText())).slice();
+  const offset = Number(startIndex) || 0;
+  return rows.map((t, i) => `
+    <div class="trial-treatment-row" data-trt-row>
+      <div class="trial-treatment-color" style="--tr-color:${TRIAL_COLORS[(offset + i) % TRIAL_COLORS.length]}"></div>
+      <div class="field trt-code" style="margin:0"><label>รหัส</label><input data-trt-code value="${esc(t.code || ("T" + (offset + i + 1)))}" placeholder="T${offset + i + 1}"></div>
+      <div class="field trt-name" style="margin:0"><label>ชื่อสูตร *</label><input data-trt-name value="${esc(t.name || "")}" placeholder="${offset + i === 0 ? "สูตรเดิม" : "สูตรทดลอง"}"></div>
+      <div class="field trt-desc" style="margin:0"><label>รายละเอียด</label><input data-trt-desc value="${esc(t.desc || "")}" placeholder="เช่น ปุ๋ย A 20 กก./ไร่"></div>
+      <button type="button" class="btn btn-sm btn-danger-soft trial-treatment-remove" onclick="App.removeTrialTreatmentRow(this)" title="ลบทรีตเมนต์">${ic("trash")}</button>
+    </div>`).join("");
+}
+function trialTreatmentsFromForm(old) {
+  const oldByCode = Object.fromEntries((old || []).map(t => [String(t.code || "").trim().toUpperCase(), t]));
+  return Array.from(document.querySelectorAll("[data-trt-row]")).map((row, i) => {
+    const code = (row.querySelector("[data-trt-code]")?.value || ("T" + (i + 1))).trim().toUpperCase();
+    const name = (row.querySelector("[data-trt-name]")?.value || "").trim();
+    const desc = (row.querySelector("[data-trt-desc]")?.value || "").trim();
+    if (!name) return null;
+    const prev = oldByCode[code];
+    return { id: prev ? prev.id : uid(), code: code || ("T" + (i + 1)), name, desc };
+  }).filter(Boolean);
 }
 function shuffleCopy(arr) {
   const out = arr.slice();
@@ -986,7 +1022,10 @@ function makeTrialUnits(treatments, reps) {
 }
 function trialObsForMetric(tr, metric) {
   const m = metric || trialMetric(tr);
-  return (tr.observations || []).filter(o => (o.metric || trialMetric(tr)) === m && Number(o.value) > 0);
+  return (tr.observations || []).filter(o => {
+    const hasValue = o.value !== "" && o.value !== null && o.value !== undefined && Number.isFinite(Number(o.value));
+    return (o.metric || trialMetric(tr)) === m && hasValue;
+  });
 }
 function trialLatestValues(tr, metric) {
   const latest = {};
@@ -1031,12 +1070,19 @@ function trialAnalysis(tr) {
   const complete = used.length >= 2 && used.every(r => r.n >= 2);
   return { rows, used, allVals, grand, dfBetween, dfWithin, msBetween, msWithin, f, cv, best, complete };
 }
+function trialMissingUnits(tr) {
+  const measured = new Set(trialLatestValues(tr).map(x => x.unit.id));
+  return (tr.units || []).filter(u => !measured.has(u.id)).map(u => {
+    const t = trialTreatment(tr, u.treatmentId) || {};
+    return `บล็อก ${u.block} ${t.code || ""}`.trim();
+  });
+}
 function trialMeanChartItems(tr) {
   const a = trialAnalysis(tr);
   return a.rows.filter(r => r.n).map(r => ({
     label: r.treatment.code,
     value: Math.round(r.mean * 100) / 100,
-    color: a.best && r.treatment.id === a.best.treatment.id ? "#16a34a" : "#2563eb"
+    color: trialTreatmentColor(tr, r.treatment.id)
   }));
 }
 function trialTrendChartItems(tr) {
@@ -1052,8 +1098,9 @@ function trialTrendChartItems(tr) {
   }));
 }
 function trialStatusBadge(tr) {
-  const st = tr.status || "active";
+  const st = trialEffectiveStatus(tr);
   if (st === "done") return `<span class="badge badge-gray">สรุปผลแล้ว</span>`;
+  if (st === "ready") return `<span class="badge badge-blue">เก็บข้อมูลครบ</span>`;
   return `<span class="badge badge-green">กำลังทดลอง</span>`;
 }
 function trialEvidenceText(tr, a) {
@@ -1071,6 +1118,7 @@ function trialAnalysisHtml(tr) {
   const a = trialAnalysis(tr);
   const metric = trialMetric(tr);
   const unit = trialUnitLabel(tr);
+  const missing = trialMissingUnits(tr);
   return `
     <div class="trial-analysis-grid">
       <div class="card">
@@ -1092,6 +1140,7 @@ function trialAnalysisHtml(tr) {
         <div><div class="bold">สรุปเชิงวิชาการ</div><div class="muted">RCBD: ทรีตเมนต์ × ซ้ำ/บล็อก · วิเคราะห์เบื้องต้นจากข้อมูลในเว็บ</div></div>
         <span class="badge ${a.complete ? "badge-green" : "badge-amber"}">${a.complete ? "ข้อมูลเริ่มพร้อม" : "หลักฐานยังจำกัด"}</span>
       </div>
+      ${missing.length ? `<div class="trial-missing">${ic("alert")} ยังขาดค่าวัด ${fmtNum(missing.length)} แปลงย่อย: ${esc(missing.slice(0, 8).join(", "))}${missing.length > 8 ? "..." : ""}</div>` : ""}
       <div class="trial-finding">${esc(trialEvidenceText(tr, a))}</div>
       <div class="trial-stat-table">
         <div class="trial-stat-head"><span>ทรีตเมนต์</span><span>n</span><span>เฉลี่ย</span><span>SD</span><span>CV%</span></div>
@@ -1109,6 +1158,9 @@ function trialAnalysisHtml(tr) {
 function trialLayoutHtml(tr) {
   const blocks = [...new Set((tr.units || []).map(u => u.block))].sort((a, b) => a - b);
   return `
+    <div class="trial-legend">
+      ${(tr.treatments || []).map(t => `<span><i style="background:${trialTreatmentColor(tr, t.id)}"></i><b>${esc(t.code)}</b> ${esc(t.name)}</span>`).join("")}
+    </div>
     <div class="trial-layout">
       ${blocks.map(b => {
         const units = (tr.units || []).filter(u => u.block === b).sort((a, b) => a.order - b.order);
@@ -1118,7 +1170,7 @@ function trialLayoutHtml(tr) {
             ${units.map(u => {
               const t = trialTreatment(tr, u.treatmentId) || {};
               const latest = trialLatestValues(tr).find(x => x.unit.id === u.id);
-              return `<button class="trial-unit" onclick="App.modalTrialObs('${tr.id}', '${u.id}')">
+              return `<button class="trial-unit" style="--tr-color:${trialTreatmentColor(tr, u.treatmentId)}" onclick="App.modalTrialObs('${tr.id}', '${u.id}')">
                 <b>${esc(t.code || "?")}</b>
                 <span>${esc(t.name || "")}</span>
                 <small>${latest ? `${fmtNum(latest.value)} ${esc(trialUnitLabel(tr))}` : "ยังไม่วัด"}</small>
@@ -1131,6 +1183,7 @@ function trialLayoutHtml(tr) {
 }
 function renderTrialDetail(tr) {
   const p = plotById(S, tr.plotId);
+  const status = trialEffectiveStatus(tr);
   const obs = (tr.observations || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 12);
   return `
     <div class="trial-detail">
@@ -1141,7 +1194,7 @@ function renderTrialDetail(tr) {
         <div class="row row-between">
           <div class="grow">
             <div class="plot-name">${ic("search")} ${esc(tr.name)} ${trialStatusBadge(tr)}</div>
-            <div class="muted">${esc(p ? p.name : "ไม่ระบุแปลง")} · ${esc(tr.design || "RCBD")} · ${fmtNum((tr.treatments || []).length)} ทรีตเมนต์ × ${fmtNum(tr.replications || 1)} ซ้ำ</div>
+            <div class="muted">${esc(trialPlotName(tr))} · ${esc(tr.design || "RCBD")} · ${fmtNum((tr.treatments || []).length)} ทรีตเมนต์ × ${fmtNum(tr.replications || 1)} ซ้ำ</div>
           </div>
           <button class="btn btn-primary btn-sm" onclick="App.modalTrialObs('${tr.id}')">${ic("plus")} บันทึกค่าวัด</button>
         </div>
@@ -1155,6 +1208,7 @@ function renderTrialDetail(tr) {
         <div class="actions-row mt-8">
           <button class="btn btn-sm btn-outline" onclick="App.modalTrial('', '${tr.id}')">${ic("pencil")} แก้ไขงานทดลอง</button>
           <button class="btn btn-sm btn-outline" onclick="App.randomizeTrial('${tr.id}')">${ic("refresh")} สุ่มผังใหม่</button>
+          ${status === "done" ? `<button class="btn btn-sm btn-primary" onclick="App.setTrialStatus('${tr.id}', 'active')">${ic("refresh")} เปิดทดลองต่อ</button>` : `<button class="btn btn-sm btn-primary" onclick="App.setTrialStatus('${tr.id}', 'done')">${ic("check")} สรุปผลแล้ว</button>`}
           <button class="btn btn-sm btn-danger-soft" onclick="App.deleteTrial('${tr.id}')">${ic("trash")} ลบ</button>
         </div>
       </div>
@@ -1174,6 +1228,7 @@ function renderTrialDetail(tr) {
               ${o.note ? `<div class="td-note-body mt-4">${esc(o.note)}</div>` : ""}
               ${trialPhotosHtml(o.photos)}
             </div>
+            <button class="btn btn-sm btn-outline" onclick="App.modalTrialObs('${tr.id}', '${u ? u.id : ""}', '${o.id}')">${ic("pencil")} แก้ไข</button>
             <button class="btn btn-sm btn-danger-soft" onclick="App.deleteTrialObs('${tr.id}', '${o.id}')">${ic("trash")}</button>
           </div>`;
         }).join("") : `<div class="empty compact-empty"><div class="e-ico">${ic("search")}</div><div class="e-title">ยังไม่มีค่าวัด</div><div class="muted">กดบันทึกค่าวัดเพื่อเริ่มวิเคราะห์</div></div>`}
@@ -1203,7 +1258,7 @@ function renderTrialsTab() {
             <div class="plot-emoji">${ic("search")}</div>
             <div class="grow">
               <div class="plot-name">${esc(tr.name)} ${trialStatusBadge(tr)}</div>
-              <div class="muted">${esc(p ? p.name : "ไม่ระบุแปลง")} · ${fmtNum((tr.treatments || []).length)} ทรีตเมนต์ × ${fmtNum(tr.replications || 1)} ซ้ำ</div>
+              <div class="muted">${esc(trialPlotName(tr))} · ${fmtNum((tr.treatments || []).length)} ทรีตเมนต์ × ${fmtNum(tr.replications || 1)} ซ้ำ</div>
             </div>
             <span class="muted" style="font-size:1.1rem">›</span>
           </div>
@@ -1247,10 +1302,37 @@ App.closeTrial = function () {
   route.tab = "trials";
   render();
 };
+App.trialPlotSelectChanged = function () {
+  const sel = document.getElementById("tr_plot");
+  const nameInput = document.getElementById("tr_plot_name");
+  const cropInput = document.getElementById("tr_crop");
+  const p = sel && sel.value ? plotById(S, sel.value) : null;
+  if (nameInput && p) nameInput.value = "";
+  if (cropInput && p && !cropInput.value.trim()) cropInput.value = plotCropName(S, p) || "";
+};
+App.addTrialTreatmentRow = function () {
+  const list = document.getElementById("trialTreatmentList");
+  if (!list) return;
+  const n = list.querySelectorAll("[data-trt-row]").length + 1;
+  list.insertAdjacentHTML("beforeend", trialTreatmentRowsHtml([{ id: uid(), code: "T" + n, name: "", desc: "" }], n - 1));
+  const input = list.querySelector("[data-trt-row]:last-child [data-trt-name]");
+  if (input) input.focus();
+};
+App.removeTrialTreatmentRow = function (btn) {
+  const list = document.getElementById("trialTreatmentList");
+  const row = btn && btn.closest("[data-trt-row]");
+  if (!list || !row) return;
+  if (list.querySelectorAll("[data-trt-row]").length <= 2) {
+    toast("ต้องมีอย่างน้อย 2 ทรีตเมนต์");
+    return;
+  }
+  row.remove();
+};
 App.modalTrial = function (plotId, id) {
   const tr = id ? trialById(S, id) : null;
   const p = plotId ? plotById(S, plotId) : null;
   const defaultPlot = tr ? tr.plotId : (plotId || ((S.plots || [])[0] || {}).id || "");
+  const externalPlotName = tr ? (tr.plotName || "") : "";
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${ic("search")} ${tr ? "แก้ไขงานทดลอง" : "สร้างแปลงทดลอง"}</h3>
@@ -1258,12 +1340,13 @@ App.modalTrial = function (plotId, id) {
     <form onsubmit="return App.saveTrial(event, '${tr ? tr.id : ""}')">
       <div class="field"><label>ชื่องานทดลอง *</label><input id="tr_name" required value="${esc(tr ? tr.name : "")}" placeholder="เช่น ทดสอบปุ๋ยสูตรใหม่ในพริก"></div>
       <div class="form-row-2">
-        <div class="field"><label>แปลงหลัก *</label><select id="tr_plot" required>
-          <option value="">-- เลือกแปลง --</option>
+        <div class="field"><label>เลือกแปลงในระบบ</label><select id="tr_plot" onchange="App.trialPlotSelectChanged()">
+          <option value="">-- แปลงนอกระบบ / พิมพ์เอง --</option>
           ${(S.plots || []).map(x => `<option value="${x.id}" ${defaultPlot === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}
         </select></div>
-        <div class="field"><label>พืช/เรื่องทดลอง</label><input id="tr_crop" value="${esc(tr ? tr.crop || "" : (p ? plotCropName(S, p) : ""))}" placeholder="เช่น พริก / ข้าวโพด / แตงโม"></div>
+        <div class="field"><label>ชื่อแปลงนอกระบบ</label><input id="tr_plot_name" value="${esc(defaultPlot ? "" : externalPlotName)}" placeholder="เช่น แปลงลูกค้า A / แปลงเช่า"></div>
       </div>
+      <div class="field"><label>พืช/เรื่องทดลอง</label><input id="tr_crop" value="${esc(tr ? tr.crop || "" : (p ? plotCropName(S, p) : ""))}" placeholder="เช่น พริก / ข้าวโพด / แตงโม"></div>
       <div class="form-row-2">
         <div class="field"><label>วันที่เริ่ม</label><input id="tr_start" type="date" value="${esc(tr ? tr.startDate || todayISO() : todayISO())}"></div>
         <div class="field"><label>วันที่คาดว่าจะจบ</label><input id="tr_end" type="date" value="${esc(tr ? tr.endDate || "" : "")}"></div>
@@ -1273,9 +1356,17 @@ App.modalTrial = function (plotId, id) {
         <div class="field"><label>หน่วย</label><input id="tr_unit" value="${esc(tr ? trialUnitLabel(tr) : "กก.")}" placeholder="เช่น กก. / ซม. / คะแนน"></div>
       </div>
       <div class="field"><label>จำนวนซ้ำ/บล็อก *</label><input id="tr_rep" type="number" min="2" step="1" required value="${esc(tr ? tr.replications || 3 : 3)}"></div>
+      <div class="form-row-2">
+        <div class="field"><label>สถานะ</label><select id="tr_status">
+          <option value="active" ${!tr || (tr.status || "active") === "active" ? "selected" : ""}>กำลังทดลอง</option>
+          <option value="done" ${tr && tr.status === "done" ? "selected" : ""}>สรุปผลแล้ว</option>
+        </select></div>
+        <div class="field"><label>รูปแบบทดลอง</label><input value="RCBD (สุ่มในบล็อก)" readonly></div>
+      </div>
       <div class="field"><label>ทรีตเมนต์ *</label>
-        <textarea id="tr_treatments" rows="5" required placeholder="T1: สูตรเดิม&#10;T2: สูตรใหม่&#10;T3: สูตรใหม่ + ฮอร์โมน">${esc(trialTreatmentsText(tr))}</textarea>
-        <div class="hint">ใส่ 1 บรรทัดต่อ 1 ทรีตเมนต์ รูปแบบ T1: ชื่อสูตร | รายละเอียด</div>
+        <div class="trial-treatment-list" id="trialTreatmentList">${trialTreatmentRowsHtml(tr ? tr.treatments : null)}</div>
+        <button type="button" class="btn btn-sm btn-outline trial-add-treatment" onclick="App.addTrialTreatmentRow()">${ic("plus")} เพิ่มทรีตเมนต์</button>
+        <div class="hint">ใส่ชื่อสูตรทีละแถว เช่น สูตรเดิม / สูตรใหม่ / สูตรใหม่ + ฮอร์โมน</div>
       </div>
       <div class="field"><label>หมายเหตุ</label><textarea id="tr_note" rows="3" placeholder="สมมติฐาน วิธีวัด หรือข้อจำกัดของแปลง">${esc(tr ? tr.note || "" : "")}</textarea></div>
       <div class="modal-actions">
@@ -1287,9 +1378,18 @@ App.modalTrial = function (plotId, id) {
 App.saveTrial = function (e, id) {
   e.preventDefault();
   const tr = id ? trialById(S, id) : null;
-  const treatments = trialTreatmentsFromText(document.getElementById("tr_treatments").value, tr && tr.treatments);
+  const treatments = trialTreatmentsFromForm(tr && tr.treatments);
   const reps = Math.max(2, Number(document.getElementById("tr_rep").value) || 3);
   if (treatments.length < 2) { toast("ต้องมีอย่างน้อย 2 ทรีตเมนต์"); return false; }
+  const plotId = document.getElementById("tr_plot").value;
+  const plotName = document.getElementById("tr_plot_name").value.trim();
+  if (!plotId && !plotName) {
+    const input = document.getElementById("tr_plot_name");
+    setModalFieldError(input, "เลือกแปลงในระบบ หรือพิมพ์ชื่อแปลงนอกระบบ");
+    input.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+    input.focus();
+    return false;
+  }
   const codeSig = treatments.map(t => t.code).join("|");
   const oldSig = tr ? (tr.treatments || []).map(t => t.code).join("|") : "";
   const structureChanged = !tr || reps !== Number(tr.replications || 0) || codeSig !== oldSig;
@@ -1299,7 +1399,8 @@ App.saveTrial = function (e, id) {
   }
   const data = {
     name: document.getElementById("tr_name").value.trim(),
-    plotId: document.getElementById("tr_plot").value,
+    plotId,
+    plotName: plotId ? "" : plotName,
     crop: document.getElementById("tr_crop").value.trim(),
     design: "RCBD",
     startDate: document.getElementById("tr_start").value || todayISO(),
@@ -1309,7 +1410,7 @@ App.saveTrial = function (e, id) {
     replications: reps,
     treatments,
     note: document.getElementById("tr_note").value.trim(),
-    status: tr ? tr.status || "active" : "active"
+    status: document.getElementById("tr_status").value || "active"
   };
   if (tr) {
     Object.assign(tr, data);
@@ -1341,6 +1442,15 @@ App.randomizeTrial = function (id) {
   rerender();
   toast("สุ่มผังแปลงทดลองใหม่แล้ว");
 };
+App.setTrialStatus = function (id, status) {
+  const tr = trialById(S, id);
+  if (!tr) return;
+  tr.status = status === "done" ? "done" : "active";
+  tr.updatedAt = Date.now();
+  saveState(S);
+  rerender();
+  toast(tr.status === "done" ? "ปิดงานทดลองเป็นสรุปผลแล้ว" : "เปิดงานทดลองต่อแล้ว");
+};
 App.deleteTrial = function (id) {
   const tr = trialById(S, id);
   if (!tr) return;
@@ -1352,55 +1462,60 @@ App.deleteTrial = function (id) {
     toast("ลบแปลงทดลองแล้ว");
   });
 };
-App.modalTrialObs = function (trialId, unitId) {
+App.modalTrialObs = function (trialId, unitId, obsId) {
   const tr = trialById(S, trialId);
   if (!tr) return;
-  trialObsPhotos = [];
+  const obs = obsId ? (tr.observations || []).find(o => o.id === obsId) : null;
+  trialObsPhotos = obs ? (obs.photos || []).slice() : [];
   const units = (tr.units || []).slice().sort((a, b) => a.block - b.block || a.order - b.order);
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
-    <h3>${ic("plus")} บันทึกค่าวัดแปลงทดลอง</h3>
+    <h3>${ic(obs ? "pencil" : "plus")} ${obs ? "แก้ไขค่าวัด" : "บันทึกค่าวัดแปลงทดลอง"}</h3>
     <div class="modal-sub">${esc(tr.name)} · ${esc(trialMetric(tr))}</div>
-    <form onsubmit="return App.saveTrialObs(event, '${tr.id}')">
+    <form onsubmit="return App.saveTrialObs(event, '${tr.id}', '${obs ? obs.id : ""}')">
       <div class="form-row-2">
-        <div class="field"><label>วันที่วัด *</label><input id="tro_date" type="date" required value="${todayISO()}"></div>
+        <div class="field"><label>วันที่วัด *</label><input id="tro_date" type="date" required value="${esc(obs ? obs.date || todayISO() : todayISO())}"></div>
         <div class="field"><label>แปลงย่อย *</label><select id="tro_unit" required>
           ${units.map(u => {
             const t = trialTreatment(tr, u.treatmentId) || {};
-            return `<option value="${u.id}" ${unitId === u.id ? "selected" : ""}>บล็อก ${u.block} · ลำดับ ${u.order} · ${esc(t.code || "")} ${esc(t.name || "")}</option>`;
+            const selectedUnit = obs ? obs.unitId : unitId;
+            return `<option value="${u.id}" ${selectedUnit === u.id ? "selected" : ""}>บล็อก ${u.block} · ลำดับ ${u.order} · ${esc(t.code || "")} ${esc(t.name || "")}</option>`;
           }).join("")}
         </select></div>
       </div>
       <div class="form-row-2">
-        <div class="field"><label>ตัวชี้วัด</label><input id="tro_metric" value="${esc(trialMetric(tr))}"></div>
-        <div class="field"><label>ค่า *</label><input id="tro_value" type="number" step="0.01" required placeholder="เช่น 12.5"></div>
+        <div class="field"><label>ตัวชี้วัด</label><input id="tro_metric" value="${esc(obs ? obs.metric || trialMetric(tr) : trialMetric(tr))}"></div>
+        <div class="field"><label>ค่า *</label><input id="tro_value" type="number" step="0.01" required value="${obs && obs.value !== undefined ? esc(obs.value) : ""}" placeholder="เช่น 0, 12.5"></div>
       </div>
-      <div class="field"><label>หน่วย</label><input id="tro_unitlabel" value="${esc(trialUnitLabel(tr))}"></div>
-      <div class="field"><label>หมายเหตุ</label><textarea id="tro_note" rows="3" placeholder="เช่น โรคใบจุดเล็กน้อย / วัดจาก 10 ต้นสุ่ม"></textarea></div>
+      <div class="field"><label>หน่วย</label><input id="tro_unitlabel" value="${esc(obs ? obs.unit || trialUnitLabel(tr) : trialUnitLabel(tr))}"></div>
+      <div class="field"><label>หมายเหตุ</label><textarea id="tro_note" rows="3" placeholder="เช่น โรคใบจุดเล็กน้อย / วัดจาก 10 ต้นสุ่ม">${esc(obs ? obs.note || "" : "")}</textarea></div>
       <div class="task-photo-panel">
         <div class="task-photo-head">
           <div><b>รูปค่าวัด</b><span>แนบรูปทรงพุ่ม โรค แมลง หรือผลผลิตของแปลงย่อย</span></div>
           <button type="button" class="btn btn-sm btn-outline" onclick="App.trialPickPhotos()">${ic("camera")} เพิ่มรูป</button>
         </div>
-        <div id="trialObsPhotos"><div class="task-photo-empty">${ic("camera")} ยังไม่มีรูปค่าวัด</div></div>
+        <div id="trialObsPhotos">${trialObsPhotos.length ? "" : `<div class="task-photo-empty">${ic("camera")} ยังไม่มีรูปค่าวัด</div>`}</div>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
-        <button type="submit" class="btn btn-primary">${ic("save")} บันทึกค่าวัด</button>
+        <button type="submit" class="btn btn-primary">${ic("save")} ${obs ? "บันทึกการแก้ไข" : "บันทึกค่าวัด"}</button>
       </div>
     </form>`);
+  renderTrialPhotoPreview();
 };
-App.saveTrialObs = function (e, trialId) {
+App.saveTrialObs = function (e, trialId, obsId) {
   e.preventDefault();
   if (trialPhotoUploading) { toast("รอเพิ่มรูปให้เสร็จก่อน"); return false; }
   const tr = trialById(S, trialId);
   if (!tr) return false;
   const unitId = document.getElementById("tro_unit").value;
-  const value = Number(document.getElementById("tro_value").value);
-  if (!unitId || !(value > 0)) return false;
+  const rawValue = document.getElementById("tro_value").value;
+  const value = Number(rawValue);
+  if (!unitId || rawValue === "" || !Number.isFinite(value)) return false;
   tr.observations = tr.observations || [];
-  tr.observations.push({
-    id: uid(),
+  const old = obsId ? tr.observations.find(o => o.id === obsId) : null;
+  const data = {
+    id: old ? old.id : uid(),
     unitId,
     date: document.getElementById("tro_date").value || todayISO(),
     metric: document.getElementById("tro_metric").value.trim() || trialMetric(tr),
@@ -1408,8 +1523,11 @@ App.saveTrialObs = function (e, trialId) {
     unit: document.getElementById("tro_unitlabel").value.trim() || trialUnitLabel(tr),
     note: document.getElementById("tro_note").value.trim(),
     photos: trialObsPhotos.slice(),
-    createdAt: Date.now()
-  });
+    createdAt: old ? old.createdAt || Date.now() : Date.now(),
+    updatedAt: Date.now()
+  };
+  if (old) Object.assign(old, data);
+  else tr.observations.push(data);
   tr.updatedAt = Date.now();
   saveState(S);
   closeModal();
@@ -1417,7 +1535,7 @@ App.saveTrialObs = function (e, trialId) {
   route.tab = "trials";
   route.trialId = tr.id;
   render();
-  toast("บันทึกค่าวัดแล้ว · อัปเดตกราฟวิเคราะห์");
+  toast(old ? "แก้ไขค่าวัดแล้ว · อัปเดตกราฟวิเคราะห์" : "บันทึกค่าวัดแล้ว · อัปเดตกราฟวิเคราะห์");
   return false;
 };
 App.deleteTrialObs = function (trialId, obsId) {
