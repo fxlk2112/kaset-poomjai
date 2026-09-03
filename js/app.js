@@ -1,5 +1,5 @@
 /* ============================================================
-   FARMULTIMATE SOLUTIONS v52 — app logic
+   FARMULTIMATE SOLUTIONS v53 — app logic
    dashboard, plots, stock, equipment, cycles,
    activity planner, IoT, analytics, FAB drawer, interactive tour
    ============================================================ */
@@ -551,6 +551,7 @@ function renderHome() {
         ${tToday.length > 4 ? `<button class="btn btn-ghost btn-block mt-8" onclick="App.nav('planner')">ดูอีก ${tToday.length - 4} งานในปฏิทิน</button>` : ""}
       </div>
     </section>`;
+  const nextTasksCount = overdue.length + tTomorrow.length + soon.length;
 
   return `
     <div class="hero">
@@ -559,7 +560,7 @@ function renderHome() {
           <div class="hero-greet" data-tkey="heroGreet">${T("heroGreet")}</div>
           <div class="hero-sub">${thaiDateStr(new Date())}</div>
         </div>
-        <span class="hero-ver">${S.version === 52 ? "อัปเดตล่าสุด v52" : "v" + S.version}</span>
+        <span class="hero-ver">อัปเดตล่าสุด v${S.version}</span>
       </div>
       <div class="hero-progress">
         <div class="hp-row">
@@ -605,24 +606,23 @@ function renderHome() {
         if (k === "tasks") return `
       <section class="sec-tasks">
         <div class="row row-between section-title" data-tkey="titleTasks">
-          <span>${T("titleTasks")} ${todays.length ? `<span class="badge badge-amber">${todays.length} รายการ</span>` : ""}</span>
+          <span>งานถัดไป ${nextTasksCount ? `<span class="badge badge-amber">${nextTasksCount} รายการ</span>` : ""}</span>
           <button class="btn btn-primary btn-sm" onclick="App.modalTask('${today}')">${ic("plus")} เพิ่ม</button>
         </div>
         <div class="card">
-          ${todays.length === 0 ? `
+          ${nextTasksCount === 0 ? `
             <div class="empty">
               <div class="e-ico">${ic("check")}</div>
               <div class="e-title">ไม่มีงานที่ต้องทำเร็วๆ นี้</div>
-              <div class="muted">จดงานหรือกดตรวจแปลงได้เลย</div>
+              <div class="muted">งานวันนี้แสดงอยู่ด้านบนแล้ว เพิ่มงานใหม่ได้ทันที</div>
             </div>` : ""}
-          ${tToday.length ? `<div class="task-group"><h3>วันนี้</h3>${tToday.map(t => taskRowHtml(t, { showPlot: true })).join("")}</div>` : ""}
-          ${tTomorrow.length ? `<div class="task-group"><h3>พรุ่งนี้</h3>${tTomorrow.map(t => taskRowHtml(t, { showDate: t.date !== tomorrow, showPlot: true })).join("")}</div>` : ""}
-          ${soon.length ? `<div class="task-group"><h3>เร็วๆ นี้</h3>${soon.map(t => taskRowHtml(t, { showDate: true, showPlot: true })).join("")}</div>` : ""}
           ${overdue.length ? `
             <div class="task-group"><h3>เลยกำหนด</h3>
               ${overdue.slice(0, 3).map(t => taskRowHtml(t, { showDate: true, showPlot: true })).join("")}
               ${overdue.length > 3 ? `<div class="muted" style="font-size:.72rem;padding:6px 2px">+${overdue.length - 3} รายการ — <a class="link" onclick="App.nav('planner')">ดูทั้งหมด</a></div>` : ""}
             </div>` : ""}
+          ${tTomorrow.length ? `<div class="task-group"><h3>พรุ่งนี้</h3>${tTomorrow.map(t => taskRowHtml(t, { showDate: t.date !== tomorrow, showPlot: true })).join("")}</div>` : ""}
+          ${soon.length ? `<div class="task-group"><h3>เร็วๆ นี้</h3>${soon.map(t => taskRowHtml(t, { showDate: true, showPlot: true })).join("")}</div>` : ""}
         </div>
       </section>`;
         if (k === "profit") return `

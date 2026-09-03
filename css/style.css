@@ -337,7 +337,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 .fab-item:active { background: var(--green-soft); transform: scale(.97); }
 .fab-item span { font-size: 1.05rem; }
-.quick-chip { flex-shrink: 0; }
+.quick-chip { flex-shrink: 0; justify-content: center; }
 
 /* ============ List rows ============ */
 .row { display: flex; align-items: center; gap: 10px; }
@@ -647,6 +647,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .analytics-insight.red .action-ico { background: var(--red-light); color: var(--red); }
 
 /* ============ สต็อก: ของที่เปิดใช้แล้ว ============ */
+.stock-card > .row { align-items: flex-start; }
+.stock-card .plot-name { line-height: 1.28; }
+.stock-meta-line { margin-top: 2px; line-height: 1.35; }
+.stock-card .stock-qty { min-width: 72px; text-align: right; }
 .stock-open {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: .7rem; font-weight: 700; color: #b45309;
@@ -749,7 +753,36 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .plot-name[onclick]:hover { color: var(--green); }
 .stock-thumb:hover { box-shadow: 0 0 0 2px rgba(22, 163, 74, .35); }
 .stock-detail-hint .ic { width: .82em; height: .82em; }
-.sd-head { display: flex; gap: 12px; align-items: center; }
+.sd-head { display: flex; gap: 12px; align-items: center; padding-right: 38px; }
+.sd-main-photo {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 12px 0 4px;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  aspect-ratio: 16 / 10;
+  color: #fff;
+  cursor: zoom-in;
+}
+.sd-main-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sd-main-photo span {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, .62);
+  font-size: .72rem;
+  font-weight: 800;
+  backdrop-filter: blur(6px);
+}
+.sd-main-photo .ic { width: .9em; height: .9em; }
 .sd-photo-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
 .sd-strip { display: flex; gap: 10px; overflow-x: auto; padding: 12px 3px 6px; }
 .sd-strip-item { position: relative; flex-shrink: 0; width: 88px; height: 88px; }
@@ -1811,9 +1844,10 @@ html.modal-open, html.modal-open body {
 }
 
 /* ---- quick action chips ---- */
-.hero-chips { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; position: relative; }
+.hero-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; position: relative; }
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
+  min-width: 0;
   padding: 8px 14px; border-radius: 999px;
   background: #fff; border: 1.5px solid var(--green-light); color: var(--green-dark);
   font-size: .8rem; font-weight: 700;
@@ -2611,13 +2645,11 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .btn-tour { min-height: 38px; padding: 7px 10px; font-size: .74rem; }
   .hero { padding: 16px 14px; }
   .hero-chips {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    margin-left: -2px;
-    margin-right: -2px;
-    padding: 0 2px 3px;
+    gap: 6px;
+    padding: 0;
   }
-  .quick-chip { min-height: 38px; flex: 0 0 auto; }
+  .quick-chip { min-height: 38px; width: 100%; padding: 8px 6px; font-size: .72rem; }
+  .quick-chip .ic { width: .95em; height: .95em; }
   .cal-nav, .cal-nav button { width: 38px; height: 38px; min-width: 38px; }
   .cal-today { min-height: 36px; padding: 7px 12px; }
   .stock-source-row { align-items: stretch; flex-wrap: wrap; }
@@ -2671,9 +2703,15 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .modal-actions .btn:only-child { grid-column: 1 / -1; }
   .modal-x { top: 10px; right: 10px; }
   .sd-head { padding-right: 36px; }
+  .stock-card > .row { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 9px; }
+  .stock-meta-secondary { display: none; }
+  .stock-card .stock-qty { min-width: 58px; font-size: 1.18rem; }
   .stock-thumb { width: 46px; height: 46px; }
   .stock-thumb.lg { width: 96px; height: 96px; }
-  .sd-strip-item, .sd-strip-item img { width: 78px; height: 78px; }
+  .sd-main-photo { border-radius: 14px; aspect-ratio: 4 / 3; }
+  .sd-main-photo span { font-size: .68rem; }
+  .sd-strip { gap: 8px; padding-top: 9px; }
+  .sd-strip-item, .sd-strip-item img { width: 72px; height: 72px; }
   .sd-strip-x { width: 34px; height: 34px; top: -10px; right: -10px; font-size: 13px; }
   .sd-main-btn { width: 34px; height: 34px; left: -10px; bottom: -10px; }
   .detail-tabs {
@@ -2719,6 +2757,7 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .stock-actions .btn-danger-soft { grid-column: auto; }
   .brand-name { font-size: .95rem; }
   .btn-tour { max-width: 84px; overflow: hidden; text-overflow: ellipsis; }
+  .hero-chips { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 639px) {
   html[data-theme="dark"] .modal-actions {

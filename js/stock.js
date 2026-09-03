@@ -83,15 +83,15 @@ function stockListHtml() {
       const open = Number(x.openQty) || 0;
       const out = (Number(x.qty) || 0) + open <= 0; // ยาหมด
       return `
-      <div class="card ${out ? "stock-card-out" : ""}">
+      <div class="card stock-card ${out ? "stock-card-out" : ""}">
         <div class="row">
           <div class="stock-thumb" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${stockThumbHtml(x)}</div>
           <div class="grow">
             <div class="plot-name" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${esc(x.name)} ${out ? `<span class="stock-out-badge">${ic("alert")} ยาหมด</span>` : `<span class="stock-detail-hint">${ic("info")}</span>`} ${x.category ? `<span class="stock-cat">${esc(x.category)}</span>` : ""} ${x.size ? `<span class="stock-size">${esc(x.size)}</span>` : ""}</div>
-            ${x.code ? `<div class="muted">รหัส: <b>${esc(x.code)}</b></div>` : ""}
-            ${x.generic ? `<div class="muted">ชื่อสามัญ: ${esc(x.generic)}</div>` : ""}
-            ${x.supplier ? `<div class="muted">บริษัทจำหน่าย: ${esc(x.supplier)}</div>` : ""}
-            <div class="muted">ต้นทุนถัวเฉลี่ย ${fmtMoney(x.avgCost)} บาท/${x.unit}${x.salePrice ? ` · ขาย ${fmtMoney(x.salePrice)} บาท/${x.unit}` : ""}</div>
+            ${x.code ? `<div class="muted stock-meta-line">รหัส: <b>${esc(x.code)}</b></div>` : ""}
+            ${x.generic ? `<div class="muted stock-meta-line stock-meta-secondary">ชื่อสามัญ: ${esc(x.generic)}</div>` : ""}
+            ${x.supplier ? `<div class="muted stock-meta-line stock-meta-secondary">บริษัทจำหน่าย: ${esc(x.supplier)}</div>` : ""}
+            <div class="muted stock-meta-line">ต้นทุนถัวเฉลี่ย ${fmtMoney(x.avgCost)} บาท/${x.unit}${x.salePrice ? ` · ขาย ${fmtMoney(x.salePrice)} บาท/${x.unit}` : ""}</div>
             ${out ? `<div class="stock-out">${ic("alert")} ยาหมด — ไม่มีของในสต็อก</div>` : (open > 0 ? `<div class="stock-open">${ic("unlock")} เหลือจากการเปิดใช้ ${fmtNum(open)} ${esc(x.unit)} — ใช้ได้ก่อน</div>` : `<div class="stock-sealed">${ic("lock")} ยังไม่เปิดใช้</div>`)}
           </div>
           <div class="stock-qty ${out ? "out" : ""}">${out ? "0" : fmtNum(x.qty)} <small>${esc(x.unit)}</small></div>
@@ -420,6 +420,12 @@ App.stockDetail = function (id) {
   const open = Number(x.openQty) || 0;
   const photos = stockPhotos(x);
   const row = (k, v) => v ? `<div class="sd-row"><span class="k">${k}</span><span class="bold">${v}</span></div>` : "";
+  const mainPhotoHtml = photos.length
+    ? `<button class="sd-main-photo" onclick="App.viewPhoto('${x.id}', 0)" title="ดูรูปใหญ่">
+        <img src="${esc(stockPhotoSrc({ photo: photos[0] }))}" alt="" loading="lazy" onerror="this.closest('.sd-main-photo').remove()">
+        <span>${ic("eye")} แตะเพื่อดูรูปใหญ่</span>
+      </button>`
+    : "";
   const stripHtml = photos.length
     ? `<div class="sd-strip">${photos.map((p, i) => `<div class="sd-strip-item ${i === 0 ? "is-main" : ""}"><img src="${esc(stockPhotoSrc({ photo: p }))}" alt="" loading="lazy" onclick="App.viewPhoto('${x.id}', ${i})" onerror="this.remove()">${i === 0 ? `<span class="sd-main-badge">รูปหลัก</span>` : ""}${readonly ? "" : `<button class="sd-strip-x" onclick="event.stopPropagation();App.stockPhotoRemoveOne('${x.id}', ${i})" title="ลบรูปนี้">✕</button>${i > 0 ? `<button class="sd-main-btn" onclick="event.stopPropagation();App.stockPhotoSetMain('${x.id}', ${i})" title="ตั้งเป็นรูปหลัก">${ic("check")}</button>` : ""}`}</div>`).join("")}</div>`
     : `<div class="sd-no-photo">${ic("image")} ${readonly ? "ยังไม่มีรูปในสต็อกที่แชร์มา" : "ยังไม่มีรูป — กดเพิ่มรูปด้านล่าง"}</div>`;
@@ -431,6 +437,7 @@ App.stockDetail = function (id) {
         <div class="modal-sub">${x.category ? esc(x.category) : "ไม่มีหมวด"}${x.unit ? ` · ${esc(x.unit)}` : ""}${readonly ? ` · จาก ${esc(stockSourceLabel(stockViewOwnerEmail()))}` : ""}</div>
       </div>
     </div>
+    ${mainPhotoHtml}
     ${stripHtml}
     ${readonly ? "" : `<div class="sd-photo-actions">
       <button class="btn btn-sm btn-ghost" onclick="App.stockPhoto('${x.id}')">${ic("camera")} เพิ่มรูป${photos.length ? ` (${photos.length})` : ""}</button>
@@ -448,7 +455,7 @@ App.stockDetail = function (id) {
       ${x.salePrice ? `<div class="sd-row"><span class="k">กำไร/หน่วย</span><span class="bold ${x.salePrice - x.avgCost >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(x.salePrice - x.avgCost)} บาท/${esc(x.unit)}</span></div>` : ""}
       <div class="sd-row"><span class="k">มูลค่ารวม</span><span class="bold">${fmtMoney((x.qty + open) * x.avgCost)} บาท</span></div>
     </div>
-    <div class="modal-actions" style="margin-top:14px">
+    <div class="modal-actions sd-actions" style="margin-top:14px">
       ${readonly ? `<button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>` : `
         <button class="btn btn-primary" onclick="App.modalReceive('${x.id}')">${ic("down")} รับของเข้า</button>
         <button class="btn btn-outline" onclick="App.modalDeduct('${x.id}')">${ic("minus")} ตัดสต็อก</button>
