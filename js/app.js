@@ -229,6 +229,8 @@ function taskRowHtml(t, opts) {
   const itemsCost = (t.costItems && t.costItems.length) ? t.costItems.reduce((a, ci) => a + (ci.totalCost || (Number(ci.qty || 0) * Number(ci.unitCost || 0)) || 0), 0) : 0;
   const costShow = itemsCost > 0 ? itemsCost : Number(t.cost || 0);
   if (costShow > 0) meta.push(`<span class="task-money out">${ic("dollar")} ต้นทุน ${fmtMoney(costShow)} บาท</span>`);
+  const photoCount = taskPhotos(t).length;
+  if (photoCount) meta.push(`<span class="task-photo-pill">${ic("camera")} รูป ${fmtNum(photoCount)}</span>`);
   if (opts.showNote && t.note) meta.push(esc(t.note));
   /* งานที่ยังไม่ผูกกับรอบการปลูก (เมื่อส่ง opts.cycleOptions มา — ใช้ในหน้าแปลง) */
   const noCycle = opts.cycleOptions && (!t.cycleId || !opts.cycleOptions.some(c => c.id === t.cycleId));
@@ -1676,16 +1678,63 @@ App.deletePlot = function (id) {
 App.toggleTask = function (id) {
   const t = S.tasks.find(x => x.id === id);
   if (!t) return;
+  if (t.status !== "done") {
+    App.modalTaskComplete(id);
+    return;
+  }
   toggleTaskDone(S, id);
   saveState(S);
   rerender();
-  toast(t.status === "done" ? `เสร็จแล้ว: ${t.title}` : `ยกเลิก: ${t.title}`);
+  toast(`ยกเลิก: ${t.title}`);
   /* ถ้ากำลังเปิดหน้าต่างรายละเอียดงานนี้อยู่ → อัปเดต modal ทันที (ไม่ต้องปิด-เปิดใหม่) */
   const root = document.getElementById("modalRoot");
   if (root && root.innerHTML.trim() !== "" && root.querySelector(".td-list")) {
     App.viewTask(id);
   }
   /* อัปเดตแผงแจ้งเตือนถ้ากำลังเปิดอยู่ */
+  const np = document.getElementById("notifPanel");
+  if (np && !np.hidden) renderNotifPanel();
+};
+App.modalTaskComplete = function (id) {
+  const t = S.tasks.find(x => x.id === id);
+  if (!t) return;
+  taskDonePhotos = taskPhotos(t).slice();
+  const p = t.plotId ? plotById(S, t.plotId) : null;
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("check")} บันทึกผลการทำงาน</h3>
+    <div class="modal-sub">${esc(t.title)}${p ? ` · ${esc(p.name)}` : ""}</div>
+    <div class="task-photo-panel">
+      <div class="task-photo-head">
+        <div><b>รูปหลังทำ</b><span>ถ่ายหลักฐานหลังตรวจแปลง ฉีดยา ใส่ปุ๋ย หรือเก็บเกี่ยว</span></div>
+        <button type="button" class="btn btn-sm btn-outline" onclick="App.taskPickPhotos('done')">${ic("camera")} เพิ่มรูป</button>
+      </div>
+      <div id="taskDonePhotoPreview">${taskPhotoPreviewHtml(taskDonePhotos, "done")}</div>
+    </div>
+    <div class="field">
+      <label>หมายเหตุหลังทำ</label>
+      <textarea id="tdone_note" rows="3" placeholder="เช่น พบเพลี้ยเล็กน้อย ฉีดตามอัตราแล้ว / ดินยังชื้นดี">${esc(t.doneNote || "")}</textarea>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
+      <button type="button" class="btn btn-outline" onclick="App.finishTask('${id}', true)">ข้ามรูปและทำเสร็จ</button>
+      <button type="button" class="btn btn-primary" onclick="App.finishTask('${id}', false)">${ic("check")} บันทึกผล</button>
+    </div>`);
+};
+App.finishTask = function (id) {
+  if (taskPhotoUploading.done) { toast("รอเพิ่มรูปให้เสร็จก่อน"); return; }
+  const t = S.tasks.find(x => x.id === id);
+  if (!t) return;
+  t.status = "done";
+  t.photos = taskDonePhotos.slice();
+  t.doneNote = (document.getElementById("tdone_note")?.value || "").trim();
+  t.updatedAt = Date.now();
+  if (S.notifDismissed) delete S.notifDismissed[id];
+  saveState(S);
+  closeModal();
+  rerender();
+  const n = taskPhotos(t).length;
+  toast(n ? `เสร็จแล้ว · แนบรูป ${fmtNum(n)} รูป` : `เสร็จแล้ว: ${t.title}`);
   const np = document.getElementById("notifPanel");
   if (np && !np.hidden) renderNotifPanel();
 };
@@ -3052,6 +3101,11 @@ function shareTaskHtml(t) {
         return `<div class="td-cost-row"><span>${esc(it.name || "ค่าใช้จ่าย")} ${m.length ? `<span class="muted" style="font-size:.68rem">${esc(m.join(" · "))}</span>` : ""}</span><b>${fmtMoney(it.totalCost)} บาท</b></div>`;
       }).join("")}
     </div>` : "";
+  const photos = taskPhotos(t);
+  const photosHtml = photos.length ? `
+    <div class="task-photo-strip share">
+      ${photos.slice(0, 6).map(p => `<span class="task-photo-thumb readonly"><img src="${esc(taskPhotoUrl(p))}" alt="รูปกิจกรรม" loading="lazy" onerror="this.closest('.task-photo-thumb').remove()"></span>`).join("")}
+    </div>` : "";
   return `
     <div class="row-line" style="align-items:flex-start">
       <span class="task-ico">${ic(TYPE_ICONS[t.type] || "check")}</span>
@@ -3059,6 +3113,8 @@ function shareTaskHtml(t) {
         <div class="bold" style="font-size:.84rem">${esc(t.title)}</div>
         <div class="muted" style="font-size:.7rem">${meta.map(esc).join(" · ")}</div>
         ${t.note ? `<div class="td-note-body" style="margin-top:6px;font-size:.74rem">${esc(t.note)}</div>` : ""}
+        ${t.doneNote ? `<div class="td-note-body" style="margin-top:6px;font-size:.74rem">${esc(t.doneNote)}</div>` : ""}
+        ${photosHtml}
         ${costsHtml}
       </div>
       ${t.status === "done" ? '<span class="badge badge-green">เสร็จ</span>' : '<span class="badge badge-amber">แผน</span>'}
@@ -4538,6 +4594,98 @@ App.submitEquipment = function (e) {
 };
 
 /* ---- task form (used by FAB + planner) ---- */
+let taskFormPhotos = [];
+let taskDonePhotos = [];
+const taskPhotoUploading = { form: false, done: false };
+function taskPhotos(t) {
+  if (!t) return [];
+  if (Array.isArray(t.photos)) return t.photos.map(p => String(p || "").trim()).filter(Boolean);
+  return t.photo ? [String(t.photo).trim()].filter(Boolean) : [];
+}
+function taskPhotoUrl(photo) {
+  return stockPhotoSrc({ photo });
+}
+function taskPhotoPreviewHtml(photos, mode) {
+  const label = mode === "done" ? "รูปหลังทำ" : "รูปกิจกรรม";
+  if (!photos.length) return `<div class="task-photo-empty">${ic("camera")} ยังไม่มี${label}</div>`;
+  return `<div class="task-photo-strip">${photos.map((p, i) => `
+    <div class="task-photo-thumb">
+      <img src="${esc(taskPhotoUrl(p))}" alt="${label}" loading="lazy" onclick="App.viewTaskTempPhoto('${mode}', ${i})" onerror="this.closest('.task-photo-thumb').remove()">
+      <button type="button" class="task-photo-remove" aria-label="ลบรูปนี้" onclick="event.stopPropagation();App.taskRemovePhoto('${mode}', ${i})">✕</button>
+    </div>`).join("")}</div>`;
+}
+function renderTaskPhotoPreview(mode) {
+  const el = document.getElementById(mode === "done" ? "taskDonePhotoPreview" : "taskPhotoPreview");
+  if (el) el.innerHTML = taskPhotoPreviewHtml(mode === "done" ? taskDonePhotos : taskFormPhotos, mode);
+}
+async function readTaskPhotoFile(file) {
+  const url = await App.uploadPhotoR2(file, 1280);
+  if (url) return url;
+  return downscaleImage(file, 760, 0.72);
+}
+App.taskPickPhotos = function (mode) {
+  const key = mode === "done" ? "done" : "form";
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.multiple = true;
+  input.style.display = "none";
+  input.onchange = async () => {
+    const files = input.files ? [...input.files] : [];
+    input.remove();
+    if (!files.length) return;
+    const arr = key === "done" ? taskDonePhotos : taskFormPhotos;
+    taskPhotoUploading[key] = true;
+    toast("กำลังเพิ่มรูป...");
+    try {
+      for (const f of files) arr.push(await readTaskPhotoFile(f));
+      renderTaskPhotoPreview(key);
+      toast(files.length > 1 ? `เพิ่มรูป ${files.length} รูปแล้ว` : "เพิ่มรูปแล้ว");
+    } catch (e) {
+      toast("อ่านรูปไม่สำเร็จ — ลองไฟล์ JPG/PNG");
+    }
+    taskPhotoUploading[key] = false;
+  };
+  document.body.appendChild(input);
+  input.click();
+};
+App.taskRemovePhoto = function (mode, idx) {
+  const arr = mode === "done" ? taskDonePhotos : taskFormPhotos;
+  arr.splice(idx, 1);
+  renderTaskPhotoPreview(mode === "done" ? "done" : "form");
+  toast("ลบรูปแล้ว");
+};
+let taskLightboxEl = null;
+function showTaskLightbox(photos, idx, renderAction) {
+  const list = (photos || []).filter(Boolean);
+  if (!list.length) return;
+  const n = list.length;
+  const cur = ((idx % n) + n) % n;
+  if (!taskLightboxEl) {
+    taskLightboxEl = document.createElement("div");
+    taskLightboxEl.id = "taskLightbox";
+    document.body.appendChild(taskLightboxEl);
+  }
+  taskLightboxEl.innerHTML = `
+    <div class="lightbox-backdrop" onclick="App.closeTaskLightbox()">
+      <button class="lightbox-x" aria-label="ปิดรูปใหญ่" title="ปิดรูปใหญ่" onclick="App.closeTaskLightbox()">✕</button>
+      ${n > 1 ? `<button class="lightbox-nav prev" onclick="event.stopPropagation();${renderAction(cur - 1)}">‹</button>
+      <button class="lightbox-nav next" onclick="event.stopPropagation();${renderAction(cur + 1)}">›</button>` : ""}
+      <img src="${esc(taskPhotoUrl(list[cur]))}" alt="" onclick="event.stopPropagation()">
+      ${n > 1 ? `<div class="lightbox-count">${cur + 1} / ${n}</div>` : ""}
+    </div>`;
+}
+App.closeTaskLightbox = function () {
+  if (taskLightboxEl) taskLightboxEl.innerHTML = "";
+};
+App.viewTaskTempPhoto = function (mode, idx) {
+  const key = mode === "done" ? "done" : "form";
+  showTaskLightbox(key === "done" ? taskDonePhotos : taskFormPhotos, idx, next => `App.viewTaskTempPhoto('${key}', ${next})`);
+};
+App.viewTaskPhoto = function (id, idx) {
+  const t = S.tasks.find(x => x.id === id);
+  showTaskLightbox(taskPhotos(t), idx, next => `App.viewTaskPhoto('${id}', ${next})`);
+};
 /* ดูรายละเอียดงาน — กดที่แถวงานเพื่อดูว่าต้องทำอะไร + จัดการได้ */
 App.viewTask = function (id) {
   const t = S.tasks.find(x => x.id === id);
@@ -4569,6 +4717,19 @@ App.viewTask = function (id) {
         return `<div class="td-cost-row"><span>${esc(name)} ${meta.length ? `<span class="muted" style="font-size:.68rem">${esc(meta.join(" · "))}</span>` : ""}</span><b>${fmtMoney(it.totalCost)}</b></div>`;
       }).join("")}
     </div>` : "";
+  const photos = taskPhotos(t);
+  const photoHtml = photos.length ? `
+    <div class="td-photo-section">
+      <div class="td-note-title">${ic("camera")} รูปกิจกรรม (${fmtNum(photos.length)})</div>
+      <div class="task-photo-strip detail">
+        ${photos.map((p, i) => `<button class="task-photo-thumb readonly" onclick="App.viewTaskPhoto('${t.id}', ${i})" title="ดูรูปใหญ่"><img src="${esc(taskPhotoUrl(p))}" alt="รูปกิจกรรม" loading="lazy" onerror="this.closest('.task-photo-thumb').remove()"></button>`).join("")}
+      </div>
+    </div>` : "";
+  const doneNoteHtml = t.doneNote ? `
+    <div class="td-note td-done-note">
+      <div class="td-note-title">${ic("check")} บันทึกหลังทำ</div>
+      <div class="td-note-body">${esc(t.doneNote)}</div>
+    </div>` : "";
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${esc(t.title)}</h3>
@@ -4577,10 +4738,12 @@ App.viewTask = function (id) {
       ${rows.map(r => `<div class="td-row"><span class="td-k">${r.k}</span><span class="td-v">${esc(r.v)}</span></div>`).join("")}
     </div>
     ${costListHtml}
+    ${photoHtml}
     <div class="td-note">
       <div class="td-note-title">${ic("info")} สิ่งที่ต้องทำ</div>
       ${t.note ? `<div class="td-note-body">${esc(t.note)}</div>` : `<div class="muted" style="font-size:.76rem">ยังไม่มีรายละเอียด — กดแก้ไขเพื่อเพิ่มสิ่งที่ต้องทำ</div>`}
     </div>
+    ${doneNoteHtml}
     <div class="modal-actions">
       <button class="btn btn-sm btn-danger-soft" onclick="App.deleteTask('${t.id}')">${ic("trash")} ลบ</button>
       <button class="btn btn-sm btn-outline" onclick="App.editTask('${t.id}')">${ic("pencil")} แก้ไข</button>
@@ -4982,6 +5145,7 @@ App.modalTask = function (date, preset) {
   const hasHarvest = editing ? editing.revenue > 0 : false;
   const stockItem = editing && editing.stockId ? stockById(S, editing.stockId) : null;
   const unitPrice = editing ? (stockItem ? stockItem.avgCost.toFixed(2) : (editing.qty ? (editing.cost / editing.qty).toFixed(2) : "")) : "";
+  taskFormPhotos = taskPhotos(editing).slice();
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${editing ? "แก้ไขกิจกรรม" : (preset.title ? esc(preset.title) : "เพิ่มกิจกรรมใหม่")}</h3>
@@ -5024,6 +5188,13 @@ App.modalTask = function (date, preset) {
       <div class="field"><label>สิ่งที่ต้องทำ / รายละเอียดเพิ่มเติม</label>
         <textarea id="t_note" rows="3" placeholder="เช่น ใช้ปุ๋ยสูตร 46-0-0 อัตรา 20 กก./ไร่ รดน้ำตามหลังทันที">${editing ? esc(editing.note || "") : ""}</textarea>
         <div class="hint">เขียนขั้นตอนหรือสิ่งที่ต้องทำ — จะแสดงเมื่อกดดูรายละเอียดกิจกรรม</div>
+      </div>
+      <div class="task-photo-panel">
+        <div class="task-photo-head">
+          <div><b>รูปกิจกรรม</b><span>ใส่รูปประกอบแผนงานหรือรูปหน้างานไว้ดูย้อนหลัง</span></div>
+          <button type="button" class="btn btn-sm btn-outline" onclick="App.taskPickPhotos('form')">${ic("camera")} เพิ่มรูป</button>
+        </div>
+        <div id="taskPhotoPreview">${taskPhotoPreviewHtml(taskFormPhotos, "form")}</div>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
@@ -5105,6 +5276,7 @@ App.taskPlotChange = function () {
 };
 App.submitTask = function (e, editId) {
   e.preventDefault();
+  if (taskPhotoUploading.form) { toast("รอเพิ่มรูปให้เสร็จก่อน"); return false; }
   const title = document.getElementById("t_title").value.trim();
   if (!title) return false;
   const useCost = document.getElementById("t_usecost").checked;
@@ -5181,7 +5353,9 @@ App.submitTask = function (e, editId) {
     harvestQty: useHarvest ? hqty : 0,
     harvestUnitPrice: useHarvest ? hprice : 0,
     finishCycle: useHarvest && document.getElementById("t_finishcycle").checked,
-    note: document.getElementById("t_note").value.trim()
+    note: document.getElementById("t_note").value.trim(),
+    photos: taskFormPhotos.slice(),
+    doneNote: editId ? (S.tasks.find(x => x.id === editId)?.doneNote || "") : ""
   };
   /* เขียนสรุปการคำนวณ (เช่น ฉีดยา 4 ไร่ × 100 ซีซี/ไร่ = 0.4 ขวด) ลงในบันทึกอัตโนมัติ */
   const calcLines = [];

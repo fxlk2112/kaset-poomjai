@@ -496,6 +496,9 @@ function ensureDefaults(s) {
   /* หมวดต้นทุนที่ไม่มีในระบบแล้ว (เช่น น้ำมัน/เชื้อเพลิง หรือหมวดที่ถูกลบ) — โยนไป "อื่นๆ" */
   const cmap = costCatMap(s);
   (s.tasks || []).forEach(t => {
+    if (!Array.isArray(t.photos)) t.photos = t.photo ? [t.photo] : [];
+    t.photos = t.photos.map(p => String(p || "").trim()).filter(Boolean);
+    if (typeof t.doneNote !== "string") t.doneNote = "";
     if (t.costCat && !cmap[t.costCat]) t.costCat = "other";
     (t.costItems || []).forEach(ci => {
       if (ci.category && !cmap[ci.category]) ci.category = "other";
@@ -756,6 +759,8 @@ function plotChemUse(s, year) {
 function addTask(s, t) {
   t.id = uid();
   t.status = t.status || "planned";
+  t.photos = Array.isArray(t.photos) ? t.photos.map(p => String(p || "").trim()).filter(Boolean) : [];
+  t.doneNote = String(t.doneNote || "");
   t.qty = Number(t.qty) || 0;
   t.cost = Number(t.cost) || 0;
   t.revenue = Number(t.revenue) || 0;

@@ -1051,11 +1051,13 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   display: flex; align-items: center; gap: 8px; justify-content: center;
   color: var(--muted); padding: 18px 0; font-size: .85rem; border: 1.5px dashed var(--line); border-radius: 12px; margin-top: 12px;
 }
-#lightbox .lightbox-backdrop {
+#lightbox .lightbox-backdrop,
+#taskLightbox .lightbox-backdrop {
   position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,.88);
   display: flex; align-items: center; justify-content: center;
 }
-#lightbox .lightbox-backdrop img {
+#lightbox .lightbox-backdrop img,
+#taskLightbox .lightbox-backdrop img {
   max-width: 92vw; max-height: 88vh; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,.5);
 }
 .lightbox-x {
@@ -1775,6 +1777,97 @@ html.modal-open, html.modal-open body {
   text-align: right; padding-top: 8px; border-top: 1px dashed var(--green-light);
 }
 .usage-total strong { font-size: .92rem; }
+.task-photo-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--green-deep);
+  font-weight: 800;
+}
+.task-photo-pill .ic { width: .95em; height: .95em; }
+.task-photo-panel {
+  border: 1px solid var(--green-light);
+  background: var(--green-soft);
+  border-radius: 12px;
+  padding: 12px;
+  margin: 0 0 12px;
+}
+.task-photo-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.task-photo-head b {
+  display: block;
+  font-size: .86rem;
+  color: var(--green-deep);
+}
+.task-photo-head span {
+  display: block;
+  margin-top: 1px;
+  font-size: .7rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.task-photo-strip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 3px 2px 8px;
+}
+.task-photo-strip.detail,
+.task-photo-strip.share { margin-top: 8px; }
+.task-photo-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 82px;
+  height: 82px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 12px;
+}
+.task-photo-thumb img {
+  width: 82px;
+  height: 82px;
+  display: block;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1.5px solid var(--line);
+  background: #fff;
+  cursor: zoom-in;
+}
+.task-photo-thumb.readonly img { border-color: var(--green-light); }
+.task-photo-remove {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
+.task-photo-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 58px;
+  border: 1.5px dashed var(--green-light);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 700;
+}
+.task-photo-empty .ic { width: 1em; height: 1em; color: var(--green); }
 /* การ์ดรายการค่าใช้จ่ายย่อย (หลายรายการต่องาน) */
 .usage-row {
   background: #fff; border: 1px solid var(--green-light); border-radius: 10px;
@@ -1793,6 +1886,10 @@ html.modal-open, html.modal-open body {
 .td-cost-row b { color: var(--green-deep); flex-shrink: 0; }
 @media (max-width: 480px) {
   .form-row-2 { grid-template-columns: 1fr; }
+  .task-photo-head { grid-template-columns: 1fr; }
+  .task-photo-head .btn { width: 100%; }
+  .task-photo-thumb,
+  .task-photo-thumb img { width: 76px; height: 76px; }
 }
 .modal-x { position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; border-radius: 50%; background: #f1f5f4; font-size: 1rem; font-weight: 700; color: var(--muted); transition: background .15s; z-index: 1; }
 .modal-x:hover { background: #e5ece8; }
@@ -1819,6 +1916,14 @@ html.modal-open, html.modal-open body {
 .td-note-title { font-size: .78rem; font-weight: 800; color: var(--green-deep); display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
 .td-note-title .ic { width: 1em; height: 1em; }
 .td-note-body { font-size: .85rem; line-height: 1.6; white-space: pre-line; }
+.td-photo-section {
+  border: 1px solid var(--green-light);
+  background: var(--green-soft);
+  border-radius: 12px;
+  padding: 12px;
+  margin: 0 0 12px;
+}
+.td-done-note { background: #eff6ff; border-color: #bfdbfe; }
 
 /* ============ Toast ============ */
 .toast {
@@ -2785,6 +2890,8 @@ html[data-theme="dark"] .cal-card,
 html[data-theme="dark"] .receipt,
 html[data-theme="dark"] .passport-stat,
 html[data-theme="dark"] .usage-row,
+html[data-theme="dark"] .task-photo-panel,
+html[data-theme="dark"] .td-photo-section,
 html[data-theme="dark"] .fab-item,
 html[data-theme="dark"] .year-nav-btn,
 html[data-theme="dark"] .year-chip,
@@ -2901,6 +3008,7 @@ html[data-theme="dark"] .usage-total,
 html[data-theme="dark"] .usage-row-head strong,
 html[data-theme="dark"] .td-cost-title,
 html[data-theme="dark"] .td-cost-row b,
+html[data-theme="dark"] .task-photo-head b,
 html[data-theme="dark"] .gps-box .gps-coords,
 html[data-theme="dark"] .stock-qty,
 html[data-theme="dark"] .hero-greet { color: #86efac; }
@@ -2910,6 +3018,7 @@ html[data-theme="dark"] .settings-group-head b { color: #86efac; }
 html[data-theme="dark"] .settings-group.danger .settings-group-head b { color: #fca5a5; }
 
 html[data-theme="dark"] .task-row { background: var(--soft); }
+html[data-theme="dark"] .td-done-note { background: rgba(37,99,235,.16); border-color: rgba(96,165,250,.34); }
 html[data-theme="dark"] .task-row:hover,
 html[data-theme="dark"] .notif-row:hover,
 html[data-theme="dark"] .stock-pick-item:hover,
