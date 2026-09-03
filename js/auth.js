@@ -13,6 +13,16 @@ const SESSION_KEY = "farmult-session-v1";   /* {token, email, name} */
 const CLOUD_TS_KEY = "farmult-cloud-ts-v1"; /* updated_at ล่าสุดของข้อมูลบนคลาวด์ที่เคยเห็น */
 const OWNER_KEY = "farmult-data-owner";     /* บัญชีเจ้าของข้อมูลที่กำลังเปิดใช้ในเครื่องนี้ */
 
+function maskEmailForDisplay(email) {
+  const raw = String(email || "").trim();
+  const at = raw.indexOf("@");
+  if (at <= 0) return raw ? "ซ่อนอีเมล" : "";
+  const local = raw.slice(0, at);
+  const domain = raw.slice(at + 1);
+  const keep = local.length <= 4 ? Math.min(2, local.length) : 4;
+  return `${local.slice(0, keep)}***@${domain}`;
+}
+
 function shareTokenFromUrl() {
   try { return String(new URL(location.href).searchParams.get("share") || "").trim(); }
   catch (e) { return ""; }
@@ -204,10 +214,11 @@ Auth.bootCheck = async function () {
 
 /* ข้อมูลต่างกันทั้งสองฝั่ง — ถามว่าจะเอาฝั่งไหน */
 Auth.askMerge = function (cloudData, updatedAt) {
+  const accountLabel = maskEmailForDisplay(Auth.session && Auth.session.email);
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${ic("refresh")} พบข้อมูลในคลาวด์</h3>
-    <div class="modal-sub">ข้อมูลบนคลาวด์ของบัญชี ${esc(Auth.session.email)} อัปเดตล่าสุด (${dateLabel(new Date(updatedAt).toISOString().slice(0, 10))}) ไม่ตรงกับเครื่องนี้ — เลือกว่าจะใช้ชุดไหน</div>
+    <div class="modal-sub">ข้อมูลบนคลาวด์ของบัญชี ${esc(accountLabel)} อัปเดตล่าสุด (${dateLabel(new Date(updatedAt).toISOString().slice(0, 10))}) ไม่ตรงกับเครื่องนี้ — เลือกว่าจะใช้ชุดไหน</div>
     <div class="modal-actions" style="flex-direction:column;display:flex;gap:8px">
       <button class="btn btn-primary btn-block" onclick="Auth.choosePull()">${ic("download")} ใช้ข้อมูลจากคลาวด์ (ทับเครื่องนี้)</button>
       <button class="btn btn-outline btn-block" onclick="Auth.choosePush()">${ic("upload")} ใช้ข้อมูลเครื่องนี้ (ส่งขึ้นคลาวด์ทับ)</button>
@@ -551,8 +562,8 @@ Auth.fillProfilePanel = function () {
     <div class="pp-head">
       <div class="pp-avatar">${ic("user")}</div>
       <div class="pp-info">
-        <div class="pp-name">${esc(s.name || s.email)}</div>
-        <div class="pp-email">${esc(s.email)}</div>
+        <div class="pp-name">${esc(s.name || maskEmailForDisplay(s.email))}</div>
+        <div class="pp-email">${esc(maskEmailForDisplay(s.email))}</div>
         ${s.admin ? `<span class="badge badge-green">ผู้ดูแลระบบ</span>` : ""}
       </div>
     </div>
@@ -575,7 +586,7 @@ Auth.cardHtml = function () {
   <div class="section-title">${ic("user")} บัญชีผู้ใช้ / ซิงก์คลาวด์ ${Auth.session ? `<span class="badge badge-green">เชื่อมต่อแล้ว</span>` : ""}</div>
   <div class="card">
     ${Auth.session ? `
-      <div class="row row-between"><span class="muted">อีเมล</span><span class="small bold">${esc(Auth.session.email)}</span></div>
+      <div class="row row-between"><span class="muted">บัญชี</span><span class="small bold">${esc(maskEmailForDisplay(Auth.session.email))}</span></div>
       ${Auth.session.name ? `<div class="row row-between mt-8"><span class="muted">ชื่อ</span><span class="small bold">${esc(Auth.session.name)}</span></div>` : ""}
       <div class="muted mt-8" style="font-size:.72rem">${ic("info")} ทุกครั้งที่บันทึกงาน ระบบจะส่งขึ้นคลาวด์ให้อัตโนมัติ${Auth.session.admin ? " · เมนูผู้ดูแลระบบอยู่ที่ไอคอนโปรไฟล์มุมขวาบน" : ""}</div>
       <button class="btn btn-primary btn-block mt-12" onclick="App.authSyncNow()">${ic("refresh")} ซิงก์ขึ้นคลาวด์ตอนนี้</button>

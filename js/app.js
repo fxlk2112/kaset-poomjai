@@ -504,15 +504,29 @@ function renderHome() {
 
   const extra = "";
 
-  const welcome = S.tourDone ? "" : `
-    <div class="welcome-strip">
-      <span class="plot-emoji sm">${ic("compass")}</span>
-      <div class="grow">
-        <div class="bold">เริ่มตั้งค่าฟาร์ม</div>
-        <div class="muted">แปลง สต็อก งานรายวัน และยอดขาย</div>
+  const setupSteps = [
+    { done: (S.plots || []).length > 0, label: "เพิ่มแปลง", action: "App.nav('plots')" },
+    { done: (S.stock || []).length > 0, label: "เพิ่มสินค้า", action: "App.nav('stock')" },
+    { done: (S.tasks || []).length > 0, label: "บันทึกกิจกรรม", action: `App.modalTask('${today}')` },
+  ];
+  const welcome = setupSteps.some(x => !x.done) ? `
+    <div class="welcome-strip setup-strip">
+      <div class="setup-head">
+        <span class="plot-emoji sm">${ic("compass")}</span>
+        <div class="grow">
+          <div class="bold">เริ่มต้นใช้งาน</div>
+          <div class="muted">ทำตามลำดับนี้ก็เริ่มบันทึกงานได้เลย</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="App.startTour()">${ic("compass")} แนะนำ</button>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="App.startTour()">${ic("compass")} แนะนำ</button>
-    </div>`;
+      <div class="setup-steps">
+        ${setupSteps.map((step, i) => `
+          <button class="setup-step ${step.done ? "done" : ""}" onclick="${step.action}">
+            <span>${step.done ? ic("check") : i + 1}</span>
+            <b>${step.label}</b>
+          </button>`).join("")}
+      </div>
+    </div>` : "";
 
   const todayPanel = `
     <section class="sec-cal">
@@ -3341,7 +3355,7 @@ App.checkCloudSize = async function () {
     openModal(`
       <button class="modal-x" onclick="App.closeModal()">✕</button>
       <h3>ข้อมูลบนคลาวด์</h3>
-      <div class="modal-sub">บัญชี ${esc(Auth.session.email)}</div>
+      <div class="modal-sub">บัญชี ${esc(typeof maskEmailForDisplay === "function" ? maskEmailForDisplay(Auth.session.email) : Auth.session.email)}</div>
       <div class="card" style="margin-top:8px">
         <div class="row row-between"><span class="muted">ขนาดข้อมูลล่าสุด</span><span class="bold">${fmtBytes(dataStr.length)}</span></div>
         <div class="row row-between mt-8"><span class="muted">อัปเดตเมื่อ</span><span class="small bold">${ts ? ts.toLocaleString("th-TH") : "—"}</span></div>
@@ -3446,7 +3460,7 @@ function renderSettings() {
       </div>`; })()}
     </div>
     <div class="card mt-8">
-      <div class="row row-between"><span class="muted">บนคลาวด์ (Cloudflare D1)</span><span class="small bold">${typeof Auth !== "undefined" && Auth.session ? esc(Auth.session.email) : "ยังไม่ล็อกอิน"}</span></div>
+      <div class="row row-between"><span class="muted">บนคลาวด์ (Cloudflare D1)</span><span class="small bold">${typeof Auth !== "undefined" && Auth.session ? esc(typeof maskEmailForDisplay === "function" ? maskEmailForDisplay(Auth.session.email) : Auth.session.email) : "ยังไม่ล็อกอิน"}</span></div>
       <div class="row row-between mt-8"><span class="muted">ซิงก์ล่าสุด</span><span class="small bold">${typeof cloudTs === "function" && cloudTs() ? dateLabel(new Date(cloudTs()).toISOString().slice(0, 10)) + " " + new Date(cloudTs()).toTimeString().slice(0, 5) : "—"}</span></div>
       <button class="btn btn-ghost btn-block mt-8" onclick="App.checkCloudSize()">${ic("refresh")} ตรวจขนาดข้อมูลบนคลาวด์</button>
     </div>
@@ -4870,7 +4884,7 @@ App.modalTask = function (date, preset) {
         <div class="field"><label>แปลง</label><select id="t_plot" onchange="App.taskPlotChange()"></select></div>
         <div class="field"><label>พืช / รอบ</label><select id="t_cycle" disabled></select></div>
       </div>
-      <div class="hint" style="margin-top:-6px">เลือกแปลงก่อน แล้วเลือกรอบที่กำลังดำเนินการ — รายรับ/ต้นทุนจะเข้ารอบและแปลงนั้นทันที</div>
+      <div class="hint" style="margin-top:-6px">เลือกแปลง/รอบ เพื่อให้ต้นทุนเข้าถูกที่</div>
       <div class="field"><label>ประเภทกิจกรรม</label><select id="t_type">
         ${Object.keys(TYPE_LABELS).map(k => `<option value="${k}" ${k === type ? "selected" : ""}>${TYPE_LABELS[k]}</option>`).join("")}
       </select></div>

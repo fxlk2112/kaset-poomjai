@@ -212,9 +212,10 @@ function renderStock() {
         ` : `
           <button class="btn btn-sm btn-primary" onclick="App.modalStock()">${ic("plus")} เพิ่มสินค้า</button>
           <button class="btn btn-sm btn-outline" onclick="App.modalSale()">${ic("dollar")} ขายสินค้า</button>
-          <button class="btn btn-sm btn-ghost stock-toolbar-secondary" onclick="App.stockDensityToggle()">${ic("menu")} ${stockDensity === "compact" ? "ละเอียด" : "ย่อ"}</button>
-          <button class="btn btn-sm btn-ghost stock-filter-mobile-btn" onclick="App.stockFilterOpen()">${ic("search")} กรอง${filterCount ? ` (${filterCount})` : ""}</button>
-          <button class="btn btn-sm btn-ghost stock-toolbar-secondary" onclick="App.stockToolsOpen()">${ic("menu")} จัดการสต็อก</button>
+          <button class="btn btn-sm btn-ghost stock-toolbar-secondary stock-desktop-extra" onclick="App.stockDensityToggle()">${ic("menu")} ${stockDensity === "compact" ? "ละเอียด" : "ย่อ"}</button>
+          <button class="btn btn-sm btn-ghost stock-filter-mobile-btn stock-desktop-extra" onclick="App.stockFilterOpen()">${ic("search")} กรอง${filterCount ? ` (${filterCount})` : ""}</button>
+          <button class="btn btn-sm btn-ghost stock-toolbar-secondary stock-desktop-extra" onclick="App.stockToolsOpen()">${ic("menu")} จัดการสต็อก</button>
+          <button class="btn btn-sm btn-ghost stock-mobile-options-btn" onclick="App.stockQuickOptionsOpen()">${ic("menu")} ตัวเลือก${filterCount ? ` (${filterCount})` : ""}</button>
         `}
       </div>
     </div>
@@ -262,6 +263,30 @@ App.stockPhotoFilter = function (v) {
 App.stockDensityToggle = function () {
   stockDensity = stockDensity === "compact" ? "detail" : "compact";
   rerender();
+};
+App.stockQuickOptionsOpen = function () {
+  const filterCount = stockActiveFilterCount();
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("menu")} ตัวเลือกสต็อก</h3>
+    <div class="modal-sub">คำสั่งรองสำหรับรายการสต็อก</div>
+    <div class="action-list">
+      <button class="action-item" onclick="App.stockFilterOpen()">
+        <span class="action-ico">${ic("search")}</span>
+        <span><b>กรองรายการ${filterCount ? ` (${filterCount})` : ""}</b><small>สถานะ หมวด และรูปสินค้า</small></span>
+      </button>
+      <button class="action-item" onclick="App.closeModal();App.stockDensityToggle()">
+        <span class="action-ico">${ic("menu")}</span>
+        <span><b>${stockDensity === "compact" ? "แสดงรายละเอียดเพิ่ม" : "ย่อรายการให้สั้น"}</b><small>ปรับความแน่นของรายการสต็อก</small></span>
+      </button>
+      <button class="action-item" onclick="App.closeModal();App.stockToolsOpen()">
+        <span class="action-ico">${ic("box")}</span>
+        <span><b>จัดการสต็อก</b><small>Lark, Excel, แชร์, ประวัติ</small></span>
+      </button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
+    </div>`);
 };
 App.stockResetFilters = function () {
   stockFilter = "all";

@@ -627,6 +627,56 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .welcome-strip .bold { color: var(--green-deep); font-size: .92rem; }
 .welcome-strip .muted { font-size: .72rem; line-height: 1.25; }
 .welcome-strip .btn { flex: 0 0 auto; }
+.setup-strip {
+  align-items: stretch;
+  flex-direction: column;
+}
+.setup-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.setup-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.setup-step {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--soft);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.setup-step span {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--green-deep);
+  font-size: .72rem;
+}
+.setup-step.done {
+  color: var(--green-deep);
+  background: rgba(22, 163, 74, .08);
+}
+.setup-step.done span {
+  background: var(--green-deep);
+  color: #fff;
+  border-color: var(--green-deep);
+}
 
 /* ============ Task rows (สไตล์ Farm Command: จุดสถานะ + แถวเรียบ) ============ */
 .task-row { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--soft); border-radius: 12px; animation: riseIn .35s ease both; }
@@ -772,6 +822,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   border: none;
 }
 .stock-toolbar { gap: 6px; flex-wrap: wrap; }
+.stock-mobile-options-btn { display: none; }
 .stock-secondary-action { color: var(--muted); }
 /* ป้ายขนาดสินค้า */
 .stock-size {
@@ -2795,6 +2846,12 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
 /* ===== Mobile UI polish: touch targets + compact controls ===== */
 @media (max-width: 639px) {
   .view { padding: 14px 12px calc(var(--nav-h) + 118px + env(safe-area-inset-bottom)); }
+  .fab-dock {
+    right: 16px;
+    bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom));
+  }
+  .fab { width: 52px; height: 52px; }
+  .fab-icon { font-size: 1.72rem; }
   .card { padding: 12px; }
   .topbar { padding-left: 12px; padding-right: 12px; }
   .topbar-row { gap: 6px; }
@@ -2887,6 +2944,13 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
     font-size: .74rem;
   }
   .stock-toolbar .stock-toolbar-secondary:last-child { grid-column: 1 / -1; }
+  .stock-desktop-extra,
+  .stock-filter-mobile-btn { display: none !important; }
+  .stock-mobile-options-btn {
+    display: inline-flex;
+    grid-column: 1 / -1;
+    min-height: 38px;
+  }
   .modal { max-height: 92dvh; padding: 18px 14px calc(14px + env(safe-area-inset-bottom)); }
   .modal-actions {
     position: relative;
@@ -2904,7 +2968,6 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .modal-x { top: 10px; right: 10px; }
   .sd-head { padding-right: 36px; }
   .stock-filter-panel { display: none; }
-  .stock-filter-mobile-btn { display: inline-flex; }
   .stock-card > .row { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 9px; }
   .stock-meta-secondary { display: none; }
   .stock-card .stock-qty { min-width: 58px; font-size: 1.18rem; }
@@ -2988,7 +3051,8 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .lpc-choices, .stock-filter-panel, .quick-filter-row, .planner-filters, .lark-sync-results { grid-template-columns: 1fr; }
   .stock-actions .btn-danger-soft { grid-column: auto; }
   .stock-toolbar, .stock-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .stock-toolbar .stock-toolbar-secondary:last-child { grid-column: 1 / -1; }
+  .stock-mobile-options-btn { grid-column: 1 / -1; }
+  .setup-steps { grid-template-columns: 1fr; }
   .analytics-brief { grid-template-columns: repeat(4, minmax(100px, 1fr)); }
   .analytics-insights { grid-template-columns: repeat(4, minmax(148px, 1fr)); }
   .brand-name { font-size: .95rem; }
