@@ -478,6 +478,17 @@ function ensureDefaults(s) {
     if (typeof tr.crop !== "string") tr.crop = "";
     if (typeof tr.metric !== "string") tr.metric = "ผลผลิต";
     if (typeof tr.metricUnit !== "string") tr.metricUnit = "กก.";
+    if (typeof tr.layoutMode !== "string") tr.layoutMode = tr.design === "MANUAL" ? "manual" : "random";
+    if (!Array.isArray(tr.metrics) || !tr.metrics.length) {
+      tr.metrics = [{ id: uid(), name: tr.metric || "ผลผลิต", unit: tr.metricUnit || "กก." }];
+    }
+    tr.metrics.forEach((m, i) => {
+      if (!m.id) m.id = uid();
+      if (typeof m.name !== "string" || !m.name.trim()) m.name = i === 0 ? (tr.metric || "ผลผลิต") : "ตัวชี้วัด";
+      if (typeof m.unit !== "string") m.unit = i === 0 ? (tr.metricUnit || "กก.") : "";
+    });
+    tr.metric = tr.metrics[0].name || tr.metric || "ผลผลิต";
+    tr.metricUnit = tr.metrics[0].unit || tr.metricUnit || "กก.";
     if (!Array.isArray(tr.treatments)) tr.treatments = [];
     if (!Array.isArray(tr.units)) tr.units = [];
     if (!Array.isArray(tr.observations)) tr.observations = [];
@@ -486,6 +497,8 @@ function ensureDefaults(s) {
       if (!t.code) t.code = "T" + (i + 1);
       if (typeof t.name !== "string") t.name = "";
       if (typeof t.desc !== "string") t.desc = "";
+      if (!Array.isArray(t.photos)) t.photos = [];
+      t.photos = t.photos.map(p => String(p || "").trim()).filter(Boolean);
     });
     tr.units.forEach((u, i) => {
       if (!u.id) u.id = uid();
@@ -499,6 +512,10 @@ function ensureDefaults(s) {
       o.photos = o.photos.map(p => String(p || "").trim()).filter(Boolean);
       if (typeof o.metric !== "string") o.metric = tr.metric || "ผลผลิต";
       if (typeof o.unit !== "string") o.unit = tr.metricUnit || "กก.";
+      if (!o.metricId) {
+        const m = tr.metrics.find(x => x.name === o.metric) || tr.metrics[0];
+        o.metricId = m ? m.id : "";
+      }
     });
   });
   /* ระบบน้ำรายแปลง: แหล่งน้ำ / ระบบต่อแปลง / บันทึกการให้น้ำ */
