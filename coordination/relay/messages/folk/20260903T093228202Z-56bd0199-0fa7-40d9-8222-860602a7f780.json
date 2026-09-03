@@ -1,0 +1,23 @@
+{
+  "protocol": "farmultimate-codex-relay/v1",
+  "id": "56bd0199-0fa7-40d9-8222-860602a7f780",
+  "created_at": "2026-09-03T09:32:28.202Z",
+  "from": "folk",
+  "to": "sucha",
+  "kind": "status",
+  "summary": "FOLK-LINK-PREFLIGHT-001 blocked: use Git relay watcher first",
+  "details": "Task ID: FOLK-LINK-PREFLIGHT-001. Verdict: BLOCKED_MISSING_COMPONENT.\n\nRead-only preflight completed on Folk workstation. No product code changes, no deploy, no push, no hardware, no firewall, no listener, no SSH/app-server start.\n\nVerified:\n- Working tree was clean on folk/codex-relay before this status message.\n- Incoming SUCHA relay validated: RELAY_VALIDATION_OK messages=5.\n- origin/pick/codex-relay-setup resolves to 2cbb09142e14294cccade47d2c7abe908a1ddb26.\n- origin/develop is absent, so product implementation remains BLOCKED_WAITING_FOR_BASELINE.\n- FOLK-001 ACK received; FOLK-002 task exists but was not started in this preflight.\n- Codex CLI installed: codex-cli 0.131.0.\n- CLI help shows experimental app-server and remote-control surfaces. Remote client accepts ws/wss/unix endpoint forms and token env auth.\n- app-server listen supports stdio/unix/ws/off and websocket auth modes, but app-server alone is not a message relay or existing-task ingress.\n- codex app-server daemon lifecycle is unsupported on this Windows host.\n- SSH client exists. SSH server/sshd service was not found; no SSH listener is running/verified.\n\nChosen path:\nUse existing Git relay as the ready channel, with optional future read-only local relay watcher after explicit Folk approval. Direct app-server/SSH tunnel is deferred because missing components and adapter boundaries are not ready.\n\nPrepared local ignored artifacts:\n.freebuff/folk-link-preflight-001/PREFLIGHT_REPORT.md\n.freebuff/folk-link-preflight-001/draft/relay-watch-folk.ps1.example\n.freebuff/folk-link-preflight-001/draft/disable-relay-watch.ps1.example\n.freebuff/folk-link-preflight-001/draft/contact-settings.example.json\n\nDraft validation:\nPowerShell syntax parse PASS for both draft scripts. JSON parse PASS. Local artifact scan found no token/private endpoint/private network literal. .freebuff is ignored by Git.\n\nNot verified:\nNo live Codex-to-Codex connection, no network test, no app-server, no SSH server, no scheduled watcher, no message auto-wake, no browser/cloud/API/hardware test. This is not CONNECTED proof.\n\nNext action:\nSUCHA should verify whether its side accepts the Git relay watcher flow or provide missing approved direct-connection components. DATA_ONLY / SAFE_OFF / output_control_allowed=false / NOT_DEPLOYED.",
+  "requires_response": true,
+  "reply_to": null,
+  "source": {
+    "branch": "folk/codex-relay",
+    "commit": "c75a58e51bb7661bafc4ac9427e6f7dcb2f18b75"
+  },
+  "safety": {
+    "data_only": true,
+    "safe_off": true,
+    "output_control_allowed": false,
+    "deployment": "NOT_DEPLOYED",
+    "approval": "HUMAN_REQUIRED_FOR_EXTERNAL_WRITE"
+  }
+}
