@@ -939,10 +939,30 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   border-radius: 999px; padding: 1px 7px; flex-shrink: 0;
 }
 /* แถบเตือนจำนวนเกินของในสต็อก */
+.stock-limit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  padding: 6px 9px;
+  border: 1px solid var(--green-light);
+  border-radius: 8px;
+  background: var(--green-soft);
+  color: var(--green-deep);
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+.stock-limit .ic { width: .95em; height: .95em; flex-shrink: 0; }
+.stock-limit.is-error {
+  border-color: #fecaca;
+  background: var(--red-light);
+  color: var(--red);
+}
 .ci-warn {
   font-size: .72rem; font-weight: 700; color: var(--red);
   background: var(--red-light); border: 1px solid #fecaca; border-radius: 8px;
-  padding: 6px 9px; margin: 0 0 10px;
+  padding: 6px 9px; margin-top: 5px;
 }
 /* กล่องคำนวณการใช้ตามพื้นที่ */
 .calc-box {
@@ -2743,6 +2763,17 @@ html[data-theme="dark"] .field.field-invalid textarea {
   background: rgba(69, 10, 10, .42);
   border-color: rgba(248, 113, 113, .72);
   box-shadow: 0 0 0 3px rgba(248, 113, 113, .14);
+}
+html[data-theme="dark"] .stock-limit {
+  background: rgba(22, 163, 74, .12);
+  border-color: rgba(134, 239, 172, .22);
+  color: #86efac;
+}
+html[data-theme="dark"] .stock-limit.is-error,
+html[data-theme="dark"] .ci-warn {
+  background: rgba(127, 29, 29, .26);
+  border-color: rgba(248, 113, 113, .34);
+  color: #fca5a5;
 }
 html[data-theme="dark"] .stock-source-select,
 html[data-theme="dark"] .stock-share-input input,

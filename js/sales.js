@@ -1,6 +1,7 @@
 /* ---------------- การขายสินค้า + ใบเสร็จรับเงิน ---------------- */
 let saleItems = [];      // รายการขายชั่วคราว: {stockId, name, unit, qty, price}
 let saleQueries = {};    // คำค้นหาสต็อกต่อแถว
+let saleEditingId = "";
 /* ขายจากสต็อกหลัก (หน่วยเต็ม) เท่านั้น — ไม่นับของที่เปิดใช้แล้ว */
 function saleAvail(x) { return Math.floor(Number(x.qty) || 0); }
 function saleItemsHtml(i) {
@@ -55,6 +56,7 @@ App.saleSet = function (i, field, v) {
   const it = saleItems[i];
   if (!it) return;
   it[field] = v;
+  if (field === "qty") App.saleCheckLimit(i);
   App.saleSum();
 };
 App.saleAdd = function () {
@@ -68,6 +70,50 @@ App.saleRemove = function (i) {
 function saleLineTotal(it) {
   return Math.round((Number(it.qty) || 0) * (Number(it.price) || 0));
 }
+function saleLimitInfo(it) {
+  if (!it || !it.stockId) return null;
+  const st = stockById(S, it.stockId);
+  if (!st) return null;
+  const editing = saleEditingId ? (S.sales || []).find(x => x.id === saleEditingId) : null;
+  const oldQty = editing ? (editing.items || []).find(o => o.stockId === it.stockId) : null;
+  const max = saleAvail(st) + (oldQty ? (Number(oldQty.qty) || 0) : 0);
+  const qty = Number(it.qty) || 0;
+  const unit = st.unit || it.unit || "";
+  let msg = `ขายได้ไม่เกิน ${fmtNum(max)} ${unit}`;
+  let over = false;
+  if (max <= 0) {
+    msg = `"${st.name}" หมดแล้ว — ไม่มี ${unit} เหลือในสต็อกหลัก`;
+    over = true;
+  } else if (qty > max) {
+    msg = `จำนวนเกิน — ขายได้ไม่เกิน ${fmtNum(max)} ${unit}`;
+    over = true;
+  }
+  return { st, max, qty, unit, msg, over };
+}
+function saleLimitHtml(i, it) {
+  const info = saleLimitInfo(it);
+  if (!info) return "";
+  return `<div class="stock-limit ${info.over ? "is-error" : ""}" id="saleLimit_${i}">${ic(info.over ? "alert" : "info")} ${esc(info.msg)}</div>`;
+}
+App.saleCheckLimit = function (i) {
+  const it = saleItems[i];
+  const info = saleLimitInfo(it);
+  const input = document.getElementById("saleQty_" + i);
+  const limit = document.getElementById("saleLimit_" + i);
+  const field = input ? input.closest(".field") : null;
+  const msg = info && info.over ? info.msg : "";
+  if (limit && info) {
+    limit.innerHTML = `${ic(info.over ? "alert" : "info")} ${esc(info.msg)}`;
+    limit.classList.toggle("is-error", info.over);
+  }
+  if (input) {
+    input.max = info ? String(info.max) : "";
+    input.setCustomValidity(msg);
+    if (!msg) clearModalFieldError(input);
+  }
+  if (field) field.classList.toggle("field-invalid", !!msg);
+  return !msg;
+};
 App.saleSum = function () {
   const el = document.getElementById("saleTotal");
   if (!el) return;
@@ -81,7 +127,10 @@ App.saleSum = function () {
 App.saleRender = function () {
   const list = document.getElementById("saleItemsList");
   if (!list) return;
-  list.innerHTML = saleItems.map((it, i) => `
+  list.innerHTML = saleItems.map((it, i) => {
+    const st = it.stockId ? stockById(S, it.stockId) : null;
+    const max = st ? saleAvail(st) : 0;
+    return `
     <div class="usage-row">
       <div class="usage-row-head">
         <strong>รายการที่ ${i + 1}</strong>
@@ -95,17 +144,21 @@ App.saleRender = function () {
       </div>
       ${it.stockId ? `
       <div class="form-row-2">
-        <div class="field"><label>จำนวน * (หน่วยเต็ม)</label><input type="number" min="1" max="${saleAvail(stockById(S, it.stockId))}" step="1" value="${it.qty}" oninput="App.saleSet(${i}, 'qty', this.value)">
-          <div class="hint">ขายเป็นหน่วยเต็มเท่านั้น (ขายได้ ${fmtNum(saleAvail(stockById(S, it.stockId)))} ${esc(it.unit)})</div></div>
+        <div class="field"><label>จำนวน * (หน่วยเต็ม)</label><input id="saleQty_${i}" type="number" min="1" max="${max}" step="1" value="${it.qty}" oninput="App.saleSet(${i}, 'qty', this.value)">
+          ${saleLimitHtml(i, it)}
+          <div class="hint">ขายเป็นหน่วยเต็มเท่านั้น</div></div>
         <div class="field"><label>ราคา/หน่วย (บาท)</label><input type="number" min="0" step="0.5" value="${it.price || ""}" oninput="App.saleSet(${i}, 'price', this.value)"></div>
       </div>
       <div class="row row-between muted" style="font-size:.78rem;padding:2px 2px 0"><span>รวมรายการนี้</span><b>${fmtMoney(saleLineTotal(it))} บาท</b></div>` : ""}
-    </div>`).join("");
+    </div>`;
+  }).join("");
   App.saleSum();
+  saleItems.forEach((_, i) => App.saleCheckLimit(i));
 };
 /* เปิดฟอร์มขายสินค้า — ใส่ saleId เพื่อแก้ไขใบเสร็จเดิม */
 App.modalSale = function (saleId) {
   const editing = saleId ? (S.sales || []).find(x => x.id === saleId) : null;
+  saleEditingId = editing ? editing.id : "";
   saleItems = editing
     ? editing.items.map(it => ({ stockId: it.stockId, name: it.name, unit: it.unit, qty: it.qty, price: it.price }))
     : [{ stockId: "", name: "", unit: "", qty: 1, price: 0 }];
@@ -174,7 +227,20 @@ App.submitSale = function (e, saleId) {
     if (!x) continue;
     const oldQty = editing ? (editing.items || []).find(o => o.stockId === it.stockId) : null;
     const avail = saleAvail(x) + (oldQty ? (Number(oldQty.qty) || 0) : 0);
-    if ((Number(it.qty) || 0) > avail) { toast(`ของไม่พอ: ${x.name} (ขายได้ ${fmtNum(avail)} ${x.unit})`); return false; }
+    if ((Number(it.qty) || 0) > avail) {
+      const idx = saleItems.findIndex(row => row === it || row.stockId === it.stockId);
+      const input = document.getElementById("saleQty_" + idx);
+      const msg = `จำนวนเกิน — ขายได้ไม่เกิน ${fmtNum(avail)} ${x.unit}`;
+      if (input) {
+        input.setCustomValidity(msg);
+        setModalFieldError(input, msg);
+        (input.closest(".field") || input).scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+        setTimeout(() => { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }, 220);
+      } else {
+        toast(`ของไม่พอ: ${x.name} (ขายได้ ${fmtNum(avail)} ${x.unit})`);
+      }
+      return false;
+    }
   }
   const data = {
     date: document.getElementById("sale_date").value || todayISO(),

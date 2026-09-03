@@ -4420,16 +4420,42 @@ App.modalDeduct = function (id) {
     <h3>ตัดสต็อก — ${esc(item.name)}</h3>
     <div class="modal-sub">คงเหลือ ${fmtNum(item.qty)} ${esc(item.unit)} · ต้นทุน ${fmtMoney(item.avgCost)} บาท/${esc(item.unit)}</div>
     <form onsubmit="return App.submitDeduct(event, '${id}')">
-      <div class="field"><label>จำนวนที่ตัด * (${esc(item.unit)})</label><input id="d_qty" type="number" min="1" max="${item.qty}" required></div>
+      <div class="field"><label>จำนวนที่ตัด * (${esc(item.unit)})</label><input id="d_qty" type="number" min="1" max="${item.qty}" required oninput="App.stockDeductLimit(this, '${id}')">
+        <div class="stock-limit" id="dLimit">${ic("info")} ตัดได้ไม่เกิน ${fmtNum(item.qty)} ${esc(item.unit)}</div>
+      </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
         <button type="submit" class="btn btn-primary">ตัดสต็อก</button>
       </div>
     </form>`);
 };
+App.stockDeductLimit = function (input, id) {
+  const item = stockById(S, id);
+  if (!input || !item) return true;
+  const max = Number(item.qty) || 0;
+  const qty = Number(input.value) || 0;
+  const over = qty > max;
+  const msg = over ? `จำนวนเกิน — ตัดได้ไม่เกิน ${fmtNum(max)} ${item.unit}` : `ตัดได้ไม่เกิน ${fmtNum(max)} ${item.unit}`;
+  const limit = document.getElementById("dLimit");
+  if (limit) {
+    limit.innerHTML = `${ic(over ? "alert" : "info")} ${esc(msg)}`;
+    limit.classList.toggle("is-error", over);
+  }
+  input.setCustomValidity(over ? msg : "");
+  input.closest(".field").classList.toggle("field-invalid", over);
+  if (!over) clearModalFieldError(input);
+  return !over;
+};
 App.submitDeduct = function (e, id) {
   e.preventDefault();
-  const qty = Number(document.getElementById("d_qty").value);
+  const input = document.getElementById("d_qty");
+  if (!App.stockDeductLimit(input, id)) {
+    setModalFieldError(input, input.validationMessage);
+    (input.closest(".field") || input).scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+    setTimeout(() => { try { input.focus({ preventScroll: true }); } catch (err) { input.focus(); } }, 220);
+    return false;
+  }
+  const qty = Number(input.value);
   deductStock(S, id, qty);
   saveState(S);
   closeModal();
@@ -4571,6 +4597,29 @@ function stockPickItemsHtml(i) {
     </button>`;
   }).join("");
 }
+function costAvailInfo(it) {
+  if (!it || !it.stockId) return null;
+  const st = stockById(S, it.stockId);
+  if (!st) return null;
+  const avail = rndQty((Number(st.qty) || 0) + (Number(st.openQty) || 0));
+  const need = Number(it.qty) || 0;
+  const unit = st.unit || it.unit || "";
+  let msg = `ใช้ได้ไม่เกิน ${fmtNum(avail)} ${unit}`;
+  let over = false;
+  if (avail <= 0) {
+    msg = `"${st.name}" หมดแล้ว — ไม่มี ${unit} เหลือในสต็อก`;
+    over = true;
+  } else if (need - avail > 1e-9) {
+    msg = `จำนวนเกิน — ใช้ได้ไม่เกิน ${fmtNum(avail)} ${unit}`;
+    over = true;
+  }
+  return { st, avail, need, unit, msg, over };
+}
+function costLimitHtml(i, it) {
+  const info = costAvailInfo(it);
+  if (!info) return "";
+  return `<div class="stock-limit ${info.over ? "is-error" : ""}" id="ciLimit_${i}">${ic(info.over ? "alert" : "info")} ${esc(info.msg)}</div>`;
+}
 /* พิมพ์ค้นหาสต็อก -> อัปเดตเฉพาะ list ของรายการนั้น (ไม่ rebuild = พิมพ์ต่อเนื่องได้) */
 App.costStockQuery = function (i, v) {
   taskStockQueries[i] = v;
@@ -4627,7 +4676,9 @@ App.costRender = function () {
         <input class="ci-name" value="${esc(it.name || "")}" placeholder="เช่น ค่าน้ำมัน, ยาจากร้านนอกสต็อก" oninput="App.costSet(${i}, 'name', this.value)">
       </div>
       <div class="form-row-2">
-        <div class="field"><label>จำนวนที่ใช้</label><input class="ci-qty" type="number" min="0" step="0.01" value="${it.qty || ""}" oninput="App.costSet(${i}, 'qty', this.value)"></div>
+        <div class="field"><label>จำนวนที่ใช้</label><input class="ci-qty" type="number" min="0" ${st ? `max="${costAvailInfo(it).avail}"` : ""} step="0.01" value="${it.qty || ""}" oninput="App.costSet(${i}, 'qty', this.value)">
+          ${costLimitHtml(i, it)}
+        </div>
         <div class="field"><label>หน่วย</label><input class="ci-unit" value="${esc(it.unit || "")}" placeholder="เช่น cc, กก., ขวด" oninput="App.costSet(${i}, 'unit', this.value)"></div>
       </div>
       <div class="form-row-2">
@@ -4642,7 +4693,6 @@ App.costRender = function () {
         </div>
         <div class="field"><label>รวมเป็นเงิน</label><input class="ci-total" type="number" readonly value="${it.totalCost || ""}"></div>
       </div>
-      <div class="ci-warn" id="ciWarn_${i}" hidden></div>
     </div>`;
   }).join("");
   App.costSum();
@@ -4823,7 +4873,11 @@ App.costSet = function (i, field, value) {
   }
   const row = document.querySelector(`[data-ci="${i}"]`);
   it.totalCost = Math.round((Number(it.qty) || 0) * (Number(it.unitCost) || 0));
-  if (row) row.querySelector(".ci-total").value = it.totalCost || "";
+  if (row) {
+    const qtyInput = row.querySelector(".ci-qty");
+    if (qtyInput && document.activeElement !== qtyInput) qtyInput.value = it.qty || "";
+    row.querySelector(".ci-total").value = it.totalCost || "";
+  }
   App.costSum();
   checkStockWarn(i, it, row);
 };
@@ -4851,20 +4905,23 @@ App.costPriceMode = function (i, mode) {
 /* เตือนเมื่อกรอกจำนวนเกินของในสต็อก (หรือเลือกของที่หมดแล้ว) */
 function checkStockWarn(i, it, row) {
   const warn = document.getElementById("ciWarn_" + i);
-  if (!warn) return;
-  let msg = "";
-  if (it.stockId) {
-    const st = stockById(S, it.stockId);
-    if (st) {
-      /* ปัดกันเลขทศนิยมลอย — 40.02 พอดีกับของเหลือต้องไม่เตือนเกิน */
-      const avail = rndQty((Number(st.qty) || 0) + (Number(st.openQty) || 0));
-      const need = Number(it.qty) || 0;
-      if (avail <= 0) msg = `"${st.name}" หมดแล้ว — ไม่มี ${st.unit} เหลือในสต็อก`;
-      else if (need - avail > 1e-9) msg = `จำนวนเกินของในสต็อก — เหลือแค่ ${fmtNum(avail)} ${st.unit}`;
-    }
+  const limit = document.getElementById("ciLimit_" + i);
+  const qtyInput = row ? row.querySelector(".ci-qty") : null;
+  const field = qtyInput ? qtyInput.closest(".field") : null;
+  const info = costAvailInfo(it);
+  const msg = info && info.over ? info.msg : "";
+  if (limit && info) {
+    limit.innerHTML = `${ic(info.over ? "alert" : "info")} ${esc(info.msg)}`;
+    limit.classList.toggle("is-error", info.over);
   }
-  warn.textContent = msg;
-  warn.hidden = !msg;
+  if (warn) warn.hidden = true;
+  if (qtyInput) {
+    qtyInput.max = info ? String(info.avail) : "";
+    qtyInput.setCustomValidity(msg);
+    if (!msg) clearModalFieldError(qtyInput);
+  }
+  if (field) field.classList.toggle("field-invalid", !!msg);
+  return msg;
 }
 /* อัปเดตยอดรวมต้นทุนทั้งหมด */
 App.costSum = function () {
@@ -5019,6 +5076,23 @@ App.submitTask = function (e, editId) {
   const useHarvest = document.getElementById("t_useharvest").checked;
   const hqty = Number(document.getElementById("t_hqty").value) || 0;
   const hprice = Number(document.getElementById("t_hprice").value) || 0;
+  if (useCost) {
+    for (let i = 0; i < taskCostItems.length; i++) {
+      const raw = taskCostItems[i];
+      if (!raw || !raw.stockId || !(Number(raw.qty) || 0)) continue;
+      const row = document.querySelector(`[data-ci="${i}"]`);
+      const msg = checkStockWarn(i, raw, row);
+      if (msg) {
+        const input = row ? row.querySelector(".ci-qty") : null;
+        if (input) {
+          setModalFieldError(input, msg);
+          (input.closest(".field") || input).scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+          setTimeout(() => { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }, 220);
+        }
+        return false;
+      }
+    }
+  }
   /* รวบรวมรายการค่าใช้จ่าย: เฉพาะรายการที่มีข้อมูล (ชื่อ/จำนวน/สต็อก/ราคา) */
   const costItems = taskCostItems
     .map(it => ({
