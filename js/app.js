@@ -1695,16 +1695,18 @@ App.toggleTask = function (id) {
   const np = document.getElementById("notifPanel");
   if (np && !np.hidden) renderNotifPanel();
 };
-App.modalTaskComplete = function (id) {
+App.modalTaskComplete = function (id, returnToDetail) {
   const t = S.tasks.find(x => x.id === id);
   if (!t) return;
+  taskCompleteReturnToDetail = !!returnToDetail;
   taskDonePhotos = taskDonePhotosOf(t).slice();
   const p = t.plotId ? plotById(S, t.plotId) : null;
   const recommendPhoto = taskPhotoRecommended(t);
+  const alreadyDone = t.status === "done";
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
-    <h3>${ic("check")} บันทึกผลการทำงาน</h3>
-    <div class="modal-sub">${esc(t.title)}${p ? ` · ${esc(p.name)}` : ""}</div>
+    <h3>${ic("check")} ${alreadyDone ? "แก้ผลหลังทำ" : "บันทึกผลการทำงาน"}</h3>
+    <div class="modal-sub">${esc(t.title)}${p ? ` · ${esc(p.name)}` : ""}${alreadyDone ? " · งานนี้ทำเสร็จแล้ว" : ""}</div>
     <div class="task-photo-panel">
       <div class="task-photo-head">
         <div><b>รูปหลังทำ</b><span>ถ่ายหลักฐานหลังตรวจแปลง ฉีดยา ใส่ปุ๋ย หรือเก็บเกี่ยว</span></div>
@@ -1719,8 +1721,8 @@ App.modalTaskComplete = function (id) {
     </div>
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
-      <button type="button" class="btn btn-outline" onclick="App.finishTask('${id}', true)">ทำเสร็จโดยไม่แนบรูป</button>
-      <button type="button" class="btn btn-primary" onclick="App.finishTask('${id}', false)">${ic("check")} บันทึกผล</button>
+      <button type="button" class="btn btn-outline" onclick="App.finishTask('${id}', true)">${alreadyDone ? "บันทึกโดยไม่แนบรูป" : "ทำเสร็จโดยไม่แนบรูป"}</button>
+      <button type="button" class="btn btn-primary" onclick="App.finishTask('${id}', false)">${ic("check")} ${alreadyDone ? "บันทึกผลหลังทำ" : "บันทึกผล"}</button>
     </div>`);
 };
 App.finishTask = function (id, allowNoPhoto) {
@@ -1741,8 +1743,10 @@ App.finishTask = function (id, allowNoPhoto) {
   saveState(S);
   closeModal();
   rerender();
+  if (taskCompleteReturnToDetail) App.viewTask(id);
+  taskCompleteReturnToDetail = false;
   const n = taskAllPhotos(t).length;
-  toast(n ? `เสร็จแล้ว · แนบรูป ${fmtNum(n)} รูป` : `เสร็จแล้ว: ${t.title}`);
+  toast(n ? `บันทึกแล้ว · รูปรวม ${fmtNum(n)} รูป` : `บันทึกแล้ว: ${t.title}`);
   const np = document.getElementById("notifPanel");
   if (np && !np.hidden) renderNotifPanel();
 };
@@ -4610,6 +4614,7 @@ App.submitEquipment = function (e) {
 /* ---- task form (used by FAB + planner) ---- */
 let taskFormPhotos = [];
 let taskDonePhotos = [];
+let taskCompleteReturnToDetail = false;
 const taskPhotoUploading = { form: false, done: false };
 function taskPhotos(t) {
   if (!t) return [];
@@ -4784,7 +4789,10 @@ App.viewTask = function (id) {
     <div class="modal-actions">
       <button class="btn btn-sm btn-danger-soft" onclick="App.deleteTask('${t.id}')">${ic("trash")} ลบ</button>
       <button class="btn btn-sm btn-outline" onclick="App.editTask('${t.id}')">${ic("pencil")} แก้ไข</button>
-      <button class="btn btn-sm btn-primary" onclick="App.toggleTask('${t.id}')">${ic("check")} ${t.status === "done" ? "ยกเลิกเสร็จ" : "ทำเสร็จ"}</button>
+      ${t.status === "done"
+        ? `<button class="btn btn-sm btn-primary" onclick="App.modalTaskComplete('${t.id}', true)">${ic("camera")} แก้ผลหลังทำ</button>
+           <button class="btn btn-sm btn-outline" onclick="App.toggleTask('${t.id}')">${ic("check")} ยกเลิกเสร็จ</button>`
+        : `<button class="btn btn-sm btn-primary" onclick="App.modalTaskComplete('${t.id}', true)">${ic("check")} ทำเสร็จ</button>`}
       <button class="btn btn-sm btn-ghost" onclick="App.gotoCalendar('${t.date}')">${ic("calendar")} ไปดูในปฏิทิน</button>
     </div>`);
 };
