@@ -3,6 +3,8 @@ let stockFilter = "all"; // all | sealed | opened
 let stockQuery = "";    // คำค้นหาชื่อ/หน่วย/หมวด
 let stockCat = "";      // หมวดสินค้าที่กรอง ("" = ทั้งหมด, "__none__" = ไม่มีหมวด)
 let stockViewKey = "own"; // own | shared:<owner email>
+let stockPhotoFilter = "all"; // all | with | missing
+let stockDensity = "compact"; // compact | detail
 
 function stockShareState() {
   if (!App._stockShares) App._stockShares = { outgoing: [], incoming: [] };
@@ -59,6 +61,9 @@ function stockThumbHtml(x) {
   const photo = firstStockPhoto(x);
   return photo ? `<img src="${esc(stockPhotoSrc({ photo }))}" alt="" loading="lazy" onerror="stockPhotoError(this)">` : ic("box");
 }
+function stockHasPhoto(x) {
+  return stockPhotos(x).length > 0;
+}
 /* HTML รายการสต็อก (กรองตามแท็บ + คำค้น) — แยกเป็นฟังก์ชันเพื่ออัปเดตเฉพาะส่วนนี้ ไม่ rebuild ทั้งหน้า */
 function stockListHtml() {
   const q = stockQuery.trim().toLowerCase();
@@ -72,22 +77,26 @@ function stockListHtml() {
     if (stockFilter === "opened" && open <= 0) return false;
     if (stockCat === "__none__" && x.category) return false;
     if (stockCat && stockCat !== "__none__" && x.category !== stockCat) return false;
+    const hasPhoto = stockHasPhoto(x);
+    if (stockPhotoFilter === "with" && !hasPhoto) return false;
+    if (stockPhotoFilter === "missing" && hasPhoto) return false;
     if (q && !(x.name.toLowerCase().includes(q) || (x.code || "").toLowerCase().includes(q) || x.unit.toLowerCase().includes(q) || (x.category || "").toLowerCase().includes(q) || (x.generic || "").toLowerCase().includes(q) || (x.supplier || "").toLowerCase().includes(q))) return false;
     return true;
   });
-  const emptyTitle = q ? "ไม่พบรายการที่ค้นหา" : (stockCat ? "ไม่มีของในหมวดนี้" : (stockFilter === "has" ? "ยังไม่มีของในสต็อก" : (stockFilter === "out" ? "ไม่มีของที่หมด" : (stockFilter === "sealed" ? "ไม่มีของที่ยังไม่เปิดใช้" : "ไม่มีของที่เปิดใช้แล้ว"))));
-  const emptySub = q ? "ลองค้นด้วยชื่อ หรือรหัสสินค้า (เช่น 00-0000-269)" : (stockCat ? "ลองเลือกหมวดอื่น หรือกด 'ทุกหมวดสินค้า'" : (stockFilter === "has" ? "กด รับของเข้า เพื่อเพิ่มของเข้าสต็อก" : (stockFilter === "opened" ? "เมื่อใช้ของไม่หมด จะมีของเหลือจากการเปิดใช้ที่นี่" : "")));
+  const emptyTitle = q ? "ไม่พบรายการที่ค้นหา" : (stockPhotoFilter === "missing" ? "ทุกรายการมีรูปแล้ว" : (stockPhotoFilter === "with" ? "ยังไม่มีรายการที่มีรูป" : (stockCat ? "ไม่มีของในหมวดนี้" : (stockFilter === "has" ? "ยังไม่มีของในสต็อก" : (stockFilter === "out" ? "ไม่มีของที่หมด" : (stockFilter === "sealed" ? "ไม่มีของที่ยังไม่เปิดใช้" : "ไม่มีของที่เปิดใช้แล้ว"))))));
+  const emptySub = q ? "ลองค้นด้วยชื่อ หรือรหัสสินค้า (เช่น 00-0000-269)" : (stockPhotoFilter === "missing" ? "พร้อมใช้งานครบเรื่องรูปสินค้าแล้ว" : (stockPhotoFilter === "with" ? "กดเพิ่มรูปในรายละเอียดสินค้าเพื่อเริ่มเก็บรูป" : (stockCat ? "ลองเลือกหมวดอื่น หรือกด 'ทุกหมวดสินค้า'" : (stockFilter === "has" ? "กด รับของเข้า เพื่อเพิ่มของเข้าสต็อก" : (stockFilter === "opened" ? "เมื่อใช้ของไม่หมด จะมีของเหลือจากการเปิดใช้ที่นี่" : "")))));
   const emptyHtml = list.length === 0 ? `<div class="card"><div class="empty"><div class="e-ico">${ic("box")}</div><div class="e-title">${emptyTitle}</div>${emptySub ? `<div class="muted">${emptySub}</div>` : ""}</div></div>` : "";
-  const grid = `<div class="card-grid">
+  const grid = `<div class="card-grid stock-grid stock-grid-${stockDensity}">
     ${list.map(x => {
       const open = Number(x.openQty) || 0;
       const out = (Number(x.qty) || 0) + open <= 0; // ยาหมด
+      const hasPhoto = stockHasPhoto(x);
       return `
-      <div class="card stock-card ${out ? "stock-card-out" : ""}">
+      <div class="card stock-card stock-card-${stockDensity} ${out ? "stock-card-out" : ""} ${hasPhoto ? "has-photo" : "missing-photo"}">
         <div class="row">
           <div class="stock-thumb" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${stockThumbHtml(x)}</div>
           <div class="grow">
-            <div class="plot-name" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${esc(x.name)} ${out ? `<span class="stock-out-badge">${ic("alert")} ยาหมด</span>` : `<span class="stock-detail-hint">${ic("info")}</span>`} ${x.category ? `<span class="stock-cat">${esc(x.category)}</span>` : ""} ${x.size ? `<span class="stock-size">${esc(x.size)}</span>` : ""}</div>
+            <div class="plot-name" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${esc(x.name)} ${out ? `<span class="stock-out-badge">${ic("alert")} ยาหมด</span>` : `<span class="stock-detail-hint">${ic("info")}</span>`} ${hasPhoto ? "" : `<span class="stock-photo-missing">${ic("image")} ไม่มีรูป</span>`} ${x.category ? `<span class="stock-cat">${esc(x.category)}</span>` : ""} ${x.size ? `<span class="stock-size">${esc(x.size)}</span>` : ""}</div>
             ${x.code ? `<div class="muted stock-meta-line">รหัส: <b>${esc(x.code)}</b></div>` : ""}
             ${x.generic ? `<div class="muted stock-meta-line stock-meta-secondary">ชื่อสามัญ: ${esc(x.generic)}</div>` : ""}
             ${x.supplier ? `<div class="muted stock-meta-line stock-meta-secondary">บริษัทจำหน่าย: ${esc(x.supplier)}</div>` : ""}
@@ -128,19 +137,42 @@ function stockFilterOptionsHtml() {
   ];
   return rows.map(([key, label, count]) => `<option value="${key}" ${stockFilter === key ? "selected" : ""}>${label} (${fmtNum(count)})</option>`).join("");
 }
+function stockPhotoOptionsHtml() {
+  const data = stockActiveList();
+  const withCount = data.filter(stockHasPhoto).length;
+  const missingCount = data.length - withCount;
+  const rows = [
+    ["all", "ทุกรูปภาพ", data.length],
+    ["with", "มีรูปแล้ว", withCount],
+    ["missing", "ยังไม่มีรูป", missingCount]
+  ];
+  return rows.map(([key, label, count]) => `<option value="${key}" ${stockPhotoFilter === key ? "selected" : ""}>${label} (${fmtNum(count)})</option>`).join("");
+}
 function stockFilterLabel() {
   const map = { all: "ทั้งหมด", has: "มีของ", out: "ยาหมด", sealed: "ยังไม่เปิดใช้", opened: "เปิดใช้แล้ว" };
   return map[stockFilter] || "ทั้งหมด";
 }
+function stockPhotoLabel() {
+  const map = { all: "", with: "มีรูปแล้ว", missing: "ยังไม่มีรูป" };
+  return map[stockPhotoFilter] || "";
+}
 function stockCatLabel() {
   if (!stockCat) return "";
   return stockCat === "__none__" ? "(ไม่มีหมวด)" : stockCat;
+}
+function stockCatOptionsHtml(catCounts, total) {
+  return `<option value="">ทุกหมวดสินค้า (${total})</option>
+    ${Object.keys(catCounts).sort((a, b) => a === "__none__" ? 1 : b === "__none__" ? -1 : a.localeCompare(b, "th")).map(c => `<option value="${esc(c)}" ${stockCat === c ? "selected" : ""}>${c === "__none__" ? "(ไม่มีหมวด)" : esc(c)} (${catCounts[c]})</option>`).join("")}`;
+}
+function stockActiveFilterCount() {
+  return (stockFilter !== "all" ? 1 : 0) + (stockCat ? 1 : 0) + (stockPhotoFilter !== "all" ? 1 : 0) + (stockQuery.trim() ? 1 : 0);
 }
 function stockFilterStatusHtml() {
   const parts = [];
   const q = stockQuery.trim();
   if (stockFilter !== "all") parts.push("สถานะ: " + stockFilterLabel());
   if (stockCat) parts.push("หมวด: " + stockCatLabel());
+  if (stockPhotoFilter !== "all") parts.push("รูป: " + stockPhotoLabel());
   if (q) parts.push("ค้นหา: " + q);
   const active = parts.length > 0;
   return `
@@ -156,6 +188,7 @@ function renderStock() {
   const data = stockActiveList();
   const readonly = stockIsSharedView();
   const total = stockListValue(data);
+  const filterCount = stockActiveFilterCount();
   /* นับจำนวนต่อหมวด (ใช้ใน dropdown กรอง) */
   const catCounts = {};
   data.forEach(x => { const c = x.category || "__none__"; catCounts[c] = (catCounts[c] || 0) + 1; });
@@ -180,6 +213,8 @@ function renderStock() {
         ` : `
           <button class="btn btn-sm btn-primary" onclick="App.modalStock()">${ic("plus")} เพิ่มสินค้า</button>
           <button class="btn btn-sm btn-outline" onclick="App.modalSale()">${ic("dollar")} ขายสินค้า</button>
+          <button class="btn btn-sm btn-ghost" onclick="App.stockDensityToggle()">${ic("menu")} ${stockDensity === "compact" ? "ละเอียด" : "ย่อ"}</button>
+          <button class="btn btn-sm btn-ghost stock-filter-mobile-btn" onclick="App.stockFilterOpen()">${ic("search")} กรอง${filterCount ? ` (${filterCount})` : ""}</button>
           <button class="btn btn-sm btn-ghost" onclick="App.stockToolsOpen()">${ic("menu")} จัดการสต็อก</button>
         `}
       </div>
@@ -194,8 +229,13 @@ function renderStock() {
       <label class="stock-filter-field">
         <span>หมวด</span>
         <select class="stock-cat-select" id="stockCatSelect" onchange="App.stockCatFilter(this.value)" aria-label="กรองหมวดสินค้า">
-          <option value="">ทุกหมวดสินค้า (${data.length})</option>
-          ${Object.keys(catCounts).sort((a, b) => a === "__none__" ? 1 : b === "__none__" ? -1 : a.localeCompare(b, "th")).map(c => `<option value="${esc(c)}" ${stockCat === c ? "selected" : ""}>${c === "__none__" ? "(ไม่มีหมวด)" : esc(c)} (${catCounts[c]})</option>`).join("")}
+          ${stockCatOptionsHtml(catCounts, data.length)}
+        </select>
+      </label>
+      <label class="stock-filter-field">
+        <span>รูปภาพ</span>
+        <select class="stock-filter-select" id="stockPhotoSelect" onchange="App.stockPhotoFilter(this.value)" aria-label="กรองรูปสินค้า">
+          ${stockPhotoOptionsHtml()}
         </select>
       </label>
     </div>
@@ -216,10 +256,44 @@ App.stockCatFilter = function (v) {
   stockCat = v;
   rerender();
 };
+App.stockPhotoFilter = function (v) {
+  stockPhotoFilter = v || "all";
+  rerender();
+};
+App.stockDensityToggle = function () {
+  stockDensity = stockDensity === "compact" ? "detail" : "compact";
+  rerender();
+};
 App.stockResetFilters = function () {
   stockFilter = "all";
   stockCat = "";
+  stockPhotoFilter = "all";
   stockQuery = "";
+  rerender();
+};
+App.stockFilterOpen = function () {
+  const data = stockActiveList();
+  const catCounts = {};
+  data.forEach(x => { const c = x.category || "__none__"; catCounts[c] = (catCounts[c] || 0) + 1; });
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("search")} กรองสต็อก</h3>
+    <div class="modal-sub">เลือกเฉพาะรายการที่ต้องจัดการ เช่น ยาหมด หรือสินค้าที่ยังไม่มีรูป</div>
+    <div class="stock-filter-modal">
+      <label class="field"><span>สถานะ</span><select id="sf_status">${stockFilterOptionsHtml()}</select></label>
+      <label class="field"><span>หมวด</span><select id="sf_cat">${stockCatOptionsHtml(catCounts, data.length)}</select></label>
+      <label class="field"><span>รูปภาพ</span><select id="sf_photo">${stockPhotoOptionsHtml()}</select></label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.stockResetFilters();App.closeModal()">${ic("refresh")} ล้าง</button>
+      <button class="btn btn-primary" onclick="App.stockApplyFilters()">${ic("check")} ใช้ตัวกรอง</button>
+    </div>`);
+};
+App.stockApplyFilters = function () {
+  stockFilter = document.getElementById("sf_status")?.value || "all";
+  stockCat = document.getElementById("sf_cat")?.value || "";
+  stockPhotoFilter = document.getElementById("sf_photo")?.value || "all";
+  closeModal();
   rerender();
 };
 App.stockToolsOpen = function () {

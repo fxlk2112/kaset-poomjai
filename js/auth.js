@@ -91,7 +91,7 @@ function loadSlotIntoS(email) {
       if (s && typeof s === "object") {
         ensureTaskIds(s);
         ensureDefaults(s);
-        s.version = 53;
+        s.version = 54;
         return s;
       }
     }
@@ -115,7 +115,7 @@ function resetSTo(newState) {
   /* ฐาน = seed ครบทุกฟิลด์ แล้วทับด้วยข้อมูลของบัญชี — กันฟิลด์ขาด (slot เก่า/คลาวด์คนละเวอร์ชัน) */
   const merged = Object.assign(blankState(), newState || {});
   try { ensureTaskIds(merged); ensureDefaults(merged); } catch (e) {}
-  merged.version = 53;
+  merged.version = 54;
   Object.keys(S).forEach(k => { delete S[k]; });
   Object.assign(S, merged);
 }
@@ -494,7 +494,7 @@ App.adminDownloadJson = async function (email) {
   const r = await authCall("admin_get", { token: Auth.session.token, email });
   if (!r.ok) { toast(r.error || "โหลดไม่สำเร็จ"); return; }
   downloadBlob("farmultimate-" + email.replace(/[^a-z0-9]/gi, "_") + "-" + todayISO() + ".json",
-    new Blob([JSON.stringify({ app: "farmultimate-solutions", type: "backup", version: 53, exportedAt: new Date().toISOString(), data: r.data.data }, null, 2)], { type: "application/json" }));
+    new Blob([JSON.stringify({ app: "farmultimate-solutions", type: "backup", version: 54, exportedAt: new Date().toISOString(), data: r.data.data }, null, 2)], { type: "application/json" }));
   toast("ดาวน์โหลด JSON แล้ว");
 };
 

@@ -1,5 +1,5 @@
 /* ============================================================
-   FARMULTIMATE SOLUTIONS v53 — app logic
+   FARMULTIMATE SOLUTIONS v54 — app logic
    dashboard, plots, stock, equipment, cycles,
    activity planner, IoT, analytics, FAB drawer, interactive tour
    ============================================================ */
@@ -484,23 +484,15 @@ function renderHome() {
   /* รายได้ขายยา/สินค้า — แยกจากกำไร/ขาดทุนของแปลง ไม่ปนกัน (โชว์แค่ตัวเลขสรุป ไม่ขึ้นรายการใบเสร็จให้ยาว) */
   const salesBox = (() => {
     const day = salesToday(S), mo = salesMonth(S), yr = salesRevenue(S), cnt = salesYearCount(S);
-    const body = (S.sales || []).length === 0 ? `
-      <div class="empty">
-        <div class="e-ico">${ic("dollar")}</div>
-        <div class="e-title">ยังไม่มีรายการขาย</div>
-        <div class="muted">กด "ขายสินค้า" ที่หน้าสต็อก เพื่อออกใบเสร็จและตัดสต็อก</div>
-      </div>` : `
-      <div class="meta-grid">
-        <div class="meta-box"><div class="lb">วันนี้</div><div class="vl">${fmtMoney(day)} บาท</div></div>
-        <div class="meta-box"><div class="lb">เดือนนี้</div><div class="vl">${fmtMoney(mo)} บาท</div></div>
-        <div class="meta-box"><div class="lb">ปีนี้</div><div class="vl">${fmtMoney(yr)} บาท</div></div>
-        <div class="meta-box"><div class="lb">ใบเสร็จปีนี้</div><div class="vl">${cnt} ใบ</div></div>
-      </div>`;
     return `
-    <div class="section-title">${ic("dollar")} รายได้ขายยา/สินค้า <span class="badge badge-blue">แยกจากกำไรแปลง</span></div>
-    <div class="card">
-      ${body}
-    </div>`;
+    <button class="home-shop-strip" onclick="App.goShopAnalytics()">
+      <span class="home-shop-ico">${ic("dollar")}</span>
+      <span class="grow">
+        <b>รายได้ขายสินค้า</b>
+        <small>${(S.sales || []).length === 0 ? "ยังไม่มีใบเสร็จ" : `วันนี้ ${fmtMoney(day)} · เดือนนี้ ${fmtMoney(mo)} บาท`}</small>
+      </span>
+      <span class="home-shop-total">${fmtMoney(yr)}<small>${cnt} ใบ</small></span>
+    </button>`;
   })();
 
   /* ปุ่มลัดงานหลักบนหน้าแรก */
@@ -575,26 +567,17 @@ function renderHome() {
     ${welcome}
     ${todayPanel}
 
-    <div class="section-title" data-tkey="titleKpi">${T("titleKpi")}</div>
-    <div class="kpi-row" id="kpiRow">
-      <div class="kpi green ${kpiClass}">
-        <div class="kpi-icon">${ic("dollar")}</div>
-        <div class="kpi-label">กำไรสุทธิ</div>
-        <div class="kpi-value">${fmtMoney(ytd.net)}</div>
-        <div class="kpi-sub">พ.ศ. ${curBE} · ${ytd.net >= 0 ? "กำไร" : "ขาดทุน"}</div>
-      </div>
-      <div class="kpi amber">
-        <div class="kpi-icon">${ic("pin")}</div>
-        <div class="kpi-label">พื้นที่ (ไร่)</div>
-        <div class="kpi-value">${fmtNum(area)}</div>
-        <div class="kpi-sub">${S.plots.filter(p => p.status === "active").length} แปลง Active</div>
-      </div>
-      <div class="kpi blue">
-        <div class="kpi-icon">${ic("leaf")}</div>
-        <div class="kpi-label">รอบปลูก</div>
-        <div class="kpi-value">${cycles.length}</div>
-        <div class="kpi-sub">กำลังดำเนินการ</div>
-      </div>
+    <div class="home-summary-head" data-tkey="titleKpi">${T("titleKpi")}</div>
+    <div class="home-summary-strip" id="kpiRow">
+      <button class="home-summary-item ${kpiClass}" onclick="App.nav('analytics')">
+        <span>${ic("dollar")}</span><b>${fmtMoney(ytd.net)}</b><small>กำไรสุทธิ พ.ศ. ${curBE}</small>
+      </button>
+      <button class="home-summary-item" onclick="App.nav('plots')">
+        <span>${ic("pin")}</span><b>${fmtNum(area)} ไร่</b><small>${S.plots.filter(p => p.status === "active").length} แปลง Active</small>
+      </button>
+      <button class="home-summary-item" onclick="App.goCycles()">
+        <span>${ic("leaf")}</span><b>${cycles.length}</b><small>รอบปลูก</small>
+      </button>
     </div>
 
     ${salesBox}
@@ -1985,6 +1968,7 @@ function renderAnalytics() {
     ${tab === "shop" ? shopHtml : farmHtml}`;
 }
 App.analyticsTab = function (tab) { route.tab = tab; render(); };
+App.goShopAnalytics = function () { route.view = "analytics"; route.tab = "shop"; render(); };
 /* สลับปีที่วิเคราะห์ — เก็บใน route.year (CE) แสดงเป็น พ.ศ. */
 App.analyticsYear = function (ceYr) {
   route.year = Number(ceYr) || Number(todayISO().slice(0, 4));

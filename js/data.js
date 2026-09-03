@@ -1,5 +1,5 @@
 /* ============================================================
-   FARMULTIMATE SOLUTIONS v53 — data layer
+   FARMULTIMATE SOLUTIONS v54 — data layer
    seed data + localStorage persistence + business logic
    ตัวเลขการเงินทั้งหมด (KPI, กราฟ, กำไรรายแปลง/รอบ) คำนวณจาก
    บันทึกงานจริง (tasks) ที่ผู้ใช้แก้ไขได้ — ไม่ใช่ตัวเลขตายตัว
@@ -194,7 +194,7 @@ const STOCK_MASTER_PRESETS = [];
 function seed() {
   /* เวอร์ชันเริ่มต้นแบบว่างเปล่า — ไม่มีข้อมูลตัวอย่าง ให้ผู้ใช้กรอกเอง (แปลง/งาน/สต็อก/รอบ/ขาย) */
   return {
-    version: 53,
+    version: 54,
     role: "general",
     /* ---- โหมดแก้ไขเว็บ (ผู้ดูแล) ---- */
     adminPass: "",            // รหัสผ่านผู้ดูแล — ว่าง = ยังไม่ได้ตั้ง (ตั้งครั้งแรกได้ที่หน้าตั้งค่า)
@@ -444,7 +444,7 @@ function loadState() {
            เวอร์ชันถูกรีเซ็ตเป็นเวอร์ชันปัจจุบันเพื่อให้ saveState ครั้งถัดไปอัปเดตครบ */
         ensureTaskIds(s);
         ensureDefaults(s);
-        s.version = 53;
+        s.version = 54;
         saveState(s);
         return s;
       }
