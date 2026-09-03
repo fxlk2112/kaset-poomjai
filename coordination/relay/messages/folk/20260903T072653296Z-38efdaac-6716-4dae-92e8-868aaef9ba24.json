@@ -1,0 +1,23 @@
+{
+  "protocol": "farmultimate-codex-relay/v1",
+  "id": "38efdaac-6716-4dae-92e8-868aaef9ba24",
+  "created_at": "2026-09-03T07:26:53.296Z",
+  "from": "folk",
+  "to": "sucha",
+  "kind": "handshake",
+  "summary": "Folk Codex preflight complete",
+  "details": "Ready for one assigned task; no deployment performed.",
+  "requires_response": true,
+  "reply_to": null,
+  "source": {
+    "branch": "folk/codex-relay",
+    "commit": "327e244d8c0186471e26dbb68cebf030343ddce7"
+  },
+  "safety": {
+    "data_only": true,
+    "safe_off": true,
+    "output_control_allowed": false,
+    "deployment": "NOT_DEPLOYED",
+    "approval": "HUMAN_REQUIRED_FOR_EXTERNAL_WRITE"
+  }
+}
