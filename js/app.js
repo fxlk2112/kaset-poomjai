@@ -4615,6 +4615,7 @@ App.submitEquipment = function (e) {
 let taskFormPhotos = [];
 let taskDonePhotos = [];
 let taskCompleteReturnToDetail = false;
+let taskEditReturnToDetail = false;
 const taskPhotoUploading = { form: false, done: false };
 function taskPhotos(t) {
   if (!t) return [];
@@ -4812,6 +4813,8 @@ App.gotoCalendar = function (iso) {
 /* แก้ไขงาน — โหลดค่าปัจจุบันใส่ฟอร์ม */
 App.editTask = function (id) {
   const t = S.tasks.find(x => x.id === id);
+  const root = document.getElementById("modalRoot");
+  taskEditReturnToDetail = !!(root && root.innerHTML.trim() !== "" && root.querySelector(".td-list"));
   if (t) App.modalTask(t.date, { taskId: t.id });
 };
 /* ===== รายการค่าใช้จ่าย/ตัดสต็อก (หลายรายการต่องาน — แบบเว็บอ้างอิง) ===== */
@@ -5204,6 +5207,7 @@ App.taskCalcHarvest = function () {
 App.modalTask = function (date, preset) {
   preset = preset || {};
   const editing = preset.taskId ? S.tasks.find(x => x.id === preset.taskId) : null;
+  if (!editing) taskEditReturnToDetail = false;
   const type = editing ? editing.type : (preset.type || "work");
   const title = editing ? editing.title : (preset.title || "");
   const d = editing ? editing.date : (date || todayISO());
@@ -5449,7 +5453,8 @@ App.submitTask = function (e, editId) {
     saveState(S);
     closeModal();
     render();
-    if (editId) App.modalTask(data.date, { taskId: editId });
+    if (editId && taskEditReturnToDetail) App.viewTask(editId);
+    taskEditReturnToDetail = false;
     if (restocked) toast("บันทึกแล้ว · คืนสต็อกส่วนที่ไม่ได้ใช้");
   };
   if (existing) {
