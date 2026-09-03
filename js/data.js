@@ -498,6 +498,8 @@ function ensureDefaults(s) {
   (s.tasks || []).forEach(t => {
     if (!Array.isArray(t.photos)) t.photos = t.photo ? [t.photo] : [];
     t.photos = t.photos.map(p => String(p || "").trim()).filter(Boolean);
+    if (!Array.isArray(t.donePhotos)) t.donePhotos = [];
+    t.donePhotos = t.donePhotos.map(p => String(p || "").trim()).filter(Boolean);
     if (typeof t.doneNote !== "string") t.doneNote = "";
     if (t.costCat && !cmap[t.costCat]) t.costCat = "other";
     (t.costItems || []).forEach(ci => {
@@ -760,6 +762,7 @@ function addTask(s, t) {
   t.id = uid();
   t.status = t.status || "planned";
   t.photos = Array.isArray(t.photos) ? t.photos.map(p => String(p || "").trim()).filter(Boolean) : [];
+  t.donePhotos = Array.isArray(t.donePhotos) ? t.donePhotos.map(p => String(p || "").trim()).filter(Boolean) : [];
   t.doneNote = String(t.doneNote || "");
   t.qty = Number(t.qty) || 0;
   t.cost = Number(t.cost) || 0;
