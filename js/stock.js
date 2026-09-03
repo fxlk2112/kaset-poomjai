@@ -108,12 +108,11 @@ function stockListHtml() {
         <div class="mt-8">
           <div class="muted stock-value">มูลค่ารวม <span class="bold">${fmtMoney((x.qty + open) * x.avgCost)} บาท</span>${open > 0 ? ` <span class="muted">(รวมของเปิดใช้แล้ว)</span>` : ""}</div>
           <div class="stock-actions">
-            <button class="btn btn-sm btn-ghost" onclick="App.stockDetail('${x.id}')">${ic("info")} รายละเอียด</button>
             ${readonly ? `<span class="stock-readonly">${ic("eye")} ดูจาก ${esc(stockSourceLabel(stockViewOwnerEmail()))}</span>` : `
-              <button class="btn btn-sm btn-ghost" onclick="App.modalStock('${x.id}')" title="แก้ไขรายการ">${ic("pencil")} แก้ไข</button>
               <button class="btn btn-sm btn-primary" onclick="App.modalReceive('${x.id}')">${ic("down")} รับของเข้า</button>
               <button class="btn btn-sm btn-outline" onclick="App.modalDeduct('${x.id}')">${ic("minus")} ตัดสต็อก</button>
-              <button class="btn btn-sm btn-danger-soft" onclick="App.deleteStock('${x.id}')">${ic("trash")}</button>
+              <button class="btn btn-sm btn-ghost stock-secondary-action" onclick="App.stockDetail('${x.id}')">${ic("info")} รายละเอียด</button>
+              <button class="btn btn-sm btn-ghost stock-secondary-action" onclick="App.modalStock('${x.id}')" title="แก้ไขรายการ">${ic("pencil")} แก้ไข</button>
             `}
           </div>
         </div>
@@ -193,7 +192,7 @@ function renderStock() {
   const catCounts = {};
   data.forEach(x => { const c = x.category || "__none__"; catCounts[c] = (catCounts[c] || 0) + 1; });
   return `
-    <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none">
+    <div class="card stock-value-card">
       <div class="row row-between">
         <div>
           <div style="font-size:.76rem;opacity:.85">มูลค่าสต็อกทั้งหมด</div>
@@ -206,16 +205,16 @@ function renderStock() {
     ${stockSourceSelectHtml()}
     <div class="row row-between section-title stock-title-row" data-tkey="stockTitle">
       <span>${readonly ? "สต็อกที่แชร์มา" : T("stockTitle")} (${data.length})</span>
-      <div class="row stock-toolbar" style="gap:6px;flex-wrap:wrap">
+      <div class="row stock-toolbar">
         ${readonly ? `
           <button class="btn btn-sm btn-primary" onclick="App.stockViewSet('own')">${ic("box")} สต็อกของฉัน</button>
           <button class="btn btn-sm btn-ghost" onclick="App.stockShareOpen()">${ic("user")} แชร์สต็อก</button>
         ` : `
           <button class="btn btn-sm btn-primary" onclick="App.modalStock()">${ic("plus")} เพิ่มสินค้า</button>
           <button class="btn btn-sm btn-outline" onclick="App.modalSale()">${ic("dollar")} ขายสินค้า</button>
-          <button class="btn btn-sm btn-ghost" onclick="App.stockDensityToggle()">${ic("menu")} ${stockDensity === "compact" ? "ละเอียด" : "ย่อ"}</button>
+          <button class="btn btn-sm btn-ghost stock-toolbar-secondary" onclick="App.stockDensityToggle()">${ic("menu")} ${stockDensity === "compact" ? "ละเอียด" : "ย่อ"}</button>
           <button class="btn btn-sm btn-ghost stock-filter-mobile-btn" onclick="App.stockFilterOpen()">${ic("search")} กรอง${filterCount ? ` (${filterCount})` : ""}</button>
-          <button class="btn btn-sm btn-ghost" onclick="App.stockToolsOpen()">${ic("menu")} จัดการสต็อก</button>
+          <button class="btn btn-sm btn-ghost stock-toolbar-secondary" onclick="App.stockToolsOpen()">${ic("menu")} จัดการสต็อก</button>
         `}
       </div>
     </div>
@@ -243,7 +242,7 @@ function renderStock() {
     <div class="stock-search">
       ${ic("search")}
       <input type="text" id="stockSearchInput" placeholder="ค้นหาปุ๋ย/ยา/เมล็ดพันธุ์..." value="${esc(stockQuery)}" oninput="App.stockSearch(this.value)">
-      <button class="stock-search-clear" onclick="App.stockSearch('')" style="${stockQuery ? "" : "display:none"}">✕</button>
+      <button class="stock-search-clear" aria-label="ล้างคำค้นหา" title="ล้างคำค้นหา" onclick="App.stockSearch('')" style="${stockQuery ? "" : "display:none"}">✕</button>
     </div>
     <div id="stockListWrap">${stockListHtml()}</div>
     <div class="muted" style="font-size:.72rem;text-align:center;padding:6px">${ic("info")} สต็อกหลักเก็บเป็นหน่วยเต็ม · เมื่อใช้ของไม่หมด ของที่เหลือจากการเปิดใช้จะนำไปใช้ก่อนเสมอ · วิธีคิดต้นทุนแบบถัวเฉลี่ยถ่วงน้ำหนัก (Weighted Average)</div>`;
@@ -285,7 +284,7 @@ App.stockFilterOpen = function () {
       <label class="field"><span>รูปภาพ</span><select id="sf_photo">${stockPhotoOptionsHtml()}</select></label>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="App.stockResetFilters();App.closeModal()">${ic("refresh")} ล้าง</button>
+      <button class="btn btn-outline" onclick="App.stockResetFilters();App.closeModal()">${ic("refresh")} ล้าง</button>
       <button class="btn btn-primary" onclick="App.stockApplyFilters()">${ic("check")} ใช้ตัวกรอง</button>
     </div>`);
 };
@@ -501,7 +500,7 @@ App.stockDetail = function (id) {
       </button>`
     : "";
   const stripHtml = photos.length
-    ? `<div class="sd-strip">${photos.map((p, i) => `<div class="sd-strip-item ${i === 0 ? "is-main" : ""}"><img src="${esc(stockPhotoSrc({ photo: p }))}" alt="" loading="lazy" onclick="App.viewPhoto('${x.id}', ${i})" onerror="this.remove()">${i === 0 ? `<span class="sd-main-badge">รูปหลัก</span>` : ""}${readonly ? "" : `<button class="sd-strip-x" onclick="event.stopPropagation();App.stockPhotoRemoveOne('${x.id}', ${i})" title="ลบรูปนี้">✕</button>${i > 0 ? `<button class="sd-main-btn" onclick="event.stopPropagation();App.stockPhotoSetMain('${x.id}', ${i})" title="ตั้งเป็นรูปหลัก">${ic("check")}</button>` : ""}`}</div>`).join("")}</div>`
+    ? `<div class="sd-strip">${photos.map((p, i) => `<div class="sd-strip-item ${i === 0 ? "is-main" : ""}"><img src="${esc(stockPhotoSrc({ photo: p }))}" alt="" loading="lazy" onclick="App.viewPhoto('${x.id}', ${i})" onerror="this.remove()">${i === 0 ? `<span class="sd-main-badge">รูปหลัก</span>` : ""}${readonly ? "" : `<button class="sd-strip-x" aria-label="ลบรูปนี้" onclick="event.stopPropagation();App.stockPhotoRemoveOne('${x.id}', ${i})" title="ลบรูปนี้">✕</button>${i > 0 ? `<button class="sd-main-btn" aria-label="ตั้งเป็นรูปหลัก" onclick="event.stopPropagation();App.stockPhotoSetMain('${x.id}', ${i})" title="ตั้งเป็นรูปหลัก">${ic("check")}</button>` : ""}`}</div>`).join("")}</div>`
     : `<div class="sd-no-photo">${ic("image")} ${readonly ? "ยังไม่มีรูปในสต็อกที่แชร์มา" : "ยังไม่มีรูป — กดเพิ่มรูปด้านล่าง"}</div>`;
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
@@ -529,12 +528,18 @@ App.stockDetail = function (id) {
       ${x.salePrice ? `<div class="sd-row"><span class="k">กำไร/หน่วย</span><span class="bold ${x.salePrice - x.avgCost >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(x.salePrice - x.avgCost)} บาท/${esc(x.unit)}</span></div>` : ""}
       <div class="sd-row"><span class="k">มูลค่ารวม</span><span class="bold">${fmtMoney((x.qty + open) * x.avgCost)} บาท</span></div>
     </div>
+    ${readonly ? "" : `<div class="sd-danger-zone">
+      <div>
+        <b>โซนอันตราย</b>
+        <span>ลบรายการนี้เมื่อแน่ใจว่าไม่ต้องใช้แล้ว</span>
+      </div>
+      <button class="btn btn-sm btn-danger-soft" onclick="App.deleteStock('${x.id}')">${ic("trash")} ลบรายการ</button>
+    </div>`}
     <div class="modal-actions sd-actions" style="margin-top:14px">
       ${readonly ? `<button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>` : `
         <button class="btn btn-primary" onclick="App.modalReceive('${x.id}')">${ic("down")} รับของเข้า</button>
         <button class="btn btn-outline" onclick="App.modalDeduct('${x.id}')">${ic("minus")} ตัดสต็อก</button>
         <button class="btn btn-ghost" onclick="App.modalStock('${x.id}')">${ic("pencil")} แก้ไข</button>
-        <button class="btn btn-danger-soft" onclick="App.deleteStock('${x.id}')">${ic("trash")} ลบ</button>
       `}
     </div>`);
 };
@@ -634,7 +639,7 @@ App.viewPhoto = function (id, idx) {
   }
   lightboxEl.innerHTML = `
     <div class="lightbox-backdrop" onclick="App.closeLightbox()">
-      <button class="lightbox-x" onclick="App.closeLightbox()">✕</button>
+      <button class="lightbox-x" aria-label="ปิดรูปใหญ่" title="ปิดรูปใหญ่" onclick="App.closeLightbox()">✕</button>
       ${n > 1 ? `<button class="lightbox-nav prev" onclick="event.stopPropagation();App.viewPhoto('${id}',${cur - 1})">‹</button>
       <button class="lightbox-nav next" onclick="event.stopPropagation();App.viewPhoto('${id}',${cur + 1})">›</button>` : ""}
       <img src="${esc(stockPhotoSrc({ photo: photos[cur] }))}" alt="" onclick="event.stopPropagation()">

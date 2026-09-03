@@ -3988,7 +3988,13 @@ function openModal(html) {
     modalEl.classList.add("modal-has-actions");
     modalEl.appendChild(actions);
   }
-  if (modalEl) modalEl.querySelectorAll("form").forEach(installModalValidation);
+  if (modalEl) {
+    modalEl.querySelectorAll(".modal-x").forEach(btn => {
+      if (!btn.getAttribute("aria-label")) btn.setAttribute("aria-label", "ปิดหน้าต่าง");
+      if (!btn.getAttribute("title")) btn.setAttribute("title", "ปิดหน้าต่าง");
+    });
+    modalEl.querySelectorAll("form").forEach(installModalValidation);
+  }
   const bd = root.querySelector(".modal-backdrop");
   bd.addEventListener("click", e => {
     if (e.target !== bd) return;
