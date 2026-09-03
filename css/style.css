@@ -743,6 +743,41 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   font-size: .66rem;
   line-height: 1.25;
 }
+.price-freshness {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: -2px 0 10px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.18);
+  color: #fff;
+  font-size: .7rem;
+  font-weight: 850;
+}
+.price-freshness.is-stale {
+  background: rgba(245,158,11,.28);
+  color: #fff7ed;
+}
+.price-freshness .ic { width: .95em; height: .95em; }
+.sale-more-hint {
+  padding: 7px 4px 2px;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 750;
+  text-align: center;
+}
+.water-schedule-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.water-duo-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.iot-section-head { gap: 10px; align-items: center; }
 .analytics-insights {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -824,6 +859,40 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .stock-toolbar { gap: 6px; flex-wrap: wrap; }
 .stock-mobile-options-btn { display: none; }
 .stock-secondary-action { color: var(--muted); }
+.plots-heading-actions { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.optional-fields,
+.danger-zone {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--soft);
+  overflow: hidden;
+}
+.optional-fields > summary,
+.danger-zone > summary {
+  min-height: 44px;
+  padding: 11px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--green-deep);
+  font-weight: 850;
+  cursor: pointer;
+  list-style: none;
+}
+.optional-fields > summary::-webkit-details-marker,
+.danger-zone > summary::-webkit-details-marker { display: none; }
+.optional-fields[open],
+.danger-zone[open] { padding-bottom: 10px; }
+.optional-fields[open] > .field,
+.optional-fields[open] > .form-row-2,
+.danger-zone[open] > .muted,
+.danger-zone[open] > .btn {
+  margin-left: 12px;
+  margin-right: 12px;
+}
+.danger-zone > summary { color: var(--red); }
+.plot-danger-zone { margin-bottom: 14px; }
 /* ป้ายขนาดสินค้า */
 .stock-size {
   display: inline-block; font-size: .62rem; font-weight: 700;
@@ -2494,6 +2563,13 @@ html[data-theme="dark"] .weather-card, html[data-theme="dark"] .weather-note { c
 html[data-theme="dark"] .notif-panel, html[data-theme="dark"] .profile-panel { background: var(--card); }
 html[data-theme="dark"] .pp-theme button { background: var(--green-soft); color: var(--text); }
 html[data-theme="dark"] .pp-theme button.active { background: var(--green); color: #fff; }
+html[data-theme="dark"] .stock-mobile-options-btn {
+  background: rgba(22, 163, 74, .16);
+  border: 1px solid rgba(134, 239, 172, .22);
+  color: #bbf7d0;
+}
+html[data-theme="dark"] .optional-fields,
+html[data-theme="dark"] .danger-zone { background: rgba(22, 163, 74, .08); border-color: rgba(134, 239, 172, .18); }
 .pp-theme { display: flex; gap: 6px; padding: 0 12px 12px; }
 .pp-theme button { flex: 1; border: 0; cursor: pointer; font: inherit; font-size: .8rem; font-weight: 700; padding: 8px 0; border-radius: 9px; background: var(--green-soft); color: var(--text); transition: all .15s; }
 .pp-theme button.active { background: var(--green); color: #fff; }
@@ -2845,12 +2921,12 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
 
 /* ===== Mobile UI polish: touch targets + compact controls ===== */
 @media (max-width: 639px) {
-  .view { padding: 14px 12px calc(var(--nav-h) + 118px + env(safe-area-inset-bottom)); }
+  .view { padding: 14px 12px calc(var(--nav-h) + 142px + env(safe-area-inset-bottom)); }
   .fab-dock {
     right: 16px;
-    bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom));
+    bottom: calc(var(--nav-h) + 14px + env(safe-area-inset-bottom));
   }
-  .fab { width: 52px; height: 52px; }
+  .fab { width: 50px; height: 50px; }
   .fab-icon { font-size: 1.72rem; }
   .card { padding: 12px; }
   .topbar { padding-left: 12px; padding-right: 12px; }
@@ -2897,7 +2973,7 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   }
   .today-card .compact-empty .e-ico { margin: 0; font-size: 1.2rem; }
   .today-card .compact-empty .e-title { margin: 0; font-size: .88rem; }
-  .today-card .compact-empty .muted { font-size: .68rem; }
+  .today-card .compact-empty .muted { font-size: .68rem; line-height: 1.35; max-width: none; }
   .cal-nav, .cal-nav button { width: 38px; height: 38px; min-width: 38px; }
   .cal-today { min-height: 36px; padding: 7px 12px; }
   .stock-value-card { padding: 11px 12px; margin-bottom: 8px; }
@@ -3011,18 +3087,12 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .analytics-brief {
-    grid-template-columns: repeat(4, minmax(104px, 1fr));
-    overflow-x: auto;
-    padding-bottom: 2px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     margin-bottom: 8px;
-    -webkit-overflow-scrolling: touch;
   }
   .analytics-insights {
-    grid-template-columns: repeat(4, minmax(154px, 1fr));
-    overflow-x: auto;
-    padding-bottom: 2px;
+    grid-template-columns: 1fr;
     margin-bottom: 10px;
-    -webkit-overflow-scrolling: touch;
   }
   .quick-filter { min-height: 38px; }
   .planner-filter { min-height: 62px; }
@@ -3046,6 +3116,15 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .more-card .mc-ico { grid-row: span 2; font-size: 1.35rem; }
   .more-card .mc-name { font-size: .92rem; }
   .more-card .mc-desc { font-size: .72rem; }
+  .plots-heading-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .plots-heading-actions .btn { width: 100%; min-width: 0; padding-left: 10px; padding-right: 10px; }
+  .water-schedule-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .water-schedule-row .field:last-child { grid-column: 1 / -1; }
+  .water-duo-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 360px) {
   .lpc-choices, .stock-filter-panel, .quick-filter-row, .planner-filters, .lark-sync-results { grid-template-columns: 1fr; }
@@ -3053,8 +3132,9 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .stock-toolbar, .stock-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stock-mobile-options-btn { grid-column: 1 / -1; }
   .setup-steps { grid-template-columns: 1fr; }
-  .analytics-brief { grid-template-columns: repeat(4, minmax(100px, 1fr)); }
-  .analytics-insights { grid-template-columns: repeat(4, minmax(148px, 1fr)); }
+  .analytics-brief { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analytics-insights { grid-template-columns: 1fr; }
+  .water-duo-row { grid-template-columns: 1fr; }
   .brand-name { font-size: .95rem; }
   .btn-tour { max-width: 84px; overflow: hidden; text-overflow: ellipsis; }
   .hero-chips { grid-template-columns: repeat(3, minmax(0, 1fr)); }

@@ -337,11 +337,14 @@ function render() {
     return;
   }
   const fd = document.getElementById("fabDock");
-  if (fd) fd.style.display = "";
   // keep route valid for the current nav (sub-views group under their parent nav item)
   const keys = visibleNav().map(n => n.key);
   const VIEW_GROUP = { equipment: "more", iot: "more", settings: "more", prices: "more", weather: "plots", plotDetail: "plots", cycleDetail: "plots" };
   const navKey = VIEW_GROUP[route.view] || route.view;
+  if (fd) {
+    fd.style.display = navKey === "more" ? "none" : "";
+    fd.classList.remove("open");
+  }
   if (!keys.includes(navKey)) {
     route.view = keys.includes("home") ? "home" : keys[0];
   }
@@ -722,7 +725,10 @@ function renderPlots() {
   const plotsTab = `
     <div class="row row-between">
       <div class="bold" style="font-size:1.02rem" data-tkey="plotsTitle">${T("plotsTitle")} ${activeCount}/${S.plots.length}</div>
-      <button class="btn btn-primary btn-sm" onclick="App.modalPlot()">＋ แปลงใหม่</button>
+      <div class="row plots-heading-actions">
+        ${counts.idle ? `<button class="btn btn-outline btn-sm" onclick="App.modalCycle()">${ic("leaf")} เริ่มปลูก</button>` : ""}
+        <button class="btn btn-primary btn-sm" onclick="App.modalPlot()">＋ แปลงใหม่</button>
+      </div>
     </div>
     <div class="plot-filter-panel">
       <div class="stock-search plot-search">
@@ -768,7 +774,6 @@ function renderPlots() {
           <button class="btn btn-sm btn-ghost" onclick="App.openPlot('${p.id}')">${ic("eye")} ดูรายละเอียด</button>
           <button class="btn btn-sm btn-outline" onclick="App.modalPlot('${p.id}')">${ic("pencil")} แก้ไข</button>
           ${c ? "" : `<button class="btn btn-sm btn-primary" onclick="App.modalCycle('${p.id}')">${ic("leaf")} เริ่มปลูก</button>`}
-          <button class="btn btn-sm btn-danger-soft" onclick="App.deletePlot('${p.id}')">${ic("trash")}</button>
         </div>
       </div>`;
     }).join("")}
@@ -1359,7 +1364,12 @@ function renderPlotDetail() {
       ${tabBtn("cycles", "leaf", "รอบปลูก", cycles.length)}
       ${tabBtn("tasks", "calendar", "กิจกรรม", tasks.length)}
     </div>
-    ${content}`;
+    ${content}
+    <details class="danger-zone plot-danger-zone">
+      <summary>${ic("trash")} จัดการแปลงนี้</summary>
+      <div class="muted">ลบเฉพาะเมื่อไม่ต้องใช้แปลงนี้แล้ว รอบปลูกของแปลงนี้จะถูกลบด้วย</div>
+      <button class="btn btn-danger-soft btn-block mt-8" onclick="App.deletePlot('${p.id}')">${ic("trash")} ลบแปลงนี้</button>
+    </details>`;
 }
 App.openPlot = function (id) {
   route.view = "plotDetail";
@@ -2167,16 +2177,16 @@ function renderIoT() {
       </div>
     </div>
 
-    <div class="row row-between">
+    <div class="row row-between iot-section-head">
       <div class="bold" style="font-size:1.02rem" data-tkey="iotTitle">${T("iotTitle")} (${W.systems.length})</div>
-      <button class="btn btn-primary btn-sm" onclick="App.modalWaterSystem()">${ic("plus")} เพิ่มระบบน้ำให้แปลง</button>
+      <button class="btn btn-outline btn-sm" onclick="App.modalWaterSystem()">${ic("plus")} เพิ่มระบบน้ำ</button>
     </div>
-    ${W.systems.length === 0 ? `<div class="card"><div class="empty"><div class="e-ico">${ic("droplet")}</div><div class="e-title">ยังไม่มีระบบน้ำ</div><div class="muted">กด "เพิ่มระบบน้ำให้แปลง" เลือกแปลง ตั้งตารางให้น้ำอัตโนมัติได้เลย</div></div></div>` : ""}
+    ${W.systems.length === 0 ? `<div class="card"><div class="empty"><div class="e-ico">${ic("droplet")}</div><div class="e-title">ยังไม่มีระบบน้ำ</div><div class="muted">เลือกแปลง ตั้งปั๊ม และกำหนดตารางให้น้ำได้จากปุ่มด้านบน</div></div></div>` : ""}
     <div class="card-grid">${sysCards}</div>
 
-    <div class="row row-between">
+    <div class="row row-between iot-section-head">
       <div class="bold" style="font-size:1.02rem">แหล่งน้ำ (${W.sources.length})</div>
-      <button class="btn btn-primary btn-sm" onclick="App.modalWaterSource()">${ic("plus")} เพิ่มแหล่งน้ำ</button>
+      <button class="btn btn-outline btn-sm" onclick="App.modalWaterSource()">${ic("plus")} เพิ่มแหล่งน้ำ</button>
     </div>
     ${W.sources.length === 0 ? `<div class="card"><div class="muted" style="text-align:center;padding:8px;font-size:.8rem">ยังไม่มีแหล่งน้ำ — เพิ่มบ่อ/บาดาล/ประปา เพื่อบันทึกระดับน้ำ</div></div>` : `<div class="card-grid">${srcCards}</div>`}
 
@@ -2187,7 +2197,7 @@ function renderIoT() {
 
     <div class="section-title">${ic("wifi")} อุปกรณ์ควบคุมที่แปลง (ESP32)</div>
     <div class="card">
-      <div class="muted" style="font-size:.76rem;margin-bottom:10px">เซิร์ฟเวอร์ตัดสินใจให้น้ำตามตารางให้อัตโนมัติ (ทุกนาที) และเช็คพยากรณ์ฝนก่อนสั่ง — อุปกรณ์ ESP32 ที่แปลงจะดึงคำสั่งจาก API ทุก ~10 วินาที แล้วเปิด/ปิดวาล์วตาม กดปุ่มเพื่อรับ Device Key</div>
+      <div class="muted" style="font-size:.76rem;margin-bottom:10px">เชื่อม ESP32 เพื่อดึงคำสั่งให้น้ำจาก API และรับ Device Key สำหรับอุปกรณ์ที่แปลง</div>
       <button class="btn btn-primary btn-block" onclick="App.waterAddDevice()">${ic("plus")} เพิ่มอุปกรณ์ / รับ Device Key</button>
       <button class="btn btn-outline btn-block mt-8" onclick="App.waterListDevices()">${ic("eye")} ดู Device Key ที่มีอยู่</button>
     </div>`;
@@ -2274,14 +2284,14 @@ App.modalWaterSystem = function (id) {
   const opt = (arr, sel) => arr.map(x => `<option value="${esc(x.id)}" ${x.id === sel ? "selected" : ""}>${esc(x.name || x.label)}</option>`).join("");
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
-    <h3>${ic("droplet")} ${sys ? "แก้ไขระบบน้ำ" : "เพิ่มระบบน้ำให้แปลง"}</h3>
+    <h3>${ic("droplet")} ${sys ? "แก้ไขระบบน้ำ" : "เพิ่มระบบน้ำ"}</h3>
     <div class="field"><label>แปลง *</label><select id="ws_plot">${opt(S.plots, sys ? sys.plotId : (S.plots[0] || {}).id)}</select></div>
     <div class="field"><label>ชื่อระบบ</label><input id="ws_name" placeholder="เช่น ระบบสปริงเกลอร์ / ระบบน้ำหยด" value="${esc(sys ? sys.name : "")}"></div>
     <div class="field"><label>แหล่งน้ำ</label><select id="ws_source"><option value="">— ไม่ระบุ —</option>${opt(W.sources, sys ? sys.sourceId : "")}</select></div>
     <div class="field"><label>ชื่อปั๊มน้ำ</label><input id="ws_pump" placeholder="เช่น ปั๊ม 1.5 HP" value="${esc(sys ? sys.pumpName || "" : "")}"></div>
     <div class="field"><label>จำนวนวาล์ว/โซน</label><input id="ws_valves" type="number" min="0" value="${sys ? sys.valveCount || 0 : 1}"></div>
     <div class="field"><label><input type="checkbox" id="ws_auto" ${sys && sys.auto && sys.auto.enabled ? "checked" : ""} style="width:auto;margin-right:6px">เปิดตารางให้น้ำอัตโนมัติ</label></div>
-    <div style="display:flex;gap:8px">
+    <div class="water-schedule-row">
       <div class="field grow"><label>ทุกกี่วัน</label><input id="ws_days" type="number" min="1" value="${sys && sys.auto ? sys.auto.everyDays : 2}"></div>
       <div class="field grow"><label>เวลา</label><input id="ws_time" type="time" value="${sys && sys.auto ? sys.auto.time : "06:00"}"></div>
       <div class="field grow"><label>นาน (นาที)</label><input id="ws_min" type="number" min="1" value="${sys && sys.auto ? sys.auto.minutes : 30}"></div>
@@ -2333,7 +2343,7 @@ App.modalWaterSource = function (id) {
     <h3>${ic("droplet")} ${src ? "แก้ไขแหล่งน้ำ" : "เพิ่มแหล่งน้ำ"}</h3>
     <div class="field"><label>ชื่อ *</label><input id="wsrc_name" placeholder="เช่น บ่อพักน้ำใหญ่" value="${esc(src ? src.name : "")}"></div>
     <div class="field"><label>ประเภท</label><select id="wsrc_type">${types.map(t => `<option ${src && src.type === t ? "selected" : ""}>${t}</option>`).join("")}</select></div>
-    <div style="display:flex;gap:8px">
+    <div class="water-duo-row">
       <div class="field grow"><label>ความจุ (ลบ.ม.)</label><input id="wsrc_cap" type="number" min="0" value="${src ? src.capacityM3 || "" : ""}"></div>
       <div class="field grow"><label>ระดับน้ำ (%)</label><input id="wsrc_lvl" type="number" min="0" max="100" value="${src ? src.levelPct || "" : ""}"></div>
     </div>
@@ -2373,7 +2383,7 @@ App.modalWaterNow = function (sysId) {
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${ic("droplet")} บันทึกให้น้ำ</h3>
     <div class="modal-sub">แปลง: ${esc((plotById(S, sys.plotId) || {}).name || "-")} · วันนี้ ${dateLabel(todayISO())}</div>
-    <div style="display:flex;gap:8px">
+    <div class="water-duo-row">
       <div class="field grow"><label>นาน (นาที)</label><input id="wn_min" type="number" min="1" value="${defMin}"></div>
       <div class="field grow"><label>ปริมาณ (ลบ.ม.) — ไม่บังคับ</label><input id="wn_m3" type="number" min="0" step="0.1"></div>
     </div>
@@ -2832,16 +2842,26 @@ function renderPrices() {
         <button class="btn btn-primary" onclick="App._priceLoading=false;App.loadMarketPrices()">${ic("refresh")} ลองใหม่</button>
       </div>`;
   }
+  const priceDateIso = (() => {
+    try { return new Date(cached.date).toISOString().slice(0, 10); }
+    catch (e) { return ""; }
+  })();
+  const priceAgeDays = priceDateIso ? daysBetween(priceDateIso, todayISO()) : 0;
+  const priceTitle = priceAgeDays > 0 ? "ราคาสินค้าเกษตร" : "ราคาสินค้าเกษตรวันนี้";
+  const priceFreshLabel = priceAgeDays <= 0 ? "ข้อมูลวันนี้" : `ข้อมูลเก่า ${fmtNum(priceAgeDays)} วัน`;
 
   return `
     <!-- Hero banner + summary -->
     <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none;padding:18px 16px 14px;margin-bottom:12px">
       <div class="row row-between" style="align-items:flex-start;margin-bottom:10px">
         <div>
-          <div class="bold" style="font-size:1.08rem;margin-bottom:3px">ราคาสินค้าเกษตรวันนี้</div>
-          <div style="font-size:.73rem;opacity:.85">ตลาดศรีเมือง + ตลาดสี่มุมเมือง · ${thaiDateStr(new Date(cached.date))}</div>
+          <div class="bold" style="font-size:1.08rem;margin-bottom:3px">${priceTitle}</div>
+          <div style="font-size:.73rem;opacity:.85">ตลาดศรีเมือง + ตลาดสี่มุมเมือง · อัปเดต ${thaiDateStr(new Date(cached.date))}</div>
         </div>
         <button class="btn btn-sm" style="background:rgba(255,255,255,.22);color:#fff;border:none;flex-shrink:0;margin-left:10px" onclick="App._priceLoading=false;App.loadMarketPrices()">${ic("refresh")}</button>
+      </div>
+      <div class="price-freshness ${priceAgeDays > 2 ? "is-stale" : ""}">
+        ${ic(priceAgeDays > 2 ? "alert" : "check")} ${priceFreshLabel}
       </div>
       <!-- summary bar ขึ้น/ลง/คงที่ -->
       ${(() => {
@@ -4300,11 +4320,6 @@ App.modalStock = function (id) {
     <div class="modal-sub">${x ? "ปรับข้อมูลรายการวัสดุ" : "เช่น ปุ๋ย ยา เมล็ดพันธุ์ พร้อมหน่วยนับ"}</div>
     <form onsubmit="return App.submitStock(event, '${x ? x.id : ""}')">
       <div class="field"><label>ชื่อสินค้า *</label><input id="s_name" value="${x ? esc(x.name) : ""}" placeholder="เช่น ปุ๋ยเคมี สูตร 46-0-0" required></div>
-      <div class="field"><label>ชื่อสามัญ (สารออกฤทธิ์ / สูตร)</label><input id="s_generic" value="${x ? esc(x.generic || "") : ""}" placeholder="เช่น ไกลโฟเซต-ไอโซโพรพิลแอมโมเนียม หรือ 46-0-0"></div>
-      <div class="form-row-2">
-        <div class="field"><label>รหัสสินค้าเดิม</label><input id="s_code" value="${x ? esc(x.code || "") : ""}" placeholder="เช่น 00-0000-269"></div>
-        <div class="field"><label>ขนาดสินค้า</label><input id="s_size" value="${x ? esc(x.size || "") : ""}" placeholder="เช่น 50 กก. / 5 ลิตร / 1,000 ซีซี"></div>
-      </div>
       <div class="field"><label>หมวดสินค้า</label>
         <select id="s_category">
           <option value="">-- ไม่มีหมวด --</option>
@@ -4314,13 +4329,21 @@ App.modalStock = function (id) {
       <div class="field"><label>หน่วยนับ *</label><input id="s_unit" list="stockUnitList" value="${x ? esc(x.unit) : ""}" placeholder="เลือกจากรายการหรือพิมพ์เอง เช่น ถุง / ขวด / ลิตร" required>
         <datalist id="stockUnitList">${STOCK_UNITS.map(u => `<option value="${esc(u)}">`).join("")}</datalist>
       </div>
-      <div class="field"><label>บริษัท / ผู้จำหน่าย</label><input id="s_supplier" list="stockSupplierList" value="${x ? esc(x.supplier || "") : ""}" placeholder="พิมพ์ค้นหา เช่น ซินเจนทา / บาก้า / โกลบอล ครอปส์">
-        <datalist id="stockSupplierList">${stockSuppliers().map(s => `<option value="${esc(s)}">`).join("")}</datalist>
-      </div>
       <div class="field"><label>จำนวนเริ่มต้น</label><input id="s_qty" type="number" min="0" step="1" value="${x ? x.qty : 0}">
         <div class="hint">สต็อกหลักเก็บเป็นจำนวนเต็ม (ถุง/ขวดเต็ม) — ของที่ใช้ไม่หมดจะไปเป็น "ของเหลือจากการเปิดใช้" อัตโนมัติ</div></div>
       <div class="field"><label>ต้นทุนต่อหน่วย (บาท)</label><input id="s_price" type="number" min="0" step="0.5" value="${x ? x.avgCost : 0}"></div>
-      <div class="field"><label>ราคาขายต่อหน่วย (บาท)</label><input id="s_saleprice" type="number" min="0" step="0.5" value="${x ? (x.salePrice || "") : ""}" placeholder="เว้นว่างไว้ได้"></div>
+      <details class="optional-fields" ${x ? "open" : ""}>
+        <summary>${ic("menu")} รายละเอียดเสริม</summary>
+        <div class="field"><label>ชื่อสามัญ (สารออกฤทธิ์ / สูตร)</label><input id="s_generic" value="${x ? esc(x.generic || "") : ""}" placeholder="เช่น ไกลโฟเซต หรือ 46-0-0"></div>
+        <div class="form-row-2">
+          <div class="field"><label>รหัสสินค้าเดิม</label><input id="s_code" value="${x ? esc(x.code || "") : ""}" placeholder="เช่น 00-0000-269"></div>
+          <div class="field"><label>ขนาดสินค้า</label><input id="s_size" value="${x ? esc(x.size || "") : ""}" placeholder="เช่น 50 กก. / 5 ลิตร"></div>
+        </div>
+        <div class="field"><label>บริษัท / ผู้จำหน่าย</label><input id="s_supplier" list="stockSupplierList" value="${x ? esc(x.supplier || "") : ""}" placeholder="เช่น ซินเจนทา / บาก้า">
+          <datalist id="stockSupplierList">${stockSuppliers().map(s => `<option value="${esc(s)}">`).join("")}</datalist>
+        </div>
+        <div class="field"><label>ราคาขายต่อหน่วย (บาท)</label><input id="s_saleprice" type="number" min="0" step="0.5" value="${x ? (x.salePrice || "") : ""}" placeholder="เว้นว่างไว้ได้"></div>
+      </details>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
         <button type="submit" class="btn btn-primary">${x ? "บันทึกการแก้ไข" : "เพิ่มรายการ"}</button>

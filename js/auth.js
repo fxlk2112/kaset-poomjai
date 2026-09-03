@@ -562,7 +562,7 @@ Auth.fillProfilePanel = function () {
     <div class="pp-head">
       <div class="pp-avatar">${ic("user")}</div>
       <div class="pp-info">
-        <div class="pp-name">${esc(s.name || maskEmailForDisplay(s.email))}</div>
+        <div class="pp-name">${esc(s.name || "บัญชีของฉัน")}</div>
         <div class="pp-email">${esc(maskEmailForDisplay(s.email))}</div>
         ${s.admin ? `<span class="badge badge-green">ผู้ดูแลระบบ</span>` : ""}
       </div>

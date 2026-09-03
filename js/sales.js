@@ -13,14 +13,20 @@ function saleItemsHtml(i) {
     return !q || x.name.toLowerCase().includes(q) || (x.code || "").toLowerCase().includes(q) || x.unit.toLowerCase().includes(q) || (x.category || "").toLowerCase().includes(q);
   });
   if (!list.length) return `<div class="muted" style="font-size:.72rem;padding:6px 2px">${q ? "ไม่พบรายการที่ค้นหา" : "ยังไม่มีของในสต็อกหลัก — ไปรับของเข้าก่อน"}</div>`;
-  return list.map(x => {
+  let shown = q ? list.slice(0, 20) : list.slice(0, 5);
+  if (it.stockId && !shown.some(x => x.id === it.stockId)) {
+    const picked = list.find(x => x.id === it.stockId) || stockById(S, it.stockId);
+    if (picked && saleAvail(picked) > 0) shown = [picked, ...shown].slice(0, q ? 20 : 5);
+  }
+  const more = list.length - shown.length;
+  return shown.map(x => {
     const sel = it.stockId === x.id;
     const sub = `ขายได้ ${fmtNum(saleAvail(x))} ${esc(x.unit)}`;
     const sp = Number(x.salePrice) || 0;
     return `<button type="button" class="stock-pick-item ${sel ? "selected" : ""}" onclick="App.salePick(${i}, '${x.id}')" ${sel ? `title="กดอีกครั้งเพื่อเอารายการนี้ออก"` : ""}>
       <span class="sp-name">${esc(x.name)}</span>${sel ? `<span class="sp-x">✕</span>` : (sp ? `<span class="sp-sub">${sub} · ขาย ${fmtMoney(sp)} บาท</span>` : `<span class="sp-sub">${sub}</span>`)}
     </button>`;
-  }).join("");
+  }).join("") + (more > 0 ? `<div class="sale-more-hint">${q ? `แสดง 20 รายการแรก · เหลือ ${fmtNum(more)} รายการ` : `พิมพ์ค้นหาเพื่อดูอีก ${fmtNum(more)} รายการ`}</div>` : "");
 }
 App.saleQuery = function (i, v) {
   saleQueries[i] = v;
