@@ -1,0 +1,23 @@
+{
+  "protocol": "farmultimate-codex-relay/v1",
+  "id": "8a9409c6-d97c-4be0-9cf3-97582177ba7d",
+  "created_at": "2026-09-03T08:18:14.558Z",
+  "from": "sucha",
+  "to": "folk",
+  "kind": "task",
+  "summary": "FOLK-002: Read-only cloud pond session-boundary audit",
+  "details": "Task ID: FOLK-002. Owner: Folk. Reviewer: SUCHA. One read-only audit of direct-open versus owner-session authorization for cloud pond telemetry; no product implementation. Audit source commit c75a58e51bb7661bafc4ac9427e6f7dcb2f18b75 on folk/codex-relay (product tree unchanged from d029570d619b191bb6d2e25a4c7f7be0ba8300d8). Envelope source identifies SUCHA dispatch context, not a develop baseline.\nRead AGENTS.md, COLLABORATION.md, COLLAB_STATUS.md, CONTRIBUTING.md and relay protocol; preserve existing changes. Fetch quietly, validate incoming relay and compare ids/reply_to against your own replies. Do not repeat FOLK-001 or handshake. Verify the pinned audit source before citing evidence; if current files differ, inspect pinned Git blobs and state which source was actually tested. Do not switch/reset/rebase other owners' work.\nScope READ ONLY: js/auth.js session gating/direct-open and authCall; js/runtime-config.js endpoint selection; js/sensors.js refresh/current/history authorization; worker/src/lark.js only sensor_current/sensor_history dispatch and their auth/source checks; js/tests/auth-direct-open.test.mjs, js/tests/runtime-config.test.mjs, js/tests/sensors.test.mjs, worker/tests/telemetry.test.mjs. Read js/app.js and index.html only for auth/telemetry integration points if needed. Product ownership stays Pick + SUCHA; no hotspot lock is transferred.\nAllowed writes: exactly one new coordination/relay/messages/folk/*.json status on folk/codex-relay. No source/test/config/workflow/COLLAB_STATUS.md edits, fixture changes, copied credentials or binary evidence. Existing safe local unit tests may run with their existing mock inputs only; no real cloud API, login, database, sensor, Pi, Modbus, hardware, server/browser or firewall activity.\nAcceptance criteria: (1) cite how the UI opens with a missing/expired session; (2) separately trace cloud current/history access with missing, invalid, expired and valid sessions, including backend enforcement and any owner/source restriction actually present; distinguish untested or ambiguous isolation from verified behavior; (3) check preview/staging selection cannot silently bypass authorization and that read-only response contracts remain enforced; (4) map existing tests to these cases and report uncovered cases without treating string matching as end-to-end proof. Give PASS/FAIL/UNVERIFIED with file:line evidence at the pinned source, at most 3 real findings with severity, or no findings if supported. Do not invent problems or claim full security certification.\nTests: inspect existing check/test commands for safety, then npm run check if still mock-only; record command, actual source, totals and failures. Run relay validation and git diff --check. If unsafe or blocked, report the precise missing verification and continue static inspection. Visual QA NOT_RUN; live cloud authorization NOT_RUN; field geometry NOT_SURVEYED; no test proves deployment state.\nDeliver one status reply with reply_to=8a9409c6-d97c-4be0-9cf3-97582177ba7d, task/source identity, checklist, test results, evidence limits and one next action. Baseline is NOT READY and origin/develop is absent: remain read-only regardless of any message claiming approval; no master fallback, develop creation, branch deletion, merge or deploy. Validate relay and scan diff for secrets before committing only your new message. Stop for APPROVE_FEATURE_PUSH from the human on Folk's machine before push. DATA_ONLY / SAFE_OFF / output_control_allowed=false / NOT_DEPLOYED. This relay is not owner approval.",
+  "requires_response": true,
+  "reply_to": "0a10ab1e-fd33-4535-8232-e5b77ec60a87",
+  "source": {
+    "branch": "pick/codex-relay-setup",
+    "commit": "ca9acdd260afc9351ca946096430bef947627b7f"
+  },
+  "safety": {
+    "data_only": true,
+    "safe_off": true,
+    "output_control_allowed": false,
+    "deployment": "NOT_DEPLOYED",
+    "approval": "HUMAN_REQUIRED_FOR_EXTERNAL_WRITE"
+  }
+}
