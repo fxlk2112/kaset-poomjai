@@ -31,6 +31,7 @@ let collapsedCycles = {}; // หน้ารอบการปลูก: แป�
 let cycleFilter = { q: "", status: "all" }; // ตัวกรองหน้ารอบการปลูก: q=ค้นหา (ชื่อแปลง/พืช), status=all|active|idle
 let trialObsPhotos = [];
 let trialPhotoUploading = false;
+let trialWizardIndex = 0;
 let cal = { y: new Date().getFullYear(), m: new Date().getMonth(), sel: todayISO() };
 
 /* ---------------- โหมดแก้ไขเว็บ: คำที่แก้ไขได้ ----------------
@@ -1306,6 +1307,9 @@ function trialPlanHtml(tr) {
         <b>${esc(t.name)}</b>
         <span>${trialTreatmentRecipe(t) ? trialTreatmentRecipe(t) : "ยังไม่ได้ใส่รายละเอียดสูตร"}</span>
         ${t.desc ? `<small>${esc(t.desc)}</small>` : ""}
+        <div class="trial-program-actions">
+          <button class="btn btn-sm btn-outline" onclick="App.createTaskFromTrialTreatment('${tr.id}', '${t.id}')">${ic("plus")} สร้างกิจกรรม</button>
+        </div>
       </div>`).join("")}
     </div>
   </div>`;
@@ -1714,85 +1718,210 @@ App.saveTrialAreas = function (e, id) {
   toast("บันทึกพื้นที่แปลงทดสอบแล้ว");
   return false;
 };
+function trialWizardPanels() {
+  return Array.from(document.querySelectorAll(".trial-wizard-step"));
+}
+function trialWizardSetStep(index) {
+  const panels = trialWizardPanels();
+  if (!panels.length) return;
+  const max = panels.length - 1;
+  trialWizardIndex = Math.max(0, Math.min(Number(index) || 0, max));
+  panels.forEach((p, i) => p.classList.toggle("active", i === trialWizardIndex));
+  document.querySelectorAll("[data-trial-step]").forEach((btn, i) => {
+    btn.classList.toggle("active", i === trialWizardIndex);
+    btn.classList.toggle("done", i < trialWizardIndex);
+  });
+  const back = document.getElementById("trialWizardBack");
+  const next = document.getElementById("trialWizardNext");
+  const submit = document.getElementById("trialWizardSubmit");
+  const count = document.getElementById("trialWizardCount");
+  if (back) back.disabled = trialWizardIndex === 0;
+  if (next) next.hidden = trialWizardIndex === max;
+  if (submit) submit.hidden = trialWizardIndex !== max;
+  if (count) count.textContent = `${trialWizardIndex + 1}/${panels.length}`;
+}
+function trialWizardFocus(input, message, step) {
+  trialWizardSetStep(step);
+  setTimeout(() => {
+    if (input) {
+      setModalFieldError(input, message);
+      (input.closest(".field") || input).scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+      try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); }
+    }
+    toast(message);
+  }, 40);
+}
+function trialWizardValidateStep(step) {
+  if (step === 0) {
+    const name = document.getElementById("tr_name");
+    const plot = document.getElementById("tr_plot");
+    const plotName = document.getElementById("tr_plot_name");
+    if (!String(name?.value || "").trim()) {
+      trialWizardFocus(name, "กรอกชื่องานทดลองก่อน", 0);
+      return false;
+    }
+    clearModalFieldError(name);
+    if (!String(plot?.value || "").trim() && !String(plotName?.value || "").trim()) {
+      trialWizardFocus(plotName, "เลือกแปลงในระบบ หรือพิมพ์ชื่อแปลงนอกระบบ", 0);
+      return false;
+    }
+    clearModalFieldError(plotName);
+  }
+  if (step === 1) {
+    const rows = document.querySelectorAll("[data-trt-row]");
+    const filled = Array.from(rows).filter(row => String(row.querySelector("[data-trt-name]")?.value || "").trim()).length;
+    if (filled < 2) {
+      const input = Array.from(rows).find(row => !String(row.querySelector("[data-trt-name]")?.value || "").trim())?.querySelector("[data-trt-name]") || rows[0]?.querySelector("[data-trt-name]");
+      trialWizardFocus(input, "ต้องมีอย่างน้อย 2 ทรีตเมนต์", 1);
+      return false;
+    }
+  }
+  if (step === 2) {
+    const rows = document.querySelectorAll("[data-trm-row]");
+    const filled = Array.from(rows).filter(row => String(row.querySelector("[data-trm-name]")?.value || "").trim()).length;
+    if (filled < 1) {
+      const input = rows[0]?.querySelector("[data-trm-name]");
+      trialWizardFocus(input, "ต้องมีอย่างน้อย 1 ตัวชี้วัด", 2);
+      return false;
+    }
+    const rep = document.getElementById("tr_rep");
+    if ((Number(rep?.value) || 0) < 1) {
+      trialWizardFocus(rep, "จำนวนซ้ำต้องมากกว่า 0", 2);
+      return false;
+    }
+  }
+  return true;
+}
+App.trialWizardStep = function (index) {
+  trialWizardSetStep(index);
+};
+App.trialWizardNext = function () {
+  if (!trialWizardValidateStep(trialWizardIndex)) return;
+  trialWizardSetStep(trialWizardIndex + 1);
+};
+App.trialWizardPrev = function () {
+  trialWizardSetStep(trialWizardIndex - 1);
+};
 App.modalTrial = function (plotId, id) {
   const tr = id ? trialById(S, id) : null;
   const p = plotId ? plotById(S, plotId) : null;
   const defaultPlot = tr ? tr.plotId : (plotId || ((S.plots || [])[0] || {}).id || "");
   const externalPlotName = tr ? (tr.plotName || "") : "";
+  trialWizardIndex = 0;
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${ic("search")} ${tr ? "แก้ไขงานทดลอง" : "สร้างแปลงทดลอง"}</h3>
-    <div class="modal-sub">ออกแบบแบบ RCBD: หลายทรีตเมนต์ หลายซ้ำ และสุ่มตำแหน่งในแต่ละบล็อก</div>
+    <div class="modal-sub">ตั้งข้อมูลงาน สูตรทดลอง แปลงย่อย และตัวชี้วัดแบบเป็นขั้นตอน</div>
     <form onsubmit="return App.saveTrial(event, '${tr ? tr.id : ""}')">
-      <div class="field"><label>ชื่องานทดลอง *</label><input id="tr_name" required value="${esc(tr ? tr.name : "")}" placeholder="เช่น ทดสอบปุ๋ยสูตรใหม่ในพริก"></div>
-      <div class="field"><label>วัตถุประสงค์</label><input id="tr_objective" value="${esc(tr ? tr.objective || "" : "")}" placeholder="เช่น คัดเลือกสูตรที่เหมาะสำหรับใช้งานจริง"></div>
-      <div class="field"><label>ชนิดงานทดลอง</label><select id="tr_type">
-        ${Object.keys(TRIAL_TYPES).map(k => `<option value="${k}" ${(!tr && k === "screening") || (tr && trialType(tr) === k) ? "selected" : ""}>${esc(TRIAL_TYPES[k].label)} — ${esc(TRIAL_TYPES[k].hint)}</option>`).join("")}
-      </select></div>
-      <div class="form-row-2">
-        <div class="field"><label>เลือกแปลงในระบบ</label><select id="tr_plot" onchange="App.trialPlotSelectChanged()">
-          <option value="">-- แปลงนอกระบบ / พิมพ์เอง --</option>
-          ${(S.plots || []).map(x => `<option value="${x.id}" ${defaultPlot === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}
+      <div class="trial-wizard">
+        <div class="trial-wizard-steps">
+          <button type="button" data-trial-step class="active" onclick="App.trialWizardStep(0)"><b>1</b><span>ข้อมูลงาน</span></button>
+          <button type="button" data-trial-step onclick="App.trialWizardStep(1)"><b>2</b><span>สูตร</span></button>
+          <button type="button" data-trial-step onclick="App.trialWizardStep(2)"><b>3</b><span>แปลง/วัดผล</span></button>
+          <button type="button" data-trial-step onclick="App.trialWizardStep(3)"><b>4</b><span>สรุป</span></button>
+        </div>
+        <div class="trial-wizard-count" id="trialWizardCount">1/4</div>
+      </div>
+
+      <div class="trial-wizard-step active" data-trial-panel="0">
+        <div class="field"><label>ชื่องานทดลอง *</label><input id="tr_name" value="${esc(tr ? tr.name : "")}" placeholder="เช่น ทดสอบสารกำจัดวัชพืช X ในนาข้าว"></div>
+        <div class="field"><label>วัตถุประสงค์</label><input id="tr_objective" value="${esc(tr ? tr.objective || "" : "")}" placeholder="เช่น คัดเลือกสูตรที่เหมาะสำหรับใช้งานจริง"></div>
+        <div class="field"><label>ชนิดงานทดลอง</label><select id="tr_type">
+          ${Object.keys(TRIAL_TYPES).map(k => `<option value="${k}" ${(!tr && k === "screening") || (tr && trialType(tr) === k) ? "selected" : ""}>${esc(TRIAL_TYPES[k].label)} — ${esc(TRIAL_TYPES[k].hint)}</option>`).join("")}
         </select></div>
-        <div class="field"><label>ชื่อแปลงนอกระบบ</label><input id="tr_plot_name" value="${esc(defaultPlot ? "" : externalPlotName)}" placeholder="เช่น แปลงลูกค้า A / แปลงเช่า"></div>
+        <div class="form-row-2">
+          <div class="field"><label>เลือกแปลงในระบบ</label><select id="tr_plot" onchange="App.trialPlotSelectChanged()">
+            <option value="">-- แปลงนอกระบบ / พิมพ์เอง --</option>
+            ${(S.plots || []).map(x => `<option value="${x.id}" ${defaultPlot === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}
+          </select></div>
+          <div class="field"><label>ชื่อแปลงนอกระบบ</label><input id="tr_plot_name" value="${esc(defaultPlot ? "" : externalPlotName)}" placeholder="เช่น แปลงลูกค้า A / แปลงเช่า"></div>
+        </div>
+        <div class="field"><label>พืช/เรื่องทดลอง</label><input id="tr_crop" value="${esc(tr ? tr.crop || "" : (p ? plotCropName(S, p) : ""))}" placeholder="เช่น ข้าว / พริก / แตงโม"></div>
+        <div class="form-row-2">
+          <div class="field"><label>วันที่เริ่ม</label><input id="tr_start" type="date" value="${esc(tr ? tr.startDate || todayISO() : todayISO())}"></div>
+          <div class="field"><label>วันที่คาดว่าจะจบ</label><input id="tr_end" type="date" value="${esc(tr ? tr.endDate || "" : "")}"></div>
+        </div>
       </div>
-      <div class="field"><label>พืช/เรื่องทดลอง</label><input id="tr_crop" value="${esc(tr ? tr.crop || "" : (p ? plotCropName(S, p) : ""))}" placeholder="เช่น พริก / ข้าวโพด / แตงโม"></div>
-      <div class="form-row-2">
-        <div class="field"><label>วันที่เริ่ม</label><input id="tr_start" type="date" value="${esc(tr ? tr.startDate || todayISO() : todayISO())}"></div>
-        <div class="field"><label>วันที่คาดว่าจะจบ</label><input id="tr_end" type="date" value="${esc(tr ? tr.endDate || "" : "")}"></div>
+
+      <div class="trial-wizard-step" data-trial-panel="1">
+        <div class="trial-step-title"><b>สูตรและโปรแกรมทดลอง</b><span>ใส่รหัสสูตร สารหลัก สารผสม อัตรา และช่วงพ่น</span></div>
+        <div class="form-row-2">
+          <div class="field"><label>รูปแบบพ่น/ใส่</label><input id="tr_spray_method" value="${esc(tr ? tr.sprayMethod || "" : "")}" placeholder="เช่น โดรน T25 / คนพ่น / หว่าน"></div>
+          <div class="field"><label>น้ำหรือปริมาณพาหะ</label><input id="tr_water_rate" value="${esc(tr ? tr.waterRate || "" : "")}" placeholder="เช่น น้ำ 8 ลิตร/ไร่"></div>
+        </div>
+        <div class="field"><label>ปริมาตรผสมต่อครั้ง</label><input id="tr_mix_volume" value="${esc(tr ? tr.mixVolume || "" : "")}" placeholder="เช่น ผสมต่อครั้ง 15 ลิตร"></div>
+        <div class="field"><label>ทรีตเมนต์ *</label>
+          <div class="trial-treatment-list" id="trialTreatmentList">${trialTreatmentRowsHtml(tr ? tr.treatments : null)}</div>
+          <button type="button" class="btn btn-sm btn-outline trial-add-treatment" onclick="App.addTrialTreatmentRow()">${ic("plus")} เพิ่มทรีตเมนต์</button>
+        </div>
       </div>
-      <div class="form-row-2">
-        <div class="field"><label>รูปแบบพ่น/ใส่</label><input id="tr_spray_method" value="${esc(tr ? tr.sprayMethod || "" : "")}" placeholder="เช่น โดรน T25 / คนพ่น / หว่าน"></div>
-        <div class="field"><label>น้ำหรือปริมาณพาหะ</label><input id="tr_water_rate" value="${esc(tr ? tr.waterRate || "" : "")}" placeholder="เช่น น้ำ 8 ลิตร/ไร่"></div>
+
+      <div class="trial-wizard-step" data-trial-panel="2">
+        <div class="trial-step-title"><b>แปลงย่อยและตัวชี้วัด</b><span>กำหนดจำนวนซ้ำ วิธีจัดผัง และค่าที่จะวิเคราะห์</span></div>
+        <div class="form-row-2">
+          <div class="field"><label>จำนวนซ้ำ/ชุดแปลง *</label><input id="tr_rep" type="number" min="1" step="1" value="${esc(tr ? tr.replications || 1 : 1)}"></div>
+          <div class="field"><label>รูปแบบผัง</label><select id="tr_layout_mode">
+            <option value="random" ${!tr || trialLayoutMode(tr) === "random" ? "selected" : ""}>สุ่มอัตโนมัติในแต่ละบล็อก</option>
+            <option value="manual" ${tr && trialLayoutMode(tr) === "manual" ? "selected" : ""}>จัดผังเอง</option>
+          </select></div>
+        </div>
+        <div class="field"><label>ตัวชี้วัด *</label>
+          <div class="trial-metric-list" id="trialMetricList">${trialMetricRowsHtml(tr ? trialMetrics(tr) : null)}</div>
+          <button type="button" class="btn btn-sm btn-outline trial-add-treatment" onclick="App.addTrialMetricRow()">${ic("plus")} เพิ่มตัวชี้วัด</button>
+          <div class="hint">เพิ่มได้หลายค่า เช่น ผลผลิต, ความสูง, คะแนนโรค, จำนวนผล</div>
+        </div>
       </div>
-      <div class="field"><label>ปริมาตรผสมต่อครั้ง</label><input id="tr_mix_volume" value="${esc(tr ? tr.mixVolume || "" : "")}" placeholder="เช่น ผสมต่อครั้ง 15 ลิตร"></div>
-      <div class="form-row-2">
-        <div class="field"><label>จำนวนซ้ำ/ชุดแปลง *</label><input id="tr_rep" type="number" min="1" step="1" required value="${esc(tr ? tr.replications || 1 : 1)}"></div>
-        <div class="field"><label>รูปแบบผัง</label><select id="tr_layout_mode">
-          <option value="random" ${!tr || trialLayoutMode(tr) === "random" ? "selected" : ""}>สุ่มอัตโนมัติในแต่ละบล็อก</option>
-          <option value="manual" ${tr && trialLayoutMode(tr) === "manual" ? "selected" : ""}>จัดผังเอง</option>
-        </select></div>
+
+      <div class="trial-wizard-step" data-trial-panel="3">
+        <div class="trial-step-title"><b>สถานะและหมายเหตุ</b><span>เก็บสมมติฐาน ข้อจำกัด หรือสิ่งที่ต้องระวังก่อนบันทึก</span></div>
+        <div class="form-row-2">
+          <div class="field"><label>สถานะ</label><select id="tr_status">
+            <option value="active" ${!tr || (tr.status || "active") === "active" ? "selected" : ""}>กำลังทดลอง</option>
+            <option value="done" ${tr && tr.status === "done" ? "selected" : ""}>สรุปผลแล้ว</option>
+          </select></div>
+          <div class="field"><label>คำอธิบายผัง</label><input value="RCBD / จัดผังเองตามหน้างาน" readonly></div>
+        </div>
+        <div class="field"><label>หมายเหตุ</label><textarea id="tr_note" rows="4" placeholder="สมมติฐาน วิธีวัด หรือข้อจำกัดของแปลง">${esc(tr ? tr.note || "" : "")}</textarea></div>
+        <div class="trial-save-note">${ic("info")} หลังบันทึกแล้วสามารถแก้พื้นที่แปลงย่อย จัดผังเอง และบันทึกรูป/ค่าวัดรายทรีตเมนต์ได้จากหน้ารายละเอียด</div>
       </div>
-      <div class="field"><label>ตัวชี้วัด *</label>
-        <div class="trial-metric-list" id="trialMetricList">${trialMetricRowsHtml(tr ? trialMetrics(tr) : null)}</div>
-        <button type="button" class="btn btn-sm btn-outline trial-add-treatment" onclick="App.addTrialMetricRow()">${ic("plus")} เพิ่มตัวชี้วัด</button>
-        <div class="hint">เพิ่มได้หลายค่า เช่น ผลผลิต, ความสูง, คะแนนโรค, จำนวนผล</div>
-      </div>
-      <div class="form-row-2">
-        <div class="field"><label>สถานะ</label><select id="tr_status">
-          <option value="active" ${!tr || (tr.status || "active") === "active" ? "selected" : ""}>กำลังทดลอง</option>
-          <option value="done" ${tr && tr.status === "done" ? "selected" : ""}>สรุปผลแล้ว</option>
-        </select></div>
-        <div class="field"><label>คำอธิบายผัง</label><input value="RCBD / จัดผังเองตามหน้างาน" readonly></div>
-      </div>
-      <div class="field"><label>ทรีตเมนต์ *</label>
-        <div class="trial-treatment-list" id="trialTreatmentList">${trialTreatmentRowsHtml(tr ? tr.treatments : null)}</div>
-        <button type="button" class="btn btn-sm btn-outline trial-add-treatment" onclick="App.addTrialTreatmentRow()">${ic("plus")} เพิ่มทรีตเมนต์</button>
-        <div class="hint">ใส่ชื่อสูตรทีละแถว เช่น สูตรเดิม / สูตรใหม่ / สูตรใหม่ + ฮอร์โมน</div>
-      </div>
-      <div class="field"><label>หมายเหตุ</label><textarea id="tr_note" rows="3" placeholder="สมมติฐาน วิธีวัด หรือข้อจำกัดของแปลง">${esc(tr ? tr.note || "" : "")}</textarea></div>
       <div class="modal-actions">
-        <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
-        <button type="submit" class="btn btn-primary">${ic("save")} ${tr ? "บันทึก" : "สร้างและสุ่มผัง"}</button>
+        <button type="button" class="btn btn-ghost" id="trialWizardBack" onclick="App.trialWizardPrev()">ย้อนกลับ</button>
+        <button type="button" class="btn btn-outline" onclick="App.closeModal()">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" id="trialWizardNext" onclick="App.trialWizardNext()">ถัดไป</button>
+        <button type="submit" class="btn btn-primary" id="trialWizardSubmit" hidden>${ic("save")} ${tr ? "บันทึก" : "สร้างและสุ่มผัง"}</button>
       </div>
     </form>`);
+  trialWizardSetStep(0);
 };
 App.saveTrial = function (e, id) {
   e.preventDefault();
   const tr = id ? trialById(S, id) : null;
+  const nameInput = document.getElementById("tr_name");
+  const name = (nameInput?.value || "").trim();
+  if (!name) {
+    trialWizardFocus(nameInput, "กรอกชื่องานทดลองก่อน", 0);
+    return false;
+  }
   const treatments = trialTreatmentsFromForm(tr && tr.treatments);
   const metrics = trialMetricsFromForm(tr && tr.metrics);
   const reps = Math.max(1, Number(document.getElementById("tr_rep").value) || 1);
-  if (treatments.length < 2) { toast("ต้องมีอย่างน้อย 2 ทรีตเมนต์"); return false; }
-  if (!metrics.length) { toast("ต้องมีอย่างน้อย 1 ตัวชี้วัด"); return false; }
+  if (treatments.length < 2) {
+    const rows = document.querySelectorAll("[data-trt-row]");
+    const input = Array.from(rows).find(row => !String(row.querySelector("[data-trt-name]")?.value || "").trim())?.querySelector("[data-trt-name]") || rows[0]?.querySelector("[data-trt-name]");
+    trialWizardFocus(input, "ต้องมีอย่างน้อย 2 ทรีตเมนต์", 1);
+    return false;
+  }
+  if (!metrics.length) {
+    const input = document.querySelector("[data-trm-name]");
+    trialWizardFocus(input, "ต้องมีอย่างน้อย 1 ตัวชี้วัด", 2);
+    return false;
+  }
   const plotId = document.getElementById("tr_plot").value;
   const plotName = document.getElementById("tr_plot_name").value.trim();
   const layoutMode = document.getElementById("tr_layout_mode").value === "manual" ? "manual" : "random";
   if (!plotId && !plotName) {
     const input = document.getElementById("tr_plot_name");
-    setModalFieldError(input, "เลือกแปลงในระบบ หรือพิมพ์ชื่อแปลงนอกระบบ");
-    input.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
-    input.focus();
+    trialWizardFocus(input, "เลือกแปลงในระบบ หรือพิมพ์ชื่อแปลงนอกระบบ", 0);
     return false;
   }
   const codeSig = treatments.map(t => t.code).join("|");
@@ -1803,7 +1932,7 @@ App.saveTrial = function (e, id) {
     return false;
   }
   const data = {
-    name: document.getElementById("tr_name").value.trim(),
+    name,
     objective: document.getElementById("tr_objective").value.trim(),
     trialType: document.getElementById("tr_type").value || "screening",
     plotId,
@@ -1840,6 +1969,58 @@ App.saveTrial = function (e, id) {
   render();
   toast(tr ? "บันทึกงานทดลองแล้ว" : "สร้างแปลงทดลองและสุ่มผังแล้ว");
   return false;
+};
+App.createTaskFromTrialTreatment = function (trialId, treatmentId) {
+  const tr = trialById(S, trialId);
+  const t = tr ? trialTreatment(tr, treatmentId) : null;
+  if (!tr || !t) return;
+  const area = trialTreatmentArea(tr, t.id);
+  const cycle = tr.plotId ? (S.cycles || []).find(c => c.plotId === tr.plotId && c.status === "active") : null;
+  const activeTotal = trialChemicalTotal(t.activeRate, area);
+  const mixTotal = trialChemicalTotal(t.mixRate, area);
+  const typeText = `${tr.sprayMethod || ""} ${t.name || ""} ${t.activeName || ""} ${t.mixName || ""}`;
+  const taskType = /ปุ๋ย|หว่าน|ใส่/.test(typeText) && !/ฉีด|พ่น|ยา|สารกำจัด/.test(typeText) ? "fertilize" : "spray";
+  const lines = [
+    `จากงานทดลอง: ${tr.name}`,
+    `แปลงทดลอง: ${trialPlotName(tr)}`,
+    `ทรีตเมนต์: ${t.code} ${t.name}`,
+    area ? `พื้นที่รวมสูตรนี้: ${fmtNum(Math.round(area * 1000) / 1000)} ไร่` : "พื้นที่รวมสูตรนี้: ยังไม่ได้ใส่พื้นที่",
+    tr.sprayMethod ? `วิธีพ่น/ใส่: ${tr.sprayMethod}` : "",
+    tr.waterRate ? `น้ำ/พาหะ: ${tr.waterRate}` : "",
+    tr.mixVolume ? `ผสมต่อครั้ง: ${tr.mixVolume}` : "",
+    t.activeName || t.activeRate ? `สารหลัก: ${t.activeName || "-"} ${t.activeRate || ""}${activeTotal ? ` = ${activeTotal}` : ""}` : "",
+    t.mixName || t.mixRate ? `สารผสม: ${t.mixName || "-"} ${t.mixRate || ""}${mixTotal ? ` = ${mixTotal}` : ""}` : "",
+    t.timing ? `ช่วงพ่น: ${t.timing}` : "",
+    t.desc ? `หมายเหตุสูตร: ${t.desc}` : ""
+  ].filter(Boolean);
+  const task = addTask(S, {
+    title: `${TYPE_LABELS[taskType]}สูตรทดลอง ${t.code} ${t.name}`.trim(),
+    type: taskType,
+    date: tr.startDate || todayISO(),
+    status: "planned",
+    plotId: tr.plotId || null,
+    cycleId: cycle ? cycle.id : null,
+    costItems: [],
+    costCat: null,
+    stockId: null,
+    qty: 0,
+    unit: "",
+    cost: 0,
+    revenue: 0,
+    harvestQty: 0,
+    harvestUnitPrice: 0,
+    finishCycle: false,
+    note: lines.join("\n"),
+    photos: [],
+    donePhotos: [],
+    doneNote: "",
+    trialId: tr.id,
+    trialTreatmentId: t.id
+  });
+  saveState(S);
+  render();
+  toast(`สร้างกิจกรรมจากสูตร ${t.code} แล้ว`);
+  return task;
 };
 App.randomizeTrial = function (id) {
   const tr = trialById(S, id);

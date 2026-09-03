@@ -1513,6 +1513,106 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   grid-row: 1;
 }
 .trial-add-treatment { margin-top: 8px; }
+.trial-wizard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin: 10px 0 14px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--soft);
+}
+.trial-wizard-steps {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.trial-wizard-steps button {
+  min-width: 0;
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 850;
+  text-align: left;
+  cursor: pointer;
+}
+.trial-wizard-steps button b {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--line);
+  color: var(--muted);
+  font-size: .68rem;
+}
+.trial-wizard-steps button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trial-wizard-steps button.active {
+  border-color: rgba(22, 163, 74, .36);
+  background: var(--green-soft);
+  color: var(--green-deep);
+}
+.trial-wizard-steps button.active b,
+.trial-wizard-steps button.done b {
+  background: var(--green);
+  color: #fff;
+}
+.trial-wizard-count {
+  padding: 7px 9px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--green-deep);
+  font-size: .7rem;
+  font-weight: 900;
+  border: 1px solid var(--line);
+}
+.trial-wizard-step {
+  display: none;
+  gap: 12px;
+}
+.trial-wizard-step.active { display: grid; }
+.trial-step-title {
+  display: grid;
+  gap: 2px;
+  padding: 9px 10px;
+  border-left: 4px solid var(--green);
+  border-radius: 12px;
+  background: var(--green-soft);
+}
+.trial-step-title b {
+  color: var(--green-deep);
+  font-size: .9rem;
+}
+.trial-step-title span,
+.trial-save-note {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 720;
+  line-height: 1.4;
+}
+.trial-save-note {
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--soft);
+}
 .trial-plan-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1588,6 +1688,13 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   font-size: .7rem;
   font-weight: 720;
   line-height: 1.35;
+}
+.trial-program-actions {
+  margin-top: auto;
+  padding-top: 5px;
+}
+.trial-program-actions .btn {
+  width: 100%;
 }
 .trial-mix-table {
   display: grid;
@@ -3395,6 +3502,10 @@ html[data-theme="dark"] .trial-legend span,
 html[data-theme="dark"] .trial-filter-card,
 html[data-theme="dark"] .trial-treatment-photo-box,
 html[data-theme="dark"] .trial-layout-edit-row,
+html[data-theme="dark"] .trial-wizard,
+html[data-theme="dark"] .trial-wizard-steps button,
+html[data-theme="dark"] .trial-wizard-count,
+html[data-theme="dark"] .trial-save-note,
 html[data-theme="dark"] .trial-plan-kv,
 html[data-theme="dark"] .trial-timing-row,
 html[data-theme="dark"] .trial-mix-row,
@@ -3417,8 +3528,15 @@ html[data-theme="dark"] .trial-filter-head b,
 html[data-theme="dark"] .trial-legend b,
 html[data-theme="dark"] .trial-plan-head,
 html[data-theme="dark"] .trial-legend b,
+html[data-theme="dark"] .trial-step-title b,
+html[data-theme="dark"] .trial-wizard-count,
 html[data-theme="dark"] .trial-treatment-photo-title span,
 html[data-theme="dark"] .trial-area-edit-title b { color: #e6efe9; }
+html[data-theme="dark"] .trial-wizard-steps button.active,
+html[data-theme="dark"] .trial-step-title {
+  background: rgba(22, 163, 74, .12);
+  border-color: rgba(134, 239, 172, .22);
+}
 html[data-theme="dark"] .trial-program-item {
   background: color-mix(in srgb, var(--tr-color, #16a34a) 18%, var(--card));
   border-color: var(--card-border);
@@ -3957,6 +4075,33 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .trial-analysis-grid { grid-template-columns: 1fr; }
   .trial-plan-grid { grid-template-columns: 1fr; }
   .trial-program-grid { grid-template-columns: 1fr; }
+  .trial-wizard {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 7px;
+  }
+  .trial-wizard-steps { gap: 5px; }
+  .trial-wizard-steps button {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 4px;
+    min-height: 48px;
+    padding: 6px 4px;
+    text-align: center;
+    font-size: .62rem;
+  }
+  .trial-wizard-steps button b {
+    width: 21px;
+    height: 21px;
+  }
+  .trial-wizard-count {
+    justify-self: end;
+    padding: 4px 8px;
+  }
+  .trial-step-title {
+    padding: 8px 9px;
+  }
   .trial-mix-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .trial-mix-table { min-width: 520px; }
   .trial-area-grid { grid-template-columns: 1fr; }
