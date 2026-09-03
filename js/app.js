@@ -15,6 +15,7 @@ function saveRoute() {
     const o = { view: route.view, tab: route.tab, year: route.year };
     if (route.plotId) o.plotId = route.plotId;
     if (route.cycleId) o.cycleId = route.cycleId;
+    if (route.trialId) o.trialId = route.trialId;
     sessionStorage.setItem(ROUTE_STORE, JSON.stringify(o));
   } catch (e) {}
 }
@@ -26,6 +27,8 @@ let plotFilter = { q: "", status: "all" }; // ตัวกรองหน้า�
 let plannerFilter = "today"; // มุมมองกิจกรรม: today|week|overdue|done
 let collapsedCycles = {}; // หน้ารอบการปลูก: แปลงที่กดย่อไว้ (plotId -> true) กันหน้ายาวเกิน
 let cycleFilter = { q: "", status: "all" }; // ตัวกรองหน้ารอบการปลูก: q=ค้นหา (ชื่อแปลง/พืช), status=all|active|idle
+let trialObsPhotos = [];
+let trialPhotoUploading = false;
 let cal = { y: new Date().getFullYear(), m: new Date().getMonth(), sel: todayISO() };
 
 /* ---------------- โหมดแก้ไขเว็บ: คำที่แก้ไขได้ ----------------
@@ -800,6 +803,7 @@ function renderPlots() {
         <div class="actions-row">
           <button class="btn btn-sm btn-ghost" onclick="App.openPlot('${p.id}')">${ic("eye")} ดูรายละเอียด</button>
           <button class="btn btn-sm btn-outline" onclick="App.modalPlot('${p.id}')">${ic("pencil")} แก้ไข</button>
+          <button class="btn btn-sm btn-outline" onclick="App.modalTrial('${p.id}')">${ic("search")} ทดลอง</button>
           ${c ? "" : `<button class="btn btn-sm btn-primary" onclick="App.modalCycle('${p.id}')">${ic("leaf")} เริ่มปลูก</button>`}
         </div>
       </div>`;
@@ -886,14 +890,21 @@ function renderPlots() {
     }).join("")}
     </div>`;
 
+  const trialsTab = renderTrialsTab();
+  const tab = ["plots", "cycles", "trials"].includes(route.tab) ? route.tab : "plots";
   return `
     <div class="tabs">
-      <button class="${route.tab === "plots" ? "active" : ""}" onclick="App.plotsTab('plots')">${ic("map")} แปลง</button>
-      <button class="${route.tab === "cycles" ? "active" : ""}" onclick="App.plotsTab('cycles')">${ic("leaf")} รอบปลูก</button>
+      <button class="${tab === "plots" ? "active" : ""}" onclick="App.plotsTab('plots')">${ic("map")} แปลง</button>
+      <button class="${tab === "cycles" ? "active" : ""}" onclick="App.plotsTab('cycles')">${ic("leaf")} รอบปลูก</button>
+      <button class="${tab === "trials" ? "active" : ""}" onclick="App.plotsTab('trials')">${ic("search")} ทดลอง</button>
     </div>
-    ${route.tab === "cycles" ? cyclesTab : plotsTab}`;
+    ${tab === "cycles" ? cyclesTab : (tab === "trials" ? trialsTab : plotsTab)}`;
 }
-App.plotsTab = function (tab) { route.tab = tab; render(); };
+App.plotsTab = function (tab) {
+  route.tab = tab;
+  if (tab !== "trials") route.trialId = "";
+  render();
+};
 App.goCycles = function () { route.view = "plots"; route.tab = "cycles"; render(); };
 App.goPlots = function () { route.view = "plots"; route.tab = "plots"; render(); };
 App.plotFilterStatus = function (status) {
@@ -932,6 +943,527 @@ App.cycleFilterQ = function (v) {
 };
 App.cycleFilterStatus = function (st) { cycleFilter.status = st; rerender(); };
 App.cycleFilterClear = function () { cycleFilter = { q: "", status: "all" }; rerender(); };
+
+/* ---------------- Field trials / experimental plots ---------------- */
+function trialById(s, id) { return (s.trials || []).find(t => t.id === id); }
+function trialTreatment(tr, id) { return (tr.treatments || []).find(t => t.id === id); }
+function trialUnit(tr, id) { return (tr.units || []).find(u => u.id === id); }
+function trialMetric(tr) { return (tr.metric || "ผลผลิต").trim(); }
+function trialUnitLabel(tr) { return (tr.metricUnit || "กก.").trim(); }
+function trialTreatmentsFromText(text, old) {
+  const oldByCode = Object.fromEntries((old || []).map(t => [String(t.code || "").trim().toUpperCase(), t]));
+  return String(text || "").split(/\n+/).map((line, i) => {
+    const raw = line.trim();
+    if (!raw) return null;
+    const m = raw.match(/^(T\d+)\s*[:=\-\u2013]\s*(.+)$/i);
+    const code = (m ? m[1] : ("T" + (i + 1))).toUpperCase();
+    const rest = (m ? m[2] : raw).trim();
+    const parts = rest.split(/\s*[|]\s*/);
+    const prev = oldByCode[code];
+    return { id: prev ? prev.id : uid(), code, name: parts[0] || code, desc: parts[1] || "" };
+  }).filter(Boolean);
+}
+function trialTreatmentsText(tr) {
+  return (tr && tr.treatments || []).map(t => `${t.code}: ${t.name}${t.desc ? " | " + t.desc : ""}`).join("\n")
+    || "T1: สูตรเดิม\nT2: สูตรใหม่\nT3: สูตรใหม่ + เสริม";
+}
+function shuffleCopy(arr) {
+  const out = arr.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+function makeTrialUnits(treatments, reps) {
+  const units = [];
+  for (let block = 1; block <= reps; block++) {
+    shuffleCopy(treatments).forEach((t, order) => {
+      units.push({ id: uid(), block, order: order + 1, treatmentId: t.id });
+    });
+  }
+  return units;
+}
+function trialObsForMetric(tr, metric) {
+  const m = metric || trialMetric(tr);
+  return (tr.observations || []).filter(o => (o.metric || trialMetric(tr)) === m && Number(o.value) > 0);
+}
+function trialLatestValues(tr, metric) {
+  const latest = {};
+  trialObsForMetric(tr, metric).forEach(o => {
+    const u = trialUnit(tr, o.unitId);
+    if (!u) return;
+    const prev = latest[u.id];
+    if (!prev || String(o.date || "") >= String(prev.date || "")) latest[u.id] = o;
+  });
+  return Object.values(latest).map(o => {
+    const u = trialUnit(tr, o.unitId);
+    return { obs: o, unit: u, treatmentId: u.treatmentId, value: Number(o.value) || 0 };
+  });
+}
+function mean(vals) {
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+}
+function sd(vals) {
+  if (vals.length < 2) return 0;
+  const m = mean(vals);
+  return Math.sqrt(vals.reduce((a, v) => a + Math.pow(v - m, 2), 0) / (vals.length - 1));
+}
+function trialAnalysis(tr) {
+  const vals = trialLatestValues(tr);
+  const rows = (tr.treatments || []).map(t => {
+    const v = vals.filter(x => x.treatmentId === t.id).map(x => x.value);
+    const avg = mean(v);
+    return { treatment: t, values: v, n: v.length, mean: avg, sd: sd(v), cv: avg ? sd(v) / avg * 100 : 0 };
+  });
+  const used = rows.filter(r => r.n > 0);
+  const allVals = used.flatMap(r => r.values);
+  const grand = mean(allVals);
+  const ssBetween = used.reduce((a, r) => a + r.n * Math.pow(r.mean - grand, 2), 0);
+  const ssWithin = used.reduce((a, r) => a + r.values.reduce((b, v) => b + Math.pow(v - r.mean, 2), 0), 0);
+  const dfBetween = Math.max(0, used.length - 1);
+  const dfWithin = Math.max(0, allVals.length - used.length);
+  const msBetween = dfBetween ? ssBetween / dfBetween : 0;
+  const msWithin = dfWithin ? ssWithin / dfWithin : 0;
+  const f = msWithin ? msBetween / msWithin : 0;
+  const cv = grand && msWithin ? Math.sqrt(msWithin) / grand * 100 : 0;
+  const best = used.slice().sort((a, b) => b.mean - a.mean)[0] || null;
+  const complete = used.length >= 2 && used.every(r => r.n >= 2);
+  return { rows, used, allVals, grand, dfBetween, dfWithin, msBetween, msWithin, f, cv, best, complete };
+}
+function trialMeanChartItems(tr) {
+  const a = trialAnalysis(tr);
+  return a.rows.filter(r => r.n).map(r => ({
+    label: r.treatment.code,
+    value: Math.round(r.mean * 100) / 100,
+    color: a.best && r.treatment.id === a.best.treatment.id ? "#16a34a" : "#2563eb"
+  }));
+}
+function trialTrendChartItems(tr) {
+  const byDate = {};
+  trialObsForMetric(tr).forEach(o => {
+    const d = o.date || todayISO();
+    if (!byDate[d]) byDate[d] = [];
+    byDate[d].push(Number(o.value) || 0);
+  });
+  return Object.keys(byDate).sort().slice(-12).map(d => ({
+    label: d.slice(5).replace("-", "/"),
+    value: Math.round(mean(byDate[d]) * 100) / 100
+  }));
+}
+function trialStatusBadge(tr) {
+  const st = tr.status || "active";
+  if (st === "done") return `<span class="badge badge-gray">สรุปผลแล้ว</span>`;
+  return `<span class="badge badge-green">กำลังทดลอง</span>`;
+}
+function trialEvidenceText(tr, a) {
+  if (!a.allVals.length) return "ยังไม่มีค่าวัด จึงยังวิเคราะห์ไม่ได้";
+  if (!a.complete) return `ข้อมูลยังไม่ครบทุกทรีตเมนต์/ซ้ำ ใช้เป็นแนวโน้มก่อน ยังไม่ควรฟันธงผลทดลอง`;
+  if (a.best) return `${a.best.treatment.code} ค่าเฉลี่ยสูงสุด (${fmtNum(a.best.mean)} ${trialUnitLabel(tr)}) · ANOVA เบื้องต้น F=${fmtNum(a.f.toFixed(2))}, CV=${fmtNum(a.cv.toFixed(1))}%`;
+  return "ข้อมูลพร้อมเปรียบเทียบ แต่ยังไม่พบความต่างเด่นชัดจากค่าเฉลี่ย";
+}
+function trialPhotosHtml(photos) {
+  const list = (photos || []).filter(Boolean);
+  if (!list.length) return "";
+  return `<div class="task-photo-strip trial-obs-strip">${list.slice(0, 4).map(p => `<button class="task-photo-thumb readonly" onclick="App.viewTrialObsPhoto(${esc(JSON.stringify(p))})" title="ดูรูปใหญ่"><img src="${esc(taskPhotoUrl(p))}" alt="รูปค่าวัด" loading="lazy" onerror="this.closest('.task-photo-thumb').remove()"></button>`).join("")}</div>`;
+}
+function trialAnalysisHtml(tr) {
+  const a = trialAnalysis(tr);
+  const metric = trialMetric(tr);
+  const unit = trialUnitLabel(tr);
+  return `
+    <div class="trial-analysis-grid">
+      <div class="card">
+        <div class="row row-between">
+          <div><div class="bold">ค่าเฉลี่ยตามทรีตเมนต์</div><div class="muted">${esc(metric)} (${esc(unit)}) · ใช้ค่าล่าสุดของแต่ละซ้ำ</div></div>
+          <span class="badge badge-blue">${fmtNum(a.allVals.length)} ค่า</span>
+        </div>
+        ${a.allVals.length ? `<div class="chart-wrap trial-chart" id="trialMeanChart_${tr.id}" data-trial-mean="${tr.id}"></div>` : `<div class="empty compact-empty"><div class="e-ico">${ic("chart")}</div><div class="e-title">ยังไม่มีค่าวัด</div><div class="muted">กดแปลงย่อยเพื่อบันทึกข้อมูล</div></div>`}
+      </div>
+      <div class="card">
+        <div class="row row-between">
+          <div><div class="bold">แนวโน้มรายวันที่วัด</div><div class="muted">ค่าเฉลี่ยรวมทุกทรีตเมนต์ตามวันที่บันทึก</div></div>
+        </div>
+        ${trialTrendChartItems(tr).length ? `<div class="chart-wrap trial-chart" id="trialTrendChart_${tr.id}" data-trial-trend="${tr.id}"></div>` : `<div class="muted" style="padding:20px 4px;text-align:center">รอข้อมูลมากกว่า 1 วันที่วัด</div>`}
+      </div>
+    </div>
+    <div class="card">
+      <div class="row row-between">
+        <div><div class="bold">สรุปเชิงวิชาการ</div><div class="muted">RCBD: ทรีตเมนต์ × ซ้ำ/บล็อก · วิเคราะห์เบื้องต้นจากข้อมูลในเว็บ</div></div>
+        <span class="badge ${a.complete ? "badge-green" : "badge-amber"}">${a.complete ? "ข้อมูลเริ่มพร้อม" : "หลักฐานยังจำกัด"}</span>
+      </div>
+      <div class="trial-finding">${esc(trialEvidenceText(tr, a))}</div>
+      <div class="trial-stat-table">
+        <div class="trial-stat-head"><span>ทรีตเมนต์</span><span>n</span><span>เฉลี่ย</span><span>SD</span><span>CV%</span></div>
+        ${a.rows.map(r => `<div class="trial-stat-row">
+          <span><b>${esc(r.treatment.code)}</b> ${esc(r.treatment.name)}</span>
+          <span>${fmtNum(r.n)}</span>
+          <span>${r.n ? fmtNum(r.mean.toFixed(2)) : "—"}</span>
+          <span>${r.n > 1 ? fmtNum(r.sd.toFixed(2)) : "—"}</span>
+          <span>${r.n > 1 && r.mean ? fmtNum(r.cv.toFixed(1)) : "—"}</span>
+        </div>`).join("")}
+      </div>
+      <div class="muted mt-8" style="font-size:.72rem">${ic("info")} ค่า ANOVA นี้เป็นตัวช่วยอ่านแนวโน้ม ยังไม่คำนวณ p-value/post-hoc เต็มแบบโปรแกรมสถิติ ถ้าจะใช้ทำรายงานจริงควรเก็บครบทุกซ้ำและตรวจเงื่อนไขข้อมูลก่อน</div>
+    </div>`;
+}
+function trialLayoutHtml(tr) {
+  const blocks = [...new Set((tr.units || []).map(u => u.block))].sort((a, b) => a - b);
+  return `
+    <div class="trial-layout">
+      ${blocks.map(b => {
+        const units = (tr.units || []).filter(u => u.block === b).sort((a, b) => a.order - b.order);
+        return `<div class="trial-block">
+          <div class="trial-block-head">ซ้ำ/บล็อก ${fmtNum(b)}</div>
+          <div class="trial-unit-grid">
+            ${units.map(u => {
+              const t = trialTreatment(tr, u.treatmentId) || {};
+              const latest = trialLatestValues(tr).find(x => x.unit.id === u.id);
+              return `<button class="trial-unit" onclick="App.modalTrialObs('${tr.id}', '${u.id}')">
+                <b>${esc(t.code || "?")}</b>
+                <span>${esc(t.name || "")}</span>
+                <small>${latest ? `${fmtNum(latest.value)} ${esc(trialUnitLabel(tr))}` : "ยังไม่วัด"}</small>
+              </button>`;
+            }).join("")}
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`;
+}
+function renderTrialDetail(tr) {
+  const p = plotById(S, tr.plotId);
+  const obs = (tr.observations || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 12);
+  return `
+    <div class="trial-detail">
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn btn-sm btn-ghost" onclick="App.closeTrial()">${ic("chevron")} กลับไปงานทดลองทั้งหมด</button>
+      </div>
+      <div class="card trial-hero">
+        <div class="row row-between">
+          <div class="grow">
+            <div class="plot-name">${ic("search")} ${esc(tr.name)} ${trialStatusBadge(tr)}</div>
+            <div class="muted">${esc(p ? p.name : "ไม่ระบุแปลง")} · ${esc(tr.design || "RCBD")} · ${fmtNum((tr.treatments || []).length)} ทรีตเมนต์ × ${fmtNum(tr.replications || 1)} ซ้ำ</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="App.modalTrialObs('${tr.id}')">${ic("plus")} บันทึกค่าวัด</button>
+        </div>
+        <div class="meta-grid mt-8">
+          <div class="meta-box"><div class="lb">พืช/หัวข้อ</div><div class="vl">${esc(tr.crop || "-")}</div></div>
+          <div class="meta-box"><div class="lb">ตัวชี้วัดหลัก</div><div class="vl">${esc(trialMetric(tr))}</div></div>
+          <div class="meta-box"><div class="lb">ช่วงทดลอง</div><div class="vl">${esc(tr.startDate || "-")} → ${esc(tr.endDate || "-")}</div></div>
+          <div class="meta-box"><div class="lb">ค่าวัดทั้งหมด</div><div class="vl">${fmtNum((tr.observations || []).length)} รายการ</div></div>
+        </div>
+        ${tr.note ? `<div class="td-note-body mt-8">${esc(tr.note)}</div>` : ""}
+        <div class="actions-row mt-8">
+          <button class="btn btn-sm btn-outline" onclick="App.modalTrial('', '${tr.id}')">${ic("pencil")} แก้ไขงานทดลอง</button>
+          <button class="btn btn-sm btn-outline" onclick="App.randomizeTrial('${tr.id}')">${ic("refresh")} สุ่มผังใหม่</button>
+          <button class="btn btn-sm btn-danger-soft" onclick="App.deleteTrial('${tr.id}')">${ic("trash")} ลบ</button>
+        </div>
+      </div>
+      <div class="section-title">ผังสุ่มแปลงทดลอง</div>
+      ${trialLayoutHtml(tr)}
+      <div class="section-title">วิเคราะห์ผลทดลอง</div>
+      ${trialAnalysisHtml(tr)}
+      <div class="section-title">ค่าวัดล่าสุด</div>
+      <div class="card trial-obs-list">
+        ${obs.length ? obs.map(o => {
+          const u = trialUnit(tr, o.unitId);
+          const tt = u ? trialTreatment(tr, u.treatmentId) : null;
+          return `<div class="trial-obs-row">
+            <div class="grow">
+              <div class="bold">${esc(o.date || "")} · ${esc(tt ? tt.code + " " + tt.name : "ไม่พบแปลงย่อย")}</div>
+              <div class="muted">ซ้ำ ${u ? fmtNum(u.block) : "-"} · ${esc(o.metric || trialMetric(tr))}: <b>${fmtNum(o.value)} ${esc(o.unit || trialUnitLabel(tr))}</b></div>
+              ${o.note ? `<div class="td-note-body mt-4">${esc(o.note)}</div>` : ""}
+              ${trialPhotosHtml(o.photos)}
+            </div>
+            <button class="btn btn-sm btn-danger-soft" onclick="App.deleteTrialObs('${tr.id}', '${o.id}')">${ic("trash")}</button>
+          </div>`;
+        }).join("") : `<div class="empty compact-empty"><div class="e-ico">${ic("search")}</div><div class="e-title">ยังไม่มีค่าวัด</div><div class="muted">กดบันทึกค่าวัดเพื่อเริ่มวิเคราะห์</div></div>`}
+      </div>
+    </div>`;
+}
+function renderTrialsTab() {
+  const trials = (S.trials || []).slice().sort((a, b) => String(b.startDate || "").localeCompare(String(a.startDate || "")));
+  const selected = trialById(S, route.trialId);
+  if (selected) return renderTrialDetail(selected);
+  return `
+    <div class="row row-between">
+      <div class="bold" style="font-size:1.02rem">แปลงทดลอง ${fmtNum(trials.length)} งาน</div>
+      <button class="btn btn-primary btn-sm" onclick="App.modalTrial()">${ic("plus")} สร้างงานทดลอง</button>
+    </div>
+    <div class="trial-intro">
+      <div>${ic("search")} ทดลองแบบสุ่ม มีทรีตเมนต์และซ้ำ เพื่อดูผลจริงจากแปลงของเรา</div>
+      <span>เหมาะกับปุ๋ย ยา เมล็ดพันธุ์ วิธีให้น้ำ หรือสูตรดูแลใหม่</span>
+    </div>
+    ${trials.length === 0 ? `<div class="card"><div class="empty"><div class="e-ico">${ic("search")}</div><div class="e-title">ยังไม่มีแปลงทดลอง</div><div class="muted">เริ่มจากเลือกแปลงจริง แล้วกำหนดทรีตเมนต์กับจำนวนซ้ำ</div><button class="btn btn-primary btn-block mt-8" onclick="App.modalTrial()">${ic("plus")} สร้างงานทดลองแรก</button></div></div>` : ""}
+    <div class="card-grid">
+      ${trials.map(tr => {
+        const p = plotById(S, tr.plotId);
+        const a = trialAnalysis(tr);
+        return `<div class="card trial-card">
+          <div class="plot-top clickable" onclick="App.openTrial('${tr.id}')">
+            <div class="plot-emoji">${ic("search")}</div>
+            <div class="grow">
+              <div class="plot-name">${esc(tr.name)} ${trialStatusBadge(tr)}</div>
+              <div class="muted">${esc(p ? p.name : "ไม่ระบุแปลง")} · ${fmtNum((tr.treatments || []).length)} ทรีตเมนต์ × ${fmtNum(tr.replications || 1)} ซ้ำ</div>
+            </div>
+            <span class="muted" style="font-size:1.1rem">›</span>
+          </div>
+          <div class="meta-grid">
+            <div class="meta-box"><div class="lb">ตัวชี้วัด</div><div class="vl">${esc(trialMetric(tr))}</div></div>
+            <div class="meta-box"><div class="lb">ค่าวัด</div><div class="vl">${fmtNum((tr.observations || []).length)}</div></div>
+            <div class="meta-box"><div class="lb">ดีที่สุดตอนนี้</div><div class="vl">${a.best ? esc(a.best.treatment.code) : "—"}</div></div>
+            <div class="meta-box"><div class="lb">CV%</div><div class="vl">${a.cv ? fmtNum(a.cv.toFixed(1)) : "—"}</div></div>
+          </div>
+          <div class="actions-row">
+            <button class="btn btn-sm btn-ghost" onclick="App.openTrial('${tr.id}')">${ic("eye")} ดูผล</button>
+            <button class="btn btn-sm btn-primary" onclick="App.modalTrialObs('${tr.id}')">${ic("plus")} วัดผล</button>
+            <button class="btn btn-sm btn-outline" onclick="App.modalTrial('', '${tr.id}')">${ic("pencil")} แก้ไข</button>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`;
+}
+function renderTrialPhotoPreview() {
+  const el = document.getElementById("trialObsPhotos");
+  if (!el) return;
+  if (!trialObsPhotos.length) {
+    el.innerHTML = `<div class="task-photo-empty">${ic("camera")} ยังไม่มีรูปค่าวัด</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="task-photo-strip">${trialObsPhotos.map((p, i) => `
+    <div class="task-photo-thumb">
+      <img src="${esc(taskPhotoUrl(p))}" alt="รูปค่าวัด" loading="lazy" onclick="App.viewTrialTempPhoto(${i})" onerror="this.closest('.task-photo-thumb').remove()">
+      <button type="button" class="task-photo-remove" aria-label="ลบรูปนี้" onclick="event.stopPropagation();App.trialRemovePhoto(${i})">✕</button>
+    </div>`).join("")}</div>`;
+}
+App.openTrial = function (id) {
+  route.view = "plots";
+  route.tab = "trials";
+  route.trialId = id;
+  render();
+};
+App.closeTrial = function () {
+  route.trialId = "";
+  route.view = "plots";
+  route.tab = "trials";
+  render();
+};
+App.modalTrial = function (plotId, id) {
+  const tr = id ? trialById(S, id) : null;
+  const p = plotId ? plotById(S, plotId) : null;
+  const defaultPlot = tr ? tr.plotId : (plotId || ((S.plots || [])[0] || {}).id || "");
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("search")} ${tr ? "แก้ไขงานทดลอง" : "สร้างแปลงทดลอง"}</h3>
+    <div class="modal-sub">ออกแบบแบบ RCBD: หลายทรีตเมนต์ หลายซ้ำ และสุ่มตำแหน่งในแต่ละบล็อก</div>
+    <form onsubmit="return App.saveTrial(event, '${tr ? tr.id : ""}')">
+      <div class="field"><label>ชื่องานทดลอง *</label><input id="tr_name" required value="${esc(tr ? tr.name : "")}" placeholder="เช่น ทดสอบปุ๋ยสูตรใหม่ในพริก"></div>
+      <div class="form-row-2">
+        <div class="field"><label>แปลงหลัก *</label><select id="tr_plot" required>
+          <option value="">-- เลือกแปลง --</option>
+          ${(S.plots || []).map(x => `<option value="${x.id}" ${defaultPlot === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}
+        </select></div>
+        <div class="field"><label>พืช/เรื่องทดลอง</label><input id="tr_crop" value="${esc(tr ? tr.crop || "" : (p ? plotCropName(S, p) : ""))}" placeholder="เช่น พริก / ข้าวโพด / แตงโม"></div>
+      </div>
+      <div class="form-row-2">
+        <div class="field"><label>วันที่เริ่ม</label><input id="tr_start" type="date" value="${esc(tr ? tr.startDate || todayISO() : todayISO())}"></div>
+        <div class="field"><label>วันที่คาดว่าจะจบ</label><input id="tr_end" type="date" value="${esc(tr ? tr.endDate || "" : "")}"></div>
+      </div>
+      <div class="form-row-2">
+        <div class="field"><label>ตัวชี้วัดหลัก *</label><input id="tr_metric" required value="${esc(tr ? trialMetric(tr) : "ผลผลิต")}" placeholder="เช่น ผลผลิต / ความสูง / คะแนนโรค"></div>
+        <div class="field"><label>หน่วย</label><input id="tr_unit" value="${esc(tr ? trialUnitLabel(tr) : "กก.")}" placeholder="เช่น กก. / ซม. / คะแนน"></div>
+      </div>
+      <div class="field"><label>จำนวนซ้ำ/บล็อก *</label><input id="tr_rep" type="number" min="2" step="1" required value="${esc(tr ? tr.replications || 3 : 3)}"></div>
+      <div class="field"><label>ทรีตเมนต์ *</label>
+        <textarea id="tr_treatments" rows="5" required placeholder="T1: สูตรเดิม&#10;T2: สูตรใหม่&#10;T3: สูตรใหม่ + ฮอร์โมน">${esc(trialTreatmentsText(tr))}</textarea>
+        <div class="hint">ใส่ 1 บรรทัดต่อ 1 ทรีตเมนต์ รูปแบบ T1: ชื่อสูตร | รายละเอียด</div>
+      </div>
+      <div class="field"><label>หมายเหตุ</label><textarea id="tr_note" rows="3" placeholder="สมมติฐาน วิธีวัด หรือข้อจำกัดของแปลง">${esc(tr ? tr.note || "" : "")}</textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
+        <button type="submit" class="btn btn-primary">${ic("save")} ${tr ? "บันทึก" : "สร้างและสุ่มผัง"}</button>
+      </div>
+    </form>`);
+};
+App.saveTrial = function (e, id) {
+  e.preventDefault();
+  const tr = id ? trialById(S, id) : null;
+  const treatments = trialTreatmentsFromText(document.getElementById("tr_treatments").value, tr && tr.treatments);
+  const reps = Math.max(2, Number(document.getElementById("tr_rep").value) || 3);
+  if (treatments.length < 2) { toast("ต้องมีอย่างน้อย 2 ทรีตเมนต์"); return false; }
+  const codeSig = treatments.map(t => t.code).join("|");
+  const oldSig = tr ? (tr.treatments || []).map(t => t.code).join("|") : "";
+  const structureChanged = !tr || reps !== Number(tr.replications || 0) || codeSig !== oldSig;
+  if (tr && (tr.observations || []).length && structureChanged) {
+    toast("มีค่าวัดแล้ว — ยังไม่ให้เปลี่ยนจำนวนซ้ำ/ทรีตเมนต์ เพื่อกันข้อมูลวิเคราะห์เพี้ยน");
+    return false;
+  }
+  const data = {
+    name: document.getElementById("tr_name").value.trim(),
+    plotId: document.getElementById("tr_plot").value,
+    crop: document.getElementById("tr_crop").value.trim(),
+    design: "RCBD",
+    startDate: document.getElementById("tr_start").value || todayISO(),
+    endDate: document.getElementById("tr_end").value || "",
+    metric: document.getElementById("tr_metric").value.trim(),
+    metricUnit: document.getElementById("tr_unit").value.trim() || "หน่วย",
+    replications: reps,
+    treatments,
+    note: document.getElementById("tr_note").value.trim(),
+    status: tr ? tr.status || "active" : "active"
+  };
+  if (tr) {
+    Object.assign(tr, data);
+    if (structureChanged) tr.units = makeTrialUnits(treatments, reps);
+    tr.updatedAt = Date.now();
+  } else {
+    const fresh = { id: uid(), ...data, units: makeTrialUnits(treatments, reps), observations: [], createdAt: Date.now(), updatedAt: Date.now() };
+    S.trials.push(fresh);
+    route.trialId = fresh.id;
+  }
+  saveState(S);
+  closeModal();
+  route.view = "plots";
+  route.tab = "trials";
+  render();
+  toast(tr ? "บันทึกงานทดลองแล้ว" : "สร้างแปลงทดลองและสุ่มผังแล้ว");
+  return false;
+};
+App.randomizeTrial = function (id) {
+  const tr = trialById(S, id);
+  if (!tr) return;
+  if ((tr.observations || []).length) {
+    toast("มีค่าวัดแล้ว — ไม่สุ่มผังใหม่ เพื่อกันข้อมูลแปลงย่อยสลับ");
+    return;
+  }
+  tr.units = makeTrialUnits(tr.treatments || [], Number(tr.replications) || 3);
+  tr.updatedAt = Date.now();
+  saveState(S);
+  rerender();
+  toast("สุ่มผังแปลงทดลองใหม่แล้ว");
+};
+App.deleteTrial = function (id) {
+  const tr = trialById(S, id);
+  if (!tr) return;
+  App.confirm("ลบแปลงทดลองนี้?", "ค่าวัด รูป และผลวิเคราะห์ของงานทดลองนี้จะถูกลบด้วย", () => {
+    S.trials = (S.trials || []).filter(x => x.id !== id);
+    route.trialId = "";
+    saveState(S);
+    render();
+    toast("ลบแปลงทดลองแล้ว");
+  });
+};
+App.modalTrialObs = function (trialId, unitId) {
+  const tr = trialById(S, trialId);
+  if (!tr) return;
+  trialObsPhotos = [];
+  const units = (tr.units || []).slice().sort((a, b) => a.block - b.block || a.order - b.order);
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("plus")} บันทึกค่าวัดแปลงทดลอง</h3>
+    <div class="modal-sub">${esc(tr.name)} · ${esc(trialMetric(tr))}</div>
+    <form onsubmit="return App.saveTrialObs(event, '${tr.id}')">
+      <div class="form-row-2">
+        <div class="field"><label>วันที่วัด *</label><input id="tro_date" type="date" required value="${todayISO()}"></div>
+        <div class="field"><label>แปลงย่อย *</label><select id="tro_unit" required>
+          ${units.map(u => {
+            const t = trialTreatment(tr, u.treatmentId) || {};
+            return `<option value="${u.id}" ${unitId === u.id ? "selected" : ""}>บล็อก ${u.block} · ลำดับ ${u.order} · ${esc(t.code || "")} ${esc(t.name || "")}</option>`;
+          }).join("")}
+        </select></div>
+      </div>
+      <div class="form-row-2">
+        <div class="field"><label>ตัวชี้วัด</label><input id="tro_metric" value="${esc(trialMetric(tr))}"></div>
+        <div class="field"><label>ค่า *</label><input id="tro_value" type="number" step="0.01" required placeholder="เช่น 12.5"></div>
+      </div>
+      <div class="field"><label>หน่วย</label><input id="tro_unitlabel" value="${esc(trialUnitLabel(tr))}"></div>
+      <div class="field"><label>หมายเหตุ</label><textarea id="tro_note" rows="3" placeholder="เช่น โรคใบจุดเล็กน้อย / วัดจาก 10 ต้นสุ่ม"></textarea></div>
+      <div class="task-photo-panel">
+        <div class="task-photo-head">
+          <div><b>รูปค่าวัด</b><span>แนบรูปทรงพุ่ม โรค แมลง หรือผลผลิตของแปลงย่อย</span></div>
+          <button type="button" class="btn btn-sm btn-outline" onclick="App.trialPickPhotos()">${ic("camera")} เพิ่มรูป</button>
+        </div>
+        <div id="trialObsPhotos"><div class="task-photo-empty">${ic("camera")} ยังไม่มีรูปค่าวัด</div></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
+        <button type="submit" class="btn btn-primary">${ic("save")} บันทึกค่าวัด</button>
+      </div>
+    </form>`);
+};
+App.saveTrialObs = function (e, trialId) {
+  e.preventDefault();
+  if (trialPhotoUploading) { toast("รอเพิ่มรูปให้เสร็จก่อน"); return false; }
+  const tr = trialById(S, trialId);
+  if (!tr) return false;
+  const unitId = document.getElementById("tro_unit").value;
+  const value = Number(document.getElementById("tro_value").value);
+  if (!unitId || !(value > 0)) return false;
+  tr.observations = tr.observations || [];
+  tr.observations.push({
+    id: uid(),
+    unitId,
+    date: document.getElementById("tro_date").value || todayISO(),
+    metric: document.getElementById("tro_metric").value.trim() || trialMetric(tr),
+    value,
+    unit: document.getElementById("tro_unitlabel").value.trim() || trialUnitLabel(tr),
+    note: document.getElementById("tro_note").value.trim(),
+    photos: trialObsPhotos.slice(),
+    createdAt: Date.now()
+  });
+  tr.updatedAt = Date.now();
+  saveState(S);
+  closeModal();
+  route.view = "plots";
+  route.tab = "trials";
+  route.trialId = tr.id;
+  render();
+  toast("บันทึกค่าวัดแล้ว · อัปเดตกราฟวิเคราะห์");
+  return false;
+};
+App.deleteTrialObs = function (trialId, obsId) {
+  const tr = trialById(S, trialId);
+  if (!tr) return;
+  tr.observations = (tr.observations || []).filter(o => o.id !== obsId);
+  tr.updatedAt = Date.now();
+  saveState(S);
+  rerender();
+  toast("ลบค่าวัดแล้ว");
+};
+App.trialPickPhotos = function () {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.multiple = true;
+  input.style.display = "none";
+  input.onchange = async () => {
+    const files = input.files ? [...input.files] : [];
+    input.remove();
+    if (!files.length) return;
+    trialPhotoUploading = true;
+    toast("กำลังเพิ่มรูปค่าวัด...");
+    try {
+      for (const f of files) trialObsPhotos.push(await readTaskPhotoFile(f));
+      renderTrialPhotoPreview();
+      toast(files.length > 1 ? `เพิ่มรูป ${files.length} รูปแล้ว` : "เพิ่มรูปแล้ว");
+    } catch (e) {
+      toast("อ่านรูปไม่สำเร็จ — ลองไฟล์ JPG/PNG");
+    }
+    trialPhotoUploading = false;
+  };
+  document.body.appendChild(input);
+  input.click();
+};
+App.trialRemovePhoto = function (idx) {
+  trialObsPhotos.splice(idx, 1);
+  renderTrialPhotoPreview();
+  toast("ลบรูปแล้ว");
+};
+App.viewTrialTempPhoto = function (idx) {
+  showTaskLightbox(trialObsPhotos, idx, next => `App.viewTrialTempPhoto(${next})`);
+};
+App.viewTrialObsPhoto = function (photo) {
+  showTaskLightbox([photo], 0, () => "");
+};
 
 /* ---- ลิงก์แผนที่ Google จากพิกัด GPS (กดแล้วเปิดแผนที่ตำแหน่งแปลงได้เลย) ---- */
 function mapLink(lat, lng) {
@@ -1391,6 +1923,7 @@ function renderPlotDetail() {
       <div class="actions-row">
         <button class="btn btn-sm btn-outline" onclick="App.modalPlot('${p.id}')">${ic("pencil")} แก้ไขแปลง</button>
         <button class="btn btn-sm btn-outline" onclick="App.modalShare('${p.id}')">${ic("user")} แชร์</button>
+        <button class="btn btn-sm btn-outline" onclick="App.modalTrial('${p.id}')">${ic("search")} สร้างแปลงทดลอง</button>
         ${activeCycle ? "" : `<button class="btn btn-sm btn-primary" onclick="App.modalCycle('${p.id}')">${ic("leaf")} เริ่มปลูก</button>`}
         <button class="btn btn-sm btn-primary" onclick="App.modalTask(todayISO(), { plotId: '${p.id}' })">${ic("plus")} เพิ่มกิจกรรม</button>
       </div>
@@ -1667,9 +2200,10 @@ App.reopenCycle = function (id) {
 };
 
 App.deletePlot = function (id) {
-  App.confirm("ลบแปลงนี้?", "รอบการปลูกของแปลงนี้จะถูกลบด้วย ต้องการดำเนินการต่อหรือไม่?", () => {
+  App.confirm("ลบแปลงนี้?", "รอบการปลูก งานทดลอง และระบบน้ำของแปลงนี้จะถูกลบด้วย ต้องการดำเนินการต่อหรือไม่?", () => {
     S.plots = S.plots.filter(p => p.id !== id);
     S.cycles = S.cycles.filter(c => c.plotId !== id);
+    S.trials = (S.trials || []).filter(tr => tr.plotId !== id);
     saveState(S);
     render();
     toast("ลบแปลงแล้ว");
@@ -3342,6 +3876,7 @@ function storageBreakdown() {
     { label: "🌱 แปลง", key: "plots" },
     { label: "🌿 รอบปลูก", key: "cycles" },
     { label: "📋 งาน/กิจกรรม", key: "tasks" },
+    { label: "🔎 แปลงทดลอง", key: "trials" },
     { label: "🧪 สต็อกยา/ปุ๋ย", key: "stock" },
     { label: "🧾 การขาย", key: "sales" },
     { label: "🚜 อุปกรณ์", key: "equipment" }
@@ -3359,8 +3894,8 @@ function clearDataOptions() {
     {
       key: "plots", icon: "leaf", label: "ข้อมูลแปลง",
       count: (S.plots || []).length,
-      note: "ลบแปลงทั้งหมด พร้อมรอบปลูก งาน และระบบน้ำที่ผูกกับแปลง",
-      clear: () => { S.plots = []; S.cycles = []; S.tasks = []; S.water = { sources: [], systems: [], logs: [] }; S.valves = []; }
+      note: "ลบแปลงทั้งหมด พร้อมรอบปลูก งานทดลอง งาน และระบบน้ำที่ผูกกับแปลง",
+      clear: () => { S.plots = []; S.cycles = []; S.tasks = []; S.trials = []; S.water = { sources: [], systems: [], logs: [] }; S.valves = []; }
     },
     {
       key: "cycles", icon: "leaf", label: "รอบปลูก",
@@ -3373,6 +3908,12 @@ function clearDataOptions() {
       count: (S.tasks || []).length,
       note: "ลบงาน แผนงาน กิจกรรม และประวัติต้นทุนจากงานทั้งหมด",
       clear: () => { S.tasks = []; }
+    },
+    {
+      key: "trials", icon: "search", label: "แปลงทดลอง",
+      count: (S.trials || []).length,
+      note: "ลบงานทดลอง ทรีตเมนต์ ผังสุ่ม ค่าวัด และรูปหลักฐานของแปลงทดลองทั้งหมด",
+      clear: () => { S.trials = []; route.trialId = ""; }
     },
     {
       key: "stock", icon: "box", label: "สต็อกยา/ปุ๋ย",
@@ -3450,7 +3991,7 @@ App.clearDataSection = function (key) {
 App._rawKey = "plots";
 App.viewRawData = function (key) {
   if (key) App._rawKey = key;
-  const opts = [["plots", "🌱 แปลง"], ["cycles", "🌿 รอบปลูก"], ["tasks", "📋 งาน/กิจกรรม"], ["stock", "🧪 สต็อกยา/ปุ๋ย"], ["sales", "🧾 การขาย"], ["equipment", "🚜 อุปกรณ์"]];
+  const opts = [["plots", "🌱 แปลง"], ["cycles", "🌿 รอบปลูก"], ["tasks", "📋 งาน/กิจกรรม"], ["trials", "🔎 แปลงทดลอง"], ["stock", "🧪 สต็อกยา/ปุ๋ย"], ["sales", "🧾 การขาย"], ["equipment", "🚜 อุปกรณ์"]];
   const json = JSON.stringify(S[App._rawKey] || [], null, 2);
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
@@ -5705,6 +6246,18 @@ App.tourEnd = function () {
 
 /* ---------------- charts wiring ---------------- */
 function drawCharts() {
+  if (route.view === "plots" && route.tab === "trials") {
+    document.querySelectorAll("[data-trial-mean]").forEach(el => {
+      const tr = trialById(S, el.dataset.trialMean);
+      const items = tr ? trialMeanChartItems(tr) : [];
+      if (items.length) Charts.bars(el, items);
+    });
+    document.querySelectorAll("[data-trial-trend]").forEach(el => {
+      const tr = trialById(S, el.dataset.trialTrend);
+      const items = tr ? trialTrendChartItems(tr) : [];
+      if (items.length) Charts.line(el, items);
+    });
+  }
   if (route.view === "analytics") {
     const yr = String(route.year || Number(todayISO().slice(0, 4)));
     /* แท็บร้านค้า: กราฟยอดขายรายเดือน (chartYear/chartCrop/chartCost ไม่มีใน DOM) */
@@ -5763,6 +6316,7 @@ try {
     if (saved.tab) route.tab = saved.tab;
     if (saved.plotId) route.plotId = saved.plotId;
     if (saved.cycleId) route.cycleId = saved.cycleId;
+    if (saved.trialId) route.trialId = saved.trialId;
     if (saved.year) route.year = saved.year;
   }
 } catch (e) {}

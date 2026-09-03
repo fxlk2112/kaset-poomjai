@@ -1435,6 +1435,126 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .more-card .mc-ico { font-size: 1.9rem; }
 .more-card .mc-name { font-weight: 800; font-size: .9rem; }
 .more-card .mc-desc { font-size: .7rem; color: var(--muted); }
+
+/* ============ Field trials ============ */
+.trial-intro {
+  display: grid;
+  gap: 3px;
+  margin: 0 0 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--green-soft);
+  color: var(--green-deep);
+  font-size: .78rem;
+  font-weight: 800;
+}
+.trial-intro div { display: flex; align-items: center; gap: 7px; }
+.trial-intro span { color: var(--muted); font-size: .7rem; font-weight: 650; }
+.trial-card .meta-grid { margin-top: 9px; }
+.trial-hero .plot-name .ic,
+.trial-intro .ic { width: 1em; height: 1em; vertical-align: -0.15em; }
+.trial-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.trial-block {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.trial-block-head {
+  padding: 9px 10px;
+  background: var(--soft);
+  color: var(--green-deep);
+  font-size: .78rem;
+  font-weight: 850;
+  border-bottom: 1px solid var(--line);
+}
+.trial-unit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+}
+.trial-unit {
+  min-width: 0;
+  min-height: 78px;
+  padding: 9px 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8faf9;
+  color: var(--text);
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  text-align: center;
+}
+.trial-unit b { color: var(--green-deep); font-size: .94rem; }
+.trial-unit span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .72rem;
+  font-weight: 800;
+}
+.trial-unit small { color: var(--muted); font-size: .66rem; font-weight: 700; }
+.trial-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.trial-chart { min-height: 190px; }
+.trial-finding {
+  margin: 10px 0;
+  padding: 10px 11px;
+  border-radius: 12px;
+  background: var(--green-soft);
+  color: var(--green-deep);
+  font-size: .8rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+.trial-stat-table {
+  display: grid;
+  gap: 6px;
+  font-size: .74rem;
+}
+.trial-stat-head,
+.trial-stat-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 42px 68px 62px 58px;
+  gap: 6px;
+  align-items: center;
+}
+.trial-stat-head {
+  color: var(--muted);
+  font-weight: 850;
+  padding: 0 8px;
+}
+.trial-stat-row {
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--soft);
+}
+.trial-stat-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trial-obs-list { display: grid; gap: 8px; }
+.trial-obs-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.trial-obs-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.trial-obs-strip { margin-top: 6px; }
 .settings-group { margin-bottom: 10px; }
 .settings-group[open] { margin-bottom: 18px; }
 .settings-group-head {
@@ -2842,6 +2962,24 @@ html[data-theme="dark"] .stock-photo-missing { background: rgba(251, 146, 60, .1
 html[data-theme="dark"] .chip { background: var(--card); border-color: var(--card-border); color: var(--text); }
 html[data-theme="dark"] .task-check { background: var(--card); border-color: var(--chip); }
 html[data-theme="dark"] .task-row.done .task-check { background: var(--green); border-color: var(--green); color: #fff; }
+html[data-theme="dark"] .trial-intro,
+html[data-theme="dark"] .trial-finding {
+  background: rgba(22, 163, 74, .12);
+  color: #86efac;
+  border-color: rgba(134, 239, 172, .2);
+}
+html[data-theme="dark"] .trial-block,
+html[data-theme="dark"] .trial-unit,
+html[data-theme="dark"] .trial-stat-row {
+  background: var(--card);
+  color: var(--text);
+  border-color: var(--card-border);
+}
+html[data-theme="dark"] .trial-block-head,
+html[data-theme="dark"] .trial-stat-row {
+  background: var(--soft);
+}
+html[data-theme="dark"] .trial-unit b { color: #86efac; }
 
 /* ==================== Dark mode: hero/ความคืบหน้างาน/cal-tip/task-money ==================== */
 html[data-theme="dark"] .hero-greet { color: #d1fae5; }
@@ -3356,6 +3494,16 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .plots-heading-actions .btn { width: 100%; min-width: 0; padding-left: 10px; padding-right: 10px; }
+  .trial-analysis-grid { grid-template-columns: 1fr; }
+  .trial-layout { grid-template-columns: 1fr; }
+  .trial-unit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .trial-stat-table { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+  .trial-stat-head,
+  .trial-stat-row {
+    min-width: 520px;
+    grid-template-columns: minmax(150px, 1fr) 42px 78px 68px 60px;
+  }
+  .trial-obs-row { align-items: stretch; }
   .water-schedule-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .water-schedule-row .field:last-child { grid-column: 1 / -1; }
   .water-duo-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -3372,6 +3520,7 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .brand-name { font-size: .95rem; }
   .btn-tour { max-width: 84px; overflow: hidden; text-overflow: ellipsis; }
   .hero-chips { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .trial-unit-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 639px) {
   html[data-theme="dark"] .modal-actions {

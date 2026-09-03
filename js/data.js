@@ -207,6 +207,7 @@ function seed() {
     equipment: [],            // อุปกรณ์/เครื่องจักร
     cycles: [],               // รอบการปลูก
     tasks: [],                // งาน/กิจกรรม
+    trials: [],               // แปลงทดลอง / งานวิจัยภาคสนาม
     sales: [],                // ใบเสร็จขายสินค้า
     valves: [],               // วาล์วน้ำ IoT (โครงเดิม)
     water: { sources: [], systems: [], logs: [] },  // ระบบน้ำรายแปลง: แหล่งน้ำ / ระบบต่อแปลง / บันทึกให้น้ำ
@@ -466,6 +467,31 @@ function ensureDefaults(s) {
   s.notifDismissed = s.notifDismissed || {};
   /* ประวัติการขายสินค้า (ใบเสร็จรับเงิน) */
   s.sales = s.sales || [];
+  /* แปลงทดลอง / งานวิจัยภาคสนาม */
+  s.trials = Array.isArray(s.trials) ? s.trials : [];
+  s.trials.forEach(tr => {
+    if (!tr.id) tr.id = uid();
+    if (!Array.isArray(tr.treatments)) tr.treatments = [];
+    if (!Array.isArray(tr.units)) tr.units = [];
+    if (!Array.isArray(tr.observations)) tr.observations = [];
+    tr.treatments.forEach((t, i) => {
+      if (!t.id) t.id = uid();
+      if (!t.code) t.code = "T" + (i + 1);
+      if (typeof t.name !== "string") t.name = "";
+      if (typeof t.desc !== "string") t.desc = "";
+    });
+    tr.units.forEach((u, i) => {
+      if (!u.id) u.id = uid();
+      if (!u.treatmentId && tr.treatments.length) u.treatmentId = tr.treatments[i % tr.treatments.length].id;
+      if (!u.block) u.block = Math.floor(i / Math.max(1, tr.treatments.length)) + 1;
+      if (!u.order) u.order = (i % Math.max(1, tr.treatments.length)) + 1;
+    });
+    tr.observations.forEach(o => {
+      if (!o.id) o.id = uid();
+      if (!Array.isArray(o.photos)) o.photos = [];
+      o.photos = o.photos.map(p => String(p || "").trim()).filter(Boolean);
+    });
+  });
   /* ระบบน้ำรายแปลง: แหล่งน้ำ / ระบบต่อแปลง / บันทึกการให้น้ำ */
   if (!s.water || typeof s.water !== "object") s.water = { sources: [], systems: [], logs: [] };
   if (!Array.isArray(s.water.sources)) s.water.sources = [];
