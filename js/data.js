@@ -478,6 +478,11 @@ function ensureDefaults(s) {
     if (typeof tr.crop !== "string") tr.crop = "";
     if (typeof tr.metric !== "string") tr.metric = "ผลผลิต";
     if (typeof tr.metricUnit !== "string") tr.metricUnit = "กก.";
+    if (typeof tr.trialType !== "string") tr.trialType = "screening";
+    if (typeof tr.objective !== "string") tr.objective = "";
+    if (typeof tr.sprayMethod !== "string") tr.sprayMethod = "";
+    if (typeof tr.waterRate !== "string") tr.waterRate = "";
+    if (typeof tr.mixVolume !== "string") tr.mixVolume = "";
     if (typeof tr.layoutMode !== "string") tr.layoutMode = tr.design === "MANUAL" ? "manual" : "random";
     if (!Array.isArray(tr.metrics) || !tr.metrics.length) {
       tr.metrics = [{ id: uid(), name: tr.metric || "ผลผลิต", unit: tr.metricUnit || "กก." }];
@@ -497,6 +502,11 @@ function ensureDefaults(s) {
       if (!t.code) t.code = "T" + (i + 1);
       if (typeof t.name !== "string") t.name = "";
       if (typeof t.desc !== "string") t.desc = "";
+      if (typeof t.activeName !== "string") t.activeName = "";
+      if (typeof t.activeRate !== "string") t.activeRate = "";
+      if (typeof t.mixName !== "string") t.mixName = "";
+      if (typeof t.mixRate !== "string") t.mixRate = "";
+      if (typeof t.timing !== "string") t.timing = "";
       if (!Array.isArray(t.photos)) t.photos = [];
       t.photos = t.photos.map(p => String(p || "").trim()).filter(Boolean);
     });
@@ -505,6 +515,9 @@ function ensureDefaults(s) {
       if (!u.treatmentId && tr.treatments.length) u.treatmentId = tr.treatments[i % tr.treatments.length].id;
       if (!u.block) u.block = Math.floor(i / Math.max(1, tr.treatments.length)) + 1;
       if (!u.order) u.order = (i % Math.max(1, tr.treatments.length)) + 1;
+      if (typeof u.label !== "string") u.label = "";
+      if (typeof u.areaRai !== "number") u.areaRai = Number(u.areaRai) || 0;
+      if (typeof u.note !== "string") u.note = "";
     });
     tr.observations.forEach(o => {
       if (!o.id) o.id = uid();

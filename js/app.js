@@ -960,6 +960,45 @@ const DEFAULT_TRIAL_METRICS = [
   { name: "ความสูง", unit: "ซม." },
   { name: "คะแนนโรค", unit: "0-5" }
 ];
+const TRIAL_TYPES = {
+  screening: { label: "Screening Trial", hint: "คัดสูตรเบื้องต้น ใช้ดูแนวโน้มก่อนทดลองเต็ม" },
+  rcbd: { label: "RCBD ทดลองจริง", hint: "มีซ้ำ/บล็อก ใช้วิเคราะห์เชิงสถิติได้มากขึ้น" },
+  demo: { label: "Demo / แปลงโชว์", hint: "เก็บภาพและผลหน้างานเพื่อสื่อสารกับลูกค้า" }
+};
+function trialType(tr) { return TRIAL_TYPES[tr.trialType] ? tr.trialType : "screening"; }
+function trialTypeLabel(tr) { return TRIAL_TYPES[trialType(tr)].label; }
+function trialEvidenceModeText(tr) {
+  if (trialType(tr) === "screening") return "Screening Trial: ใช้คัดสูตรและดูแนวโน้ม ยังไม่ควรสรุปเป็นผลวิจัยเต็ม";
+  if (trialType(tr) === "demo") return "Demo / แปลงโชว์: เน้นภาพและผลหน้างาน ไม่ใช่งานวิเคราะห์สถิติเต็ม";
+  return "RCBD: ทรีตเมนต์ × ซ้ำ/บล็อก · วิเคราะห์เบื้องต้นจากข้อมูลในเว็บ";
+}
+function parseTrialRate(rate) {
+  const s = String(rate || "").trim();
+  const m = s.match(/^([\d.,]+)\s*([^/]+)?(?:\/\s*ไร่)?/i);
+  if (!m) return null;
+  const amount = Number(m[1].replace(/,/g, ""));
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return { amount, unit: (m[2] || "หน่วย").trim() };
+}
+function trialRateText(rate) {
+  const r = parseTrialRate(rate);
+  return r ? `${fmtNum(r.amount)} ${esc(r.unit)}/ไร่` : esc(rate || "-");
+}
+function trialUnitArea(u) { return Number(u && u.areaRai) || 0; }
+function trialTreatmentArea(tr, treatmentId) {
+  return (tr.units || []).filter(u => u.treatmentId === treatmentId).reduce((a, u) => a + trialUnitArea(u), 0);
+}
+function trialChemicalTotal(rate, area) {
+  const r = parseTrialRate(rate);
+  if (!r || !(area > 0)) return "";
+  return `${fmtNum(Math.round(r.amount * area * 100) / 100)} ${esc(r.unit)}`;
+}
+function trialTreatmentRecipe(t) {
+  const parts = [];
+  if (t.activeName || t.activeRate) parts.push(`${esc(t.activeName || "สารหลัก")} ${trialRateText(t.activeRate)}`);
+  if (t.mixName || t.mixRate) parts.push(`${esc(t.mixName || "สารผสม")} ${trialRateText(t.mixRate)}`);
+  return parts.length ? parts.join(" + ") : esc(t.desc || "");
+}
 function trialMetrics(tr) {
   const rows = Array.isArray(tr.metrics) && tr.metrics.length
     ? tr.metrics
@@ -1043,7 +1082,12 @@ function trialTreatmentRowsHtml(treatments, startIndex) {
       <div class="trial-treatment-color" style="--tr-color:${TRIAL_COLORS[(offset + i) % TRIAL_COLORS.length]}"></div>
       <div class="field trt-code" style="margin:0"><label>รหัส</label><input data-trt-code value="${esc(t.code || ("T" + (offset + i + 1)))}" placeholder="T${offset + i + 1}"></div>
       <div class="field trt-name" style="margin:0"><label>ชื่อสูตร *</label><input data-trt-name value="${esc(t.name || "")}" placeholder="${offset + i === 0 ? "สูตรเดิม" : "สูตรทดลอง"}"></div>
-      <div class="field trt-desc" style="margin:0"><label>รายละเอียด</label><input data-trt-desc value="${esc(t.desc || "")}" placeholder="เช่น ปุ๋ย A 20 กก./ไร่"></div>
+      <div class="field trt-active" style="margin:0"><label>สารหลัก</label><input data-trt-active value="${esc(t.activeName || "")}" placeholder="เช่น สารกำจัดวัชพืช X"></div>
+      <div class="field trt-active-rate" style="margin:0"><label>อัตรา/ไร่</label><input data-trt-active-rate value="${esc(t.activeRate || "")}" placeholder="250 cc/ไร่"></div>
+      <div class="field trt-mix" style="margin:0"><label>สารผสม</label><input data-trt-mix value="${esc(t.mixName || "")}" placeholder="เช่น Loyant 2.5% EC"></div>
+      <div class="field trt-mix-rate" style="margin:0"><label>อัตราผสม</label><input data-trt-mix-rate value="${esc(t.mixRate || "")}" placeholder="160 cc/ไร่"></div>
+      <div class="field trt-timing" style="margin:0"><label>ช่วงพ่น</label><input data-trt-timing value="${esc(t.timing || "")}" placeholder="ข้าว 10-15 วัน / หญ้า 2-3 ใบ"></div>
+      <div class="field trt-desc" style="margin:0"><label>หมายเหตุสูตร</label><input data-trt-desc value="${esc(t.desc || "")}" placeholder="เช่น สูตรคุม / สูตรทดลอง"></div>
       <button type="button" class="btn btn-sm btn-danger-soft trial-treatment-remove" onclick="App.removeTrialTreatmentRow(this)" title="ลบทรีตเมนต์">${ic("trash")}</button>
     </div>`).join("");
 }
@@ -1053,9 +1097,14 @@ function trialTreatmentsFromForm(old) {
     const code = (row.querySelector("[data-trt-code]")?.value || ("T" + (i + 1))).trim().toUpperCase();
     const name = (row.querySelector("[data-trt-name]")?.value || "").trim();
     const desc = (row.querySelector("[data-trt-desc]")?.value || "").trim();
+    const activeName = (row.querySelector("[data-trt-active]")?.value || "").trim();
+    const activeRate = (row.querySelector("[data-trt-active-rate]")?.value || "").trim();
+    const mixName = (row.querySelector("[data-trt-mix]")?.value || "").trim();
+    const mixRate = (row.querySelector("[data-trt-mix-rate]")?.value || "").trim();
+    const timing = (row.querySelector("[data-trt-timing]")?.value || "").trim();
     if (!name) return null;
     const prev = oldByCode[code] || (old || [])[i];
-    return { id: prev ? prev.id : uid(), code: code || ("T" + (i + 1)), name, desc, photos: prev ? (prev.photos || []) : [] };
+    return { id: prev ? prev.id : uid(), code: code || ("T" + (i + 1)), name, desc, activeName, activeRate, mixName, mixRate, timing, photos: prev ? (prev.photos || []) : [] };
   }).filter(Boolean);
 }
 function shuffleCopy(arr) {
@@ -1074,7 +1123,7 @@ function makeTrialUnitsForMode(treatments, reps, mode) {
   for (let block = 1; block <= reps; block++) {
     const row = mode === "manual" ? treatments.slice() : shuffleCopy(treatments);
     row.forEach((t, order) => {
-      units.push({ id: uid(), block, order: order + 1, treatmentId: t.id });
+      units.push({ id: uid(), block, order: order + 1, treatmentId: t.id, label: "", areaRai: 0, note: "" });
     });
   }
   return units;
@@ -1126,7 +1175,9 @@ function trialAnalysis(tr) {
   const f = msWithin ? msBetween / msWithin : 0;
   const cv = grand && msWithin ? Math.sqrt(msWithin) / grand * 100 : 0;
   const best = used.slice().sort((a, b) => b.mean - a.mean)[0] || null;
-  const complete = used.length >= 2 && used.every(r => r.n >= 2);
+  const complete = trialType(tr) === "rcbd"
+    ? used.length >= 2 && used.every(r => r.n >= 2)
+    : used.length >= Math.min(1, (tr.treatments || []).length) && used.length === (tr.treatments || []).length;
   return { rows, used, allVals, grand, dfBetween, dfWithin, msBetween, msWithin, f, cv, best, complete };
 }
 function trialMissingUnits(tr) {
@@ -1172,6 +1223,11 @@ function trialStatusBadge(tr) {
 }
 function trialEvidenceText(tr, a) {
   if (!a.allVals.length) return "ยังไม่มีค่าวัด จึงยังวิเคราะห์ไม่ได้";
+  if (trialType(tr) === "screening") {
+    if (a.best) return `${a.best.treatment.code} ค่าเฉลี่ยสูงสุดตอนนี้ (${fmtNum(a.best.mean)} ${trialUnitLabel(tr)}) · ใช้เป็นแนวโน้มคัดสูตร ยังไม่ใช่ผลวิจัยเต็ม`;
+    return "ข้อมูลเริ่มพออ่านแนวโน้ม Screening ได้ แต่ยังควรเก็บรูปและค่าวัดซ้ำก่อนเลือกสูตร";
+  }
+  if (trialType(tr) === "demo") return "โหมด Demo เน้นภาพและผลหน้างาน ใช้สื่อสาร/เปรียบเทียบเบื้องต้น มากกว่าสรุปเชิงสถิติ";
   if (!a.complete) return `ข้อมูลยังไม่ครบทุกทรีตเมนต์/ซ้ำ ใช้เป็นแนวโน้มก่อน ยังไม่ควรฟันธงผลทดลอง`;
   if (a.best) return `${a.best.treatment.code} ค่าเฉลี่ยสูงสุด (${fmtNum(a.best.mean)} ${trialUnitLabel(tr)}) · ANOVA เบื้องต้น F=${fmtNum(a.f.toFixed(2))}, CV=${fmtNum(a.cv.toFixed(1))}%`;
   return "ข้อมูลพร้อมเปรียบเทียบ แต่ยังไม่พบความต่างเด่นชัดจากค่าเฉลี่ย";
@@ -1215,6 +1271,80 @@ function trialTreatmentPhotosHtml(tr) {
               <img src="${esc(taskPhotoUrl(p))}" alt="รูปสรุปทรีตเมนต์" loading="lazy" onclick="App.viewTrialTreatmentPhoto('${tr.id}', '${t.id}', ${i})" onerror="this.closest('.task-photo-thumb').remove()">
               <button type="button" class="task-photo-remove" aria-label="ลบรูปนี้" onclick="event.stopPropagation();App.removeTrialTreatmentPhoto('${tr.id}', '${t.id}', ${i})">✕</button>
             </div>`).join("")}</div>` : `<div class="task-photo-empty trial-photo-empty-small">${ic("camera")} ยังไม่มีรูปสรุป</div>`}
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`;
+}
+function trialPlanHtml(tr) {
+  return `<div class="trial-plan-grid">
+    <div class="card trial-plan-card">
+      <div class="trial-plan-head">${ic("info")} ข้อมูลงานทดลอง</div>
+      <div class="trial-plan-kv"><span>ชนิดงาน</span><b>${esc(trialTypeLabel(tr))}</b></div>
+      <div class="trial-plan-kv"><span>เป้าหมาย</span><b>${esc(tr.objective || "-")}</b></div>
+      <div class="trial-plan-kv"><span>รูปแบบผัง</span><b>${trialLayoutMode(tr) === "manual" ? "จัดผังเอง" : "สุ่มอัตโนมัติ"}</b></div>
+      <div class="trial-plan-kv"><span>วิธีพ่น/ใส่</span><b>${esc(tr.sprayMethod || "-")}</b></div>
+      <div class="trial-plan-kv"><span>น้ำ/พาหะ</span><b>${esc(tr.waterRate || "-")}</b></div>
+      <div class="trial-plan-kv"><span>ผสมต่อครั้ง</span><b>${esc(tr.mixVolume || "-")}</b></div>
+    </div>
+    <div class="card trial-plan-card">
+      <div class="trial-plan-head">${ic("clock")} ช่วงเวลาพ่นโดยประมาณ</div>
+      ${(tr.treatments || []).some(t => t.timing) ? (tr.treatments || []).map(t => `
+        <div class="trial-timing-row" style="--tr-color:${trialTreatmentColor(tr, t.id)}">
+          <b>${esc(t.code)}</b><span>${esc(t.timing || "-")}</span>
+        </div>`).join("") : `<div class="muted">ยังไม่ได้ใส่ช่วงพ่นของแต่ละสูตร</div>`}
+    </div>
+  </div>
+  <div class="card trial-program-card">
+    <div class="row row-between">
+      <div><div class="bold">โปรแกรมการทดลอง</div><div class="muted">สูตรพ่น/อัตราต่อไร่จากแต่ละทรีตเมนต์</div></div>
+      <span class="badge badge-blue">${fmtNum((tr.treatments || []).length)} สูตร</span>
+    </div>
+    <div class="trial-program-grid">
+      ${(tr.treatments || []).map(t => `<div class="trial-program-item" style="--tr-color:${trialTreatmentColor(tr, t.id)}">
+        <div class="trial-program-code">${esc(t.code)}</div>
+        <b>${esc(t.name)}</b>
+        <span>${trialTreatmentRecipe(t) ? trialTreatmentRecipe(t) : "ยังไม่ได้ใส่รายละเอียดสูตร"}</span>
+        ${t.desc ? `<small>${esc(t.desc)}</small>` : ""}
+      </div>`).join("")}
+    </div>
+  </div>`;
+}
+function trialMixTableHtml(tr) {
+  return `<div class="card trial-mix-card">
+    <div class="row row-between">
+      <div><div class="bold">ตารางสูตรผสมต่อพื้นที่</div><div class="muted">${esc(tr.mixVolume || "คำนวณจากพื้นที่แปลงย่อย × อัตราต่อไร่")}</div></div>
+      <button class="btn btn-sm btn-outline" onclick="App.modalTrialAreas('${tr.id}')">${ic("pencil")} แก้พื้นที่</button>
+    </div>
+    <div class="trial-mix-table">
+      <div class="trial-mix-head"><span>สูตร</span><span>พื้นที่</span><span>สารหลัก</span><span>สารผสม</span></div>
+      ${(tr.treatments || []).map(t => {
+        const area = trialTreatmentArea(tr, t.id);
+        return `<div class="trial-mix-row" style="--tr-color:${trialTreatmentColor(tr, t.id)}">
+          <span><b>${esc(t.code)}</b> ${esc(t.name)}</span>
+          <span>${area ? fmtNum(area) + " ไร่" : "ยังไม่ใส่"}</span>
+          <span>${t.activeName ? esc(t.activeName) + " " : ""}${trialChemicalTotal(t.activeRate, area) || trialRateText(t.activeRate)}</span>
+          <span>${t.mixName || t.mixRate ? `${t.mixName ? esc(t.mixName) + " " : ""}${trialChemicalTotal(t.mixRate, area) || trialRateText(t.mixRate)}` : "-"}</span>
+        </div>`;
+      }).join("")}
+    </div>
+    <div class="muted mt-8" style="font-size:.72rem">${ic("info")} ถ้าใส่พื้นที่แปลงย่อย ระบบจะคูณอัตรา/ไร่ให้เป็นปริมาณสารที่ต้องใช้ต่อสูตร</div>
+  </div>`;
+}
+function trialAreaHtml(tr) {
+  const total = (tr.units || []).reduce((a, u) => a + trialUnitArea(u), 0);
+  return `<div class="card trial-area-card">
+    <div class="row row-between">
+      <div><div class="bold">แปลงทดสอบและพื้นที่</div><div class="muted">พื้นที่รวม ${fmtNum(Math.round(total * 1000) / 1000)} ไร่ · กำหนดชื่อแปลงย่อยได้ตามหน้างาน</div></div>
+      <button class="btn btn-sm btn-outline" onclick="App.modalTrialAreas('${tr.id}')">${ic("pencil")} แก้พื้นที่</button>
+    </div>
+    <div class="trial-area-grid">
+      ${(tr.units || []).slice().sort((a, b) => a.block - b.block || a.order - b.order).map(u => {
+        const t = trialTreatment(tr, u.treatmentId) || {};
+        return `<div class="trial-area-item" style="--tr-color:${trialTreatmentColor(tr, u.treatmentId)}">
+          <b>${esc(u.label || `บล็อก ${u.block} · ลำดับ ${u.order}`)}</b>
+          <span>${esc(t.code || "?")} ${esc(t.name || "")}</span>
+          <small>${trialUnitArea(u) ? fmtNum(trialUnitArea(u)) + " ไร่" : "ยังไม่ใส่พื้นที่"}${u.note ? " · " + esc(u.note) : ""}</small>
         </div>`;
       }).join("")}
     </div>
@@ -1270,7 +1400,7 @@ function trialAnalysisHtml(tr) {
     </div>
     <div class="card">
       <div class="row row-between">
-        <div><div class="bold">สรุปเชิงวิชาการ</div><div class="muted">RCBD: ทรีตเมนต์ × ซ้ำ/บล็อก · วิเคราะห์เบื้องต้นจากข้อมูลในเว็บ</div></div>
+        <div><div class="bold">สรุปเชิงวิชาการ</div><div class="muted">${esc(trialEvidenceModeText(tr))}</div></div>
         <span class="badge ${a.complete ? "badge-green" : "badge-amber"}">${a.complete ? "ข้อมูลเริ่มพร้อม" : "หลักฐานยังจำกัด"}</span>
       </div>
       ${missing.length ? `<div class="trial-missing">${ic("alert")} ยังขาดค่าวัด ${fmtNum(missing.length)} แปลงย่อย: ${esc(missing.slice(0, 8).join(", "))}${missing.length > 8 ? "..." : ""}</div>` : ""}
@@ -1285,7 +1415,7 @@ function trialAnalysisHtml(tr) {
           <span>${r.n > 1 && r.mean ? fmtNum(r.cv.toFixed(1)) : "—"}</span>
         </div>`).join("")}
       </div>
-      <div class="muted mt-8" style="font-size:.72rem">${ic("info")} ค่า ANOVA นี้เป็นตัวช่วยอ่านแนวโน้ม ยังไม่คำนวณ p-value/post-hoc เต็มแบบโปรแกรมสถิติ ถ้าจะใช้ทำรายงานจริงควรเก็บครบทุกซ้ำและตรวจเงื่อนไขข้อมูลก่อน</div>
+      <div class="muted mt-8" style="font-size:.72rem">${ic("info")} ${trialType(tr) === "rcbd" ? "ค่า ANOVA นี้เป็นตัวช่วยอ่านแนวโน้ม ยังไม่คำนวณ p-value/post-hoc เต็มแบบโปรแกรมสถิติ" : "โหมดนี้ใช้ดูแนวโน้มและคัดสูตรก่อน หากต้องใช้ทำรายงานวิจัยควรวางซ้ำ/สุ่มแบบ RCBD และเก็บข้อมูลครบ"} </div>
     </div>`;
 }
 function trialLayoutHtml(tr) {
@@ -1325,13 +1455,14 @@ function renderTrialDetail(tr) {
         <div class="row row-between">
           <div class="grow">
             <div class="plot-name">${ic("search")} ${esc(tr.name)} ${trialStatusBadge(tr)}</div>
-            <div class="muted">${esc(trialPlotName(tr))} · ${trialLayoutMode(tr) === "manual" ? "จัดผังเอง" : "สุ่มผัง RCBD"} · ${fmtNum((tr.treatments || []).length)} ทรีตเมนต์ × ${fmtNum(tr.replications || 1)} ซ้ำ</div>
+            <div class="muted">${esc(trialPlotName(tr))} · ${esc(trialTypeLabel(tr))} · ${trialLayoutMode(tr) === "manual" ? "จัดผังเอง" : "สุ่มอัตโนมัติ"} · ${fmtNum((tr.treatments || []).length)} ทรีตเมนต์</div>
           </div>
           <button class="btn btn-primary btn-sm" onclick="App.modalTrialObs('${tr.id}')">${ic("plus")} บันทึกค่าวัด</button>
         </div>
         <div class="meta-grid mt-8">
           <div class="meta-box"><div class="lb">พืช/หัวข้อ</div><div class="vl">${esc(tr.crop || "-")}</div></div>
           <div class="meta-box"><div class="lb">ตัวชี้วัด</div><div class="vl">${esc(trialMetric(tr))} · ${fmtNum(trialMetrics(tr).length)} ค่า</div></div>
+          <div class="meta-box"><div class="lb">วิธีพ่น/ใส่</div><div class="vl">${esc(tr.sprayMethod || "-")}</div></div>
           <div class="meta-box"><div class="lb">ช่วงทดลอง</div><div class="vl">${esc(tr.startDate || "-")} → ${esc(tr.endDate || "-")}</div></div>
           <div class="meta-box"><div class="lb">ค่าวัดทั้งหมด</div><div class="vl">${fmtNum((tr.observations || []).length)} รายการ</div></div>
         </div>
@@ -1344,6 +1475,12 @@ function renderTrialDetail(tr) {
           <button class="btn btn-sm btn-danger-soft" onclick="App.deleteTrial('${tr.id}')">${ic("trash")} ลบ</button>
         </div>
       </div>
+      <div class="section-title">แผนทดลอง</div>
+      ${trialPlanHtml(tr)}
+      <div class="section-title">แปลงทดสอบ</div>
+      ${trialAreaHtml(tr)}
+      <div class="section-title">สูตรผสม</div>
+      ${trialMixTableHtml(tr)}
       ${trialMetricFilterHtml(tr)}
       ${trialTreatmentFilterHtml(tr)}
       <div class="section-title">${trialLayoutMode(tr) === "manual" ? "ผังแปลงทดลอง" : "ผังสุ่มแปลงทดลอง"}</div>
@@ -1379,12 +1516,12 @@ function renderTrialsTab() {
             <div class="plot-emoji">${ic("search")}</div>
             <div class="grow">
               <div class="plot-name">${esc(tr.name)} ${trialStatusBadge(tr)}</div>
-              <div class="muted">${esc(trialPlotName(tr))} · ${fmtNum((tr.treatments || []).length)} ทรีตเมนต์ × ${fmtNum(tr.replications || 1)} ซ้ำ</div>
+              <div class="muted">${esc(trialPlotName(tr))} · ${esc(trialTypeLabel(tr))} · ${fmtNum((tr.treatments || []).length)} ทรีตเมนต์</div>
             </div>
             <span class="muted" style="font-size:1.1rem">›</span>
           </div>
           <div class="meta-grid">
-            <div class="meta-box"><div class="lb">ตัวชี้วัด</div><div class="vl">${esc(trialMetric(tr))}</div></div>
+            <div class="meta-box"><div class="lb">ตัวชี้วัด</div><div class="vl">${fmtNum(trialMetrics(tr).length)} ค่า</div></div>
             <div class="meta-box"><div class="lb">ค่าวัด</div><div class="vl">${fmtNum((tr.observations || []).length)}</div></div>
             <div class="meta-box"><div class="lb">ดีที่สุดตอนนี้</div><div class="vl">${a.best ? esc(a.best.treatment.code) : "—"}</div></div>
             <div class="meta-box"><div class="lb">CV%</div><div class="vl">${a.cv ? fmtNum(a.cv.toFixed(1)) : "—"}</div></div>
@@ -1531,6 +1668,52 @@ App.saveTrialLayout = function (e, id) {
   toast("บันทึกผังแปลงทดลองแล้ว");
   return false;
 };
+App.modalTrialAreas = function (id) {
+  const tr = trialById(S, id);
+  if (!tr) return;
+  const units = (tr.units || []).slice().sort((a, b) => a.block - b.block || a.order - b.order);
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("map")} แปลงทดสอบและพื้นที่</h3>
+    <div class="modal-sub">ตั้งชื่อพื้นที่จริง เช่น แปลงทดสอบ 1 / คันนาซ้าย และใส่พื้นที่ไร่เพื่อคำนวณสูตรผสม</div>
+    <form onsubmit="return App.saveTrialAreas(event, '${tr.id}')">
+      <div class="trial-area-editor">
+        ${units.map(u => {
+          const t = trialTreatment(tr, u.treatmentId) || {};
+          return `<div class="trial-area-edit-row" data-ta="${u.id}" style="--tr-color:${trialTreatmentColor(tr, u.treatmentId)}">
+            <div class="trial-area-edit-title"><b>${esc(t.code || "?")} ${esc(t.name || "")}</b><span>บล็อก ${fmtNum(u.block)} · ลำดับ ${fmtNum(u.order)}</span></div>
+            <div class="form-row-2">
+              <div class="field" style="margin:0"><label>ชื่อแปลงย่อย</label><input data-ta-label value="${esc(u.label || "")}" placeholder="เช่น แปลงทดสอบ 1"></div>
+              <div class="field" style="margin:0"><label>พื้นที่ (ไร่)</label><input data-ta-area type="number" min="0" step="0.001" value="${esc(u.areaRai || "")}" placeholder="เช่น 1.6"></div>
+            </div>
+            <div class="field" style="margin:0"><label>หมายเหตุ</label><input data-ta-note value="${esc(u.note || "")}" placeholder="เช่น เปรียบเทียบ Bis 100 vs 200 cc/ไร่"></div>
+          </div>`;
+        }).join("")}
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
+        <button type="submit" class="btn btn-primary">${ic("save")} บันทึกพื้นที่</button>
+      </div>
+    </form>`);
+};
+App.saveTrialAreas = function (e, id) {
+  e.preventDefault();
+  const tr = trialById(S, id);
+  if (!tr) return false;
+  document.querySelectorAll("[data-ta]").forEach(row => {
+    const u = trialUnit(tr, row.dataset.ta);
+    if (!u) return;
+    u.label = (row.querySelector("[data-ta-label]")?.value || "").trim();
+    u.areaRai = Number(row.querySelector("[data-ta-area]")?.value) || 0;
+    u.note = (row.querySelector("[data-ta-note]")?.value || "").trim();
+  });
+  tr.updatedAt = Date.now();
+  saveState(S);
+  closeModal();
+  rerender();
+  toast("บันทึกพื้นที่แปลงทดสอบแล้ว");
+  return false;
+};
 App.modalTrial = function (plotId, id) {
   const tr = id ? trialById(S, id) : null;
   const p = plotId ? plotById(S, plotId) : null;
@@ -1542,6 +1725,10 @@ App.modalTrial = function (plotId, id) {
     <div class="modal-sub">ออกแบบแบบ RCBD: หลายทรีตเมนต์ หลายซ้ำ และสุ่มตำแหน่งในแต่ละบล็อก</div>
     <form onsubmit="return App.saveTrial(event, '${tr ? tr.id : ""}')">
       <div class="field"><label>ชื่องานทดลอง *</label><input id="tr_name" required value="${esc(tr ? tr.name : "")}" placeholder="เช่น ทดสอบปุ๋ยสูตรใหม่ในพริก"></div>
+      <div class="field"><label>วัตถุประสงค์</label><input id="tr_objective" value="${esc(tr ? tr.objective || "" : "")}" placeholder="เช่น คัดเลือกสูตรที่เหมาะสำหรับใช้งานจริง"></div>
+      <div class="field"><label>ชนิดงานทดลอง</label><select id="tr_type">
+        ${Object.keys(TRIAL_TYPES).map(k => `<option value="${k}" ${(!tr && k === "screening") || (tr && trialType(tr) === k) ? "selected" : ""}>${esc(TRIAL_TYPES[k].label)} — ${esc(TRIAL_TYPES[k].hint)}</option>`).join("")}
+      </select></div>
       <div class="form-row-2">
         <div class="field"><label>เลือกแปลงในระบบ</label><select id="tr_plot" onchange="App.trialPlotSelectChanged()">
           <option value="">-- แปลงนอกระบบ / พิมพ์เอง --</option>
@@ -1555,7 +1742,12 @@ App.modalTrial = function (plotId, id) {
         <div class="field"><label>วันที่คาดว่าจะจบ</label><input id="tr_end" type="date" value="${esc(tr ? tr.endDate || "" : "")}"></div>
       </div>
       <div class="form-row-2">
-        <div class="field"><label>จำนวนซ้ำ/บล็อก *</label><input id="tr_rep" type="number" min="2" step="1" required value="${esc(tr ? tr.replications || 3 : 3)}"></div>
+        <div class="field"><label>รูปแบบพ่น/ใส่</label><input id="tr_spray_method" value="${esc(tr ? tr.sprayMethod || "" : "")}" placeholder="เช่น โดรน T25 / คนพ่น / หว่าน"></div>
+        <div class="field"><label>น้ำหรือปริมาณพาหะ</label><input id="tr_water_rate" value="${esc(tr ? tr.waterRate || "" : "")}" placeholder="เช่น น้ำ 8 ลิตร/ไร่"></div>
+      </div>
+      <div class="field"><label>ปริมาตรผสมต่อครั้ง</label><input id="tr_mix_volume" value="${esc(tr ? tr.mixVolume || "" : "")}" placeholder="เช่น ผสมต่อครั้ง 15 ลิตร"></div>
+      <div class="form-row-2">
+        <div class="field"><label>จำนวนซ้ำ/ชุดแปลง *</label><input id="tr_rep" type="number" min="1" step="1" required value="${esc(tr ? tr.replications || 1 : 1)}"></div>
         <div class="field"><label>รูปแบบผัง</label><select id="tr_layout_mode">
           <option value="random" ${!tr || trialLayoutMode(tr) === "random" ? "selected" : ""}>สุ่มอัตโนมัติในแต่ละบล็อก</option>
           <option value="manual" ${tr && trialLayoutMode(tr) === "manual" ? "selected" : ""}>จัดผังเอง</option>
@@ -1590,7 +1782,7 @@ App.saveTrial = function (e, id) {
   const tr = id ? trialById(S, id) : null;
   const treatments = trialTreatmentsFromForm(tr && tr.treatments);
   const metrics = trialMetricsFromForm(tr && tr.metrics);
-  const reps = Math.max(2, Number(document.getElementById("tr_rep").value) || 3);
+  const reps = Math.max(1, Number(document.getElementById("tr_rep").value) || 1);
   if (treatments.length < 2) { toast("ต้องมีอย่างน้อย 2 ทรีตเมนต์"); return false; }
   if (!metrics.length) { toast("ต้องมีอย่างน้อย 1 ตัวชี้วัด"); return false; }
   const plotId = document.getElementById("tr_plot").value;
@@ -1612,9 +1804,14 @@ App.saveTrial = function (e, id) {
   }
   const data = {
     name: document.getElementById("tr_name").value.trim(),
+    objective: document.getElementById("tr_objective").value.trim(),
+    trialType: document.getElementById("tr_type").value || "screening",
     plotId,
     plotName: plotId ? "" : plotName,
     crop: document.getElementById("tr_crop").value.trim(),
+    sprayMethod: document.getElementById("tr_spray_method").value.trim(),
+    waterRate: document.getElementById("tr_water_rate").value.trim(),
+    mixVolume: document.getElementById("tr_mix_volume").value.trim(),
     design: layoutMode === "manual" ? "MANUAL" : "RCBD",
     layoutMode,
     startDate: document.getElementById("tr_start").value || todayISO(),
