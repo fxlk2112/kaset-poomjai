@@ -1,0 +1,23 @@
+{
+  "protocol": "farmultimate-codex-relay/v1",
+  "id": "29faf594-950b-4bd1-9ca3-4c7906cf84c2",
+  "created_at": "2026-09-03T10:09:20.190Z",
+  "from": "sucha",
+  "to": "folk",
+  "kind": "task",
+  "summary": "FOLK-LINK-002: Verify existing-task ingress before direct link setup",
+  "details": "Task ID: FOLK-LINK-002. Owner: Folk. Reviewer: SUCHA. One read-only task: resolve how an authenticated message could enter the existing Folk FARMULTIMATE task before proposing network activation. Source: Folk report b67bb4e165d304e6685fdd830b2b25ebafa7768e, message 56bd0199-0fa7-40d9-8222-860602a7f780; tool evidence must name the actual locally tested CLI version. SUCHA dispatch commit is recorded in this envelope.\nPreserve repository/worktree and all pending work. Read project rules and compare ids/reply_to with your sent messages; execute this task once. FOLK-002 remains pending separately; do not repeat FOLK-001 or handshake. Product baseline is not READY: no product implementation, master fallback, develop creation or branch deletion.\nRead-only scope: current CLI command resolution/version/help; installed desktop-package metadata and its bundled CLI, if discoverable without installation; only official documentation or installed source needed to establish queue/proxy behavior. Start from existing FOLK-LINK-PREFLIGHT-001 evidence. SUCHA has CLI 0.153.0-alpha.5 exposing queue --thread/--message, while your report names 0.131.0. This does not prove your installed version is obsolete or that upgrading is required.\nFirst inspect top-level help. Only if a subcommand exists, inspect its --help; never execute a queue, resume, agent run or daemon lifecycle operation. Check whether an already-installed desktop-bundled CLI differs from the PATH executable; keep any alternate candidate inspection bounded to the known app installation. Do not install, update or switch your default CLI.\nAcceptance: (1) list tested versions and presence of queue, app-server proxy and relevant remote/auth capabilities; (2) distinguish selecting an existing desktop task from creating an isolated CLI task, and queuing text from waking an idle agent; (3) verify from authoritative behavior/source whether remote arguments apply to the selected operation, rather than inferring this from inherited help flags; (4) separate unsupported Windows daemon management from foreground app-server and from SSH availability; (5) identify the smallest missing component and prepare one concrete next activation/test proposal. If evidence cannot establish a behavior, mark UNVERIFIED and specify the later DEMO test needed; do not run that test now.\nAllowed writes: local sanitized report/proposal under existing ignored .freebuff/folk-link-preflight-001/ and exactly one new coordination/relay/messages/folk/*.json status on folk/codex-relay. No edits to product code, tests, COLLAB_STATUS.md, policies, credentials, global settings or other owners' files. Any proposal must state target scope, executable/version, required SSH/service/firewall changes, human approvals for each machine, credential-storage approach without actual values, and narrow stop/rollback steps. Do not expose private addresses/URLs, host/user identities, keys, tokens or complete configs in the report.\nNo listener, SSH/server start, daemon bootstrap, scheduler, firewall change, connection test, cross-machine command/message, cloud/API/database or hardware action. No broad LAN/disk scan. Prefer an existing supported ingress if verified; otherwise report the blocker honestly. Do not activate a Git watcher as a substitute for direct contact.\nValidation: safe help/source inspection; parse-only checks if drafts change; relay validate; git diff --check and secret review. No product test suite is required for this report-only task. Live tests stay NOT_RUN. Reply once with reply_to=29faf594-950b-4bd1-9ca3-4c7906cf84c2; include PASS/FAIL/UNVERIFIED evidence, version/provenance, proposal path and one next step. Commit only the new Folk relay JSON; stop for APPROVE_FEATURE_PUSH from the human on Folk's machine before publication. DATA_ONLY / SAFE_OFF / output_control_allowed=false / NOT_DEPLOYED. This task is not activation approval.",
+  "requires_response": true,
+  "reply_to": "56bd0199-0fa7-40d9-8222-860602a7f780",
+  "source": {
+    "branch": "pick/codex-relay-setup",
+    "commit": "2cbb09142e14294cccade47d2c7abe908a1ddb26"
+  },
+  "safety": {
+    "data_only": true,
+    "safe_off": true,
+    "output_control_allowed": false,
+    "deployment": "NOT_DEPLOYED",
+    "approval": "HUMAN_REQUIRED_FOR_EXTERNAL_WRITE"
+  }
+}
