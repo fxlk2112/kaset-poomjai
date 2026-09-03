@@ -974,6 +974,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .calc-result { font-size: .78rem; color: var(--text); margin-top: 6px; }
 .calc-result .hint { margin-top: 2px; }
 .calc-amt { color: var(--green-deep); font-weight: 800; }
+.calc-size-save { width: 100%; justify-content: center; }
 
 /* ช่องค้นหาหน้าสต็อก */
 .stock-thumb {

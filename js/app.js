@@ -4964,6 +4964,11 @@ function defaultCalcUnit(st) {
 function unitLabel(u) {
   return ({ "ซีซี": "ซีซี", "มล": "มล.", "ลิตร": "ลิตร", "กรัม": "กรัม", "กก": "กก." })[u] || u;
 }
+function stockUnitNeedsSize(st) {
+  if (!st) return false;
+  const unit = String(st.unit || "").trim().replace(/\.+$/, "");
+  return !!unit && !sizeFamily(unit);
+}
 /* คำนวณจำนวนที่ใช้ (หน่วยสต็อก) จากพื้นที่+อัตรา — คืน null ถ้ายังกรอกไม่ครบหรือหน่วยไม่ตรง */
 function computeStockUsage(i) {
   const it = taskCostItems[i];
@@ -4988,6 +4993,7 @@ function computeStockUsage(i) {
       summary: `${st.name}: ${fmtNum(area)} ไร่ × ${fmtNum(rate)} ${rateLabel}/ไร่ = ${fmtNum(qty)} ${st.unit}`
     };
   }
+  if (stockUnitNeedsSize(st)) return null;
   // ไม่มีขนาดสินค้า -> อัตราเป็นหน่วยสต็อกตรงๆ (เช่น 0.25 ขวด/ไร่)
   const qty = area * rate;
   return {
@@ -5011,11 +5017,13 @@ function calcBoxHtml(i, it) {
         ? `<div class="hint" style="margin-bottom:6px">ขนาด ${esc(st.size)} / 1 ${esc(st.unit)} — แก้ได้ที่หน้า สต็อก</div>`
         : `
       <div class="row" style="gap:6px;margin-bottom:8px">
-        <div class="grow field" style="margin:0"><label>ขนาดต่อ 1 ${esc(st.unit)}</label><input class="ci-szamt" type="number" min="0" step="0.1" value="${it.calcSizeAmt || ""}" placeholder="เช่น 1,000" oninput="App.costCalcSize(${i}, this.value)"></div>
+        <div class="grow field" style="margin:0"><label>ขนาดต่อ 1 ${esc(st.unit)}</label><input class="ci-szamt" type="number" min="0" step="0.1" value="${it.calcSizeAmt || ""}" placeholder="เช่น 1000" oninput="App.costCalcSize(${i}, this.value)"></div>
         <div class="field" style="margin:0"><label>หน่วย</label><select class="ci-szunit" onchange="App.costCalcSize(${i}, null, this.value)">
           ${[["ซีซี", "ซีซี"], ["มล.", "มล"], ["ลิตร", "ลิตร"], ["กรัม", "กรัม"], ["กก.", "กก"]].map(u => `<option value="${u[1]}" ${(it.calcSizeUnit || "ซีซี") === u[1] ? "selected" : ""}>${u[0]}</option>`).join("")}
         </select></div>
-      </div>`}
+      </div>
+      <button type="button" class="btn btn-sm btn-outline calc-size-save" onclick="App.costSaveCalcSize(${i})">${ic("save")} บันทึกขนาดนี้</button>
+      <div class="hint" style="margin-top:6px;margin-bottom:8px">กรอกให้ครบก่อน เช่น 1 ลิตร หรือ 100 ซีซี แล้วค่อยกดบันทึกขนาดนี้</div>`}
       <div class="form-row-2">
         <div class="field"><label>พื้นที่ (ไร่)</label><input class="ci-area" type="number" min="0" step="0.25" value="${it.calcArea || ""}" placeholder="เช่น 4" oninput="App.costCalcInput(${i}, 'area', this.value)"></div>
         <div class="field"><label>ใช้ต่อไร่</label>
@@ -5027,7 +5035,7 @@ function calcBoxHtml(i, it) {
           </div>
         </div>
       </div>
-      <div class="calc-result" id="calcResult_${i}"><div class="hint">กรอกพื้นที่และอัตราใช้เพื่อคำนวณจำนวนที่ใช้ — จำนวนจะถูกกรอกและตัดสต็อกอัตโนมัติ</div></div>
+      <div class="calc-result" id="calcResult_${i}"><div class="hint">${known ? "กรอกพื้นที่และอัตราใช้เพื่อคำนวณจำนวนที่ใช้ — จำนวนจะถูกกรอกและตัดสต็อกอัตโนมัติ" : "กรอกขนาดสินค้าให้ครบ แล้วกดบันทึกขนาดนี้ก่อนคำนวณจำนวนใช้"}</div></div>
     </div>`;
 }
 App.costCalcInput = function (i, field, value) {
@@ -5041,7 +5049,7 @@ App.costCalcInput = function (i, field, value) {
   if (res) {
     res.innerHTML = r && r.qty > 0
       ? `<b>${esc(r.totalTxt)} = <span class="calc-amt">${fmtNum(r.qty)} ${esc(r.unit)}</span></b><div class="hint">${esc(r.summary)}</div>`
-      : `<div class="hint">กรอกพื้นที่และอัตราใช้เพื่อคำนวณจำนวนที่ใช้ — จำนวนจะถูกกรอกและตัดสต็อกอัตโนมัติ</div>`;
+      : `<div class="hint">${it.stockId && stockUnitNeedsSize(stockById(S, it.stockId)) ? "กรอกขนาดสินค้าให้ครบ แล้วกดบันทึกขนาดนี้ก่อนคำนวณจำนวนใช้" : "กรอกพื้นที่และอัตราใช้เพื่อคำนวณจำนวนที่ใช้ — จำนวนจะถูกกรอกและตัดสต็อกอัตโนมัติ"}</div>`;
   }
   if (r && r.qty > 0) {
     it.qty = r.qty;
@@ -5049,25 +5057,39 @@ App.costCalcInput = function (i, field, value) {
     App.costSet(i, "qty", r.qty);
   }
 };
-/* กรอกขนาดสินค้าที่กล่องคำนวณ (กรณีสินค้ายังไม่ตั้งขนาด) — บันทึกให้สต็อกอัตโนมัติ */
+/* กรอกขนาดสินค้าที่กล่องคำนวณ (กรณีสินค้ายังไม่ตั้งขนาด) — เก็บชั่วคราวก่อน รอให้ผู้ใช้กดบันทึก */
 App.costCalcSize = function (i, amt, unit) {
+  const it = taskCostItems[i];
+  if (!it || !it.stockId) return;
+  if (amt !== null && amt !== undefined) it.calcSizeAmt = amt;
+  if (unit) it.calcSizeUnit = unit;
+  const res = document.getElementById("calcResult_" + i);
+  if (res) {
+    res.innerHTML = `<div class="hint">กรอกขนาดสินค้าให้ครบ แล้วกดบันทึกขนาดนี้ก่อนคำนวณจำนวนใช้</div>`;
+  }
+};
+App.costSaveCalcSize = function (i) {
   const it = taskCostItems[i];
   if (!it || !it.stockId) return;
   const st = stockById(S, it.stockId);
   if (!st) return;
-  if (amt !== null && amt !== undefined) it.calcSizeAmt = amt;
-  if (unit) it.calcSizeUnit = unit;
   const val = Number(it.calcSizeAmt) || 0;
   const sizeUnit = it.calcSizeUnit || "ซีซี"; // ค่าเริ่มต้น ซีซี
-  if (val > 0) {
-    st.size = fmtNum(val) + " " + unitLabel(sizeUnit);
-    saveState(S);
-    it.calcSizeAmt = ""; it.calcSizeUnit = "";
-    App.costRender();
-    toast(`บันทึกขนาด "${st.size}" ให้ ${st.name} แล้ว — ครั้งหน้าคำนวณได้เลย`);
-  } else {
-    App.costCalcInput(i, "unit", it.calcUnit); // อัปเดตข้อความผลลัพธ์
+  const input = document.querySelector(`[data-ci="${i}"] .ci-szamt`);
+  if (val <= 0) {
+    if (input) {
+      setModalFieldError(input, `กรุณากรอกขนาดต่อ 1 ${st.unit}`);
+      input.focus();
+    }
+    return;
   }
+  st.size = fmtNum(val) + " " + unitLabel(sizeUnit);
+  saveState(S);
+  it.calcSizeAmt = "";
+  it.calcSizeUnit = "";
+  it.calcUnit = defaultCalcUnit(st);
+  App.costRender();
+  toast(`บันทึกขนาด "${st.size}" ให้ ${st.name} แล้ว — ครั้งหน้าคำนวณได้เลย`);
 };
 /* เพิ่มรายการว่าง */
 App.costAdd = function () {
@@ -5427,6 +5449,7 @@ App.submitTask = function (e, editId) {
     saveState(S);
     closeModal();
     render();
+    if (editId) App.modalTask(data.date, { taskId: editId });
     if (restocked) toast("บันทึกแล้ว · คืนสต็อกส่วนที่ไม่ได้ใช้");
   };
   if (existing) {
