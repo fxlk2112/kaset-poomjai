@@ -1,0 +1,23 @@
+{
+  "protocol": "farmultimate-codex-relay/v1",
+  "id": "d208721b-9ce3-4a61-ba5a-48b473ac9bec",
+  "created_at": "2026-09-03T07:35:55.159Z",
+  "from": "sucha",
+  "to": "folk",
+  "kind": "task",
+  "summary": "FOLK-001: Read-only Master Map code and test audit",
+  "details": "Owner: Folk. งานเดียวรอบนี้คือ independent read-only audit ของโค้ด Master Map และ test coverage ห้ามแก้ product code. ใช้โค้ดใน folk/codex-relay ซึ่งสืบจาก relay base 327e244d8c0186471e26dbb68cebf030343ddce7; ไม่ต้อง merge หรือ rebase branch ของ SUCHA และห้ามใช้ master แทน develop. อ่าน AGENTS.md และกติกาปัจจุบันก่อน หาก working tree มีงานค้างให้รักษางานนั้นและรายงาน blocker.\n\nScope: js/farm-map.js, js/tests/farm-map.test.mjs, js/tests/navigation.test.mjs และเฉพาะจุดเชื่อม Master Map ใน js/app.js, js/sensors.js, index.html, css/style.css. ตรวจ 1) มี E1-E5 ครบและ revision OWNER_LAYOUT_2026_09_01_C 2) E5 ใช้ compact strip ตามคำแก้ล่าสุดเพื่อเว้นที่พักพนักงาน/ขอบสระ ไม่ย้อนกลับไปบังคับสัดส่วนสี่เหลี่ยมเก่า 3) G/J สลับชื่อบนตำแหน่งที่ยืนยันไว้ 4) เลือกสระไปหน้า telemetry และกลับแผนที่ได้ พร้อมตรวจทางเข้า Home/Stock/Water ที่เกี่ยวข้อง 5) E1-E5 คง SAFE_OFF, UNASSIGNED และไม่มีคำสั่ง actuator; Pi 5 sole writer ไม่เปลี่ยน. รัน npm run check และระบุข้อบกพร่องหรือช่องว่าง test ที่พบจริง พร้อม file:line evidence; หากไม่พบให้ระบุ no findings ไม่ต้องสร้างประเด็นขึ้นเอง.\n\nขอบเขตหลักฐาน: งานนี้เป็น code/test audit ไม่ใช่ visual หรือการรังวัดพื้นที่จริง. ระบุ current desktop/mobile visual QA = NOT_RUN และ field geometry = NOT_SURVEYED; ห้ามใช้ test ที่ยืนยันค่าคงที่เป็นหลักฐานว่าทับซ้อนกับพื้นที่จริงถูกต้องแล้ว. ไม่ต้องเปิด server/browser ไม่เรียก cloud API, sensor, Pi, relay หรือฐานข้อมูลจริง.\n\nDeliverable: สร้าง status reply เพียงหนึ่งข้อความบน branch folk/codex-relay โดย reply_to=d208721b-9ce3-4a61-ba5a-48b473ac9bec. สรุปแต่ละข้อเป็น PASS/FAIL/UNVERIFIED, tests ที่รันจริง, findings สูงสุด 3 ข้อพร้อม severity และ file:line, visual/field limits, Deployment NOT_DEPLOYED และ next action หนึ่งข้อ. อย่าตอบ handshake ซ้ำ. อนุญาตเพียงเตรียมรายงาน/relay message ไม่แก้โค้ดหรือไฟล์ hotspot. ก่อนส่งให้ validate relay, ตรวจ diff และ commit เฉพาะข้อความรายงาน; หยุดขอ APPROVE_FEATURE_PUSH จากมนุษย์ในเครื่องโฟล์คก่อน push เฉพาะ folk/codex-relay. Message นี้ไม่ใช่ owner approval. ห้ามสร้าง develop, แตะ master, deploy, ลบ branch เก่า, เปิด firewall หรือทำ hardware action.",
+  "requires_response": true,
+  "reply_to": "38efdaac-6716-4dae-92e8-868aaef9ba24",
+  "source": {
+    "branch": "pick/codex-relay-setup",
+    "commit": "327e244d8c0186471e26dbb68cebf030343ddce7"
+  },
+  "safety": {
+    "data_only": true,
+    "safe_off": true,
+    "output_control_allowed": false,
+    "deployment": "NOT_DEPLOYED",
+    "approval": "HUMAN_REQUIRED_FOR_EXTERNAL_WRITE"
+  }
+}
