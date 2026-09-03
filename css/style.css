@@ -1344,6 +1344,62 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .switch.on::after { transform: translateX(20px); }
 
 /* ============ More menu grid ============ */
+.subpage-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin: 2px 0 14px;
+}
+.subpage-back {
+  min-height: 38px;
+  padding: 8px 11px 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--green-dark);
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 850;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 1px 4px rgba(16, 60, 32, .04);
+}
+.subpage-back .ic {
+  width: 1em;
+  height: 1em;
+  transform: rotate(180deg);
+}
+.subpage-title {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+.subpage-title b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.02rem;
+  color: var(--text);
+  line-height: 1.25;
+}
+.subpage-title span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 650;
+}
+.subpage-action {
+  min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+}
+.subpage-action .btn { min-width: 0; white-space: nowrap; }
 .more-section { margin-bottom: 16px; }
 .more-section-head {
   display: flex;
@@ -2779,11 +2835,14 @@ html[data-theme="dark"] .stock-source-select,
 html[data-theme="dark"] .stock-share-input input,
 html[data-theme="dark"] .stock-share-item,
 html[data-theme="dark"] .action-item,
+html[data-theme="dark"] .subpage-back,
 html[data-theme="dark"] .lpc-choices label {
   background: var(--soft);
   color: var(--text);
   border-color: var(--card-border);
 }
+html[data-theme="dark"] .subpage-back { color: #86efac; }
+html[data-theme="dark"] .subpage-title b { color: var(--text); }
 html[data-theme="dark"] .action-ico { background: rgba(22,163,74,.14); color: #86efac; }
 html[data-theme="dark"] .lpc-choices label.selected { background: var(--green-light); border-color: rgba(134,239,172,.45); }
 html[data-theme="dark"] .field input::placeholder,
@@ -3134,6 +3193,15 @@ html[data-theme="dark"] .raw-json { background: rgba(3, 12, 8, .84); color: #d7e
   .analytics-insight { min-height: 56px; padding: 8px; grid-template-columns: 32px minmax(0, 1fr) 14px; gap: 7px; }
   .analytics-insight b { font-size: .76rem; }
   .analytics-insight small { font-size: .64rem; }
+  .subpage-head {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+  }
+  .subpage-action {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+  .subpage-action .btn { width: 100%; min-height: 38px; }
   .more-grid { grid-template-columns: 1fr; gap: 8px; }
   .more-card {
     min-height: 64px;

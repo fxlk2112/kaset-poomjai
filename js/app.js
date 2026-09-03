@@ -339,7 +339,15 @@ function render() {
   const fd = document.getElementById("fabDock");
   // keep route valid for the current nav (sub-views group under their parent nav item)
   const keys = visibleNav().map(n => n.key);
-  const VIEW_GROUP = { equipment: "more", iot: "more", settings: "more", prices: "more", weather: "plots", plotDetail: "plots", cycleDetail: "plots" };
+  const VIEW_GROUP = {
+    equipment: "more",
+    iot: "more",
+    settings: "more",
+    prices: "more",
+    weather: route.weatherFrom === "more" ? "more" : "plots",
+    plotDetail: "plots",
+    cycleDetail: "plots"
+  };
   const navKey = VIEW_GROUP[route.view] || route.view;
   if (fd) {
     fd.style.display = navKey === "more" ? "none" : "";
@@ -407,11 +415,28 @@ function render() {
 
 App.nav = function (key) {
   route.view = key;
+  if (key !== "weather") route.weatherFrom = "";
   render();
   /* ปิดแผงแจ้งเตือนเมื่อเปลี่ยนหน้า */
   const np = document.getElementById("notifPanel");
   if (np) np.hidden = true;
 };
+App.backToMore = function () {
+  route.view = "more";
+  route.weatherFrom = "";
+  render();
+};
+function moreBackHeader(title, sub, actionHtml, tkey) {
+  return `
+    <div class="subpage-head">
+      <button class="subpage-back" onclick="App.backToMore()" aria-label="กลับไปเมนูเพิ่มเติม">${ic("chevron")} <span>กลับ</span></button>
+      <div class="subpage-title">
+        <b ${tkey ? `data-tkey="${esc(tkey)}"` : ""}>${esc(title)}</b>
+        ${sub ? `<span>${esc(sub)}</span>` : ""}
+      </div>
+      ${actionHtml ? `<div class="subpage-action">${actionHtml}</div>` : ""}
+    </div>`;
+}
 /* re-render แบบไม่กระโดดกลับหัวหน้า (ใช้กับปุ่มในหน้า เช่น ติ๊กงาน / กดวันที่ปฏิทิน) */
 function rerender() {
   const sy = window.scrollY;
@@ -983,11 +1008,15 @@ function renderWeather() {
   let p = plotById(S, route.plotId);
   if (!p || !(Number(p.lat) && Number(p.lng))) p = plots[0] || null;
   if (p) route.plotId = p.id;
-  return `
-    <div class="row" style="margin-bottom:10px">
+  const fromMore = route.weatherFrom === "more";
+  const backHtml = fromMore
+    ? moreBackHeader("สภาพอากาศ", "เทียบพยากรณ์และแผนที่จากแปลง", "")
+    : `<div class="row" style="margin-bottom:10px">
       <button class="btn btn-sm btn-ghost" onclick="${route.plotId ? `App.openPlot('${route.plotId}')` : "App.nav('plots')"}">← กลับ</button>
     </div>
-    <div class="section-title">${ic("droplet")} สภาพอากาศ · เทียบ 5 สถานีพยากรณ์</div>
+    <div class="section-title">${ic("droplet")} สภาพอากาศ · เทียบ 5 สถานีพยากรณ์</div>`;
+  return `
+    ${backHtml}
     ${plots.length === 0 ? `
       <div class="card"><div class="empty"><div class="e-ico">${ic("pin")}</div><div class="e-title">ยังไม่มีแปลงที่ปักพิกัด GPS</div>
       <div class="muted">เพิ่มหรือแก้ไขแปลง แล้วปักหมุดพิกัด เพื่อดึงพยากรณ์อากาศรายแปลง</div>
@@ -999,7 +1028,12 @@ function renderWeather() {
       <div class="card weather-card" id="weatherCard" style="margin-top:10px"><div class="weather-loading">${ic("pin")} กำลังดึงรายละเอียด 7 วัน...</div></div>`}`;
 }
 App.wxPickPlot = function (id) { route.plotId = id; render(); };
-App.openWeather = function (plotId) { route.view = "weather"; if (plotId) route.plotId = plotId; render(); };
+App.openWeather = function (plotId, from) {
+  route.view = "weather";
+  route.weatherFrom = from === "more" ? "more" : "";
+  if (plotId) route.plotId = plotId;
+  render();
+};
 
 /* ---- เทียบหลายสถานีพยากรณ์ (ฟรีทั้งหมด ไม่ใช้คีย์ · ทดสอบ CORS แล้ว) ----
    1) Open-Meteo best_match (ผสมโมเดลดีที่สุด — มี % ความน่าจะเป็นฝน)
@@ -2004,10 +2038,7 @@ App.analyticsYear = function (ceYr) {
 function renderEquipment() {
   const years = d => Math.max(0, daysBetween(d, todayISO()) / 365.25);
   return `
-    <div class="row row-between section-title" data-tkey="equipmentTitle">
-      <span>${T("equipmentTitle")} (${S.equipment.length})</span>
-      <button class="btn btn-primary btn-sm" onclick="App.modalEquipment()">＋ เพิ่มอุปกรณ์</button>
-    </div>
+    ${moreBackHeader(`${T("equipmentTitle")} (${S.equipment.length})`, "ค่าเสื่อม ซ่อมบำรุง และมูลค่าเครื่องจักร", `<button class="btn btn-primary btn-sm" onclick="App.modalEquipment()">＋ เพิ่มอุปกรณ์</button>`, "equipmentTitle")}
     <div class="muted" style="font-size:.72rem;margin-bottom:10px">${ic("info")} ติดตามค่าเสื่อมราคาและประวัติการซ่อมบำรุงของเครื่องจักรทุกชิ้น</div>
     <div class="card-grid">
     ${S.equipment.map(e => {
@@ -2167,6 +2198,7 @@ function renderIoT() {
     </div>`).join("");
 
   return `
+    ${moreBackHeader(T("iotTitle"), "วาล์ว ตารางให้น้ำ และอุปกรณ์ IoT", `<button class="btn btn-outline btn-sm" onclick="App.modalWaterSystem()">${ic("plus")} เพิ่มระบบน้ำ</button>`, "iotTitle")}
     <div class="card" style="background:linear-gradient(135deg,#1d4ed8,#172554);color:#fff;border:none">
       <div class="row">
         <span style="font-size:2rem;color:#fff">${ic("droplet")}</span>
@@ -2178,8 +2210,7 @@ function renderIoT() {
     </div>
 
     <div class="row row-between iot-section-head">
-      <div class="bold" style="font-size:1.02rem" data-tkey="iotTitle">${T("iotTitle")} (${W.systems.length})</div>
-      <button class="btn btn-outline btn-sm" onclick="App.modalWaterSystem()">${ic("plus")} เพิ่มระบบน้ำ</button>
+      <div class="bold" style="font-size:1.02rem">${T("iotTitle")} (${W.systems.length})</div>
     </div>
     ${W.systems.length === 0 ? `<div class="card"><div class="empty"><div class="e-ico">${ic("droplet")}</div><div class="e-title">ยังไม่มีระบบน้ำ</div><div class="muted">เลือกแปลง ตั้งปั๊ม และกำหนดตารางให้น้ำได้จากปุ่มด้านบน</div></div></div>` : ""}
     <div class="card-grid">${sysCards}</div>
@@ -2812,12 +2843,14 @@ App.priceCatFilter = function (cat) {
 function renderPrices() {
   const cached = App._marketPrices;
   const searchKey = App._priceSearch || "";
+  const head = moreBackHeader("ราคาตลาด", "ราคาผักผลไม้รายวันและกราฟย้อนหลัง", `<button class="btn btn-outline btn-sm" onclick="App._priceLoading=false;App.loadMarketPrices()">${ic("refresh")} รีเฟรช</button>`);
 
   /* โหลดอัตโนมัติครั้งแรกที่เปิดหน้า (ไม่ต้องกดปุ่ม) */
   if (!cached && !App._priceLoading) {
     App._priceLoading = true;
     App.loadMarketPrices();
     return `
+      ${head}
       <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none;padding:28px 20px;text-align:center">
         <div style="font-size:2.2rem;margin-bottom:10px">${ic("dollar")}</div>
         <div class="bold" style="font-size:1.15rem;margin-bottom:6px">ราคาสินค้าเกษตรวันนี้</div>
@@ -2832,6 +2865,7 @@ function renderPrices() {
 
   if (!cached) {
     return `
+      ${head}
       <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none;padding:28px 20px;text-align:center">
         <div style="font-size:2.2rem;margin-bottom:10px">${ic("dollar")}</div>
         <div class="bold" style="font-size:1.15rem;margin-bottom:6px">ราคาสินค้าเกษตรวันนี้</div>
@@ -2851,6 +2885,7 @@ function renderPrices() {
   const priceFreshLabel = priceAgeDays <= 0 ? "ข้อมูลวันนี้" : `ข้อมูลเก่า ${fmtNum(priceAgeDays)} วัน`;
 
   return `
+    ${head}
     <!-- Hero banner + summary -->
     <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none;padding:18px 16px 14px;margin-bottom:12px">
       <div class="row row-between" style="align-items:flex-start;margin-bottom:10px">
@@ -3426,7 +3461,7 @@ function renderSettings() {
     editorHtml = adminToolsHtml();
   }
   return `
-    <div class="section-title" data-tkey="settingsTitle">${T("settingsTitle")}</div>
+    ${moreBackHeader(T("settingsTitle"), "บัญชี สำรองข้อมูล เครื่องมือเสริม และล้างข้อมูล", "", "settingsTitle")}
     <details class="settings-group" name="settingsGroups" open>
       <summary class="settings-group-head">
         <b>${ic("gear")} บัญชีและข้อมูลระบบ</b>
@@ -3895,7 +3930,7 @@ function renderMore() {
       ${moreList(`
       ${item(ic("truck"), "อุปกรณ์", "ค่าเสื่อม ซ่อมบำรุง และมูลค่าเครื่องจักร", "App.nav('equipment')")}
       ${item(ic("dollar"), "ราคาตลาด", "ราคาผักผลไม้รายวันและกราฟย้อนหลัง", "App.nav('prices')")}
-      ${item(ic("droplet"), "สภาพอากาศ", "เทียบพยากรณ์และแผนที่จากแปลง", "App.openWeather('')")}
+      ${item(ic("droplet"), "สภาพอากาศ", "เทียบพยากรณ์และแผนที่จากแปลง", "App.openWeather('', 'more')")}
       ${item(ic("droplet"), "ระบบน้ำ", "วาล์ว ตารางให้น้ำ และอุปกรณ์ IoT", "App.nav('iot')")}`)}
     </section>
     <section class="more-section">
