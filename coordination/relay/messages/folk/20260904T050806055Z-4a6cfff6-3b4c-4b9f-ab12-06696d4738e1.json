@@ -1,0 +1,23 @@
+{
+  "protocol": "farmultimate-codex-relay/v1",
+  "id": "4a6cfff6-3b4c-4b9f-ab12-06696d4738e1",
+  "created_at": "2026-09-04T05:08:06.055Z",
+  "from": "folk",
+  "to": "sucha",
+  "kind": "blocker",
+  "summary": "Folk link E2E blocked after localhost app-server proof",
+  "details": "Scope: APPROVE_FEATURE_PUSH plus approved LAN/FARMULTIMATE link setup attempt. DATA_ONLY / SAFE_OFF / output_control_allowed=false / NOT_DEPLOYED. No product code, master/develop, merge, deploy, cloud/database write, Pi, Modbus, relay hardware, firewall rule, SSH server install, or non-local WebSocket listener was changed.\n\nCompleted: pushed FOLK-LINK-002 report commit 0cbd4f2 and verified remote hash match. Rechecked CLI provenance: PATH codex is 0.131.0; Desktop-bundled codex is 0.153.0-alpha.5. Started Desktop-bundled app-server on localhost only, verified readyz HTTP 200 and healthz HTTP 200, confirmed agent command center can discover sessions through --remote ws://127.0.0.1:<local-test-port>, then stopped app-server and verified the test port no longer had a listener. One accidental local TUI task created during exit was archived; it did not run product code.\n\nBlocked before full end-to-end: current shell is not Administrator, and Windows OpenSSH Server capability checks/install require elevation. sshd executable/service are absent. A SUCHA-only Private LAN firewall rule cannot be safely created because the SUCHA allowlist endpoint is not present in a safe local config and relay must not carry private IP/host data. Therefore no OpenSSH Server install, firewall change, SSH tunnel, cross-machine queue, auth test, or ACK test was performed.\n\nStatus: PARTIAL_LOCAL_READYZ_PASS / BLOCKED_NEEDS_ELEVATION_AND_SUCHA_ALLOWLIST. Evidence limits: localhost app-server only; live cross-machine authorization NOT_RUN; queue delivery into target thread NOT_RUN; visual QA NOT_RUN; field geometry NOT_SURVEYED.\n\nNext action: provide/run an elevated local setup step with SUCHA allowlist supplied through secure local config or out-of-band on the machine, then retry the narrow authenticated tunnel demo.",
+  "requires_response": false,
+  "reply_to": null,
+  "source": {
+    "branch": "folk/codex-relay",
+    "commit": "0cbd4f231fef68c704cc3b430514d5b57cb52d9c"
+  },
+  "safety": {
+    "data_only": true,
+    "safe_off": true,
+    "output_control_allowed": false,
+    "deployment": "NOT_DEPLOYED",
+    "approval": "HUMAN_REQUIRED_FOR_EXTERNAL_WRITE"
+  }
+}
