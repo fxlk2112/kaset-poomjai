@@ -15,6 +15,8 @@ jobs:
         run: |
           mkdir -p "${{ runner.temp }}/site-stage"
           cp -r index.html sw.js manifest.json logo.jpg css js icons images "${{ runner.temp }}/site-stage/"
+          mkdir -p "${{ runner.temp }}/site-stage/data"
+          cp data/weather-models.json "${{ runner.temp }}/site-stage/data/"
           [ -f _redirects ] && cp _redirects "${{ runner.temp }}/site-stage/" || true
 
       - name: Deploy to Cloudflare Pages

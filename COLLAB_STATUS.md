@@ -9,7 +9,8 @@
 - Functional baseline commit: `0ac5b826b5cf8b16b5b2b9ec81194273f27bd11a`
 - Merge source: `origin/master` + `origin/pick/codex-relay-setup` at `d03b82c5cda86031d1dac07e47707f755002edff`
 - Raw source branch: `sucha/sensor-phase1-local` — `PRESERVED / LOCAL_ONLY_DO_NOT_PUSH`
-- Production deployment: `RELEASE_CANDIDATE_PREPARED / NOT_DEPLOYED`
+- Production approval: `APPROVE_PRODUCTION_DEPLOY` received from Pick on `2026-09-05`.
+- Production deployment: `APPROVED / BLOCKED_REVIEW_AND_CLOUDFLARE_ACCESS / NOT_DEPLOYED`
 
 ## Release Candidate 2026-09-05
 
@@ -19,8 +20,12 @@
 - Conflicts in `index.html`, `js/app.js` and `sw.js` were resolved by keeping the reviewed direct-open integration shell, preserving the deployed cycle/task improvements, loading Map/Telemetry modules, and retaining `DATA_ONLY / SAFE_OFF` guards.
 - Release cache identity: `farmult-v111-release-40721b5`.
 - Local validation: `70/70 PASS`; desktop `1280 x 720` and mobile `390 x 844` Home/Water views pass with zero console/page errors and no horizontal overflow.
+- Approved-release preflight: UTC checks remain `70/70 PASS`, relay `9 messages PASS`; static staging includes `data/weather-models.json`, and Wrangler `4.129.0` compiles the Pages Function successfully.
+- The bundled weather file is a dated forecast snapshot, not live station data. Production API, authenticated cloud flows, storage, and live sensor delivery remain unverified.
 - Public `/api` and `/api/health` currently return the static HTML shell, so the production Pages Function and `FARMULTIMATE_API` binding are not yet verified.
-- Merge to `master` remains locked until `APPROVE_PRODUCTION_DEPLOY`.
+- Release PR: `#4` into `master`; GitHub reports `REVIEW_REQUIRED`. The authenticated GitHub account is the PR author, so a different human reviewer is required.
+- The Cloudflare login available on SUCHA can list its account but returns zero Pages projects; access to the existing production project and its service binding is not established.
+- Owner deployment approval is recorded. Merge remains pending the required human review and verified production API binding.
 
 ## Baseline V2 Result
 
@@ -59,8 +64,8 @@
 |---|---|---|
 | Farm / Map / Planner / Analytics / Water / Telemetry | Pick + SUCHA | `AVAILABLE_BY_TASK_LOCK` |
 | Stock / Sales / Products / Import / Market Price | Folk | `READY_FROM_ORIGIN_DEVELOP` |
-| Shared shell / contracts / CI / release preparation | SUCHA | `AVAILABLE_BY_TASK_LOCK` |
-| `master` and Cloudflare production | Pick approval | `LOCKED_NEEDS_APPROVE_PRODUCTION_DEPLOY` |
+| Shared shell / contracts / CI / release preparation | SUCHA | `RELEASE-40721B5` on `pick/release-develop-40721b5`; `.github/workflows/deploy.yml` and release status/docs |
+| `master` and Cloudflare production | Pick approval | `APPROVED / BLOCKED_REVIEW_AND_CLOUDFLARE_ACCESS` |
 
 ## Development Push Policy
 
@@ -77,4 +82,4 @@ The one-time development approval authorizes publication of this reviewed baseli
 
 ## Next Action
 
-Push `pick/release-develop-40721b5` and open one release PR into `master`; merge/deploy only after `APPROVE_PRODUCTION_DEPLOY` and production binding readiness are confirmed.
+Obtain an independent human review on PR #4 and access to the existing production Pages project to verify `FARMULTIMATE_API`; then merge the verified head and read back the deployed app. Do not request owner deployment approval again for this release.
