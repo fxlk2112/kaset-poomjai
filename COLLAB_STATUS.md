@@ -4,8 +4,9 @@
 - State: `BASELINE_READY`
 - Development approval: `APPROVE_FARMULTIMATE_DEV_SETUP_ONCE`
 - Production branch: `master` at `dba54778aa5043c1d699ec7136d30fd4d18da71c`
-- Integration branch: `develop` at `0ac5b826b5cf8b16b5b2b9ec81194273f27bd11a` — `REMOTE_VERIFIED`
-- Integration preparation branch: `pick/integration-baseline-v2` at the same commit — `REMOTE_VERIFIED`
+- Integration branch: `develop` — `REMOTE_VERIFIED`
+- Integration preparation branch: `pick/integration-baseline-v2` — `REMOTE_VERIFIED` at the same branch head
+- Functional baseline commit: `0ac5b826b5cf8b16b5b2b9ec81194273f27bd11a`
 - Merge source: `origin/master` + `origin/pick/codex-relay-setup` at `d03b82c5cda86031d1dac07e47707f755002edff`
 - Raw source branch: `sucha/sensor-phase1-local` — `PRESERVED / LOCAL_ONLY_DO_NOT_PUSH`
 - Production deployment: `NOT_DEPLOYED`
@@ -23,7 +24,7 @@
 
 - `npm run check`: `64/64 PASS`, zero failed/skipped.
 - UTC runner reproduction after timezone fix: `64/64 PASS`.
-- GitHub Actions `npm-check`: `PASS`, run `33950163815`.
+- GitHub Actions `npm-check`: `PASS`, code run `33950163815` and status run `33950212687`.
 - Relay tree on the integration worktree: `9 messages PASS`.
 - Incoming `origin/folk/codex-relay`: `6 messages PASS`.
 - Git conflict markers/unmerged paths: `NONE`.
