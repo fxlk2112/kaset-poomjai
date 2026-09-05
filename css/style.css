@@ -498,7 +498,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .cal-day.selected { outline: 2px solid var(--green); }
 .cal-day .dots { display: flex; gap: 2px; height: 6px; }
 .cal-day .dots i { width: 6px; height: 6px; border-radius: 50%; display: block; }
-.dot-green { background: var(--green); } .dot-amber { background: var(--amber); } .dot-red { background: var(--red); }
+.dot-green { background: var(--green); } .dot-amber { background: var(--amber); } .dot-red { background: var(--red); } .dot-gray { background: #94a3b8; }
 /* ชื่องานในช่องวันปฏิทิน — เห็นงานได้เลยโดยไม่ต้องกดเข้าไป */
 .cal-day .cal-tip {
   max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
@@ -551,7 +551,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 .planner-filters {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   margin: 8px 0 12px;
 }
@@ -685,6 +685,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .task-dot { width: 12px; height: 12px; border-radius: 50%; border: 0; padding: 0; flex-shrink: 0; cursor: pointer; transition: transform .15s ease; }
 .task-dot:hover { transform: scale(1.4); }
 .task-row.done .task-title { text-decoration: line-through; color: var(--muted); }
+.task-row.failed { background: var(--red-light); }
+.task-row.failed .task-title { color: var(--red); }
 .task-title { font-weight: 700; font-size: .9rem; }
 /* วันที่ในแถวงาน — แสดงเป็นไทยพร้อมไอคอนปฏิทิน */
 .td-date { display: inline-flex; align-items: center; gap: 4px; color: var(--green-dark); font-weight: 700; }
@@ -1310,6 +1312,40 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .weather-cond { font-size: .78rem; color: var(--muted); font-weight: 600; }
 .weather-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .weather-chips span { background: var(--green-soft); border: 1px solid var(--green-light); border-radius: 999px; padding: 5px 11px; font-size: .72rem; font-weight: 700; color: var(--green-deep); }
+.weather-hourly-title {
+  margin: 2px 0 7px;
+  color: var(--green-deep);
+  font-size: .76rem;
+  font-weight: 900;
+}
+.weather-hourly-title span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: .64rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.weather-hourly-strip {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 1px 1px 9px;
+  margin-bottom: 8px;
+}
+.weather-hourly-cell {
+  flex: 0 0 82px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px;
+}
+.weather-hourly-cell b,
+.weather-hourly-cell span,
+.weather-hourly-cell small { display: block; }
+.weather-hourly-cell b { color: var(--green-deep); font-size: .72rem; }
+.weather-hourly-cell span { margin-top: 3px; color: #1d4ed8; font-size: .75rem; font-weight: 900; }
+.weather-hourly-cell small { margin-top: 2px; color: var(--muted); font-size: .64rem; font-weight: 700; }
 .weather-days { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 .wday { text-align: center; background: #f8faf9; border: 1px solid var(--line); border-radius: 10px; padding: 8px 2px; }
 .wday-name { font-size: .68rem; font-weight: 800; color: var(--muted); }
@@ -1320,6 +1356,48 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .weather-note .ic { width: 1em; height: 1em; color: var(--green); flex-shrink: 0; }
 .weather-loading { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--muted); padding: 8px 0; }
 .weather-loading .ic { width: 1em; height: 1em; color: var(--green); }
+.rain-radar-card { overflow: hidden; margin-bottom: 10px; }
+.rain-radar-map {
+  height: 270px;
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #e5efe9;
+  position: relative;
+  z-index: 0;
+}
+.rain-radar-map .leaflet-container { height: 100%; width: 100%; font-family: inherit; }
+.rain-radar-map .leaflet-top,
+.rain-radar-map .leaflet-bottom { z-index: 1; }
+.rain-radar-time {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--green-soft);
+  border: 1px solid var(--green-light);
+  color: var(--green-deep);
+  font-size: .68rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.rain-radar-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.rain-radar-source {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: .66rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
 /* Stock / equipment rows */
 .stock-qty { font-size: 1.35rem; font-weight: 800; color: var(--green-dark); line-height: 1.1; }
 .stock-qty small { font-size: .72rem; font-weight: 600; color: var(--muted); }
@@ -2697,6 +2775,266 @@ html.modal-open, html.modal-open body {
 .td-cost-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--green-light); font-size: .82rem; }
 .td-cost-row:last-child { border-bottom: none; }
 .td-cost-row b { color: var(--green-deep); flex-shrink: 0; }
+.water-box { background: #f0fdf4; }
+.water-box-title {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--green-deep); font-size: .84rem; font-weight: 900; margin-bottom: 4px;
+}
+.water-box-title .ic { width: 1em; height: 1em; }
+.water-zone-card-head { align-items: flex-start; gap: 10px; }
+.water-zone-card-head .muted { font-size: .72rem; margin-top: 2px; }
+.water-zone-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(138px, 1fr)); gap: 8px; margin-top: 10px; }
+.water-zone-pill {
+  border: 1px solid var(--green-light);
+  background: var(--green-soft);
+  border-radius: 10px;
+  padding: 9px 10px;
+  min-width: 0;
+}
+.water-zone-pill b { display: block; color: var(--green-deep); font-size: .82rem; line-height: 1.25; }
+.water-zone-pill span,
+.water-zone-pill small {
+  display: block;
+  color: var(--muted);
+  font-size: .7rem;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+.water-zone-empty {
+  border: 1px dashed var(--green-light);
+  background: var(--green-soft);
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: .74rem;
+  line-height: 1.45;
+  margin-top: 10px;
+}
+.water-zone-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.water-zone-summary span {
+  display: block;
+  text-align: center;
+  background: var(--green-soft);
+  border: 1px solid var(--green-light);
+  border-radius: 10px;
+  padding: 8px 6px;
+  color: var(--green-deep);
+  font-size: .78rem;
+  font-weight: 900;
+}
+.water-zone-editor-list { display: grid; gap: 10px; }
+.water-zone-editor-row {
+  background: #fff;
+  border: 1px solid var(--green-light);
+  border-radius: 10px;
+  padding: 10px;
+}
+.water-zone-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.water-zone-editor-head b { color: var(--green-deep); font-size: .78rem; }
+.water-zone-quick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--green-light);
+  background: rgba(255,255,255,.7);
+  border-radius: 10px;
+  padding: 9px;
+  margin: 8px 0 10px;
+  font-size: .74rem;
+}
+.water-zone-quick b { display: block; color: var(--green-deep); font-size: .8rem; }
+.water-zone-quick span { color: var(--muted); }
+.water-zone-quick-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.water-zone-row-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: .68rem;
+  margin-top: 6px;
+}
+.water-zone-row-meta .ic { width: 1em; height: 1em; }
+.water-session-list { display: grid; gap: 10px; margin-top: 10px; }
+.water-session-row {
+  background: #fff;
+  border: 1px solid var(--green-light);
+  border-radius: 10px;
+  padding: 10px;
+}
+.water-session-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-bottom: 8px;
+}
+.water-session-head strong { color: var(--green-deep); font-size: .78rem; }
+.water-session-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+.water-session-total { margin: 0; }
+.task-water-detail { background: #eff6ff; border-color: #bfdbfe; margin-bottom: 12px; }
+.task-water-detail-list { display: grid; gap: 6px; }
+.task-water-period-group { display: grid; gap: 6px; }
+.task-water-period-title {
+  color: #1d4ed8;
+  font-size: .72rem;
+  font-weight: 900;
+  margin: 4px 0 0;
+}
+.task-water-detail-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(96,165,250,.22);
+  border-radius: 10px;
+}
+.task-water-detail-row b { display: block; color: #1d4ed8; font-size: .82rem; }
+.task-water-detail-row small { display: block; color: var(--muted); font-size: .72rem; line-height: 1.35; margin-top: 2px; }
+.task-water-detail-row em {
+  flex-shrink: 0; font-style: normal; font-size: .68rem; font-weight: 900;
+  color: #0f766e; background: #ccfbf1; border-radius: 999px; padding: 4px 8px;
+}
+.task-water-result-panel {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  border-radius: 12px;
+  padding: 10px;
+  margin: 0 0 12px;
+}
+.task-water-result-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.task-water-result-head b {
+  display: block;
+  color: #1d4ed8;
+  font-size: .82rem;
+  font-weight: 900;
+}
+.task-water-result-head span {
+  display: block;
+  color: var(--muted);
+  font-size: .7rem;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+.task-water-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.task-water-result-list { display: grid; gap: 7px; }
+.task-water-result-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(112px, 128px);
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid rgba(96,165,250,.22);
+  border-radius: 10px;
+  background: rgba(255,255,255,.72);
+}
+.task-water-result-row b {
+  display: block;
+  color: #1d4ed8;
+  font-size: .8rem;
+  line-height: 1.25;
+}
+.task-water-result-row span {
+  display: block;
+  color: var(--muted);
+  font-size: .68rem;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+.task-water-result-row select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid rgba(37,99,235,.18);
+  border-radius: 9px;
+  background: #fff;
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 800;
+  color: var(--text);
+}
+@media (max-width: 520px) {
+  .water-zone-card-head { align-items: stretch; flex-direction: column; }
+  .water-zone-card-head .btn { width: 100%; }
+  .water-zone-grid { grid-template-columns: 1fr; }
+  .water-zone-quick { align-items: stretch; flex-direction: column; }
+  .water-zone-quick-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+  .water-zone-quick-actions .btn { padding-left: 6px; padding-right: 6px; }
+  .task-water-result-head { flex-direction: column; }
+  .task-water-result-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .task-water-result-row { grid-template-columns: 1fr; }
+}
+.task-weather-panel {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  border-radius: 12px;
+  padding: 12px;
+  margin: 0 0 12px;
+}
+.task-weather-panel .option-box.inline-option { background: rgba(255,255,255,.78); border-color: #bfdbfe; color: #1d4ed8; }
+.task-weather-ref {
+  border: 1px solid rgba(37,99,235,.18);
+  background: rgba(255,255,255,.72);
+  border-radius: 12px;
+  padding: 10px;
+  margin-top: 8px;
+}
+.task-weather-ref.compact { padding: 9px; }
+.task-weather-title { color: #1d4ed8; font-size: .82rem; font-weight: 900; margin-bottom: 7px; }
+.task-weather-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.task-weather-grid span {
+  display: block; background: #fff; border: 1px solid rgba(37,99,235,.12);
+  border-radius: 9px; padding: 6px 8px; font-size: .74rem; font-weight: 800; color: #1e3a8a;
+}
+.task-weather-source { margin-top: 7px; color: var(--muted); font-size: .68rem; font-weight: 700; line-height: 1.35; }
+.task-hourly-title {
+  margin: 10px 0 6px;
+  color: #1d4ed8;
+  font-size: .72rem;
+  font-weight: 900;
+}
+.task-hourly-strip {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding-bottom: 5px;
+}
+.task-hourly-cell {
+  flex: 0 0 86px;
+  border: 1px solid rgba(37,99,235,.14);
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px;
+}
+.task-hourly-cell b,
+.task-hourly-cell span,
+.task-hourly-cell small { display: block; }
+.task-hourly-cell b { color: #1e3a8a; font-size: .74rem; }
+.task-hourly-cell span { margin-top: 3px; color: #1d4ed8; font-size: .74rem; font-weight: 900; }
+.task-hourly-cell small { margin-top: 2px; color: var(--muted); font-size: .66rem; font-weight: 700; }
 @media (max-width: 480px) {
   .topbar { padding: 7px 10px; border-radius: 0 0 14px 14px; }
   .brand { gap: 8px; }
@@ -2736,6 +3074,11 @@ html.modal-open, html.modal-open body {
   .task-photo-head .btn { width: 100%; }
   .task-photo-thumb,
   .task-photo-thumb img { width: 76px; height: 76px; }
+  .task-weather-grid { grid-template-columns: 1fr; }
+  .task-water-detail-row { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .rain-radar-map { height: 230px; }
+  .rain-radar-card .weather-top { align-items: flex-start; flex-direction: column; }
+  .rain-radar-time { align-self: flex-start; }
 }
 .modal-x { position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; border-radius: 50%; background: #f1f5f4; font-size: 1rem; font-weight: 700; color: var(--muted); transition: background .15s; z-index: 1; }
 .modal-x:hover { background: #e5ece8; }
@@ -3675,6 +4018,7 @@ html[data-theme="dark"] .tabs button.active { background: #e6efe9; color: #14532
 html[data-theme="dark"] .receipt { background: var(--card); }
 html[data-theme="dark"] .storage-bar { background: #26332c; }
 html[data-theme="dark"] .weather-card, html[data-theme="dark"] .weather-note { color: var(--text); }
+html[data-theme="dark"] .rain-radar-map { background: #111827; border-color: var(--card-border); }
 html[data-theme="dark"] .notif-panel, html[data-theme="dark"] .profile-panel { background: var(--card); }
 html[data-theme="dark"] .pp-theme button { background: var(--green-soft); color: var(--text); }
 html[data-theme="dark"] .pp-theme button.active { background: var(--green); color: #fff; }
@@ -3904,6 +4248,8 @@ html[data-theme="dark"] .cal-card,
 html[data-theme="dark"] .receipt,
 html[data-theme="dark"] .passport-stat,
 html[data-theme="dark"] .usage-row,
+html[data-theme="dark"] .water-session-row,
+html[data-theme="dark"] .water-zone-editor-row,
 html[data-theme="dark"] .task-photo-panel,
 html[data-theme="dark"] .td-photo-section,
 html[data-theme="dark"] .fab-item,
@@ -4004,6 +4350,15 @@ html[data-theme="dark"] .meta-box,
 html[data-theme="dark"] .cc-box,
 html[data-theme="dark"] .calc-box,
 html[data-theme="dark"] .nested-fields,
+html[data-theme="dark"] .water-zone-pill,
+html[data-theme="dark"] .water-zone-empty,
+html[data-theme="dark"] .water-zone-summary span,
+html[data-theme="dark"] .water-zone-quick,
+html[data-theme="dark"] .task-weather-panel,
+html[data-theme="dark"] .task-weather-ref,
+html[data-theme="dark"] .task-water-detail-row,
+html[data-theme="dark"] .task-water-result-panel,
+html[data-theme="dark"] .task-water-result-row,
 html[data-theme="dark"] .td-cost-list,
 html[data-theme="dark"] .gps-box,
 html[data-theme="dark"] .weather-chips span,
@@ -4020,6 +4375,14 @@ html[data-theme="dark"] .calc-title,
 html[data-theme="dark"] .calc-amt,
 html[data-theme="dark"] .usage-total,
 html[data-theme="dark"] .usage-row-head strong,
+html[data-theme="dark"] .weather-hourly-title,
+html[data-theme="dark"] .weather-hourly-cell b,
+html[data-theme="dark"] .water-box-title,
+html[data-theme="dark"] .water-session-head strong,
+html[data-theme="dark"] .water-zone-pill b,
+html[data-theme="dark"] .water-zone-summary span,
+html[data-theme="dark"] .water-zone-editor-head b,
+html[data-theme="dark"] .water-zone-quick b,
 html[data-theme="dark"] .td-cost-title,
 html[data-theme="dark"] .td-cost-row b,
 html[data-theme="dark"] .task-photo-head b,
@@ -4033,6 +4396,28 @@ html[data-theme="dark"] .settings-group.danger .settings-group-head b { color: #
 
 html[data-theme="dark"] .task-row { background: var(--soft); }
 html[data-theme="dark"] .td-done-note { background: rgba(37,99,235,.16); border-color: rgba(96,165,250,.34); }
+html[data-theme="dark"] .task-water-detail,
+html[data-theme="dark"] .task-weather-panel,
+html[data-theme="dark"] .task-weather-detail { background: rgba(37,99,235,.12); border-color: rgba(96,165,250,.34); }
+html[data-theme="dark"] .task-weather-panel .option-box.inline-option { background: rgba(15,23,42,.34); border-color: rgba(96,165,250,.34); color: #93c5fd; }
+html[data-theme="dark"] .task-weather-title,
+html[data-theme="dark"] .task-weather-grid span,
+html[data-theme="dark"] .weather-hourly-cell span,
+html[data-theme="dark"] .task-hourly-title,
+html[data-theme="dark"] .task-hourly-cell b,
+html[data-theme="dark"] .task-hourly-cell span,
+html[data-theme="dark"] .task-water-detail-row b,
+html[data-theme="dark"] .task-water-result-head b,
+html[data-theme="dark"] .task-water-result-row b,
+html[data-theme="dark"] .task-water-period-title { color: #93c5fd; }
+html[data-theme="dark"] .task-weather-grid span,
+html[data-theme="dark"] .weather-hourly-cell,
+html[data-theme="dark"] .task-hourly-cell,
+html[data-theme="dark"] .task-water-result-row select { background: rgba(15,23,42,.34); border-color: rgba(96,165,250,.24); color: var(--text); }
+html[data-theme="dark"] .rain-radar-time { background: rgba(22,163,74,.14); border-color: rgba(134,239,172,.24); color: #86efac; }
+html[data-theme="dark"] .task-water-detail-row em { background: rgba(20,184,166,.18); color: #5eead4; }
+html[data-theme="dark"] .task-row.failed { background: rgba(127,29,29,.2); }
+html[data-theme="dark"] .task-row.failed .task-title { color: #fca5a5; }
 html[data-theme="dark"] .td-photo-done { background: rgba(22,163,74,.12); border-color: rgba(134,239,172,.24); }
 html[data-theme="dark"] .task-photo-reminder { background: rgba(120, 53, 15, .24); border-color: rgba(251, 191, 36, .35); color: #fcd34d; }
 html[data-theme="dark"] .share-photo-label { color: #86efac; }

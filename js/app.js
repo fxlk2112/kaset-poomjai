@@ -7,6 +7,28 @@
 
 /* ---------------- state & bootstrap ----------------
    (S ประกาศใน data.js — ให้ระบบบัญชี (auth.js) สลับ slot ข้อมูลรายบัญชีได้ก่อน render) */
+const APP_BUILD_VERSION = "20260905taskfailwater";
+window.APP_BUILD_VERSION = APP_BUILD_VERSION;
+function ensureFreshAppBuild() {
+  try {
+    const key = "farmult-app-build-v1";
+    if (localStorage.getItem(key) === APP_BUILD_VERSION) return;
+    localStorage.setItem(key, APP_BUILD_VERSION);
+    const jobs = [];
+    if (window.caches) jobs.push(caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))));
+    if (typeof navigator !== "undefined" && navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(rs => Promise.all(rs.map(r => r.unregister()))));
+    Promise.allSettled(jobs).then(() => {
+      try {
+        const u = new URL(location.href);
+        if (u.searchParams.get("build") !== APP_BUILD_VERSION) {
+          u.searchParams.set("build", APP_BUILD_VERSION);
+          location.replace(u.toString());
+        }
+      } catch (e) {}
+    });
+  } catch (e) {}
+}
+ensureFreshAppBuild();
 let route = { view: "home", tab: "plots", year: Number(todayISO().slice(0, 4)) };
 /* จำหน้าล่าสุดไว้ (sessionStorage — รีเฟรชแล้วอยู่หน้าเดิม ไม่กลับหน้าแรก, เปิดแท็บใหม่เริ่มหน้าแรกปกติ) */
 const ROUTE_STORE = "kaset-route-v1";
@@ -26,7 +48,7 @@ let cycTaskFilter = { sort: "new", type: "", status: "", costOnly: false }; // �
 let plotDetailTab = "overview"; // แยกหน้ารายละเอียดแปลงให้ไม่ยาวเกินบนมือถือ
 let cycleDetailTab = "overview"; // แยกหน้ารายละเอียดรอบปลูกให้อ่านง่ายขึ้น
 let plotFilter = { q: "", status: "all" }; // ตัวกรองหน้าแปลง: q=ค้นหา, status=all|growing|idle|inactive
-let plannerFilter = "today"; // มุมมองกิจกรรม: today|week|overdue|done
+let plannerFilter = "today"; // มุมมองกิจกรรม: today|week|overdue|failed|done
 let collapsedCycles = {}; // หน้ารอบการปลูก: แปลงที่กดย่อไว้ (plotId -> true) กันหน้ายาวเกิน
 let cycleFilter = { q: "", status: "all" }; // ตัวกรองหน้ารอบการปลูก: q=ค้นหา (ชื่อแปลง/พืช), status=all|active|idle
 let trialObsPhotos = [];
@@ -187,6 +209,7 @@ function cropEmoji(crop) {
 }
 function statusTag(status) {
   if (status === "done") return `<span class="badge badge-green">เสร็จ</span>`;
+  if (status === "failed") return `<span class="badge badge-red">ไม่สำเร็จ</span>`;
   if (status === "overdue") return `<span class="badge badge-red">เลยกำหนด</span>`;
   return `<span class="badge badge-amber">แผน</span>`;
 }
@@ -206,7 +229,7 @@ function taskRowHtml(t, opts) {
   opts = opts || {};
   const done = t.status === "done";
   const st = taskStatusOf(t);
-  const dotCls = st === "done" ? "dot-green" : st === "overdue" ? "dot-red" : "dot-amber";
+  const dotCls = st === "done" ? "dot-green" : st === "failed" ? "dot-gray" : st === "overdue" ? "dot-red" : "dot-amber";
   const meta = [];
   /* แสดงวันที่เสมอ (เป็นไทย พร้อมไอคอนปฏิทิน) — รู้ทันทีว่างานนี้วันไหน */
   if (opts.showDate || opts.alwaysDate) {
@@ -247,8 +270,8 @@ function taskRowHtml(t, opts) {
           ${opts.cycleOptions.map(c => `<option value="${c.id}">${esc(c.plant)}</option>`).join("")}
         </select>` : "";
   return `
-    <div class="task-row ${done ? "done" : ""}" onclick="App.viewTask('${t.id}')" role="button" tabindex="0">
-      <button class="task-dot ${dotCls}" onclick="event.stopPropagation();App.toggleTask('${t.id}')" aria-label="สลับสถานะเสร็จ" title="${st === "done" ? "ยกเลิกเสร็จ" : "ติ๊กเสร็จ"}"></button>
+    <div class="task-row ${done ? "done" : ""} ${st === "failed" ? "failed" : ""}" onclick="App.viewTask('${t.id}')" role="button" tabindex="0">
+      <button class="task-dot ${dotCls}" onclick="event.stopPropagation();App.toggleTask('${t.id}')" aria-label="สลับสถานะเสร็จ" title="${st === "done" ? "ยกเลิกเสร็จ" : (st === "failed" ? "บันทึกใหม่เป็นเสร็จ" : "ติ๊กเสร็จ")}"></button>
       <div class="grow">
         <div class="task-title">${esc(t.title)}</div>
         ${meta.length ? `<div class="muted">${meta.join(" · ")}</div>` : ""}
@@ -272,8 +295,8 @@ function calendarCellsHtml(compact) {
     const dateStr = inMonth ? `${y}-${String(m + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}` : null;
     const dayTasks = dateStr ? tasksOn(S, dateStr) : [];
     const ds = dayTasks.length ? dayStatus(S, dateStr) : null;
-    /* จุดบอกสถานะ: เสร็จ=เขียว แผน=เหลือง เลยกำหนด=แดง */
-    const dotCls = ds === "done" ? "dot-green" : ds === "overdue" ? "dot-red" : ds ? "dot-amber" : "";
+    /* จุดบอกสถานะ: เสร็จ=เขียว แผน=เหลือง เลยกำหนด=แดง ไม่สำเร็จ=เทา */
+    const dotCls = ds === "done" ? "dot-green" : ds === "failed" ? "dot-gray" : ds === "overdue" ? "dot-red" : ds ? "dot-amber" : "";
     const dots = ds ? `<span class="dots"><i class="${dotCls}"></i></span>` : "";
     /* ชื่อเสียงานในช่องวัน: ปฏิทินใหญ่แสดง 2 รายการ (เห็นงานได้เลย) / ปฏิทินกะทัดรัดหน้าแรกแสดงแค่จุด */
     const maxTips = compact ? 0 : 2;
@@ -391,6 +414,7 @@ function render() {
   v.innerHTML = (views[route.view] || renderHome)();
   /* หลังวาดหน้า — ดึงสภาพอากาศของแปลง (หน้าแปลง + หน้าสภาพอากาศ) */
   if (route.view === "weather" || route.view === "plotDetail") renderPlotWeather();
+  else clearRainRadar();
   /* หน้าระบบน้ำ: ดึงโน้ตล่าสุดจากเซิร์ฟเวอร์ (ข้ามรอบเพราะฝน ฯลฯ) */
   if (route.view === "iot" && typeof App.waterPullStatus === "function") App.waterPullStatus();
   if (route.view === "settings") wireSettingsAccordion();
@@ -504,10 +528,10 @@ function renderHome() {
   const doneToday = tToday.filter(t => t.status === "done").length;
   const todayPct = tToday.length ? Math.round(doneToday / tToday.length * 100) : 0;
   const overdue = S.tasks.filter(t => taskStatusOf(t) === "overdue");
-  /* กิจกรรมล่าสุด: โชว์ประวัติงานที่ปิดงานแล้วเท่านั้น เพื่อไม่ซ้ำกับงานถัดไป */
+  /* กิจกรรมล่าสุด: โชว์ประวัติงานที่ปิดงานแล้ว/ไม่สำเร็จ เพื่อไม่ซ้ำกับงานถัดไป */
   const tsOf = t => t.updatedAt || t.createdAt || new Date(t.date + "T12:00:00").getTime() || 0;
   const recent = [...S.tasks]
-    .filter(t => t.status === "done")
+    .filter(t => t.status === "done" || t.status === "failed")
     .sort((a, b) => tsOf(b) - tsOf(a))
     .slice(0, 4);
   const kpiProfit = ytd.net >= 0;
@@ -685,10 +709,10 @@ function renderHome() {
           ${recent.length === 0 ? `<div class="empty compact-empty"><div class="e-ico">${ic("check")}</div><div class="e-title">ยังไม่มีประวัติงานที่ทำเสร็จ</div><div class="muted">งานที่ยังต้องทำดูที่งานถัดไปด้านบน</div></div>` : ""}
           ${recent.map(t => {
             /* บอกว่าพึ่งทำอะไรกับงานนี้ */
-            let act = "ทำเสร็จ";
-            if (t.updatedAt && t.status !== "done") act = "แก้ไข";
+            let act = t.status === "failed" ? "ไม่สำเร็จ" : "ทำเสร็จ";
+            if (t.updatedAt && t.status !== "done" && t.status !== "failed") act = "แก้ไข";
             const st = taskStatusOf(t);
-            const dotCls = st === "done" ? "dot-green" : st === "overdue" ? "dot-red" : "dot-amber";
+            const dotCls = st === "done" ? "dot-green" : st === "failed" ? "dot-gray" : st === "overdue" ? "dot-red" : "dot-amber";
             return `
             <div class="row-line" onclick="App.viewTask('${t.id}')" role="button" style="cursor:pointer">
               <span class="task-ico ${esc(t.type)}">${ic(TYPE_ICONS[t.type] || "wrench")}</span>
@@ -696,7 +720,7 @@ function renderHome() {
                 <div class="bold" style="font-size:.84rem">${esc(t.title)}</div>
                 <div class="muted" style="font-size:.7rem">${act} · ${dateLabel(t.date)} ${typeTag(t)}</div>
               </div>
-              <button class="task-dot ${dotCls}" onclick="event.stopPropagation();App.toggleTask('${t.id}')" aria-label="สลับสถานะเสร็จ" title="${st === "done" ? "ยกเลิกเสร็จ" : "ติ๊กเสร็จ"}"></button>
+              <button class="task-dot ${dotCls}" onclick="event.stopPropagation();App.toggleTask('${t.id}')" aria-label="สลับสถานะเสร็จ" title="${st === "done" ? "ยกเลิกเสร็จ" : (st === "failed" ? "บันทึกใหม่เป็นเสร็จ" : "ติ๊กเสร็จ")}"></button>
               <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();App.editTask('${t.id}')" aria-label="แก้ไขกิจกรรม" title="แก้ไขกิจกรรม">${ic("pencil")}</button>
               ${statusTag(st)}
             </div>`;
@@ -2372,7 +2396,7 @@ function mapLink(lat, lng) {
 /* ---- สภาพอากาศรายแปลง (Open-Meteo — ฟรี ไม่ต้องใช้คีย์ ไม่ต้องสมัคร) ---- */
 /* แคช 30 นาที เก็บใน localStorage — รีเฟรชหน้าแล้วตัวเลขคงที่ ไม่เปลี่ยนทุกครั้ง */
 const WEATHER_TTL = 30 * 60 * 1000;
-const WEATHER_STORE = "kaset-weather-cache-v2";
+const WEATHER_STORE = "kaset-weather-cache-v5";
 function weatherCacheLoad() {
   try { const raw = localStorage.getItem(WEATHER_STORE); if (raw) return JSON.parse(raw) || {}; } catch (e) {}
   return {};
@@ -2457,6 +2481,7 @@ function renderWeather() {
       <div class="row" style="gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px">
         ${plots.map(pl => `<button class="btn btn-sm ${pl.id === route.plotId ? "btn-primary" : "btn-outline"}" style="white-space:nowrap" onclick="App.wxPickPlot('${pl.id}')">${cropEmoji(pl.crop)} ${esc(pl.name)}</button>`).join("")}
       </div>
+      <div class="card weather-card rain-radar-card" id="rainRadarCard"><div class="weather-loading">📡 กำลังโหลดเรดาร์ฝนใกล้แปลง...</div></div>
       <div class="card weather-card" id="weatherCompare"><div class="weather-loading">⏳ กำลังดึงพยากรณ์จาก 5 สถานี...</div></div>
       <div class="card weather-card" id="weatherCard" style="margin-top:10px"><div class="weather-loading">${ic("pin")} กำลังดึงรายละเอียด 7 วัน...</div></div>`}`;
 }
@@ -2529,7 +2554,7 @@ function renderWeatherCompare(p) {
     if (!ok.length) { el.innerHTML = `<div class="weather-note">${ic("alert")} ดึงข้อมูลสถานีพยากรณ์ไม่ได้ (ตรวจสอบอินเทอร์เน็ต)</div>`; return; }
     const fmt1 = n => (n == null ? "—" : (Math.round(Number(n) * 10) / 10).toFixed(1).replace(/\.0$/, ""));
     const cell = (d) => d ? `<div class="wx-mm ${d.mm >= 1 ? "wx-wet" : ""}">💧 ${fmt1(d.mm)} มม.</div>`
-      + (d.prob != null ? `<div class="wx-prob">ฝน ${d.prob}%</div>` : "")
+      + (d.prob != null ? `<div class="wx-prob">โอกาส ${d.prob}%</div>` : "")
       + `<div class="wx-t">${d.tmax != null ? fmt1(d.tmax) + "°" : "—"}</div>` : `<div class="wx-t">—</div>`;
     const dates = ok[0].days.map(d => d.date);
     const heads = dates.map((dt, i) => i === 0 ? "วันนี้" : i === 1 ? "พรุ่งนี้" : dayNameISO(dt));
@@ -2548,14 +2573,14 @@ function renderWeatherCompare(p) {
       const verdict = wetN >= Math.ceil(ok.length * 0.8) ? `<span class="badge badge-blue">ฝนชัด ${wetN}/${ok.length} สถานี</span>`
         : wetN === 0 ? `<span class="badge badge-green">แล้งชัด ${ok.length}/${ok.length} สถานี</span>`
         : `<span class="badge badge-gray">ไม่แน่นอน ${wetN}/${ok.length} สถานี</span>`;
-      return `<td><div class="wx-mm ${avgMm >= 1 ? "wx-wet" : ""}">💧 ${fmt1(avgMm)} มม.</div>${avgProb != null ? `<div class="wx-prob">ฝน ${avgProb}%</div>` : ""}<div class="wx-verdict">${verdict}</div></td>`;
+      return `<td><div class="wx-mm ${avgMm >= 1 ? "wx-wet" : ""}">💧 ${fmt1(avgMm)} มม.</div>${avgProb != null ? `<div class="wx-prob">โอกาส ${avgProb}%</div>` : ""}<div class="wx-verdict">${verdict}</div></td>`;
     }).join("");
     const failNote = ok.length < WX_SOURCES.length ? `<div class="weather-updated" style="margin-top:6px">⚠️ ${WX_SOURCES.length - ok.length} สถานีดึงไม่สำเร็จชั่วคราว</div>` : "";
     el.innerHTML = `
       <div class="weather-top">
         <div>
           <div class="weather-loc">📡 เทียบ ${ok.length} สถานีพยากรณ์ · ${esc(p.name)}</div>
-          <div class="weather-updated">ฝน (มม.) · % ความน่าจะเป็นฝน · อุณหภูมิสูงสุด — อัปเดตทุก 30 นาที</div>
+          <div class="weather-updated">ฝนสะสมที่คาด (มม.) · โอกาสฝน (%) · อุณหภูมิสูงสุด — อัปเดตทุก 30 นาที</div>
         </div>
       </div>
       <div class="wx-table-wrap"><table class="wx-table">
@@ -2565,6 +2590,118 @@ function renderWeatherCompare(p) {
         </tbody>
       </table></div>${failNote}`;
   });
+}
+var rainRadarMap = null;
+var rainRadarLayer = null;
+var rainRadarMarker = null;
+var rainRadarFrames = [];
+var rainRadarFrameIndex = -1;
+var RAIN_VIEWER_CACHE = null;
+function clearRainRadar() {
+  if (rainRadarMap) {
+    try { rainRadarMap.remove(); } catch (e) {}
+  }
+  rainRadarMap = null;
+  rainRadarLayer = null;
+  rainRadarMarker = null;
+  rainRadarFrames = [];
+  rainRadarFrameIndex = -1;
+}
+function rainViewerData() {
+  if (RAIN_VIEWER_CACHE && Date.now() - RAIN_VIEWER_CACHE.t < 5 * 60 * 1000) return Promise.resolve(RAIN_VIEWER_CACHE.data);
+  return fetch("https://api.rainviewer.com/public/weather-maps.json")
+    .then(r => { if (!r.ok) throw new Error("rainviewer " + r.status); return r.json(); })
+    .then(data => {
+      RAIN_VIEWER_CACHE = { t: Date.now(), data };
+      return data;
+    });
+}
+function rainRadarFrameLabel(frame) {
+  if (!frame || !frame.time) return "—";
+  try {
+    return new Date(frame.time * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  } catch (e) {
+    return "—";
+  }
+}
+function rainRadarShowFrame(idx) {
+  if (!rainRadarMap || !rainRadarFrames.length) return;
+  rainRadarFrameIndex = Math.max(0, Math.min(idx, rainRadarFrames.length - 1));
+  const frame = rainRadarFrames[rainRadarFrameIndex];
+  const meta = document.getElementById("rainRadarTime");
+  if (meta) meta.textContent = `${rainRadarFrameIndex + 1}/${rainRadarFrames.length} · ${rainRadarFrameLabel(frame)}`;
+  if (rainRadarLayer) {
+    try { rainRadarMap.removeLayer(rainRadarLayer); } catch (e) {}
+    rainRadarLayer = null;
+  }
+  const host = (RAIN_VIEWER_CACHE && RAIN_VIEWER_CACHE.data && RAIN_VIEWER_CACHE.data.host) || "";
+  if (!host || !frame.path) return;
+  rainRadarLayer = L.tileLayer(host + frame.path + "/256/{z}/{x}/{y}/2/1_1.png", {
+    tileSize: 256,
+    opacity: 0.68,
+    maxNativeZoom: 7,
+    maxZoom: 18,
+    attribution: 'Weather radar by <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a>'
+  }).addTo(rainRadarMap);
+}
+App.rainRadarFrame = function (step) {
+  rainRadarShowFrame(rainRadarFrameIndex + step);
+};
+App.rainRadarLatest = function () {
+  rainRadarShowFrame(rainRadarFrames.length - 1);
+};
+function renderRainRadar(p) {
+  const card = document.getElementById("rainRadarCard");
+  if (!card) return;
+  clearRainRadar();
+  if (!Number(p.lat) || !Number(p.lng)) {
+    card.innerHTML = `<div class="weather-note">${ic("pin")} ยังไม่มีพิกัด GPS ของแปลงนี้ จึงเปิดเรดาร์ฝนไม่ได้</div>`;
+    return;
+  }
+  if (typeof L === "undefined") {
+    card.innerHTML = `<div class="weather-note">${ic("alert")} โหลดแผนที่ไม่สำเร็จ ลองรีเฟรชหน้าอีกครั้ง</div>`;
+    return;
+  }
+  card.innerHTML = `
+    <div class="weather-top">
+      <div>
+        <div class="weather-loc">📡 เรดาร์ฝนใกล้แปลง ${esc(p.name)}</div>
+        <div class="weather-updated">RainViewer · ภาพย้อนหลังราว 2 ชั่วโมง · ใช้ดูแนวฝนประกอบการตัดสินใจ</div>
+      </div>
+      <span class="rain-radar-time" id="rainRadarTime">กำลังโหลด...</span>
+    </div>
+    <div class="rain-radar-map" id="rainRadarMap"></div>
+    <div class="rain-radar-controls">
+      <button type="button" class="btn btn-sm btn-outline" onclick="App.rainRadarFrame(-1)">ย้อน</button>
+      <button type="button" class="btn btn-sm btn-primary" onclick="App.rainRadarLatest()">ล่าสุด</button>
+      <button type="button" class="btn btn-sm btn-outline" onclick="App.rainRadarFrame(1)">ถัดไป</button>
+    </div>
+    <div class="rain-radar-source">Weather radar by RainViewer · ข้อมูลเรดาร์อาจขาดหายบางพื้นที่ตามสถานีต้นทาง</div>`;
+  rainRadarMap = L.map("rainRadarMap", {
+    scrollWheelZoom: false,
+    zoomControl: true,
+    attributionControl: true
+  }).setView([Number(p.lat), Number(p.lng)], 8);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+  }).addTo(rainRadarMap);
+  rainRadarMarker = L.marker([Number(p.lat), Number(p.lng)]).addTo(rainRadarMap).bindPopup(esc(p.name || "แปลง"));
+  setTimeout(() => { if (rainRadarMap) rainRadarMap.invalidateSize(); }, 250);
+  rainViewerData()
+    .then(data => {
+      const radar = (data && data.radar) || {};
+      rainRadarFrames = [...(radar.past || []), ...(radar.nowcast || [])].filter(f => f && f.path);
+      if (!rainRadarFrames.length) throw new Error("no frames");
+      RAIN_VIEWER_CACHE = { t: Date.now(), data };
+      rainRadarShowFrame(rainRadarFrames.length - 1);
+    })
+    .catch(() => {
+      const meta = document.getElementById("rainRadarTime");
+      if (meta) meta.textContent = "โหลดไม่ได้";
+      const src = card.querySelector(".rain-radar-source");
+      if (src) src.textContent = "ดึงเรดาร์ฝนไม่ได้ชั่วคราว ตรวจสอบอินเทอร์เน็ตหรือลองใหม่ภายหลัง";
+    });
 }
 /* รหัสสภาพอากาศ WMO ของ Open-Meteo -> [คำอธิบายไทย, อีโมจิ] */
 const OM_CODES = {
@@ -2577,6 +2714,161 @@ const OM_CODES = {
   95: ["พายุฟ้าคะนอง", "⛈️"], 96: ["พายุฟ้าคะนอง + ลูกเห็บ", "⛈️"], 99: ["พายุรุนแรง + ลูกเห็บ", "⛈️"]
 };
 function omCodeInfo(code) { const w = OM_CODES[code]; return w ? w : ["อากาศแปรปรวน", "🌡️"]; }
+function weatherValue(n, suffix) {
+  if (n == null || n === "" || Number.isNaN(Number(n))) return "—";
+  return fmtNum(Math.round(Number(n) * 10) / 10) + (suffix || "");
+}
+function currentTimeHHMM() {
+  const d = new Date();
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+function taskDoneDate(t) {
+  return String((t && (t.doneDate || (t.weatherSnapshot && t.weatherSnapshot.targetDate) || t.date)) || todayISO()).slice(0, 10);
+}
+function taskDoneTime(t) {
+  const raw = String((t && (t.doneTime || (t.weatherSnapshot && t.weatherSnapshot.targetTime))) || "").slice(0, 5);
+  return /^\d{2}:\d{2}$/.test(raw) ? raw : currentTimeHHMM();
+}
+function weatherTargetIso(date, time) {
+  const d = String(date || todayISO()).slice(0, 10);
+  const t = /^\d{2}:\d{2}$/.test(String(time || "")) ? String(time).slice(0, 5) : "12:00";
+  return d + "T" + t + ":00";
+}
+function nearestWeatherHour(times, targetIso) {
+  if (!Array.isArray(times) || !times.length) return -1;
+  const target = new Date(targetIso).getTime();
+  let best = -1, bestDiff = Infinity;
+  times.forEach((time, i) => {
+    const ms = new Date(time).getTime();
+    const diff = Math.abs(ms - target);
+    if (Number.isFinite(diff) && diff < bestDiff) {
+      best = i;
+      bestDiff = diff;
+    }
+  });
+  return best;
+}
+function taskWeatherRecommended(t) {
+  if (!t) return false;
+  if (["spray", "fertilize", "water", "inspect", "harvest"].includes(t.type)) return true;
+  return /(ฉีด|พ่น|ยา|ปุ๋ย|รดน้ำ|น้ำ|ตรวจ|เก็บเกี่ยว|วัชพืช)/.test(String(t.title || "") + " " + String(t.note || ""));
+}
+function taskWeatherPlot(t) {
+  const p = t && t.plotId ? plotById(S, t.plotId) : null;
+  return p && Number(p.lat) && Number(p.lng) ? p : null;
+}
+async function fetchTaskWeatherSnapshot(p, target) {
+  target = target || {};
+  const targetDate = String(target.date || todayISO()).slice(0, 10);
+  const targetTime = /^\d{2}:\d{2}$/.test(String(target.time || "")) ? String(target.time).slice(0, 5) : currentTimeHHMM();
+  const targetIso = weatherTargetIso(targetDate, targetTime);
+  const isPastDate = targetDate < todayISO();
+  const lat = encodeURIComponent(p.lat);
+  const lng = encodeURIComponent(p.lng);
+  const hourlyVars = "temperature_2m,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m,wind_direction_10m";
+  const forecastVars = hourlyVars + ",precipitation_probability";
+  const forecastUrl = "https://api.open-meteo.com/v1/forecast?latitude=" + lat +
+    "&longitude=" + lng +
+    "&current=temperature_2m,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m,wind_direction_10m" +
+    "&hourly=" + forecastVars +
+    "&past_days=7&forecast_days=7&timezone=auto";
+  const archiveUrl = "https://archive-api.open-meteo.com/v1/archive?latitude=" + lat +
+    "&longitude=" + lng +
+    "&start_date=" + encodeURIComponent(targetDate) +
+    "&end_date=" + encodeURIComponent(targetDate) +
+    "&hourly=" + hourlyVars +
+    "&timezone=auto";
+  let source = isPastDate ? "Open-Meteo Historical" : "Open-Meteo Forecast";
+  let om;
+  try {
+    om = await fetch(isPastDate ? archiveUrl : forecastUrl).then(r => { if (!r.ok) throw new Error("weather " + r.status); return r.json(); });
+  } catch (e) {
+    if (!isPastDate) throw e;
+    source = "Open-Meteo Forecast";
+    om = await fetch(forecastUrl).then(r => { if (!r.ok) throw new Error("weather " + r.status); return r.json(); });
+  }
+  const c = (om && om.current) || {};
+  const h = (om && om.hourly) || {};
+  const targetMs = new Date(targetIso).getTime();
+  const bestIdx = nearestWeatherHour(h.time || [], targetIso);
+  const idx = bestIdx >= 0 ? bestIdx : 0;
+  const matchedMs = h.time && h.time[idx] ? new Date(h.time[idx]).getTime() : NaN;
+  if (!Number.isFinite(matchedMs) || Math.abs(matchedMs - targetMs) > 90 * 60 * 1000) {
+    throw new Error("weather target hour not covered");
+  }
+  const codeAtTarget = Number((h.weather_code && h.weather_code[idx]) ?? c.weather_code);
+  const info = omCodeInfo(codeAtTarget);
+  const hourly = (h.time || [])
+    .map((time, i) => {
+      const code = Number(h.weather_code && h.weather_code[i]);
+      const hi = omCodeInfo(code);
+      return {
+        time,
+        hour: String(time || "").slice(11, 16),
+        temperature: Number(h.temperature_2m && h.temperature_2m[i]),
+        humidity: Number(h.relative_humidity_2m && h.relative_humidity_2m[i]),
+        precipitation: Number(h.precipitation && h.precipitation[i]),
+        rainProb: h.precipitation_probability && h.precipitation_probability[i] != null ? Number(h.precipitation_probability[i]) : null,
+        windSpeed: Number(h.wind_speed_10m && h.wind_speed_10m[i]),
+        windDirection: Number(h.wind_direction_10m && h.wind_direction_10m[i]),
+        weatherCode: code,
+        condition: hi[0],
+        icon: hi[1]
+      };
+    })
+    .filter(x => !x.time || new Date(x.time).getTime() >= targetMs)
+    .slice(0, 24);
+  return {
+    source,
+    capturedAt: new Date().toISOString(),
+    targetDate,
+    targetTime,
+    targetIso,
+    time: (h.time && h.time[idx]) || c.time || "",
+    plotId: p.id,
+    plotName: p.name || "",
+    condition: info[0],
+    icon: info[1],
+    weatherCode: codeAtTarget,
+    temperature: Number((h.temperature_2m && h.temperature_2m[idx]) ?? c.temperature_2m),
+    humidity: Number((h.relative_humidity_2m && h.relative_humidity_2m[idx]) ?? c.relative_humidity_2m),
+    precipitation: Number((h.precipitation && h.precipitation[idx]) ?? c.precipitation),
+    rain: Number((h.rain && h.rain[idx]) ?? c.rain ?? 0),
+    rainProb: h.precipitation_probability && h.precipitation_probability[idx] != null ? Number(h.precipitation_probability[idx]) : null,
+    windSpeed: Number((h.wind_speed_10m && h.wind_speed_10m[idx]) ?? c.wind_speed_10m),
+    windDirection: Number((h.wind_direction_10m && h.wind_direction_10m[idx]) ?? c.wind_direction_10m),
+    hourly
+  };
+}
+function weatherSnapshotHtml(wx, compact) {
+  if (!wx || typeof wx !== "object") return "";
+  if (wx.error) return `<div class="task-weather-ref">${ic("alert")} เคยพยายามดึงสภาพอากาศแล้ว แต่ดึงไม่สำเร็จ</div>`;
+  const actualLabel = wx.targetDate ? `${dateLabel(wx.targetDate)} ${wx.targetTime || String(wx.time || "").slice(11, 16)}` : "";
+  const captured = wx.time || (wx.capturedAt ? new Date(wx.capturedAt).toLocaleString("th-TH") : "");
+  const chips = [
+    `${weatherValue(wx.temperature, "°C")}`,
+    `ชื้น ${weatherValue(wx.humidity, "%")}`,
+    `ฝน ${weatherValue((Number(wx.rain) || Number(wx.precipitation) || 0), " มม.")}`,
+    wx.rainProb != null ? `โอกาสฝน ${weatherValue(wx.rainProb, "%")}` : "",
+    `ลม ${weatherValue(wx.windSpeed, " m/s")}`
+  ].filter(Boolean);
+  return `
+    <div class="task-weather-ref ${compact ? "compact" : ""}">
+      <div class="task-weather-title">${wx.icon || "🌡️"} ${esc(wx.condition || "สภาพอากาศตอนทำงาน")}</div>
+      <div class="task-weather-grid">${chips.map(x => `<span>${esc(x)}</span>`).join("")}</div>
+      ${!compact && Array.isArray(wx.hourly) && wx.hourly.length ? `
+      <div class="task-hourly-title">พยากรณ์รายชั่วโมงหลังบันทึก</div>
+      <div class="task-hourly-strip">
+        ${wx.hourly.slice(0, 12).map(h => `<div class="task-hourly-cell">
+          <b>${esc(h.hour || String(h.time || "").slice(11, 16))}</b>
+          <span>${h.icon || "🌡️"} ${weatherValue(h.temperature, "°")}</span>
+          <small>${h.rainProb != null ? `โอกาสฝน ${fmtNum(h.rainProb)}%` : `ฝนคาด ${weatherValue(h.precipitation, " มม.")}`}</small>
+          <small>ลม ${weatherValue(h.windSpeed, " m/s")}</small>
+        </div>`).join("")}
+      </div>` : ""}
+      <div class="task-weather-source">อ้างอิง ${esc(wx.source || "Open-Meteo")}${wx.plotName ? ` · ${esc(wx.plotName)}` : ""}${actualLabel ? ` · เวลาทำจริง ${esc(actualLabel)}` : (captured ? ` · ${esc(captured)}` : "")}${wx.capturedAt ? ` · บันทึก ${esc(new Date(wx.capturedAt).toLocaleString("th-TH"))}` : ""}</div>
+    </div>`;
+}
 /* วันภาษาไทยสั้นจาก ISO date */
 function dayNameISO(iso) { try { return "วัน" + THAI_DAYS[new Date(iso + "T12:00:00").getDay()]; } catch (e) { return ""; } }
 /* คำเตือนสภาพอากาศเชิงปฏิบัติการ — แปลงพยากรณ์เป็นคำแนะนำทำงานจริง:
@@ -2595,7 +2887,7 @@ function weatherAdvisoryHtml(p, c, d) {
   if (rainDays.length) {
     const best = Math.max(...rainDays.map(r => r.pr));
     const names = rainDays.map(r => r.name).join(" และ ");
-    push("warn", ic("alert"), `พยากรณ์ฝน ${best}% ${names} — <b>เลื่อนพ่นยา/ใส่ปุ๋ย</b>ไปหลังฝนผ่าน ประหยัดกว่า (ยาไม่ถูกฝนชะ)`);
+    push("warn", ic("alert"), `โอกาสฝนสูงสุด ${best}% ${names} — <b>เลื่อนพ่นยา/ใส่ปุ๋ย</b>ไปหลังฝนผ่าน ประหยัดกว่า (ยาไม่ถูกฝนชะ)`);
   }
   /* 2) ลมแรงตอนนี้ -> งดฉีดพ่น (หยดลอยเสี่ยง) */
   const wind = Number(c.wind_speed_10m);
@@ -2618,9 +2910,9 @@ function weatherAdvisoryHtml(p, c, d) {
     const pr = probs[idx] == null ? 0 : Number(probs[idx]);
     const name = esc((t.title || TYPE_LABELS[t.type] || "งาน").slice(0, 40));
     if ((t.type === "spray" || t.type === "fertilize") && pr >= 50) {
-      push("warn", ic("spray"), `งาน"${name}" (${dayNameISO(t.date)}) เสี่ยงโดนฝน ${pr}% — พิจารณา<b>เลื่อนวัน</b>หรือทำให้เสร็จก่อนฝนตก`);
+      push("warn", ic("spray"), `งาน"${name}" (${dayNameISO(t.date)}) มีโอกาสฝน ${pr}% — พิจารณา<b>เลื่อนวัน</b>หรือทำให้เสร็จก่อนฝนตก`);
     } else if (t.type === "harvest" && (pr >= 50 || Number(sums[idx] || 0) >= 10)) {
-      push("danger", ic("box"), `กำหนด<b>เก็บเกี่ยว</b>วัน${dayNameISO(t.date)} แต่มีฝน ${pr}% (~${fmtNum(sums[idx] || 0)} มม.) — ถ้าผลผลิตพร้อม<b>รีบเก็บก่อนฝน</b> คุณภาพดีกว่า`);
+      push("danger", ic("box"), `กำหนด<b>เก็บเกี่ยว</b>วัน${dayNameISO(t.date)} แต่มีโอกาสฝน ${pr}% (~${fmtNum(sums[idx] || 0)} มม.) — ถ้าผลผลิตพร้อม<b>รีบเก็บก่อนฝน</b> คุณภาพดีกว่า`);
     }
   });
   return out.join("");
@@ -2632,6 +2924,7 @@ function renderPlotWeather() {
   if (!el) return;
   const p = plotById(S, route.plotId);
   if (!p) return;
+  renderRainRadar(p);
   renderWeatherCompare(p); /* การ์ดเทียบหลายสถานี — ดึงขนานกันเอง */
   if (!Number(p.lat) || !Number(p.lng)) return;
   const ckey = p.id + "|" + p.lat + "," + p.lng;
@@ -2641,6 +2934,7 @@ function renderPlotWeather() {
   /* Open-Meteo — ฟรี ไม่ต้องใช้คีย์ · best_match = ผสมโมเดลที่ดีที่สุด (มี % ความน่าจะเป็นฝน) 7 วัน */
   const url = "https://api.open-meteo.com/v1/forecast?latitude=" + p.lat + "&longitude=" + p.lng +
     "&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m" +
+    "&hourly=temperature_2m,relative_humidity_2m,precipitation,precipitation_probability,weather_code,wind_speed_10m" +
     "&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,weather_code" +
     "&forecast_days=7&timezone=auto";
   fetch(url)
@@ -2649,9 +2943,38 @@ function renderPlotWeather() {
       if (!om || !om.current || !om.daily) throw new Error("empty");
       const c = om.current;
       const d = om.daily;
+      const h = om.hourly || {};
       const [cond, emoji] = omCodeInfo(c.weather_code);
       /* แสดงทศนิยม 1 ตำแหน่ง (ไม่ปัดเลขทิ้ง — เช่น 31.4°C) */
       const fmt1 = n => (n == null ? "—" : (Math.round(Number(n) * 10) / 10).toFixed(1).replace(/\.0$/, ""));
+      const nowMs = c.time ? new Date(c.time).getTime() : Date.now();
+      const hours = (h.time || [])
+        .map((time, i) => {
+          const [hc, he] = omCodeInfo(h.weather_code && h.weather_code[i]);
+          return {
+            time,
+            hour: String(time || "").slice(11, 16),
+            temp: h.temperature_2m && h.temperature_2m[i],
+            hum: h.relative_humidity_2m && h.relative_humidity_2m[i],
+            rain: h.precipitation && h.precipitation[i],
+            prob: h.precipitation_probability && h.precipitation_probability[i] != null ? Number(h.precipitation_probability[i]) : null,
+            wind: h.wind_speed_10m && h.wind_speed_10m[i],
+            cond: hc,
+            emoji: he
+          };
+        })
+        .filter(x => !x.time || new Date(x.time).getTime() >= nowMs)
+        .slice(0, 12);
+      const hourlyHtml = hours.length ? `
+      <div class="weather-hourly-title">รายชั่วโมงถัดไป <span>เปอร์เซ็นต์คือโอกาสฝนตามโมเดล ไม่ใช่ฝนตกจริง</span></div>
+      <div class="weather-hourly-strip">
+        ${hours.map(x => `<div class="weather-hourly-cell">
+          <b>${esc(x.hour)}</b>
+          <span>${x.emoji} ${fmt1(x.temp)}°</span>
+          <small>${x.prob != null ? `โอกาสฝน ${fmtNum(x.prob)}%` : `ฝนคาด ${fmt1(x.rain)} มม.`}</small>
+          <small>ลม ${fmt1(x.wind)} m/s</small>
+        </div>`).join("")}
+      </div>` : "";
       const days = (d.time || []).slice(0, 7).map((day, i) => {
         const [dc, de] = omCodeInfo(d.weather_code[i]);
         const probs = d.precipitation_probability_max || [];
@@ -2660,7 +2983,7 @@ function renderPlotWeather() {
       <div class="wday-name">${THAI_DAYS[new Date(day + "T12:00:00").getDay()]}</div>
       <div class="wday-emoji">${de}</div>
       <div class="wday-temp">${fmt1(d.temperature_2m_max[i])}°/${fmt1(d.temperature_2m_min[i])}°</div>
-      <div class="wday-rain">${pr != null ? "ฝน " + pr + "%" : "ฝน " + fmt1(d.precipitation_sum[i]) + " มม."}</div>
+      <div class="wday-rain">${pr != null ? "โอกาส " + pr + "%" : "ฝนรวม " + fmt1(d.precipitation_sum[i]) + " มม."}</div>
     </div>`;
       }).join("");
       const timeStr = c.time ? String(c.time).slice(11, 16) : "";
@@ -2668,7 +2991,7 @@ function renderPlotWeather() {
       <div class="weather-top">
         <div>
           <div class="weather-loc">${ic("pin")} ${esc(p.name)}<span class="weather-addr"></span></div>
-          <div class="weather-updated">🌍 Open-Meteo · ECMWF — ข้อมูลล่าสุด ${timeStr} · อัปเดตอัตโนมัติทุก 30 นาที</div>
+          <div class="weather-updated">🌍 Open-Meteo · พยากรณ์ตามโมเดล — ข้อมูลล่าสุด ${timeStr} · อัปเดตอัตโนมัติทุก 30 นาที</div>
         </div>
         <a class="weather-map" href="${mapLink(p.lat, p.lng)}" target="_blank" rel="noopener">${ic("map")} แผนที่</a>
       </div>
@@ -2681,9 +3004,10 @@ function renderPlotWeather() {
       </div>
       <div class="weather-chips">
         <span>💧 ความชื้น ${fmt1(c.relative_humidity_2m)}%</span>
-        <span>🌧️ ฝน ${fmt1(c.precipitation)} มม.</span>
+        <span>🌧️ ฝนล่าสุด ${fmt1(c.precipitation)} มม.</span>
         <span>💨 ลม ${fmt1(c.wind_speed_10m)} m/s</span>
       </div>
+      ${hourlyHtml}
       ${weatherAdvisoryHtml(p, c, d)}
       <div class="weather-days">${days}</div>`;
       WEATHER_CACHE[ckey] = { t: Date.now(), html };
@@ -2788,6 +3112,7 @@ function renderPlotDetail() {
   const overviewHtml = `
     ${plotPhotoCard(p)}
     ${plotWeatherCard(p)}
+    ${plotWaterZonesCard(p)}
     ${plotWaterCard(p)}
     <div class="section-title">กำไร/ขาดทุนของแปลงนี้</div>
     <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none">
@@ -2882,6 +3207,7 @@ function cycleCalCardHtml(c) {
     let dotCls = "";
     if (dayTasks.length) {
       dotCls = dayTasks.some(t => taskStatusOf(t) === "overdue") ? "dot-red"
+        : dayTasks.some(t => taskStatusOf(t) === "failed") ? "dot-gray"
         : dayTasks.some(t => taskStatusOf(t) === "planned") ? "dot-amber" : "dot-green";
     }
     const dots = dotCls ? `<span class="dots"><i class="${dotCls}"></i></span>` : "";
@@ -2947,7 +3273,8 @@ function renderCycleDetail() {
   let tasks = allTasks.slice();
   if (f.type) tasks = tasks.filter(t => t.type === f.type);
   if (f.status === "done") tasks = tasks.filter(t => t.status === "done");
-  else if (f.status === "planned") tasks = tasks.filter(t => t.status !== "done");
+  else if (f.status === "failed") tasks = tasks.filter(t => t.status === "failed");
+  else if (f.status === "planned") tasks = tasks.filter(t => t.status !== "done" && t.status !== "failed");
   if (f.costOnly) tasks = tasks.filter(t => costOf(t) > 0);
   if (f.sort === "old") tasks.sort((a, b) => a.date.localeCompare(b.date));
   else if (f.sort === "cost") tasks.sort((a, b) => costOf(b) - costOf(a));
@@ -3015,6 +3342,7 @@ function renderCycleDetail() {
       <select class="cycf" onchange="App.cycTaskFilter('status', this.value)" title="กรองสถานะ">
         <option value="" ${!f.status ? "selected" : ""}>ทุกสถานะ</option>
         <option value="planned" ${f.status === "planned" ? "selected" : ""}>ยังไม่เสร็จ</option>
+        <option value="failed" ${f.status === "failed" ? "selected" : ""}>ไม่สำเร็จ</option>
         <option value="done" ${f.status === "done" ? "selected" : ""}>เสร็จแล้ว</option>
       </select>
       <label class="cycf-cost"><input type="checkbox" ${f.costOnly ? "checked" : ""} onchange="App.cycTaskFilter('costOnly', this.checked)"> มีค่าใช้จ่าย</label>
@@ -3128,18 +3456,44 @@ App.toggleTask = function (id) {
   const np = document.getElementById("notifPanel");
   if (np && !np.hidden) renderNotifPanel();
 };
-App.modalTaskComplete = function (id, returnToDetail) {
+App.resetTaskPlanned = function (id) {
+  const t = S.tasks.find(x => x.id === id);
+  if (!t) return;
+  t.status = "planned";
+  if (Array.isArray(t.wateringSessions)) {
+    t.wateringSessions = t.wateringSessions.map(w => ({ ...w, status: "planned" }));
+  }
+  t.updatedAt = Date.now();
+  if (S.notifDismissed) delete S.notifDismissed[id];
+  saveState(S);
+  closeModal();
+  rerender();
+  toast(`กลับเป็นแผนแล้ว: ${t.title}`);
+  const np = document.getElementById("notifPanel");
+  if (np && !np.hidden) renderNotifPanel();
+};
+App.modalTaskComplete = function (id, returnToDetail, resultIntent) {
   const t = S.tasks.find(x => x.id === id);
   if (!t) return;
   taskCompleteReturnToDetail = !!returnToDetail;
   taskDonePhotos = taskDonePhotosOf(t).slice();
   const p = t.plotId ? plotById(S, t.plotId) : null;
+  const weatherPlot = taskWeatherPlot(t);
+  const recommendWeather = taskWeatherRecommended(t);
   const recommendPhoto = taskPhotoRecommended(t);
   const alreadyDone = t.status === "done";
+  const alreadyFailed = t.status === "failed";
+  const failIntent = resultIntent === "failed" && !alreadyDone;
+  const doneDate = (alreadyDone || alreadyFailed) ? taskDoneDate(t) : todayISO();
+  const doneTime = (alreadyDone || alreadyFailed) ? taskDoneTime(t) : currentTimeHHMM();
+  taskDoneWaterSessions = doneWaterSessionsForTask(t);
+  if (failIntent && t.type === "water" && taskDoneWaterSessions.length) {
+    taskDoneWaterSessions = taskDoneWaterSessions.map(w => ({ ...w, status: "failed" }));
+  }
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
-    <h3>${ic("check")} ${alreadyDone ? "แก้ผลหลังทำ" : "บันทึกผลการทำงาน"}</h3>
-    <div class="modal-sub">${esc(t.title)}${p ? ` · ${esc(p.name)}` : ""}${alreadyDone ? " · งานนี้ทำเสร็จแล้ว" : ""}</div>
+    <h3>${ic(failIntent || alreadyFailed ? "alert" : "check")} ${alreadyDone ? "แก้ผลหลังทำ" : (alreadyFailed ? "แก้ผลงานไม่สำเร็จ" : (failIntent ? "บันทึกงานไม่สำเร็จ" : "บันทึกผลการทำงาน"))}</h3>
+    <div class="modal-sub">${esc(t.title)}${p ? ` · ${esc(p.name)}` : ""}${alreadyDone ? " · งานนี้ทำเสร็จแล้ว" : (alreadyFailed ? " · งานนี้บันทึกว่าไม่สำเร็จ" : (failIntent ? " · เลือกรอบที่ไม่ได้ทำจริงได้" : ""))}</div>
     <div class="task-photo-panel">
       <div class="task-photo-head">
         <div><b>รูปหลังทำ</b><span>ถ่ายหลักฐานหลังตรวจแปลง ฉีดยา ใส่ปุ๋ย หรือเก็บเกี่ยว</span></div>
@@ -3148,18 +3502,31 @@ App.modalTaskComplete = function (id, returnToDetail) {
       <div id="taskDonePhotoPreview">${taskPhotoPreviewHtml(taskDonePhotos, "done")}</div>
     </div>
     ${recommendPhoto ? `<div class="task-photo-reminder">${ic("camera")} งาน${esc(TYPE_LABELS[t.type] || "นี้")}แนะนำให้แนบรูปหลังทำไว้เป็นหลักฐาน</div>` : ""}
+    <div id="taskWaterResultMount">${taskDoneWaterSessionsHtml()}</div>
     <div class="field">
       <label>หมายเหตุหลังทำ</label>
       <textarea id="tdone_note" rows="3" placeholder="เช่น พบเพลี้ยเล็กน้อย ฉีดตามอัตราแล้ว / ดินยังชื้นดี">${esc(t.doneNote || "")}</textarea>
     </div>
+    <div class="form-row-2">
+      <div class="field"><label>วันที่ทำจริง *</label><input id="tdone_date" type="date" value="${esc(doneDate)}" required></div>
+      <div class="field"><label>เวลาที่ทำจริง</label><input id="tdone_time" type="time" value="${esc(doneTime)}"></div>
+    </div>
+    ${recommendWeather ? `
+    <div class="task-weather-panel">
+      <label class="option-box inline-option"><input type="checkbox" id="tdone_weather" ${weatherPlot ? "checked" : ""} ${weatherPlot ? "" : "disabled"}><span>${ic("droplet")} บันทึกสภาพอากาศตอนทำงาน</span></label>
+      <div class="hint">${weatherPlot ? `ดึงจากพิกัดแปลง ${esc(weatherPlot.name)} ตามวันที่/เวลาที่ทำจริงด้านบน ถ้ากรอกย้อนหลัง ระบบจะใช้อากาศย้อนหลังรายชั่วโมง` : "งานนี้ยังไม่มีพิกัดแปลง จึงยังดึงสภาพอากาศอัตโนมัติไม่ได้"}</div>
+      ${t.weatherSnapshot ? weatherSnapshotHtml(t.weatherSnapshot, true) : ""}
+    </div>` : ""}
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
+      <button type="button" class="btn btn-danger-soft" onclick="App.failTask('${id}')">${ic("alert")} ${alreadyFailed || failIntent ? "บันทึกไม่สำเร็จ" : "งานไม่สำเร็จ"}</button>
       <button type="button" class="btn btn-outline" onclick="App.finishTask('${id}', true)">${alreadyDone ? "บันทึกโดยไม่แนบรูป" : "ทำเสร็จโดยไม่แนบรูป"}</button>
       <button type="button" class="btn btn-primary" onclick="App.finishTask('${id}', false)">${ic("check")} ${alreadyDone ? "บันทึกผลหลังทำ" : "บันทึกผล"}</button>
     </div>`);
 };
-App.finishTask = function (id, allowNoPhoto) {
+App.finishTask = async function (id, allowNoPhoto) {
   if (taskPhotoUploading.done) { toast("รอเพิ่มรูปให้เสร็จก่อน"); return; }
+  if (taskFinishSaving) { toast("กำลังบันทึกผลอยู่..."); return; }
   const t = S.tasks.find(x => x.id === id);
   if (!t) return;
   if (taskPhotoRecommended(t) && !allowNoPhoto && !taskDonePhotos.length) {
@@ -3168,9 +3535,35 @@ App.finishTask = function (id, allowNoPhoto) {
     toast(`งาน${TYPE_LABELS[t.type] || "นี้"}แนะนำให้แนบรูปหลังทำ หรือกดทำเสร็จโดยไม่แนบรูป`);
     return;
   }
+  taskFinishSaving = true;
   t.status = "done";
+  if (t.type === "water" && taskDoneWaterSessions.length) {
+    t.wateringSessions = normalizeTaskWaterSessions(taskDoneWaterSessions.map(w => ({ ...w, status: w.status || "done" })));
+  }
   t.donePhotos = taskDonePhotos.slice();
   t.doneNote = (document.getElementById("tdone_note")?.value || "").trim();
+  const doneDateInput = document.getElementById("tdone_date");
+  const doneTimeInput = document.getElementById("tdone_time");
+  const doneDate = (doneDateInput?.value || todayISO()).slice(0, 10);
+  const doneTime = (doneTimeInput?.value || currentTimeHHMM()).slice(0, 5);
+  if (!doneDate) {
+    taskFinishSaving = false;
+    if (doneDateInput) setModalFieldError(doneDateInput, "กรุณาเลือกวันที่ทำจริง");
+    return;
+  }
+  t.doneDate = doneDate;
+  t.doneTime = doneTime;
+  const weatherCheck = document.getElementById("tdone_weather");
+  const weatherPlot = taskWeatherPlot(t);
+  if (weatherCheck && weatherCheck.checked && weatherPlot) {
+    toast(`กำลังดึงสภาพอากาศ ${dateLabel(doneDate)} ${doneTime}...`);
+    try {
+      t.weatherSnapshot = await fetchTaskWeatherSnapshot(weatherPlot, { date: doneDate, time: doneTime });
+    } catch (e) {
+      console.warn("weather snapshot failed", e);
+      toast("บันทึกงานได้ แต่อากาศดึงไม่สำเร็จ");
+    }
+  }
   t.updatedAt = Date.now();
   if (S.notifDismissed) delete S.notifDismissed[id];
   saveState(S);
@@ -3182,6 +3575,99 @@ App.finishTask = function (id, allowNoPhoto) {
   toast(n ? `บันทึกแล้ว · รูปรวม ${fmtNum(n)} รูป` : `บันทึกแล้ว: ${t.title}`);
   const np = document.getElementById("notifPanel");
   if (np && !np.hidden) renderNotifPanel();
+  taskFinishSaving = false;
+};
+App.failTask = async function (id) {
+  if (taskPhotoUploading.done) { toast("รอเพิ่มรูปให้เสร็จก่อน"); return; }
+  if (taskFinishSaving) { toast("กำลังบันทึกผลอยู่..."); return; }
+  const t = S.tasks.find(x => x.id === id);
+  if (!t) return;
+  taskFinishSaving = true;
+  const doneDateInput = document.getElementById("tdone_date");
+  const doneTimeInput = document.getElementById("tdone_time");
+  const doneDate = (doneDateInput?.value || todayISO()).slice(0, 10);
+  const doneTime = (doneTimeInput?.value || currentTimeHHMM()).slice(0, 5);
+  if (!doneDate) {
+    taskFinishSaving = false;
+    if (doneDateInput) setModalFieldError(doneDateInput, "กรุณาเลือกวันที่บันทึกผล");
+    return;
+  }
+  t.status = "failed";
+  if (t.type === "water") {
+    const rows = taskDoneWaterSessions.length ? taskDoneWaterSessions : doneWaterSessionsForTask(t);
+    const allDefaultDone = rows.length && rows.every(w => w.status === "done");
+    t.wateringSessions = normalizeTaskWaterSessions(rows.map(w => ({
+      ...w,
+      status: allDefaultDone ? "failed" : (w.status || "failed")
+    })));
+  }
+  t.donePhotos = taskDonePhotos.slice();
+  t.doneNote = (document.getElementById("tdone_note")?.value || "").trim();
+  t.doneDate = doneDate;
+  t.doneTime = doneTime;
+  t.updatedAt = Date.now();
+  if (S.notifDismissed) delete S.notifDismissed[id];
+  saveState(S);
+  closeModal();
+  rerender();
+  if (taskCompleteReturnToDetail) App.viewTask(id);
+  taskCompleteReturnToDetail = false;
+  toast(`บันทึกว่าไม่สำเร็จ: ${t.title}`);
+  const np = document.getElementById("notifPanel");
+  if (np && !np.hidden) renderNotifPanel();
+  taskFinishSaving = false;
+};
+App.modalTaskWeatherBackfill = function (id) {
+  const t = S.tasks.find(x => x.id === id);
+  if (!t) return;
+  const p = taskWeatherPlot(t);
+  if (!p) { toast("กิจกรรมนี้ยังไม่มีพิกัดแปลง จึงดึงอากาศไม่ได้"); return; }
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("droplet")} บันทึกอากาศย้อนหลัง</h3>
+    <div class="modal-sub">${esc(t.title)} · ดึงตามเวลาที่ทำจริง ไม่ใช่เวลาที่กดบันทึก</div>
+    <div class="form-row-2">
+      <div class="field"><label>วันที่ทำจริง *</label><input id="twx_date" type="date" value="${esc(taskDoneDate(t))}" required></div>
+      <div class="field"><label>เวลาที่ทำจริง</label><input id="twx_time" type="time" value="${esc(taskDoneTime(t))}"></div>
+    </div>
+    <div class="hint">ถ้าเป็นย้อนหลังใกล้ๆ ระบบใช้ข้อมูลรายชั่วโมงย้อนหลัง ถ้าเก่ากว่านั้นจะลองใช้ข้อมูล Historical ของ Open-Meteo</div>
+    ${t.weatherSnapshot ? weatherSnapshotHtml(t.weatherSnapshot, true) : ""}
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
+      <button type="button" class="btn btn-primary" onclick="App.saveTaskWeatherBackfill('${id}')">${ic("save")} บันทึกอากาศ</button>
+    </div>`);
+};
+App.saveTaskWeatherBackfill = async function (id) {
+  if (taskFinishSaving) { toast("กำลังดึงสภาพอากาศอยู่..."); return; }
+  const t = S.tasks.find(x => x.id === id);
+  const p = t ? taskWeatherPlot(t) : null;
+  if (!t || !p) return;
+  const dateInput = document.getElementById("twx_date");
+  const timeInput = document.getElementById("twx_time");
+  const doneDate = (dateInput?.value || "").slice(0, 10);
+  const doneTime = (timeInput?.value || currentTimeHHMM()).slice(0, 5);
+  if (!doneDate) {
+    if (dateInput) setModalFieldError(dateInput, "กรุณาเลือกวันที่ทำจริง");
+    return;
+  }
+  taskFinishSaving = true;
+  toast(`กำลังดึงสภาพอากาศ ${dateLabel(doneDate)} ${doneTime}...`);
+  try {
+    t.doneDate = doneDate;
+    t.doneTime = doneTime;
+    t.weatherSnapshot = await fetchTaskWeatherSnapshot(p, { date: doneDate, time: doneTime });
+    t.updatedAt = Date.now();
+    saveState(S);
+    closeModal();
+    rerender();
+    App.viewTask(id);
+    toast("บันทึกสภาพอากาศย้อนหลังแล้ว");
+  } catch (e) {
+    console.warn("weather backfill failed", e);
+    toast("ดึงอากาศย้อนหลังไม่สำเร็จ — ลองเลือกเวลาใกล้เคียงหรือเช็กอินเทอร์เน็ต");
+  } finally {
+    taskFinishSaving = false;
+  }
 };
 
 /* ---------------- Planner / calendar ---------------- */
@@ -3190,17 +3676,19 @@ function renderPlanner() {
   const selTasks = sel ? tasksOn(S, sel).sort((a, b) => (a.status === "done" ? 1 : 0) - (b.status === "done" ? 1 : 0)) : [];
   const today = todayISO();
   const weekEnd = addDaysISO(today, 6);
-  const pending = t => t.status !== "done";
+  const pending = t => t.status !== "done" && t.status !== "failed";
   const counts = {
     today: S.tasks.filter(t => t.date === today && pending(t)).length,
     week: S.tasks.filter(t => t.date >= today && t.date <= weekEnd && pending(t)).length,
     overdue: S.tasks.filter(t => taskStatusOf(t) === "overdue").length,
+    failed: S.tasks.filter(t => t.status === "failed").length,
     done: S.tasks.filter(t => t.status === "done").length
   };
   const modes = {
     today: { label: "วันนี้", hint: "งานที่ต้องจัดการในวันนี้", ico: "calendar" },
     week: { label: "สัปดาห์นี้", hint: "งานที่ยังไม่เสร็จใน 7 วันข้างหน้า", ico: "leaf" },
     overdue: { label: "เลยกำหนด", hint: "งานค้างที่ควรเคลียร์ก่อน", ico: "alert" },
+    failed: { label: "ไม่สำเร็จ", hint: "งานที่บันทึกว่าไม่ได้ทำหรือทำไม่ครบ", ico: "alert" },
     done: { label: "เสร็จแล้ว", hint: "ประวัติงานที่ปิดงานแล้ว", ico: "check" }
   };
   const mode = modes[plannerFilter] ? plannerFilter : "today";
@@ -3208,11 +3696,13 @@ function renderPlanner() {
     if (mode === "today") return t.date === today && pending(t);
     if (mode === "week") return t.date >= today && t.date <= weekEnd && pending(t);
     if (mode === "overdue") return taskStatusOf(t) === "overdue";
+    if (mode === "failed") return t.status === "failed";
     if (mode === "done") return t.status === "done";
     return false;
   }).sort((a, b) => {
     if (mode === "done") return b.date.localeCompare(a.date);
     if (mode === "overdue") return a.date.localeCompare(b.date);
+    if (mode === "failed") return b.date.localeCompare(a.date);
     return a.date.localeCompare(b.date);
   });
   const filterBtn = (key, count) => `
@@ -3229,6 +3719,7 @@ function renderPlanner() {
       ${filterBtn("today", counts.today)}
       ${filterBtn("week", counts.week)}
       ${filterBtn("overdue", counts.overdue)}
+      ${filterBtn("failed", counts.failed)}
       ${filterBtn("done", counts.done)}
     </div>
     <div class="card planner-list-card">
@@ -3237,9 +3728,9 @@ function renderPlanner() {
           <div class="bold">${modes[mode].label}</div>
           <div class="muted">${modes[mode].hint}</div>
         </div>
-        <span class="badge ${mode === "overdue" ? "badge-red" : "badge-green"}">${fmtNum(plannerItems.length)} งาน</span>
+        <span class="badge ${mode === "overdue" || mode === "failed" ? "badge-red" : "badge-green"}">${fmtNum(plannerItems.length)} งาน</span>
       </div>
-      ${plannerItems.length === 0 ? `<div class="empty compact-empty"><div class="e-ico">${ic(mode === "done" ? "check" : "calendar")}</div><div class="e-title">${mode === "overdue" ? "ไม่มีงานเลยกำหนด" : (mode === "done" ? "ยังไม่มีงานที่เสร็จแล้ว" : "ไม่มีงานในช่วงนี้")}</div><div class="muted">กดเพิ่มกิจกรรมเมื่อต้องวางแผนงานใหม่</div></div>` : ""}
+      ${plannerItems.length === 0 ? `<div class="empty compact-empty"><div class="e-ico">${ic(mode === "done" ? "check" : "calendar")}</div><div class="e-title">${mode === "overdue" ? "ไม่มีงานเลยกำหนด" : (mode === "failed" ? "ยังไม่มีงานไม่สำเร็จ" : (mode === "done" ? "ยังไม่มีงานที่เสร็จแล้ว" : "ไม่มีงานในช่วงนี้"))}</div><div class="muted">กดเพิ่มกิจกรรมเมื่อต้องวางแผนงานใหม่</div></div>` : ""}
       ${plannerItems.map(t => taskRowHtml(t, { showDate: true, showNote: true, showDelete: true, showPlot: true })).join("")}
     </div>
     <details class="planner-calendar-panel">
@@ -4568,7 +5059,7 @@ function shareTaskHtml(t) {
         ${photosHtml}
         ${costsHtml}
       </div>
-      ${t.status === "done" ? '<span class="badge badge-green">เสร็จ</span>' : '<span class="badge badge-amber">แผน</span>'}
+      ${statusTag(taskStatusOf(t))}
     </div>`;
 }
 App.renderShareView = function () {
@@ -4932,6 +5423,21 @@ App.checkCloudSize = async function () {
       </div>`);
   } catch (e) { toast("เชื่อมต่อคลาวด์ไม่ได้ (ออฟไลน์?)"); }
 };
+App.clearAppCache = async function () {
+  toast("กำลังล้างแคชเว็บ...");
+  try {
+    if (window.caches) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    if (navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+  } catch (e) {}
+  try { sessionStorage.removeItem(ROUTE_STORE); } catch (e) {}
+  setTimeout(() => location.replace(location.pathname + "?r=" + Date.now()), 250);
+};
 
 /* ---------------- รูปภาพบนคลาวด์ (R2) ---------------- */
 /* ย่อ + อัปโหลดรูปขึ้น R2 ผ่าน worker — สำเร็จคืน URL (ข้อมูลเก็บแค่ URL ไม่กิน localStorage)
@@ -5027,6 +5533,11 @@ function renderSettings() {
         <button class="btn btn-sm btn-outline" style="flex:1" onclick="App.viewRawData()">${ic("eye")} ดูข้อมูลดิบ</button>
         <button class="btn btn-sm btn-outline" style="flex:1" onclick="App.exportData()">${ic("download")} สำรอง .json</button>
       </div>`; })()}
+    </div>
+    <div class="card mt-8">
+      <div class="row row-between"><span class="muted">หน้าเว็บค้าง/ยังเป็นเวอร์ชันเก่า</span><span class="small bold">ไม่ลบข้อมูลฟาร์ม</span></div>
+      <div class="muted mt-8" style="font-size:.72rem">ล้างเฉพาะ cache และ service worker ของเว็บ แล้วโหลดใหม่ เหมาะกับหลังอัปเดตเว็บแต่ยังเห็น UI เก่า</div>
+      <button class="btn btn-ghost btn-block mt-8" onclick="App.clearAppCache()">${ic("refresh")} ล้างแคชเว็บแล้วโหลดใหม่</button>
     </div>
     <div class="card mt-8">
       <div class="row row-between"><span class="muted">บนคลาวด์ (Cloudflare D1)</span><span class="small bold">${typeof Auth !== "undefined" && Auth.session ? esc(typeof maskEmailForDisplay === "function" ? maskEmailForDisplay(Auth.session.email) : Auth.session.email) : "ยังไม่ล็อกอิน"}</span></div>
@@ -5551,6 +6062,20 @@ function installModalValidation(form) {
   form.addEventListener("input", e => clearModalFieldError(e.target), true);
   form.addEventListener("change", e => clearModalFieldError(e.target), true);
 }
+function modalShouldLockBackdrop(modalEl) {
+  if (!modalEl) return false;
+  return !!modalEl.querySelector([
+    ".modal-lock-backdrop",
+    "form",
+    "input",
+    "select",
+    "textarea",
+    "[contenteditable='true']",
+    ".water-zone-editor-list",
+    ".stock-import-preview",
+    ".lark-photo-conflict"
+  ].join(","));
+}
 function openModal(html) {
   /* ปิดแผงแจ้งเตือนเมื่อเปิด modal (กดแถวงานในแผง → ดูรายละเอียด) */
   const np = document.getElementById("notifPanel");
@@ -5577,11 +6102,15 @@ function openModal(html) {
       if (!btn.getAttribute("title")) btn.setAttribute("title", "ปิดหน้าต่าง");
     });
     modalEl.querySelectorAll("form").forEach(installModalValidation);
+    if (modalShouldLockBackdrop(modalEl)) modalEl.classList.add("modal-backdrop-locked");
   }
   const bd = root.querySelector(".modal-backdrop");
   bd.addEventListener("click", e => {
     if (e.target !== bd) return;
-    if (root.querySelector(".modal-lock-backdrop")) return;
+    const modal = root.querySelector(".modal");
+    if (modal && modal.classList.contains("modal-backdrop-locked")) {
+      return;
+    }
     closeModal();
   });
   lockBodyScroll();
@@ -5747,6 +6276,94 @@ App.submitPlot = function (e, id) {
   closeModal();
   render();
   return false;
+};
+
+let plotWaterZoneDraft = [];
+let plotWaterZonePlotId = "";
+function waterZoneDraftHtml() {
+  const totalArea = plotWaterZoneDraft.reduce((sum, z) => sum + (Number(z.areaRai) || 0), 0);
+  const totalMinutes = plotWaterZoneDraft.reduce((sum, z) => sum + (Number(z.defaultMinutes) || 0), 0);
+  return `
+    <div class="water-zone-summary">
+      <span>${fmtNum(plotWaterZoneDraft.length)} โซน</span>
+      <span>${fmtNum(totalArea)} ไร่</span>
+      <span>${fmtNum(totalMinutes)} นาที/รอบ</span>
+    </div>
+    <div class="water-zone-editor-list">
+      ${plotWaterZoneDraft.length ? plotWaterZoneDraft.map((z, i) => `
+        <div class="water-zone-editor-row" data-wz="${i}">
+          <div class="water-zone-editor-head">
+            <b>โซน ${i + 1}</b>
+            <button type="button" class="btn btn-sm btn-danger-soft" onclick="App.waterZoneRemove(${i})">${ic("trash")} ลบ</button>
+          </div>
+          <div class="form-row-2">
+            <div class="field"><label>ชื่อโซน *</label><input value="${esc(z.name || "")}" placeholder="เช่น หน้าแปลง / กลางแปลง" oninput="App.waterZoneSet(${i}, 'name', this.value)"></div>
+            <div class="field"><label>พื้นที่โซน (ไร่)</label><input type="number" min="0" step="0.01" inputmode="decimal" value="${z.areaRai || ""}" placeholder="เช่น 2" oninput="App.waterZoneSet(${i}, 'areaRai', this.value)"></div>
+          </div>
+          <div class="form-row-2">
+            <div class="field"><label>นาทีมาตรฐาน</label><input type="number" min="0" step="1" inputmode="numeric" value="${z.defaultMinutes || ""}" placeholder="เช่น 30" oninput="App.waterZoneSet(${i}, 'defaultMinutes', this.value)"></div>
+            <div class="field"><label>วิธีรดน้ำ</label><select onchange="App.waterZoneSet(${i}, 'method', this.value)">
+              ${WATER_METHODS.map(m => `<option value="${esc(m)}" ${z.method === m ? "selected" : ""}>${esc(m)}</option>`).join("")}
+            </select></div>
+          </div>
+          <div class="field"><label>หมายเหตุ</label><input value="${esc(z.note || "")}" placeholder="เช่น ปั๊มเปิดได้ทีละ 2 ไร่ / วาล์วกลางแปลง" oninput="App.waterZoneSet(${i}, 'note', this.value)"></div>
+        </div>`).join("") : `<div class="water-zone-empty">กดเพิ่มโซน เช่น หน้าแปลง กลางแปลง ท้ายแปลง แล้วกำหนดนาทีที่ใช้ประจำ</div>`}
+    </div>`;
+}
+App.modalPlotWaterZones = function (plotId) {
+  const p = plotById(S, plotId);
+  if (!p) return;
+  plotWaterZonePlotId = plotId;
+  plotWaterZoneDraft = plotWaterZones(p).map(z => ({ ...z }));
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>โซนน้ำของ ${esc(p.name)}</h3>
+    <div class="modal-sub">ตั้งโซนที่ต้องรดประจำไว้ครั้งเดียว แล้วใช้ปุ่มลัดตอนบันทึกกิจกรรมรดน้ำ</div>
+    <div id="waterZoneDraftMount">${waterZoneDraftHtml()}</div>
+    <button type="button" class="btn btn-sm btn-ghost btn-block mt-8" onclick="App.waterZoneAdd()">${ic("plus")} เพิ่มโซน</button>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
+      <button type="button" class="btn btn-primary" onclick="App.savePlotWaterZones()">บันทึกโซนน้ำ</button>
+    </div>`);
+};
+App.waterZoneSet = function (i, key, value) {
+  if (!plotWaterZoneDraft[i]) return;
+  plotWaterZoneDraft[i][key] = ["areaRai", "defaultMinutes"].includes(key) ? (Number(value) || 0) : String(value || "");
+  const mount = document.getElementById("waterZoneDraftMount");
+  const summary = mount ? mount.querySelector(".water-zone-summary") : null;
+  if (summary) {
+    const totalArea = plotWaterZoneDraft.reduce((sum, z) => sum + (Number(z.areaRai) || 0), 0);
+    const totalMinutes = plotWaterZoneDraft.reduce((sum, z) => sum + (Number(z.defaultMinutes) || 0), 0);
+    summary.innerHTML = `<span>${fmtNum(plotWaterZoneDraft.length)} โซน</span><span>${fmtNum(totalArea)} ไร่</span><span>${fmtNum(totalMinutes)} นาที/รอบ</span>`;
+  }
+};
+App.waterZoneAdd = function () {
+  plotWaterZoneDraft.push({ id: uid(), name: "โซน " + (plotWaterZoneDraft.length + 1), areaRai: "", defaultMinutes: 30, method: "ระบบน้ำ", note: "" });
+  const mount = document.getElementById("waterZoneDraftMount");
+  if (mount) mount.innerHTML = waterZoneDraftHtml();
+};
+App.waterZoneRemove = function (i) {
+  plotWaterZoneDraft.splice(i, 1);
+  const mount = document.getElementById("waterZoneDraftMount");
+  if (mount) mount.innerHTML = waterZoneDraftHtml();
+};
+App.savePlotWaterZones = function () {
+  const p = plotById(S, plotWaterZonePlotId);
+  if (!p) return;
+  p.waterZones = plotWaterZoneDraft
+    .map((z, i) => ({
+      id: z.id || uid(),
+      name: String(z.name || "").trim() || "โซน " + (i + 1),
+      areaRai: Number(z.areaRai) || 0,
+      defaultMinutes: Number(z.defaultMinutes) || 0,
+      method: String(z.method || "ระบบน้ำ").trim() || "ระบบน้ำ",
+      note: String(z.note || "").trim()
+    }))
+    .filter(z => z.name || z.areaRai > 0 || z.defaultMinutes > 0 || z.note);
+  saveState(S);
+  closeModal();
+  render();
+  toast("บันทึกโซนน้ำของแปลงแล้ว");
 };
 
 /* ---- cycle form ---- */
@@ -6060,6 +6677,7 @@ let taskFormPhotos = [];
 let taskDonePhotos = [];
 let taskCompleteReturnToDetail = false;
 let taskEditReturnToDetail = false;
+let taskFinishSaving = false;
 const taskPhotoUploading = { form: false, done: false };
 function taskPhotos(t) {
   if (!t) return [];
@@ -6164,6 +6782,141 @@ App.viewTaskPhoto = function (id, group, idx) {
   const photos = group === "done" ? taskDonePhotosOf(t) : taskPhotos(t);
   showTaskLightbox(photos, idx, next => `App.viewTaskPhoto('${id}', '${group}', ${next})`);
 };
+function taskWateringDetailHtml(t) {
+  const rows = normalizeTaskWaterSessions(t && t.wateringSessions);
+  if (!rows.length) return "";
+  const total = rows.reduce((a, w) => a + (Number(w.minutes) || 0), 0);
+  const area = rows.reduce((a, w) => a + (Number(w.areaRai) || 0), 0);
+  const groups = [];
+  Object.keys(WATER_PERIOD_LABELS).forEach(k => {
+    const list = rows.filter(w => (w.period || "custom") === k);
+    if (list.length) groups.push([k, list]);
+  });
+  const seen = new Set(Object.keys(WATER_PERIOD_LABELS));
+  rows.filter(w => w.period && !seen.has(w.period)).forEach(w => {
+    seen.add(w.period);
+    groups.push([w.period, rows.filter(x => x.period === w.period)]);
+  });
+  return `
+    <div class="td-note task-water-detail">
+      <div class="td-note-title">${ic("droplet")} รอบรดน้ำ (${fmtNum(rows.length)} รอบ · รวม ${fmtNum(total)} นาที${area ? " · " + fmtNum(area) + " ไร่" : ""})</div>
+      <div class="task-water-detail-list">
+        ${groups.map(([period, list]) => `
+          <div class="task-water-period-group">
+            <div class="task-water-period-title">${esc(WATER_PERIOD_LABELS[period] || period || "รอบรดน้ำ")}</div>
+            ${list.map(w => {
+              const meta = [];
+              if (w.start) meta.push(w.start);
+              if (w.minutes) meta.push(`${fmtNum(w.minutes)} นาที`);
+              if (w.areaRai) meta.push(`${fmtNum(w.areaRai)} ไร่`);
+              if (w.method) meta.push(w.method);
+              return `<div class="task-water-detail-row">
+                <span><b>${esc(w.zone || "ไม่ระบุโซน")}</b>${meta.length ? `<small>${esc(meta.join(" · "))}</small>` : ""}</span>
+                <em>${esc(WATER_STATUS_LABELS[w.status] || w.status || "วางแผนไว้")}</em>
+              </div>`;
+            }).join("")}
+          </div>`).join("")}
+      </div>
+    </div>`;
+}
+function doneWaterSessionsForTask(t) {
+  if (!t || t.type !== "water") return [];
+  const base = normalizeTaskWaterSessions(t.wateringSessions && t.wateringSessions.length ? t.wateringSessions : defaultWaterSessionsForPlot(t.plotId || ""));
+  const fallbackStatus = t.status === "failed" ? "failed" : "done";
+  return base.map(w => ({
+    ...w,
+    status: (t.status === "done" || t.status === "failed") ? (w.status || fallbackStatus) : fallbackStatus
+  }));
+}
+function taskDoneWaterSessionsHtml() {
+  if (!taskDoneWaterSessions.length) return "";
+  return `
+    <div class="task-water-result-panel">
+      <div class="task-water-result-head">
+        <div>
+          <b>${ic("droplet")} ผลรอบรดน้ำ</b>
+          <span>เลือกว่ารอบไหนทำแล้ว หรือไม่ได้ทำจริง</span>
+        </div>
+        <div class="task-water-result-actions">
+          <button type="button" class="btn btn-sm btn-ghost" onclick="App.taskDoneWaterAll('done')">ทำแล้วทั้งหมด</button>
+          <button type="button" class="btn btn-sm btn-danger-soft" onclick="App.taskDoneWaterAll('failed')">ไม่ได้ทำทั้งหมด</button>
+        </div>
+      </div>
+      <div class="task-water-result-list">
+        ${taskDoneWaterSessions.map((w, i) => {
+          const meta = [];
+          if (w.start) meta.push(w.start);
+          if (w.minutes) meta.push(`${fmtNum(w.minutes)} นาที`);
+          if (w.areaRai) meta.push(`${fmtNum(w.areaRai)} ไร่`);
+          if (w.method) meta.push(w.method);
+          return `<div class="task-water-result-row">
+            <div>
+              <b>${esc(w.zone || WATER_PERIOD_LABELS[w.period] || "รอบ " + (i + 1))}</b>
+              <span>${esc([WATER_PERIOD_LABELS[w.period] || w.period, ...meta].filter(Boolean).join(" · "))}</span>
+            </div>
+            <select onchange="App.taskDoneWaterSet(${i}, this.value)" aria-label="ผลรอบรดน้ำ">
+              <option value="done" ${w.status === "done" ? "selected" : ""}>ทำแล้ว</option>
+              <option value="failed" ${w.status === "failed" ? "selected" : ""}>ไม่ได้ทำ</option>
+              <option value="planned" ${w.status === "planned" ? "selected" : ""}>ยังวางแผนไว้</option>
+            </select>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>`;
+}
+App.taskDoneWaterSet = function (i, status) {
+  if (!taskDoneWaterSessions[i]) return;
+  taskDoneWaterSessions[i].status = ["done", "failed", "planned"].includes(status) ? status : "done";
+};
+App.taskDoneWaterAll = function (status) {
+  taskDoneWaterSessions = taskDoneWaterSessions.map(w => ({ ...w, status: status === "failed" ? "failed" : "done" }));
+  const box = document.getElementById("taskWaterResultMount");
+  if (box) box.innerHTML = taskDoneWaterSessionsHtml();
+};
+
+function normalizePlotWaterZones(p) {
+  if (!p) return [];
+  if (!Array.isArray(p.waterZones)) p.waterZones = [];
+  p.waterZones = p.waterZones.map((z, i) => ({
+    id: String(z.id || "").trim() || uid(),
+    name: String(z.name || "").trim() || "โซน " + (i + 1),
+    areaRai: Number(z.areaRai) || 0,
+    defaultMinutes: Number(z.defaultMinutes) || 0,
+    method: String(z.method || "ระบบน้ำ").trim() || "ระบบน้ำ",
+    note: String(z.note || "").trim()
+  })).filter(z => z.name || z.areaRai > 0 || z.defaultMinutes > 0 || z.note);
+  return p.waterZones;
+}
+function plotWaterZones(plotOrId) {
+  const p = typeof plotOrId === "string" ? plotById(S, plotOrId) : plotOrId;
+  return normalizePlotWaterZones(p);
+}
+function plotWaterZonesCard(p) {
+  const zones = plotWaterZones(p);
+  const totalArea = zones.reduce((sum, z) => sum + (Number(z.areaRai) || 0), 0);
+  const totalMinutes = zones.reduce((sum, z) => sum + (Number(z.defaultMinutes) || 0), 0);
+  const zoneHtml = zones.length ? `
+    <div class="water-zone-grid">
+      ${zones.map(z => `
+        <div class="water-zone-pill">
+          <b>${esc(z.name)}</b>
+          <span>${z.areaRai ? fmtNum(z.areaRai) + " ไร่" : "ไม่ระบุพื้นที่"} · ${z.defaultMinutes ? fmtNum(z.defaultMinutes) + " นาที" : "ยังไม่ตั้งนาที"}</span>
+          <small>${esc([z.method, z.note].filter(Boolean).join(" · ") || "ระบบน้ำ")}</small>
+        </div>`).join("")}
+    </div>` : `
+    <div class="water-zone-empty">ยังไม่มีโซนน้ำประจำแปลง ตั้งไว้ครั้งเดียวแล้วตอนเพิ่มกิจกรรมรดน้ำจะกดเติมรอบได้เร็วขึ้น</div>`;
+  return `
+  <div class="card water-zone-card">
+    <div class="row row-between water-zone-card-head">
+      <div>
+        <div class="bold">${ic("droplet")} โซนน้ำประจำแปลง</div>
+        <div class="muted">${zones.length ? `${fmtNum(zones.length)} โซน · รวม ${fmtNum(totalArea)} ไร่ · ${fmtNum(totalMinutes)} นาที/รอบ` : "ช่วยลดการพิมพ์ซ้ำเวลารดน้ำหลายจุด"}</div>
+      </div>
+      <button class="btn btn-sm btn-outline" onclick="App.modalPlotWaterZones('${p.id}')">${ic("pencil")} จัดการ</button>
+    </div>
+    ${zoneHtml}
+  </div>`;
+}
 /* ดูรายละเอียดงาน — กดที่แถวงานเพื่อดูว่าต้องทำอะไร + จัดการได้ */
 App.viewTask = function (id) {
   const t = S.tasks.find(x => x.id === id);
@@ -6173,6 +6926,7 @@ App.viewTask = function (id) {
   const st = t.stockId ? stockById(S, t.stockId) : null;
   const rows = [
     { k: "วันที่", v: `${dateLabel(t.date)} (${t.date})` },
+    ...(t.status === "done" || t.status === "failed" ? [{ k: t.status === "failed" ? "บันทึกผล" : "ทำจริง", v: `${dateLabel(taskDoneDate(t))}${t.doneTime || (t.weatherSnapshot && t.weatherSnapshot.targetTime) ? " " + (t.doneTime || t.weatherSnapshot.targetTime) : ""}` }] : []),
     { k: "แปลง", v: p ? p.name : "—" },
     { k: "รอบการปลูก", v: c ? c.plant : "—" },
     { k: "ต้นทุน", v: t.cost ? fmtMoney(t.cost) + " บาท" : "—" },
@@ -6216,6 +6970,12 @@ App.viewTask = function (id) {
       <div class="td-note-title">${ic("check")} บันทึกหลังทำ</div>
       <div class="td-note-body">${esc(t.doneNote)}</div>
     </div>` : "";
+  const waterDetailHtml = taskWateringDetailHtml(t);
+  const weatherDetailHtml = t.weatherSnapshot ? `
+    <div class="td-note task-weather-detail">
+      <div class="td-note-title">${ic("droplet")} สภาพอากาศตอนทำงาน</div>
+      ${weatherSnapshotHtml(t.weatherSnapshot)}
+    </div>` : "";
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${esc(t.title)}</h3>
@@ -6224,6 +6984,7 @@ App.viewTask = function (id) {
       ${rows.map(r => `<div class="td-row"><span class="td-k">${r.k}</span><span class="td-v">${esc(r.v)}</span></div>`).join("")}
     </div>
     ${costListHtml}
+    ${waterDetailHtml}
     ${planPhotoHtml}
     <div class="td-note">
       <div class="td-note-title">${ic("info")} สิ่งที่ต้องทำ</div>
@@ -6231,13 +6992,16 @@ App.viewTask = function (id) {
     </div>
     ${donePhotoHtml}
     ${doneNoteHtml}
+    ${weatherDetailHtml}
     <div class="modal-actions">
       <button class="btn btn-sm btn-danger-soft" onclick="App.deleteTask('${t.id}')">${ic("trash")} ลบ</button>
       <button class="btn btn-sm btn-outline" onclick="App.editTask('${t.id}')">${ic("pencil")} แก้ไข</button>
-      ${t.status === "done"
-        ? `<button class="btn btn-sm btn-primary" onclick="App.modalTaskComplete('${t.id}', true)">${ic("camera")} แก้ผลหลังทำ</button>
-           <button class="btn btn-sm btn-outline" onclick="App.toggleTask('${t.id}')">${ic("check")} ยกเลิกเสร็จ</button>`
-        : `<button class="btn btn-sm btn-primary" onclick="App.modalTaskComplete('${t.id}', true)">${ic("check")} ทำเสร็จ</button>`}
+      ${t.status === "done" || t.status === "failed"
+        ? `<button class="btn btn-sm btn-primary" onclick="App.modalTaskComplete('${t.id}', true)">${ic("camera")} ${t.status === "failed" ? "แก้ผลไม่สำเร็จ" : "แก้ผลหลังทำ"}</button>
+           ${taskWeatherPlot(t) ? `<button class="btn btn-sm btn-outline" onclick="App.modalTaskWeatherBackfill('${t.id}')">${ic("droplet")} บันทึกอากาศย้อนหลัง</button>` : ""}
+           <button class="btn btn-sm btn-outline" onclick="App.resetTaskPlanned('${t.id}')">${ic("refresh")} กลับเป็นแผน</button>`
+        : `<button class="btn btn-sm btn-danger-soft" onclick="App.modalTaskComplete('${t.id}', true, 'failed')">${ic("alert")} งานไม่สำเร็จ</button>
+           <button class="btn btn-sm btn-primary" onclick="App.modalTaskComplete('${t.id}', true)">${ic("check")} ทำเสร็จ</button>`}
       <button class="btn btn-sm btn-ghost" onclick="App.gotoCalendar('${t.date}')">${ic("calendar")} ไปดูในปฏิทิน</button>
     </div>`);
 };
@@ -6265,6 +7029,8 @@ App.editTask = function (id) {
 let taskCostItems = [];   // state ชั่วคราวระหว่างเปิด modal
 let taskStockQueries = {}; // คำค้นหาสต็อก ต่อรายการ (index -> string) เพื่อไม่ให้ rebuild ขณะพิมพ์
 let taskEditingId = "";   // งานที่กำลังแก้ไขอยู่ ใช้บวกยอดเดิมกลับเฉพาะตอนตรวจจำนวน
+let taskWaterSessions = []; // รอบรดน้ำหลายช่วงต่อกิจกรรมเดียว
+let taskDoneWaterSessions = []; // ผลรอบรดน้ำใน modal ทำเสร็จ/ไม่สำเร็จ
 function taskOriginalStockQty(stockId) {
   if (!taskEditingId || !stockId) return 0;
   const t = S.tasks.find(x => x.id === taskEditingId);
@@ -6679,6 +7445,190 @@ App.taskCalcHarvest = function () {
   const sum = document.getElementById("harvestSum");
   if (sum) sum.textContent = fmtMoney(Math.round(qty * price)) + " บาท";
 };
+const WATER_PERIOD_LABELS = {
+  morning: "เช้า",
+  noon: "กลางวัน",
+  evening: "เย็น",
+  custom: "กำหนดเอง"
+};
+const WATER_STATUS_LABELS = {
+  planned: "วางแผนไว้",
+  done: "ทำแล้ว",
+  failed: "ไม่ได้ทำ"
+};
+const WATER_METHODS = ["ระบบน้ำ", "สปริงเกอร์", "น้ำหยด", "สายยาง", "ร่องน้ำ", "อื่นๆ"];
+function defaultWaterSessions() {
+  return [
+    { period: "morning", start: "06:00", minutes: "", method: "ระบบน้ำ", zone: "", status: "planned" },
+    { period: "evening", start: "17:00", minutes: "", method: "ระบบน้ำ", zone: "", status: "planned" }
+  ];
+}
+function addMinutesHHMM(time, minutes) {
+  if (!time) return "";
+  const m = String(time).match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return time;
+  const total = (Number(m[1]) * 60 + Number(m[2]) + Number(minutes || 0)) % 1440;
+  const safe = total < 0 ? total + 1440 : total;
+  return String(Math.floor(safe / 60)).padStart(2, "0") + ":" + String(safe % 60).padStart(2, "0");
+}
+function waterZoneMinutes(z) {
+  return Number(z && z.defaultMinutes) || 30;
+}
+function waterZoneRowsForPeriod(plotId, period) {
+  const zones = plotWaterZones(plotId);
+  const base = ({ morning: "06:00", noon: "12:00", evening: "17:00" })[period] || "";
+  let offset = 0;
+  return zones.map(z => {
+    const minutes = waterZoneMinutes(z);
+    const row = {
+      zoneId: z.id,
+      period,
+      start: base ? addMinutesHHMM(base, offset) : "",
+      minutes,
+      areaRai: Number(z.areaRai) || 0,
+      method: z.method || "ระบบน้ำ",
+      zone: z.name,
+      status: "planned"
+    };
+    offset += minutes;
+    return row;
+  });
+}
+function waterSessionsLookUntouched(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (!list.length) return true;
+  return list.every(w => !w.zoneId && !w.zone && !(Number(w.minutes) || 0));
+}
+function defaultWaterSessionsForPlot(plotId) {
+  return plotWaterZones(plotId).length ? waterZoneRowsForPeriod(plotId, "morning") : defaultWaterSessions();
+}
+function normalizeTaskWaterSessions(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .map(w => ({
+      zoneId: String(w.zoneId || "").trim(),
+      period: String(w.period || "").trim(),
+      start: String(w.start || "").trim(),
+      minutes: Number(w.minutes) || 0,
+      method: String(w.method || "").trim(),
+      areaRai: Number(w.areaRai) || 0,
+      zone: String(w.zone || "").trim(),
+      status: String(w.status || "planned").trim()
+    }))
+    .filter(w => w.period || w.start || w.minutes > 0 || w.method || w.zone || w.zoneId);
+}
+function collectTaskWaterSessions() {
+  return normalizeTaskWaterSessions(taskWaterSessions);
+}
+function waterSessionTotalText(rows) {
+  const list = normalizeTaskWaterSessions(rows);
+  const total = list.reduce((a, w) => a + (Number(w.minutes) || 0), 0);
+  const area = list.reduce((a, w) => a + (Number(w.areaRai) || 0), 0);
+  return list.length ? `${fmtNum(list.length)} รอบ · รวม ${fmtNum(total)} นาที${area ? " · " + fmtNum(area) + " ไร่" : ""}` : "ยังไม่มีรอบรดน้ำ";
+}
+function waterZoneQuickHtml() {
+  const plotId = (document.getElementById("t_plot") || {}).value || "";
+  if (!plotId) return `<div class="water-zone-quick muted">เลือกแปลงก่อน ถ้ามีโซนน้ำ ระบบจะแสดงปุ่มเติมรอบให้</div>`;
+  const p = plotById(S, plotId);
+  const zones = plotWaterZones(plotId);
+  if (!zones.length) {
+    return `<div class="water-zone-quick">
+      <span>แปลงนี้ยังไม่มีโซนน้ำประจำ</span>
+      <button type="button" class="btn btn-sm btn-outline" onclick="App.modalPlotWaterZones('${plotId}')">${ic("plus")} ตั้งโซน</button>
+    </div>`;
+  }
+  const totalArea = zones.reduce((sum, z) => sum + (Number(z.areaRai) || 0), 0);
+  return `<div class="water-zone-quick">
+    <div>
+      <b>${esc(p ? p.name : "แปลงนี้")}</b>
+      <span>${fmtNum(zones.length)} โซน${totalArea ? " · " + fmtNum(totalArea) + " ไร่" : ""}</span>
+    </div>
+    <div class="water-zone-quick-actions">
+      <button type="button" class="btn btn-sm btn-ghost" onclick="App.waterFillZones('morning')">เติมเช้า</button>
+      <button type="button" class="btn btn-sm btn-ghost" onclick="App.waterFillZones('evening')">เติมเย็น</button>
+      <button type="button" class="btn btn-sm btn-primary" onclick="App.waterFillZones('both')">เช้า+เย็น</button>
+    </div>
+  </div>`;
+}
+function waterSessionsHtml() {
+  const rows = taskWaterSessions.length ? taskWaterSessions : [];
+  return `
+    ${waterZoneQuickHtml()}
+    <div class="water-session-list" id="waterSessionsList">
+      ${rows.map((w, i) => `
+      <div class="water-session-row" data-wi="${i}">
+        <div class="water-session-head">
+          <strong>รอบที่ ${i + 1}</strong>
+          <button type="button" class="btn btn-sm btn-danger-soft" onclick="App.waterSessionRemove(${i})">${ic("trash")} ลบ</button>
+        </div>
+        <div class="form-row-2">
+          <div class="field"><label>ช่วง</label><select onchange="App.waterSessionSet(${i}, 'period', this.value)">
+            ${Object.keys(WATER_PERIOD_LABELS).map(k => `<option value="${k}" ${w.period === k ? "selected" : ""}>${WATER_PERIOD_LABELS[k]}</option>`).join("")}
+          </select></div>
+          <div class="field"><label>เวลาเริ่ม</label><input type="time" value="${esc(w.start || "")}" oninput="App.waterSessionSet(${i}, 'start', this.value)"></div>
+        </div>
+        <div class="form-row-2">
+          <div class="field"><label>กี่นาที</label><input type="number" min="0" step="1" inputmode="numeric" value="${w.minutes || ""}" placeholder="เช่น 30" oninput="App.waterSessionSet(${i}, 'minutes', this.value)"></div>
+          <div class="field"><label>วิธีรดน้ำ</label><select onchange="App.waterSessionSet(${i}, 'method', this.value)">
+            ${WATER_METHODS.map(m => `<option value="${esc(m)}" ${w.method === m ? "selected" : ""}>${esc(m)}</option>`).join("")}
+          </select></div>
+        </div>
+        <div class="form-row-2">
+          <div class="field"><label>โซน / หมายเหตุ</label><input value="${esc(w.zone || "")}" placeholder="เช่น โซน A / ท้ายแปลง" oninput="App.waterSessionSet(${i}, 'zone', this.value)"></div>
+          <div class="field"><label>สถานะรอบนี้</label><select onchange="App.waterSessionSet(${i}, 'status', this.value)">
+            ${Object.keys(WATER_STATUS_LABELS).map(k => `<option value="${k}" ${w.status === k ? "selected" : ""}>${WATER_STATUS_LABELS[k]}</option>`).join("")}
+          </select></div>
+        </div>
+        ${w.areaRai ? `<div class="water-zone-row-meta">${ic("map")} พื้นที่โซน ${fmtNum(w.areaRai)} ไร่</div>` : ""}
+      </div>`).join("")}
+    </div>
+    <div class="water-session-footer">
+      <button type="button" class="btn btn-sm btn-ghost" onclick="App.waterSessionAdd()">${ic("plus")} เพิ่มรอบรดน้ำ</button>
+      <div class="usage-total water-session-total">สรุป <strong id="waterSessionTotal">${waterSessionTotalText(rows)}</strong></div>
+    </div>`;
+}
+App.waterSessionSet = function (i, key, value) {
+  if (!taskWaterSessions[i]) return;
+  taskWaterSessions[i][key] = ["minutes", "areaRai"].includes(key) ? value : String(value || "");
+  const total = document.getElementById("waterSessionTotal");
+  if (total) total.textContent = waterSessionTotalText(taskWaterSessions);
+};
+App.waterSessionAdd = function () {
+  taskWaterSessions.push({ period: "custom", start: "", minutes: "", method: "ระบบน้ำ", zone: "", status: "planned" });
+  App.waterSessionsRender();
+};
+App.waterSessionRemove = function (i) {
+  taskWaterSessions.splice(i, 1);
+  App.waterSessionsRender();
+};
+App.waterSessionsRender = function () {
+  const box = document.getElementById("waterSessionsMount");
+  if (box) box.innerHTML = waterSessionsHtml();
+};
+App.waterFillZones = function (mode) {
+  const plotId = (document.getElementById("t_plot") || {}).value || "";
+  const zones = plotWaterZones(plotId);
+  if (!zones.length) { toast("ยังไม่มีโซนน้ำของแปลงนี้"); return; }
+  const rows = mode === "both"
+    ? [...waterZoneRowsForPeriod(plotId, "morning"), ...waterZoneRowsForPeriod(plotId, "evening")]
+    : waterZoneRowsForPeriod(plotId, mode || "morning");
+  if (mode === "both" || waterSessionsLookUntouched(taskWaterSessions)) {
+    taskWaterSessions = rows;
+  } else {
+    taskWaterSessions.push(...rows);
+  }
+  App.waterSessionsRender();
+  toast("เติมรอบรดน้ำจากโซนแล้ว");
+};
+App.taskTypeChange = function () {
+  const sel = document.getElementById("t_type");
+  const box = document.getElementById("waterBox");
+  if (!sel || !box) return;
+  const isWater = sel.value === "water";
+  const plotId = (document.getElementById("t_plot") || {}).value || "";
+  if (isWater && waterSessionsLookUntouched(taskWaterSessions)) taskWaterSessions = defaultWaterSessionsForPlot(plotId);
+  box.style.display = isWater ? "" : "none";
+  if (isWater) App.waterSessionsRender();
+};
 App.modalTask = function (date, preset) {
   preset = preset || {};
   const editing = preset.taskId ? S.tasks.find(x => x.id === preset.taskId) : null;
@@ -6687,12 +7637,13 @@ App.modalTask = function (date, preset) {
   const type = editing ? editing.type : (preset.type || "work");
   const title = editing ? editing.title : (preset.title || "");
   const d = editing ? editing.date : (date || todayISO());
-  const status = editing ? (editing.status === "done" ? "done" : "planned") : "planned";
+  const status = editing ? (["done", "failed"].includes(editing.status) ? editing.status : "planned") : "planned";
   const hasCost = editing ? (editing.cost > 0 || !!editing.stockId) : false;
   const hasHarvest = editing ? editing.revenue > 0 : false;
   const stockItem = editing && editing.stockId ? stockById(S, editing.stockId) : null;
   const unitPrice = editing ? (stockItem ? stockItem.avgCost.toFixed(2) : (editing.qty ? (editing.cost / editing.qty).toFixed(2) : "")) : "";
   taskFormPhotos = taskPhotos(editing).slice();
+  taskWaterSessions = editing ? normalizeTaskWaterSessions(editing.wateringSessions) : (type === "water" ? defaultWaterSessionsForPlot(preset.plotId || "") : []);
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${editing ? "แก้ไขกิจกรรม" : (preset.title ? esc(preset.title) : "เพิ่มกิจกรรมใหม่")}</h3>
@@ -6703,6 +7654,7 @@ App.modalTask = function (date, preset) {
         <div class="field"><label>สถานะ</label><select id="t_status">
           <option value="planned" ${status === "planned" ? "selected" : ""}>วางแผนไว้</option>
           <option value="done" ${status === "done" ? "selected" : ""}>เสร็จสิ้น</option>
+          <option value="failed" ${status === "failed" ? "selected" : ""}>ไม่สำเร็จ</option>
         </select></div>
       </div>
       <div class="field"><label>ชื่องาน *</label><input id="t_title" value="${esc(title)}" placeholder="เช่น ใส่ปุ๋ยครั้งที่ 2" required></div>
@@ -6711,9 +7663,15 @@ App.modalTask = function (date, preset) {
         <div class="field"><label>พืช / รอบ</label><select id="t_cycle" disabled></select></div>
       </div>
       <div class="hint" style="margin-top:-6px">เลือกแปลง/รอบ เพื่อให้ต้นทุนเข้าถูกที่</div>
-      <div class="field"><label>ประเภทกิจกรรม</label><select id="t_type">
+      <div class="field"><label>ประเภทกิจกรรม</label><select id="t_type" onchange="App.taskTypeChange()">
         ${Object.keys(TYPE_LABELS).map(k => `<option value="${k}" ${k === type ? "selected" : ""}>${TYPE_LABELS[k]}</option>`).join("")}
       </select></div>
+
+      <div id="waterBox" class="nested-fields water-box" style="display:${type === "water" ? "" : "none"}">
+        <div class="water-box-title">${ic("droplet")} รอบรดน้ำ</div>
+        <div class="hint">เหมาะกับงานที่ต้องรดหลายช่วง เช่น เช้า/เย็น และย้อนดูได้ว่ารดกี่นาทีต่อรอบ</div>
+        <div id="waterSessionsMount">${waterSessionsHtml()}</div>
+      </div>
 
       <label class="option-box"><input type="checkbox" id="t_usecost" onchange="App.taskToggleCost()" ${hasCost ? "checked" : ""}><span>${ic("dollar")} บันทึกค่าใช้จ่าย / ตัดสต็อก</span></label>
       <div id="costBox" class="nested-fields" style="display:${hasCost ? "" : "none"}">
@@ -6765,6 +7723,8 @@ App.modalTask = function (date, preset) {
     taskCostItems = [{ category: defaultCostCat(type), stockId: "", name: "", qty: "", unit: "", unitCost: "", totalCost: 0 }];
   }
   App.costRender();
+  App.waterSessionsRender();
+  App.taskTypeChange();
   /* เติม dropdown แปลง + พืช/รอบ (เลือกแปลงก่อน แล้วเลือกพืชของแปลงนั้น)
      รองรับทางลัด: ปุ่มเพิ่มกิจกรรมของแปลง/รอบ จะเลือกแปลงและรอบให้อัตโนมัติ */
   const initTaskPlotCycle = () => {
@@ -6801,6 +7761,12 @@ App.modalTask = function (date, preset) {
       cycles.map(c => `<option value="${c.id}" ${c.id === selCycleId ? "selected" : ""}>${esc(c.plant)}</option>`).join("") +
       `<option value="__none__" ${selCycleId === "__none__" ? "selected" : ""}>ยังไม่ปลูกอะไร (ต้นทุนเข้ารวมแปลงนี้)</option>`;
     cycSel.disabled = !selPlotId;
+    if (!editing && type === "water" && plotWaterZones(selPlotId).length && waterSessionsLookUntouched(taskWaterSessions)) {
+      taskWaterSessions = defaultWaterSessionsForPlot(selPlotId);
+      App.waterSessionsRender();
+    } else if (type === "water") {
+      App.waterSessionsRender();
+    }
   };
   initTaskPlotCycle();
 };
@@ -6813,6 +7779,7 @@ App.taskPlotChange = function () {
   if (!pid) {
     cycSel.innerHTML = '<option value="">-- เลือกแปลงก่อน --</option>';
     cycSel.disabled = true;
+    if ((document.getElementById("t_type") || {}).value === "water") App.waterSessionsRender();
     return;
   }
   const cycles = S.cycles.filter(c => c.plotId === pid && c.status === "active");
@@ -6820,6 +7787,10 @@ App.taskPlotChange = function () {
     cycles.map(c => `<option value="${c.id}">${esc(c.plant)}</option>`).join("") +
     '<option value="__none__">ยังไม่ปลูกอะไร (ต้นทุนเข้ารวมแปลงนี้)</option>';
   cycSel.disabled = false;
+  if ((document.getElementById("t_type") || {}).value === "water") {
+    if (!taskEditingId && waterSessionsLookUntouched(taskWaterSessions)) taskWaterSessions = defaultWaterSessionsForPlot(pid);
+    App.waterSessionsRender();
+  }
 };
 App.submitTask = function (e, editId) {
   e.preventDefault();
@@ -6881,6 +7852,8 @@ App.submitTask = function (e, editId) {
   /* "ยังไม่ปลูกอะไร" = ไม่ผูกกับรอบ แต่ยังเข้ารวมต้นทุนของแปลงที่เลือก */
   const tCycle = tCycleRaw === "__none__" ? null : (tCycleRaw || null);
   const tRevenue = useHarvest ? Math.round(hqty * hprice) || 0 : 0;
+  const tType = document.getElementById("t_type").value;
+  const existing = editId ? S.tasks.find(x => x.id === editId) : null;
   /* กันข้อมูลหาย: ถ้ามีต้นทุนหรือรายได้แต่ยังไม่เลือกแปลง -> บล็อกไม่ให้บันทึก
      (งานที่ไม่มีแปลง ต้นทุน/รายได้จะไม่เข้ารอบหรือแปลงไหนเลย) */
   if ((totalCost > 0 || tRevenue > 0) && !tPlot) {
@@ -6889,7 +7862,7 @@ App.submitTask = function (e, editId) {
   }
   const data = {
     title,
-    type: document.getElementById("t_type").value,
+    type: tType,
     date: document.getElementById("t_date").value,
     status: document.getElementById("t_status").value,
     cycleId: tCycle,
@@ -6904,11 +7877,29 @@ App.submitTask = function (e, editId) {
     harvestQty: useHarvest ? hqty : 0,
     harvestUnitPrice: useHarvest ? hprice : 0,
     finishCycle: useHarvest && document.getElementById("t_finishcycle").checked,
+    wateringSessions: tType === "water" ? collectTaskWaterSessions() : [],
     note: document.getElementById("t_note").value.trim(),
     photos: taskFormPhotos.slice(),
-    donePhotos: editId ? taskDonePhotosOf(S.tasks.find(x => x.id === editId)).slice() : [],
-    doneNote: editId ? (S.tasks.find(x => x.id === editId)?.doneNote || "") : ""
+    donePhotos: existing ? taskDonePhotosOf(existing).slice() : [],
+    doneNote: existing ? (existing.doneNote || "") : "",
+    doneDate: existing ? (existing.doneDate || "") : "",
+    doneTime: existing ? (existing.doneTime || "") : "",
+    weatherSnapshot: existing ? (existing.weatherSnapshot || null) : null
   };
+  if (data.type === "water" && data.wateringSessions.length && (data.status === "done" || data.status === "failed")) {
+    const nextStatus = data.status === "done" ? "done" : "failed";
+    data.wateringSessions = data.wateringSessions.map(w => ({
+      ...w,
+      status: w.status === "planned" ? nextStatus : (w.status || nextStatus)
+    }));
+  }
+  if ((data.status === "done" || data.status === "failed") && !data.doneDate) {
+    data.doneDate = data.date || todayISO();
+    data.doneTime = data.doneTime || currentTimeHHMM();
+  }
+  let savedTaskId = existing ? existing.id : "";
+  const shouldOpenDoneFlow = data.status === "done" && (!existing || existing.status !== "done");
+  const doneFlowReturnToDetail = !!taskEditReturnToDetail;
   /* เขียนสรุปการคำนวณ (เช่น ฉีดยา 4 ไร่ × 100 ซีซี/ไร่ = 0.4 ขวด) ลงในบันทึกอัตโนมัติ */
   const calcLines = [];
   taskCostItems.forEach((it, idx) => {
@@ -6922,7 +7913,6 @@ App.submitTask = function (e, editId) {
     calcLines.forEach(l => { if (!cur.includes(l)) cur.push(l); });
     data.note = cur.join("\n");
   }
-  const existing = editId ? S.tasks.find(x => x.id === editId) : null;
   /* บันทึกงาน (ใหม่ หรือแก้ไข) — คืนค่าและปิด modal */
   const commit = (restocked) => {
     // ถ้าติ๊ก "จบการปลูกรอบนี้" -> ปิดรอบทันที
@@ -6933,7 +7923,11 @@ App.submitTask = function (e, editId) {
     saveState(S);
     closeModal();
     render();
-    if (editId && taskEditReturnToDetail) App.viewTask(editId);
+    if (savedTaskId && shouldOpenDoneFlow) {
+      setTimeout(() => App.modalTaskComplete(savedTaskId, doneFlowReturnToDetail), 0);
+    } else if (editId && taskEditReturnToDetail) {
+      App.viewTask(editId);
+    }
     taskEditReturnToDetail = false;
     taskEditingId = "";
     if (restocked) toast("บันทึกแล้ว · คืนสต็อกส่วนที่ไม่ได้ใช้");
@@ -7007,7 +8001,8 @@ App.submitTask = function (e, editId) {
     toast("บันทึกการแก้ไขแล้ว");
     commit();
   } else {
-    addTask(S, data);
+    const created = addTask(S, data);
+    savedTaskId = created ? created.id : "";
     const msg = data.revenue > 0 ? `บันทึกกิจกรรมแล้ว · รายรับ ${fmtMoney(data.revenue)} บาท`
       : data.cost > 0 ? "บันทึกกิจกรรมแล้ว · ตัดสต็อก/บันทึกต้นทุนแล้ว"
       : "บันทึกกิจกรรมแล้ว";

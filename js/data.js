@@ -635,6 +635,19 @@ function ensureDefaults(s) {
   if (!Array.isArray(s.water.sources)) s.water.sources = [];
   if (!Array.isArray(s.water.systems)) s.water.systems = [];
   if (!Array.isArray(s.water.logs)) s.water.logs = [];
+  (s.plots || []).forEach(p => {
+    if (!Array.isArray(p.waterZones)) p.waterZones = [];
+    p.waterZones = p.waterZones
+      .map((z, i) => ({
+        id: String(z.id || "").trim() || uid(),
+        name: String(z.name || "").trim() || "โซน " + (i + 1),
+        areaRai: Number(z.areaRai) || 0,
+        defaultMinutes: Number(z.defaultMinutes) || 0,
+        method: String(z.method || "ระบบน้ำ").trim() || "ระบบน้ำ",
+        note: String(z.note || "").trim()
+      }))
+      .filter(z => z.name || z.areaRai > 0 || z.defaultMinutes > 0 || z.note);
+  });
   s.texts = s.texts || {};
   if (!Array.isArray(s.homeOrder) || s.homeOrder.length !== 4) s.homeOrder = ["cal", "tasks", "profit", "activity"];
   s.customMenus = s.customMenus || [];
@@ -668,6 +681,44 @@ function ensureDefaults(s) {
     if (!Array.isArray(t.donePhotos)) t.donePhotos = [];
     t.donePhotos = t.donePhotos.map(p => String(p || "").trim()).filter(Boolean);
     if (typeof t.doneNote !== "string") t.doneNote = "";
+    if (typeof t.doneDate !== "string") t.doneDate = "";
+    if (typeof t.doneTime !== "string") t.doneTime = "";
+    if (!Array.isArray(t.wateringSessions)) t.wateringSessions = [];
+    t.wateringSessions = t.wateringSessions
+      .map(w => ({
+        zoneId: String(w.zoneId || "").trim(),
+        period: String(w.period || "").trim(),
+        start: String(w.start || "").trim(),
+        minutes: Number(w.minutes) || 0,
+        areaRai: Number(w.areaRai) || 0,
+        zone: String(w.zone || "").trim(),
+        method: String(w.method || "").trim(),
+        status: String(w.status || "planned").trim()
+      }))
+      .filter(w => w.period || w.start || w.minutes > 0 || w.zone || w.method);
+    if (t.weatherSnapshot && typeof t.weatherSnapshot !== "object") t.weatherSnapshot = null;
+    if (t.weatherSnapshot) {
+      t.weatherSnapshot.targetDate = String(t.weatherSnapshot.targetDate || "").trim();
+      t.weatherSnapshot.targetTime = String(t.weatherSnapshot.targetTime || "").trim();
+      t.weatherSnapshot.targetIso = String(t.weatherSnapshot.targetIso || "").trim();
+      t.weatherSnapshot.rainProb = t.weatherSnapshot.rainProb == null ? null : Number(t.weatherSnapshot.rainProb);
+      if (!Array.isArray(t.weatherSnapshot.hourly)) t.weatherSnapshot.hourly = [];
+      t.weatherSnapshot.hourly = t.weatherSnapshot.hourly
+        .map(h => ({
+          time: String(h.time || "").trim(),
+          hour: String(h.hour || "").trim(),
+          temperature: Number(h.temperature),
+          humidity: Number(h.humidity),
+          precipitation: Number(h.precipitation),
+          rainProb: h.rainProb == null ? null : Number(h.rainProb),
+          windSpeed: Number(h.windSpeed),
+          windDirection: Number(h.windDirection),
+          weatherCode: Number(h.weatherCode),
+          condition: String(h.condition || "").trim(),
+          icon: String(h.icon || "").trim()
+        }))
+        .slice(0, 24);
+    }
     if (t.costCat && !cmap[t.costCat]) t.costCat = "other";
     (t.costItems || []).forEach(ci => {
       if (ci.category && !cmap[ci.category]) ci.category = "other";
@@ -931,6 +982,8 @@ function addTask(s, t) {
   t.photos = Array.isArray(t.photos) ? t.photos.map(p => String(p || "").trim()).filter(Boolean) : [];
   t.donePhotos = Array.isArray(t.donePhotos) ? t.donePhotos.map(p => String(p || "").trim()).filter(Boolean) : [];
   t.doneNote = String(t.doneNote || "");
+  t.doneDate = String(t.doneDate || "");
+  t.doneTime = String(t.doneTime || "");
   t.qty = Number(t.qty) || 0;
   t.cost = Number(t.cost) || 0;
   t.revenue = Number(t.revenue) || 0;
@@ -1009,6 +1062,9 @@ function toggleTaskDone(s, taskId) {
   const t = s.tasks.find(x => x.id === taskId);
   if (!t) return;
   t.status = t.status === "done" ? "planned" : "done";
+  if (Array.isArray(t.wateringSessions) && t.wateringSessions.length) {
+    t.wateringSessions.forEach(w => { w.status = t.status === "done" ? "done" : "planned"; });
+  }
   t.updatedAt = Date.now(); // เวลาทำเสร็จ/ยกเลิก — ใช้เรียงกิจกรรมล่าสุด
   /* งานถูกแก้สถานะ → ให้กลับมาแสดงการแจ้งเตือนใหม่ (ถ้ายังไม่เสร็จ/ยังไม่พ้นกำหนด) */
   if (s.notifDismissed) delete s.notifDismissed[taskId];
@@ -1252,6 +1308,7 @@ function restockTask(s, t) {
 /* Task status per date: done / planned / overdue */
 function taskStatusOf(t) {
   if (t.status === "done") return "done";
+  if (t.status === "failed") return "failed";
   if (t.date < todayISO()) return "overdue";
   return "planned";
 }
@@ -1262,7 +1319,7 @@ function notifList(s) {
   const dis = s.notifDismissed || {};
   const overdue = [], dueToday = [];
   (s.tasks || []).forEach(t => {
-    if (t.status === "done" || dis[t.id]) return;
+    if (t.status === "done" || t.status === "failed" || dis[t.id]) return;
     if (t.date < today) overdue.push(t);
     else if (t.date === today) dueToday.push(t);
   });
@@ -1279,8 +1336,10 @@ function dayStatus(s, dateStr) {
   const list = tasksOn(s, dateStr);
   if (!list.length) return null;
   const hasOverdue = list.some(t => taskStatusOf(t) === "overdue");
+  const hasFailed = list.some(t => taskStatusOf(t) === "failed");
   const hasPlanned = list.some(t => taskStatusOf(t) === "planned");
   if (hasOverdue) return "overdue";
+  if (hasFailed) return "failed";
   if (hasPlanned) return "planned";
   return "done";
 }
