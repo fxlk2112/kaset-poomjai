@@ -7,7 +7,7 @@
 
 /* ---------------- state & bootstrap ----------------
    (S ประกาศใน data.js — ให้ระบบบัญชี (auth.js) สลับ slot ข้อมูลรายบัญชีได้ก่อน render) */
-const APP_BUILD_VERSION = "20260905taskfailwater";
+const APP_BUILD_VERSION = "20260905cycleauto";
 window.APP_BUILD_VERSION = APP_BUILD_VERSION;
 function ensureFreshAppBuild() {
   try {
@@ -6369,11 +6369,29 @@ App.savePlotWaterZones = function () {
 /* ---- cycle form ---- */
 /* แผนงานอัตโนมัติ: โชว์สูตรให้ตรวจ/แก้ก่อนยืนยัน (ติ๊กเลือกงาน + แก้วัน/ข้อความได้) */
 App._ppKey = null;
+App._cycleRoundAuto = true;
 App.pickPlaybook = function (key) {
   const inp = document.getElementById("f_plant");
   if (inp) inp.value = key;
   App._ppKey = null; /* บังคับวาดใหม่ */
   App.planPreviewRefresh();
+};
+App.planPreviewDatesRefresh = function () {
+  const start = (document.getElementById("f_start") || {}).value || "";
+  const validStart = /^\d{4}-\d{2}-\d{2}$/.test(start);
+  document.querySelectorAll("#planPreview [data-pp-row]").forEach(row => {
+    const day = Math.max(0, Number((row.querySelector(".pp-day") || {}).value) || 0);
+    const dateEl = row.querySelector(".pp-date");
+    if (!dateEl) return;
+    if (!validStart) {
+      dateEl.textContent = "เลือกวันเริ่ม";
+      dateEl.title = "";
+      return;
+    }
+    const iso = addDaysISO(start, day);
+    dateEl.textContent = dateLabel(iso);
+    dateEl.title = iso;
+  });
 };
 App.planPreviewRefresh = function () {
   const box = document.getElementById("planPreview");
@@ -6381,38 +6399,98 @@ App.planPreviewRefresh = function () {
   const plant = (document.getElementById("f_plant") || {}).value || "";
   const pb = playbookFor(plant);
   /* ถ้าสูตรเดิม (คีย์ไม่เปลี่ยน) ไม่วาดใหม่ — คงการแก้ไขของผู้ใช้ไว้ */
-  if (pb && pb.key === App._ppKey && box.querySelector("[data-pp-row]")) return;
+  if (pb && pb.key === App._ppKey && box.querySelector("[data-pp-row]")) {
+    App.planPreviewDatesRefresh();
+    return;
+  }
   App._ppKey = pb ? pb.key : null;
   if (!pb) {
     box.innerHTML = plant ? `ยังไม่มีสูตรสำเร็จรูปสำหรับ "<b>${esc(plant)}</b>" — จะไม่สร้างงานอัตโนมัติ (กดปุ่มพืชด้านบนเพื่อดูสูตรที่มี)` : `พิมพ์ชื่อพืชข้างบน หรือกดปุ่มพืชด้านบน เพื่อดูแผนงานทั้งฤดู (ติ๊กเลือก/แก้วัน/แก้ข้อความได้ก่อนกดเริ่มปลูก)`;
     return;
   }
   const rows = pb.steps.map((st, i) => `
-    <div style="display:flex;gap:6px;align-items:center;padding:3px 0" data-pp-row="${i}">
+    <div class="plan-preview-row" data-pp-row="${i}">
       <input type="checkbox" class="pp-chk" checked style="width:auto" title="สร้างงานนี้">
-      <input type="number" class="pp-day" value="${st.day}" min="0" style="width:64px;padding:4px 6px" title="วันที่หลังปลูก">
+      <input type="number" class="pp-day" value="${st.day}" min="0" style="width:64px;padding:4px 6px" title="วันที่หลังปลูก" oninput="App.planPreviewDatesRefresh()">
+      <span class="pp-date"></span>
       <input class="pp-title grow" value="${esc((st.warn ? "⚠️ " : "") + st.title)}" style="flex:1;padding:4px 8px">
     </div>
     <div class="muted" style="font-size:.68rem;margin:-2px 0 4px 30px;line-height:1.4">${esc(st.note || "")}</div>`).join("");
   box.innerHTML = `
     <div class="muted" style="font-size:.74rem;margin-bottom:6px">📋 สูตร <b>${esc(pb.key)}</b> — ${pb.steps.length} งาน · ติ๊ก = สร้าง · แก้วันที่/ข้อความได้ · อิงคำแนะนำกรมวิชาการเกษตร (ปรับตามพื้นที่จริงได้)</div>
     ${rows}`;
+  App.planPreviewDatesRefresh();
 };
 
+App.cyclePlotChange = function () {
+  const plotSel = document.getElementById("f_plot");
+  const roundInput = document.getElementById("f_round");
+  if (!plotSel || !roundInput || App._cycleRoundAuto === false) return;
+  roundInput.value = nextCycleRound(S, plotSel.value);
+};
+function cycleDateDeltaDays(oldStart, newStart) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(oldStart || "") || !/^\d{4}-\d{2}-\d{2}$/.test(newStart || "")) return 0;
+  const oldTime = new Date(oldStart + "T00:00:00").getTime();
+  const newTime = new Date(newStart + "T00:00:00").getTime();
+  if (!Number.isFinite(oldTime) || !Number.isFinite(newTime)) return 0;
+  return Math.round((newTime - oldTime) / 86400000);
+}
+function playbookDayFromNote(note) {
+  const m = String(note || "").match(/วันที่\s*(\d+)\s*หลังปลูก/);
+  return m ? Math.max(0, Number(m[1]) || 0) : null;
+}
+function isPendingAutoCycleTask(t, cycleId) {
+  return t && t.cycleId === cycleId
+    && t.status !== "done" && t.status !== "failed"
+    && /แผนอัตโนมัติ|สูตร/.test(String(t.note || ""));
+}
+function syncCycleAutoTasks(cycleId, plotId, oldStart, newStart) {
+  const delta = cycleDateDeltaDays(oldStart, newStart);
+  let touched = 0;
+  let shifted = 0;
+  (S.tasks || []).forEach(t => {
+    if (!isPendingAutoCycleTask(t, cycleId)) return;
+    let changed = false;
+    if (plotId && t.plotId !== plotId) {
+      t.plotId = plotId;
+      changed = true;
+    }
+    if (delta && /^\d{4}-\d{2}-\d{2}$/.test(t.date || "")) {
+      const relDay = playbookDayFromNote(t.note);
+      t.date = relDay == null ? addDaysISO(t.date, delta) : addDaysISO(newStart, relDay);
+      shifted++;
+      changed = true;
+    }
+    if (changed) {
+      t.updatedAt = Date.now();
+      touched++;
+    }
+  });
+  return { touched, shifted };
+}
+function playbookTaskType(type) {
+  if (TYPE_LABELS[type]) return type;
+  if (type === "plant") return "work";
+  if (type === "pesticide") return "spray";
+  return "work";
+}
 App.modalCycle = function (plotId, cycleId) {
   const c = cycleId ? cycleById(S, cycleId) : null;
+  const selectedPlotId = c ? c.plotId : (plotId || ((S.plots || [])[0] || {}).id || "");
   /* เพิ่มรอบอัตโนมัติ: รอบแรก = รอบ 1, รอบที่ 2 = รอบ 2 ... (นับจากรอบทั้งหมดของแปลงนั้น) */
-  const newRound = c ? c.round : nextCycleRound(S, plotId);
+  const newRound = c ? c.round : nextCycleRound(S, selectedPlotId);
+  App._cycleRoundAuto = !c;
+  App._ppKey = null;
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${c ? "แก้ไขรอบการปลูก" : "เริ่มรอบการปลูกใหม่"}</h3>
     <div class="modal-sub">${c ? "แก้ไขชื่อพืช และวันเริ่มปลูก — อายุและรอบจะคำนวณใหม่ตามวันที่ที่แก้" : `รอบการปลูกจะเพิ่มเป็น <b>รอบที่ ${newRound}</b> ของแปลงนี้ อัตโนมัติ`}</div>
     <form onsubmit="return App.submitCycle(event, '${c ? c.id : ""}')">
-      <div class="field"><label>แปลง *</label><select id="f_plot" required>
-        ${S.plots.map(p => `<option value="${p.id}" ${(c ? c.plotId : plotId) === p.id ? "selected" : ""}>${esc(p.name)} — ${fmtNum(p.sizeRai)} ไร่</option>`).join("")}
+      <div class="field"><label>แปลง *</label><select id="f_plot" required onchange="App.cyclePlotChange()">
+        ${S.plots.map(p => `<option value="${p.id}" ${selectedPlotId === p.id ? "selected" : ""}>${esc(p.name)} — ${fmtNum(p.sizeRai)} ไร่</option>`).join("")}
       </select></div>
-      ${c ? "" : `<div class="field"><label>เลขรอบ (อัตโนมัติ)</label><input id="f_round" type="number" min="1" value="${newRound}"><div class="hint">เพิ่มรอบใหม่ระบบจะนับให้อัตโนมัติ (รอบ 1, รอบ 2...) — แก้ได้ถ้าต้องการ</div></div>`}
-      <div class="field"><label>ชื่อพืช / รอบ *</label><input id="f_plant" value="${c ? esc(c.plant) : ""}" placeholder="เช่น ข้าวโพดหวาน / ข้าวนาปี" required onchange="App.planPreviewRefresh()"></div>
+      ${c ? "" : `<div class="field"><label>เลขรอบ (อัตโนมัติ)</label><input id="f_round" type="number" min="1" value="${newRound}" oninput="App._cycleRoundAuto=false"><div class="hint">เพิ่มรอบใหม่ระบบจะนับให้อัตโนมัติ (รอบ 1, รอบ 2...) — เปลี่ยนแปลงแล้วเลขรอบจะตามอัตโนมัติจนกว่าจะแก้เลขเอง</div></div>`}
+      <div class="field"><label>ชื่อพืช / รอบ *</label><input id="f_plant" value="${c ? esc(c.plant) : ""}" placeholder="เช่น ข้าวโพดหวาน / ข้าวนาปี" required oninput="App.planPreviewRefresh()" onchange="App.planPreviewRefresh()"></div>
       ${c ? "" : `
       <div class="field">
         <label>สูตรแผนดูแลอัตโนมัติ — กดพืชเพื่อดูแผน ตรวจ/แก้ได้ก่อนยืนยัน</label>
@@ -6421,12 +6499,14 @@ App.modalCycle = function (plotId, cycleId) {
         </div>
         <div id="planPreview" class="muted" style="font-size:.76rem">พิมพ์ชื่อพืชข้างบน หรือกดปุ่มพืชด้านบน เพื่อดูแผนงานทั้งฤดู (ติ๊กเลือก/แก้วัน/แก้ข้อความได้ก่อนกดเริ่มปลูก)</div>
       </div>`}
-      <div class="field"><label>วันที่เริ่ม *</label><input id="f_start" type="date" value="${c ? c.startDate : todayISO()}" required></div>
+      <div class="field"><label>วันที่เริ่ม *</label><input id="f_start" type="date" value="${c ? c.startDate : todayISO()}" required oninput="App.planPreviewDatesRefresh()" onchange="App.planPreviewDatesRefresh()"></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
         <button type="submit" class="btn btn-primary">${c ? "บันทึกการแก้ไข" : "เริ่มปลูก"}</button>
       </div>
     </form>`);
+  App.cyclePlotChange();
+  App.planPreviewDatesRefresh();
 };
 App.submitCycle = function (e, cycleId) {
   e.preventDefault();
@@ -6436,11 +6516,18 @@ App.submitCycle = function (e, cycleId) {
   if (!plant) return false;
   if (cycleId) {
     const c = cycleById(S, cycleId);
-    if (c) { c.plotId = plotId; c.plant = plant; c.startDate = start; }
+    const oldStart = c ? c.startDate : "";
+    let synced = { touched: 0, shifted: 0 };
+    if (c) {
+      c.plotId = plotId;
+      c.plant = plant;
+      c.startDate = start;
+      synced = syncCycleAutoTasks(c.id, plotId, oldStart, start);
+    }
     saveState(S);
     closeModal();
     render();
-    toast("บันทึกการแก้ไขรอบแล้ว");
+    toast("บันทึกการแก้ไขรอบแล้ว" + (synced.touched ? ` · ปรับงานอัตโนมัติ ${synced.touched} งาน` : ""));
   } else {
     /* เลขรอบอัตโนมัติ: ใช้ค่าจากฟอร์ม (ระบบเติมให้แล้ว) — กันเลขซ้ำ/กระโดดด้วยการนับจริง */
     const roundInput = document.getElementById("f_round");
@@ -6454,10 +6541,12 @@ App.submitCycle = function (e, cycleId) {
       const day = Math.max(0, Number(row.querySelector(".pp-day").value) || 0);
       const title = row.querySelector(".pp-title").value.trim();
       if (!title) return;
+      const st = (playbookFor(plant) || { steps: [] }).steps[Number(row.dataset.ppRow) || 0] || {};
+      const note = "แผนอัตโนมัติ (วันที่ " + day + " หลังปลูก)" + (st.note ? " — " + st.note : "");
       S.tasks.push({
-        id: uid(), title, date: addDaysISO(start, day), type: "task",
+        id: uid(), title, date: addDaysISO(start, day), type: playbookTaskType(st.type),
         plotId, cycleId: c.id, status: "planned",
-        note: "แผนอัตโนมัติ (วันที่ " + day + " หลังปลูก)", createdAt: Date.now()
+        note, createdAt: Date.now()
       });
       made++;
     });
@@ -7105,6 +7194,32 @@ function costLimitHtml(i, it) {
   if (!info) return "";
   return `<div class="stock-limit ${info.over ? "is-error" : ""}" id="ciLimit_${i}">${ic(info.over ? "alert" : "info")} ${esc(info.msg)}</div>`;
 }
+function costCategoryUsesStock(category) {
+  const key = String(category || "other");
+  if (["chemical", "fertilizer", "seed", "materials"].includes(key)) return true;
+  const cat = costCatMap(S)[key];
+  const label = cat ? cat.label : "";
+  return /(ยา|ปุ๋ย|เคมี|สาร|เมล็ด|พันธุ์|วัสดุ|อุปกรณ์)/.test(label);
+}
+function costStockPickerHtml(i, it) {
+  const show = !!(it && (it.stockId || it.showStockPicker || costCategoryUsesStock(it.category)));
+  if (!show) {
+    return `<div class="stock-picker-collapsed">
+      <span>${ic("box")} หมวดนี้ไม่ต้องเลือกยา/ปุ๋ยจากสต็อก</span>
+      <button type="button" class="btn btn-sm btn-outline" onclick="App.costShowStock(${i})">เลือกจากสต็อก</button>
+    </div>`;
+  }
+  return `<div class="stock-picker">
+    <input class="sp-search" type="text" placeholder="ค้นหาปุ๋ย/ยา/เมล็ด..." value="${esc(taskStockQueries[i] || "")}" oninput="App.costStockQuery(${i}, this.value)">
+    <div class="stock-pick-list" id="stockPickList_${i}">${stockPickItemsHtml(i)}</div>
+  </div>
+  <div class="hint">ใช้ของที่เหลือจากการเปิดใช้ก่อน แล้วเบิกจากหลักเป็นหน่วยเต็ม (ปัดขึ้น) เศษเป็นของเหลือ</div>`;
+}
+App.costShowStock = function (i) {
+  if (!taskCostItems[i]) return;
+  taskCostItems[i].showStockPicker = true;
+  App.costRender();
+};
 /* พิมพ์ค้นหาสต็อก -> อัปเดตเฉพาะ list ของรายการนั้น (ไม่ rebuild = พิมพ์ต่อเนื่องได้) */
 App.costStockQuery = function (i, v) {
   taskStockQueries[i] = v;
@@ -7149,11 +7264,7 @@ App.costRender = function () {
           ${allCostCats(S).map(c => `<option value="${c.key}" ${(it.category || "other") === c.key ? "selected" : ""}>${c.label}</option>`).join("")}
         </select></div>
         <div class="field"><label>ตัดจากสต็อก (ถ้ามี)</label>
-          <div class="stock-picker">
-            <input class="sp-search" type="text" placeholder="ค้นหาปุ๋ย/ยา/เมล็ด..." value="${esc(taskStockQueries[i] || "")}" oninput="App.costStockQuery(${i}, this.value)">
-            <div class="stock-pick-list" id="stockPickList_${i}">${stockPickItemsHtml(i)}</div>
-          </div>
-          <div class="hint">ใช้ของที่เหลือจากการเปิดใช้ก่อน แล้วเบิกจากหลักเป็นหน่วยเต็ม (ปัดขึ้น) เศษเป็นของเหลือ</div>
+          ${costStockPickerHtml(i, it)}
         </div>
       </div>
       ${it.stockId ? calcBoxHtml(i, it) : ""}
@@ -7358,6 +7469,12 @@ App.costSet = function (i, field, value) {
   /* กดรายการที่เลือกอยู่ซ้ำ -> ยกเลิกการเลือก (เอารายการนี้ออก ไม่ต้องลบทั้งแถว) */
   if (field === "stockId" && value === it.stockId) value = "";
   it[field] = value;
+  if (field === "category") {
+    if (!costCategoryUsesStock(value) && !it.stockId) it.showStockPicker = false;
+    if (costCategoryUsesStock(value)) it.showStockPicker = true;
+    App.costRender();
+    return;
+  }
   /* เลือก/ยกเลิกรายการสต็อก -> ตั้งค่าเริ่มต้น + rebuild แถว (แสดง/ซ่อนกล่องคำนวณ ปัก highlight) */
   if (field === "stockId") {
     if (value) {
@@ -7374,6 +7491,7 @@ App.costSet = function (i, field, value) {
       delete it.priceMode;
       it.stockId = "";
       it.unitCost = ""; it.calcUnit = ""; it.calcArea = ""; it.calcRate = "";
+      if (!costCategoryUsesStock(it.category)) it.showStockPicker = false;
     }
     it.totalCost = Math.round((Number(it.qty) || 0) * (Number(it.unitCost) || 0));
     App.costRender();

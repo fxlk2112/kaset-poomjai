@@ -8,8 +8,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="FarmUltimate">
     <meta name="description" content="FARMULTIMATE SOLUTIONS — ระบบจัดการฟาร์มอัจฉริยะ: บันทึกแปลง/รอบปลูก/งาน/เก็บเกี่ยว, สต็อกวัสดุ, ขายพร้อมใบส่งสินค้า, สภาพอากาศรายแปลง — ใช้ได้ทั้งออนไลน์และออฟไลน์">
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.json?v=20260905cycleauto">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=20260905cycleauto">
   <script>try{var _shareToken=(new URL(location.href)).searchParams.get("share");if(!_shareToken&&!localStorage.getItem("farmult-session-v1"))document.documentElement.className+=" auth-locked";}catch(e){}</script>
   <style>
     /* ===== Auth Gate (self-contained: ไม่พึ่งไฟล์ CSS อื่น) ===== */
@@ -71,8 +71,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script>try{var _ft=localStorage.getItem("farmult-theme")||"system";var _fd=_ft==="dark"||(_ft==="system"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);if(_fd)document.documentElement.setAttribute("data-theme","dark");}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=20260905taskfailwater">
-  <link rel="icon" href="logo.jpg">
+  <link rel="stylesheet" href="css/style.css?v=20260905cycleauto">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=20260905cycleauto">
 </head>
 <body>
   <!-- ====== บังคับล็อกอิน (static — ไม่พึ่ง JS ภายนอก) ====== -->
@@ -87,7 +87,7 @@
     </div>
     <div class="auth-box">
       <div class="auth-brand">
-        <img src="logo.jpg" alt="" onerror="this.style.display='none'">
+        <img src="logo.jpg?v=20260905cycleauto" alt="" onerror="this.style.display='none'">
         <div class="auth-brand-name">FARMULTIMATE SOLUTIONS</div>
         <div class="auth-brand-sub">ระบบจัดการฟาร์มอัจฉริยะ</div>
       </div>
@@ -113,7 +113,7 @@
     <header class="topbar">
       <div class="topbar-row">
         <div class="brand">
-          <img class="brand-logo" id="brandLogo" src="logo.jpg" alt="FARMULTIMATE SOLUTIONS" onerror="this.style.display='none';document.getElementById('brandLogoFallback').style.display='inline'">
+          <img class="brand-logo" id="brandLogo" src="logo.jpg?v=20260905cycleauto" alt="FARMULTIMATE SOLUTIONS" onerror="this.style.display='none';document.getElementById('brandLogoFallback').style.display='inline'">
           <span class="brand-logo" id="brandLogoFallback" style="display:none">FUS</span>
           <div class="brand-text">
             <div class="brand-name"><span id="brandNameTxt">FARMULTIMATE SOLUTIONS</span> <span class="v-badge">v54</span></div>
@@ -165,19 +165,19 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/data.js?v=20260905taskfailwater"></script>
+  <script src="js/data.js?v=20260905cycleauto"></script>
   <script src="js/charts.js?v=20260826ao"></script>
   <script src="js/notify.js?v=20260826ao"></script>
-  <script src="js/stock.js?v=20260905taskfailwater"></script>
-  <script src="js/sales.js?v=20260905taskfailwater"></script>
+  <script src="js/stock.js?v=20260905cycleauto"></script>
+  <script src="js/sales.js?v=20260905cycleauto"></script>
   <script src="js/lark.js?v=20260902shareflow"></script>
   <script src="js/auth.js?v=20260903uxauditfix"></script>
-  <script src="js/app.js?v=20260905taskfailwater"></script>
+  <script src="js/app.js?v=20260905cycleauto"></script>
   <!-- ลงทะเบียน Service Worker — เปิดใช้แบบออฟไลน์/ติดตั้งเป็นแอพบนมือถือ (ต้องใช้ผ่าน HTTPS หรือ localhost) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js?v=20260905taskfailwater').catch(function () { /* ไม่บังคับ — ถ้าลงทะเบียนไม่ได้ก็ใช้เว็บปกติ */ });
+        navigator.serviceWorker.register('sw.js?v=20260905cycleauto').catch(function () { /* ไม่บังคับ — ถ้าลงทะเบียนไม่ได้ก็ใช้เว็บปกติ */ });
       });
     }
   </script>
