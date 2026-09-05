@@ -1,11 +1,11 @@
 # FARMULTIMATE Collaboration Status
 
 - Updated: `2026-09-05 Asia/Bangkok`
-- State: `INTEGRATION_BASELINE_V2_LOCAL_VALIDATED`
+- State: `BASELINE_READY`
 - Development approval: `APPROVE_FARMULTIMATE_DEV_SETUP_ONCE`
 - Production branch: `master` at `dba54778aa5043c1d699ec7136d30fd4d18da71c`
-- Integration branch: `develop` — `PENDING_PUBLICATION`
-- Integration preparation branch: `pick/integration-baseline-v2`
+- Integration branch: `develop` at `0ac5b826b5cf8b16b5b2b9ec81194273f27bd11a` — `REMOTE_VERIFIED`
+- Integration preparation branch: `pick/integration-baseline-v2` at the same commit — `REMOTE_VERIFIED`
 - Merge source: `origin/master` + `origin/pick/codex-relay-setup` at `d03b82c5cda86031d1dac07e47707f755002edff`
 - Raw source branch: `sucha/sensor-phase1-local` — `PRESERVED / LOCAL_ONLY_DO_NOT_PUSH`
 - Production deployment: `NOT_DEPLOYED`
@@ -22,6 +22,8 @@
 ## Validation
 
 - `npm run check`: `64/64 PASS`, zero failed/skipped.
+- UTC runner reproduction after timezone fix: `64/64 PASS`.
+- GitHub Actions `npm-check`: `PASS`, run `33950163815`.
 - Relay tree on the integration worktree: `9 messages PASS`.
 - Incoming `origin/folk/codex-relay`: `6 messages PASS`.
 - Git conflict markers/unmerged paths: `NONE`.
@@ -43,19 +45,18 @@
 
 | Area | Owner | Current lock |
 |---|---|---|
-| Farm / Map / Planner / Analytics / Water / Telemetry | Pick + SUCHA | `pick/integration-baseline-v2` until publication |
-| Stock / Sales / Products / Import / Market Price | Folk | `AVAILABLE_AFTER_DEVELOP_PUBLICATION` |
-| Shared shell / contracts / CI / release preparation | SUCHA | `pick/integration-baseline-v2` until publication |
+| Farm / Map / Planner / Analytics / Water / Telemetry | Pick + SUCHA | `AVAILABLE_BY_TASK_LOCK` |
+| Stock / Sales / Products / Import / Market Price | Folk | `READY_FROM_ORIGIN_DEVELOP` |
+| Shared shell / contracts / CI / release preparation | SUCHA | `AVAILABLE_BY_TASK_LOCK` |
 | `master` and Cloudflare production | Pick approval | `LOCKED_NEEDS_APPROVE_PRODUCTION_DEPLOY` |
 
 ## Development Push Policy
 
 The one-time development approval authorizes publication of this reviewed baseline and routine pushes to owner feature branches under `docs/FEATURE_OWNERSHIP.md`. Future work uses Pull Requests into `develop`. It does not authorize direct routine pushes to `develop`, changes to `master`, production binding/deploy, secret/config writes, branch/data deletion or hardware action.
 
-## Pending External Setup
+## Remaining External Setup
 
-- Publish the validated integration branch and create `origin/develop` at the verified commit.
-- Apply branch protection to `develop` and `master`: Pull Request required, one human approval, `npm-check`, no force push or deletion.
+- Branch protection is `BLOCKED_NEEDS_REPOSITORY_ADMIN`: the authenticated SUCHA account has push permission but not repository admin permission. An admin must apply this once to `develop` and `master`: Pull Request required, one human approval, `npm-check`, no force push or deletion.
 - Configure the Pages `FARMULTIMATE_API` Service Binding only during an approved production release.
 
 ## Safety
@@ -64,4 +65,4 @@ The one-time development approval authorizes publication of this reviewed baseli
 
 ## Next Action
 
-Publish `pick/integration-baseline-v2` and `develop`, independently verify both remote hashes, apply branch protection where authenticated repository administration is available, then give Folk exactly one source-pinned Commerce task from `origin/develop`.
+Give Folk exactly one source-pinned Commerce task from `origin/develop` at `0ac5b826b5cf8b16b5b2b9ec81194273f27bd11a`; do not resume the superseded direct-link setup.
