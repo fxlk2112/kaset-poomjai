@@ -1,0 +1,852 @@
+{
+  "schema": "sucha.weather-model-dashboard.v1",
+  "generated_at": "2026-09-02T23:13:53+07:00",
+  "status": "READY_FORECAST_ONLY",
+  "forecast_only": true,
+  "station_truth_available": false,
+  "source": "Open-Meteo multi-model forecast snapshots",
+  "source_grain": "latest issue per model + hourly valid time",
+  "horizon_hours": 24,
+  "output_control_allowed": false,
+  "safety": {
+    "mode": "DATA_ONLY",
+    "control_contract": "SAFE_OFF"
+  },
+  "freshness": {
+    "latest_issued_at": "2026-09-02T23:13:53+07:00",
+    "earliest_issued_at": "2026-09-02T23:13:53+07:00",
+    "first_valid_at": "2026-09-03T00:00:00+07:00",
+    "last_valid_at": "2026-09-03T23:00:00+07:00",
+    "models": 10
+  },
+  "consensus": {
+    "rain_24h_mm": {
+      "median": 0.1,
+      "min": 0.0,
+      "max": 5.7,
+      "models": 10
+    },
+    "wet_model_count": 5,
+    "rain_model_count": 10,
+    "next_hour_temperature_c": {
+      "median": 26.9,
+      "min": 25.7,
+      "max": 29.2,
+      "models": 10
+    },
+    "next_hour_wind_kmh": {
+      "median": 10.8,
+      "min": 4.6,
+      "max": 17.0,
+      "models": 10
+    }
+  },
+  "models": [
+    {
+      "id": "ecmwf_ifs025",
+      "name": "ECMWF IFS",
+      "region": "ยุโรป",
+      "issued_at": "2026-09-02T23:13:53+07:00",
+      "hours": 24,
+      "rain_24h_mm": 5.7,
+      "rain_probability_max_percent": 92.0,
+      "temperature_mean_c": 29.2,
+      "next_hour": {
+        "valid_at": "2026-09-03T00:00:00+07:00",
+        "temperature_c": 26.8,
+        "humidity_percent": 81.0,
+        "rain_mm": 0.0,
+        "wind_kmh": 8.4
+      }
+    },
+    {
+      "id": "ecmwf_aifs025_single",
+      "name": "ECMWF AIFS",
+      "region": "ยุโรป · AI",
+      "issued_at": "2026-09-02T23:13:53+07:00",
+      "hours": 24,
+      "rain_24h_mm": 0.6,
+      "rain_probability_max_percent": null,
+      "temperature_mean_c": 30.9,
+      "next_hour": {
+        "valid_at": "2026-09-03T00:00:00+07:00",
+        "temperature_c": 28.2,
+        "humidity_percent": 72.0,
+        "rain_mm": 0.0,
+        "wind_kmh": 11.6
+      }
+    },
+    {
+      "id": "gfs_seamless",
+      "name": "GFS",
+      "region": "สหรัฐอเมริกา",
+      "issued_at": "2026-09-02T23:13:53+07:00",
+      "hours": 24,
+      "rain_24h_mm": 0.0,
+      "rain_probability_max_percent": 13.0,
+      "temperature_mean_c": 29.4,
+      "next_hour": {
+        "valid_at": "2026-09-03T00:00:00+07:00",
+        "temperature_c": 25.7,
+        "humidity_percent": 77.0,
+        "rain_mm": 0.0,
+        "wind_kmh": 9.0
+      }
+    },
+    {
+      "id": "icon_seamless",
+      "name": "ICON",
+      "region": "เยอรมนี",
+      "issued_at": "2026-09-02T23:13:53+07:00",
+      "hours": 24,
+      "rain_24h_mm": 0.2,
+      "rain_probability_max_percent": 28.0,
+      "temperature_mean_c": 29.4,
+      "next_hour": {
+        "valid_at": "2026-09-03T00:00:00+07:00",
+        "temperature_c": 26.7,
+        "humidity_percent": 78.0,
+        "rain_mm": 0.0,
+        "wind_kmh": 4.6
+      }
+    },
+    {
+      "id": "jma_seamless",
+      "name": "JMA",
+      "region": "ญี่ปุ่น",
+      "issued_at": "2026-09-02T23:13:53+07:00",
+      "hours": 24,
+      "rain_24h_mm": 0.0,
+      "rain_probability_max_percent": null,
+      "temperature_mean_c": 28.4,
+      "next_hour": {
+        "valid_at": "2026-09-03T00:00:00+07:00",
+        "temperature_c": 27.0,
+        "humidity_percent": 73.0,
+        "rain_mm": 0.0,
+        "wind_kmh": 8.4
+      }
+    },
+    {
+      "id": "gem_seamless",
+      "name": "GEM",
+      "region": "แคนาดา",
+      "issued_at": "2026-09-02T23:13:53+07:00",
+      "hours": 24,
+      "rain_24h_mm": 0.9,
+      "rain_probability_max_percent": 11.0,
+      "temperature_mean_c": 29.9,
+      "next_hour": {
+        "valid_at": "2026-09-03T00:00:00+07:00",
+        "temperature_c": 27.8,
+        "humidity_percent": 71.0,
+        "rain_mm": 0.0,
+        "wind_kmh": 12.2
+      }
+    },
+    {
+      "id": "meteofrance_arpege_world",
+      "name": "ARPEGE",
+      "region": "ฝรั่งเศส",
+      "issued_at": "2026-09-02T23:13:53+07:00",
+      "hours": 24,
+      "rain_24h_mm": 0.0,
+      "rain_probability_max_percent": null,
+      "temperature_mean_c": 31.3,
+      "next_hour": {
+        "valid_at": "2026-09-03T00:00:00+07:00",
+        "temperature_c": 29.2,
+        "humidity_percent": 60.0,
+        "rain_mm": 0.0,
+        "wind_kmh": 17.0
+      }
+    },
+    {
+      "id": "ncep_aigfs025",
+      "name": "AIGFS",
+      "region": "สหรัฐอเมริกา · AI",
+      "issued_at": "2026-09-02T23:13:53+07:00",
+      "hours": 24,
+      "rain_24h_mm": 0.0,
+      "rain_probability_max_percent": null,
+      "temperature_mean_c": 29.6,
+      "next_hour": {
+        "valid_at": "2026-09-03T00:00:00+07:00",
+        "temperature_c": 26.9,
+        "humidity_percent": null,
+        "rain_mm": 0.0,
+        "wind_kmh": 14.0
+      }
+    },
+    {
+      "id": "ukmo_global_deterministic_10km",
+      "name": "UKMO",
+      "region": "สหราชอาณาจักร",
+      "issued_at": "2026-09-02T23:13:53+07:00",
+      "hours": 24,
+      "rain_24h_mm": 1.3,
+      "rain_probability_max_percent": null,
+      "temperature_mean_c": 29.0,
+      "next_hour": {
+        "valid_at": "2026-09-03T00:00:00+07:00",
+        "temperature_c": 26.6,
+        "humidity_percent": 81.0,
+        "rain_mm": 0.0,
+        "wind_kmh": 10.1
+      }
+    },
+    {
+      "id": "cma_grapes_global",
+      "name": "CMA GRAPES",
+      "region": "จีน",
+      "issued_at": "2026-09-02T23:13:53+07:00",
+      "hours": 24,
+      "rain_24h_mm": 0.0,
+      "rain_probability_max_percent": null,
+      "temperature_mean_c": 29.4,
+      "next_hour": {
+        "valid_at": "2026-09-03T00:00:00+07:00",
+        "temperature_c": 25.8,
+        "humidity_percent": 88.0,
+        "rain_mm": 0.0,
+        "wind_kmh": 12.6
+      }
+    }
+  ],
+  "hourly": [
+    {
+      "valid_at": "2026-09-03T00:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "models": 10
+      },
+      "wet_model_count": 0,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 26.9,
+        "min": 25.7,
+        "max": 29.2,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 10.8,
+        "min": 4.6,
+        "max": 17.0,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T01:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "models": 10
+      },
+      "wet_model_count": 0,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 26.6,
+        "min": 25.6,
+        "max": 28.7,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 10.2,
+        "min": 4.0,
+        "max": 16.6,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T02:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "models": 10
+      },
+      "wet_model_count": 0,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 26.3,
+        "min": 25.5,
+        "max": 28.3,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 10.2,
+        "min": 3.8,
+        "max": 16.0,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T03:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "models": 10
+      },
+      "wet_model_count": 0,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 26.1,
+        "min": 25.0,
+        "max": 28.0,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 9.2,
+        "min": 3.5,
+        "max": 15.0,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T04:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "models": 10
+      },
+      "wet_model_count": 0,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 25.8,
+        "min": 24.3,
+        "max": 27.9,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 8.7,
+        "min": 3.6,
+        "max": 14.1,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T05:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "models": 10
+      },
+      "wet_model_count": 0,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 25.8,
+        "min": 24.0,
+        "max": 27.9,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 8.1,
+        "min": 3.4,
+        "max": 13.0,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T06:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "models": 10
+      },
+      "wet_model_count": 0,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 25.9,
+        "min": 23.9,
+        "max": 27.8,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 8.3,
+        "min": 3.2,
+        "max": 11.5,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T07:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "models": 10
+      },
+      "wet_model_count": 0,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 26.5,
+        "min": 25.0,
+        "max": 27.9,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 8.7,
+        "min": 2.6,
+        "max": 11.5,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T08:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "models": 10
+      },
+      "wet_model_count": 0,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 28.0,
+        "min": 27.1,
+        "max": 29.3,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 10.8,
+        "min": 4.5,
+        "max": 13.8,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T09:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "models": 10
+      },
+      "wet_model_count": 0,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 29.9,
+        "min": 27.9,
+        "max": 31.3,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 14.0,
+        "min": 9.4,
+        "max": 18.4,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T10:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "models": 10
+      },
+      "wet_model_count": 0,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 31.1,
+        "min": 28.8,
+        "max": 32.0,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 15.9,
+        "min": 10.1,
+        "max": 21.4,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T11:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.7,
+        "models": 10
+      },
+      "wet_model_count": 1,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 32.6,
+        "min": 29.8,
+        "max": 33.8,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 16.9,
+        "min": 11.2,
+        "max": 21.3,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T12:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.9,
+        "models": 10
+      },
+      "wet_model_count": 2,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 33.8,
+        "min": 29.1,
+        "max": 35.3,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 16.5,
+        "min": 11.9,
+        "max": 21.7,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T13:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.7,
+        "models": 10
+      },
+      "wet_model_count": 1,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 34.5,
+        "min": 30.9,
+        "max": 36.1,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 17.1,
+        "min": 12.3,
+        "max": 25.9,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T14:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 1.0,
+        "models": 10
+      },
+      "wet_model_count": 2,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 35.0,
+        "min": 31.0,
+        "max": 36.2,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 17.1,
+        "min": 12.3,
+        "max": 27.6,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T15:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 1.0,
+        "models": 10
+      },
+      "wet_model_count": 3,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 34.8,
+        "min": 30.8,
+        "max": 35.9,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 17.2,
+        "min": 12.2,
+        "max": 26.6,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T16:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 1.0,
+        "models": 10
+      },
+      "wet_model_count": 1,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 34.1,
+        "min": 30.5,
+        "max": 35.3,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 17.2,
+        "min": 11.9,
+        "max": 26.6,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T17:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.2,
+        "models": 10
+      },
+      "wet_model_count": 1,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 33.1,
+        "min": 30.1,
+        "max": 35.1,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 16.7,
+        "min": 11.5,
+        "max": 26.6,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T18:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.2,
+        "models": 10
+      },
+      "wet_model_count": 1,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 31.5,
+        "min": 29.6,
+        "max": 34.3,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 16.5,
+        "min": 10.9,
+        "max": 23.5,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T19:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.2,
+        "models": 10
+      },
+      "wet_model_count": 1,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 29.9,
+        "min": 29.2,
+        "max": 33.4,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 16.2,
+        "min": 8.2,
+        "max": 24.5,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T20:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "models": 10
+      },
+      "wet_model_count": 0,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 29.0,
+        "min": 28.6,
+        "max": 32.6,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 15.1,
+        "min": 5.8,
+        "max": 18.7,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T21:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "models": 10
+      },
+      "wet_model_count": 0,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 28.5,
+        "min": 27.7,
+        "max": 31.8,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 12.6,
+        "min": 5.1,
+        "max": 18.1,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T22:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "models": 10
+      },
+      "wet_model_count": 0,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 28.1,
+        "min": 27.0,
+        "max": 31.0,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 12.9,
+        "min": 5.5,
+        "max": 17.4,
+        "models": 10
+      }
+    },
+    {
+      "valid_at": "2026-09-03T23:00:00+07:00",
+      "model_count": 10,
+      "rain_mm": {
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "models": 10
+      },
+      "wet_model_count": 0,
+      "rain_model_count": 10,
+      "temperature_c": {
+        "median": 27.6,
+        "min": 26.4,
+        "max": 30.3,
+        "models": 10
+      },
+      "wind_kmh": {
+        "median": 12.8,
+        "min": 5.2,
+        "max": 17.5,
+        "models": 10
+      }
+    }
+  ],
+  "rain_windows": [
+    {
+      "start_at": "2026-09-03T12:00:00+07:00",
+      "end_at_exclusive": "2026-09-03T13:00:00+07:00",
+      "hours": 1,
+      "trigger": "AT_LEAST_2_MODELS_WITH_0P2_MM_PER_HOUR",
+      "agreement": {
+        "wet_models": 2,
+        "rain_models": 10,
+        "peak_wet_models": 2
+      },
+      "rain_total_mm": {
+        "all_models": {
+          "median": 0.0,
+          "min": 0.0,
+          "max": 0.9,
+          "models": 10
+        },
+        "wet_models_only": {
+          "median": 0.8,
+          "min": 0.7,
+          "max": 0.9,
+          "models": 2
+        }
+      }
+    },
+    {
+      "start_at": "2026-09-03T14:00:00+07:00",
+      "end_at_exclusive": "2026-09-03T16:00:00+07:00",
+      "hours": 2,
+      "trigger": "AT_LEAST_2_MODELS_WITH_0P2_MM_PER_HOUR",
+      "agreement": {
+        "wet_models": 4,
+        "rain_models": 10,
+        "peak_wet_models": 3
+      },
+      "rain_total_mm": {
+        "all_models": {
+          "median": 0.0,
+          "min": 0.0,
+          "max": 2.0,
+          "models": 10
+        },
+        "wet_models_only": {
+          "median": 0.7,
+          "min": 0.2,
+          "max": 2.0,
+          "models": 4
+        }
+      }
+    }
+  ],
+  "caveats": [
+    "เป็นค่าพยากรณ์ ไม่ใช่ค่าตรวจวัดจากสถานีจริง",
+    "ยังไม่มีข้อมูลสถานีจริงสำหรับจัดอันดับความแม่นของแต่ละโมเดล",
+    "ค่ากลางใช้ median และช่วง min-max ของโมเดลที่มีข้อมูล; null ไม่ถูกแทนด้วยศูนย์",
+    "ช่วงฝนที่เป็นไปได้เริ่มเมื่ออย่างน้อย 2 โมเดลคาดฝนตั้งแต่ 0.2 มม./ชั่วโมง"
+  ]
+}

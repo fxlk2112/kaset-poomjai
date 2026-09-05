@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS water_systems (
   last_watered TEXT DEFAULT '',
   state        TEXT DEFAULT 'off',
   until_ts     INTEGER DEFAULT 0,
+  lat          REAL DEFAULT 0,
+  lng          REAL DEFAULT 0,
+  note         TEXT DEFAULT '',
   updated_at   INTEGER NOT NULL,
   PRIMARY KEY (user_id, system_id)
 );

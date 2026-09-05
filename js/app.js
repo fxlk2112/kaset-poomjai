@@ -7,7 +7,7 @@
 
 /* ---------------- state & bootstrap ----------------
    (S ประกาศใน data.js — ให้ระบบบัญชี (auth.js) สลับ slot ข้อมูลรายบัญชีได้ก่อน render) */
-const APP_BUILD_VERSION = "20260905cycleauto";
+const APP_BUILD_VERSION = "20260905release40721b5";
 window.APP_BUILD_VERSION = APP_BUILD_VERSION;
 function ensureFreshAppBuild() {
   try {
@@ -357,16 +357,7 @@ let lastView = null;
 function render() {
   /* โหมดแชร์: เปิดลิงก์ ?share=... — แสดงแปลงแบบดูอย่างเดียว (ไม่ต้องล็อกอิน) */
   if (typeof Auth !== "undefined" && Auth.shareMode) { App.renderShareView(); return; }
-  /* บังคับล็อกอิน: ยังไม่ล็อกอิน (หรือโหลดระบบบัญชีไม่ได้) = ไม่วาดหน้าใด ๆ ของแอป */
-  if (typeof Auth === "undefined" || !Auth.session) {
-    const vn = document.getElementById("view");
-    const nn = document.getElementById("bottomNav");
-    const fd = document.getElementById("fabDock");
-    if (vn) vn.innerHTML = "";
-    if (nn) nn.innerHTML = "";
-    if (fd) fd.style.display = "none";
-    return;
-  }
+  /* Direct-open: หน้าแดชบอร์ดและข้อมูล local แสดงได้โดยไม่ต้องมีเซสชันคลาวด์ */
   const fd = document.getElementById("fabDock");
   // keep route valid for the current nav (sub-views group under their parent nav item)
   const keys = visibleNav().map(n => n.key);
@@ -388,6 +379,11 @@ function render() {
   if (!keys.includes(navKey)) {
     route.view = keys.includes("home") ? "home" : keys[0];
   }
+  document.body.classList.toggle("view-iot-digital-twin", route.view === "iot");
+  document.body.classList.toggle(
+    "view-iot-farm-map",
+    route.view === "iot" && typeof FarmMapDashboard !== "undefined" && FarmMapDashboard.isMapSurface()
+  );
 
   // bottom nav
   const nav = document.getElementById("bottomNav");
@@ -415,8 +411,16 @@ function render() {
   /* หลังวาดหน้า — ดึงสภาพอากาศของแปลง (หน้าแปลง + หน้าสภาพอากาศ) */
   if (route.view === "weather" || route.view === "plotDetail") renderPlotWeather();
   else clearRainRadar();
-  /* หน้าระบบน้ำ: ดึงโน้ตล่าสุดจากเซิร์ฟเวอร์ (ข้ามรอบเพราะฝน ฯลฯ) */
-  if (route.view === "iot" && typeof App.waterPullStatus === "function") App.waterPullStatus();
+  /* หน้าระบบน้ำ Phase 1: อ่าน telemetry จริงเท่านั้น; ไม่มีคำสั่งเอาต์พุต */
+  if (route.view === "iot") {
+    if (typeof SensorTelemetry !== "undefined") {
+      SensorTelemetry.mountChart();
+      SensorTelemetry.refresh(false);
+    }
+    if (!SENSOR_PHASE1_READ_ONLY && typeof App.waterPullStatus === "function") App.waterPullStatus();
+  }
+  /* หน้าราคาตลาด: ฝังวิดเจ็ตราคารายวัน */
+  if (route.view === "prices" && typeof App.mountRakaWidget === "function") App.mountRakaWidget();
   if (route.view === "settings") wireSettingsAccordion();
   /* หน้าราคาตลาด: reset _priceLoading เมื่อเปลี่ยนออกจากหน้า prices เพื่อให้โหลดใหม่ได้ครั้งถัดไป */
   if (viewChanged && route.view !== "prices") App._priceLoading = false;
@@ -447,6 +451,7 @@ function render() {
 }
 
 App.nav = function (key) {
+  if (key === "iot" && typeof FarmMapDashboard !== "undefined") FarmMapDashboard.reset();
   route.view = key;
   if (key !== "weather") route.weatherFrom = "";
   render();
@@ -470,6 +475,21 @@ function moreBackHeader(title, sub, actionHtml, tkey) {
       ${actionHtml ? `<div class="subpage-action">${actionHtml}</div>` : ""}
     </div>`;
 }
+App.farmMapSelect = function (id) {
+  if (typeof FarmMapDashboard === "undefined") return;
+  FarmMapDashboard.select(id);
+  render();
+};
+App.farmMapBack = function () {
+  if (typeof FarmMapDashboard === "undefined") return;
+  FarmMapDashboard.reset();
+  render();
+};
+App.farmMapKey = function (event, id) {
+  if (!event || (event.key !== "Enter" && event.key !== " ")) return;
+  event.preventDefault();
+  App.farmMapSelect(id);
+};
 /* re-render แบบไม่กระโดดกลับหัวหน้า (ใช้กับปุ่มในหน้า เช่น ติ๊กงาน / กดวันที่ปฏิทิน) */
 function rerender() {
   const sy = window.scrollY;
@@ -638,6 +658,15 @@ function renderHome() {
       </div>
       <div class="hero-chips">${quickActs}</div>
     </div>
+
+    <button class="home-water-entry" onclick="App.nav('iot')" aria-label="เปิดหน้าการจัดการน้ำ">
+      <span class="home-water-entry-icon">${ic("droplet")}</span>
+      <span class="home-water-entry-copy">
+        <strong>การจัดการน้ำ</strong>
+        <small>ดูระดับน้ำ สัญญาณเซนเซอร์ และประวัติข้อมูล</small>
+      </span>
+      <span class="home-water-entry-status"><b>LIVE</b><i aria-hidden="true">›</i></span>
+    </button>
 
     ${welcome}
     ${todayPanel}
@@ -4094,7 +4123,7 @@ function plotWaterCard(p) {
         </div>
       </div>
       ${due ? `<span class="badge badge-amber">ถึงรอบ</span>` : next ? `<span class="badge badge-green">${dateLabel(next)}</span>` : ""}
-      <button class="btn btn-sm btn-primary" onclick="App.modalWaterNow('${sys.id}')">${ic("droplet")} ให้น้ำ</button>
+      <button class="btn btn-sm btn-outline" onclick="App.modalWaterNow('${sys.id}')">${ic("save")} บันทึกการให้น้ำ</button>
     </div>`;
   }).join("");
   return `
@@ -4114,6 +4143,15 @@ function waterNextDate(sys) {
   return addDaysISO(sys.lastWatered, Number(sys.auto.everyDays) || 1);
 }
 function renderIoT() {
+  /* Phase 1 dashboard is telemetry-only. Legacy planning/editing markup below is
+     intentionally kept in source for later migration, but is not rendered here. */
+  return typeof FarmMapDashboard !== "undefined"
+    ? FarmMapDashboard.cardHtml()
+    : typeof SensorTelemetry !== "undefined"
+    ? SensorTelemetry.cardHtml()
+    : `<section class="sensor-digital-twin"><div class="digital-alert" role="alert">โมดูลข้อมูลเซนเซอร์ยังไม่พร้อม</div></section>`;
+
+  /* c8 ignore start -- legacy water-planning UI, unreachable during SAFE_OFF */
   const W = S.water;
   const plotName = id => { const p = plotById(S, id); return p ? p.name : "(แปลงถูกลบ)"; };
   const today = todayISO();
@@ -4131,7 +4169,7 @@ function renderIoT() {
           <div class="plot-name">${esc(plotName(sys.plotId))}</div>
           <div class="muted" style="font-size:.74rem">${esc(sys.name)}${sys.pumpName ? " · ปั๊ม: " + esc(sys.pumpName) : ""}${sys.valveCount ? " · " + sys.valveCount + " วาล์ว" : ""}${src ? " · " + esc(src.name) : ""}</div>
         </div>
-        <button class="switch ${sys.state === "on" ? "on" : ""}" onclick="App.toggleWater('${sys.id}')" aria-label="สลับเปิดปิด"></button>
+        <span class="badge badge-gray">ควบคุมถูกปิด</span>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
         ${sys.auto && sys.auto.enabled ? `<span class="badge badge-blue">${ic("clock")} อัตโนมัติ ทุก ${sys.auto.everyDays} วัน · ${sys.auto.time} · ${sys.auto.minutes} นาที</span>` : `<span class="badge badge-gray">ให้น้ำด้วยมือ</span>`}
@@ -4141,7 +4179,7 @@ function renderIoT() {
       <div class="row row-between mt-8">
         <div class="muted" style="font-size:.72rem">ให้น้ำล่าสุด: ${sys.lastWatered ? dateLabel(sys.lastWatered) : "ยังไม่เคย"}</div>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-sm btn-primary" onclick="App.modalWaterNow('${sys.id}')">${ic("droplet")} ให้น้ำตอนนี้</button>
+          <button class="btn btn-sm btn-outline" onclick="App.modalWaterNow('${sys.id}')">${ic("save")} บันทึกการให้น้ำ</button>
           <button class="btn btn-sm btn-outline" onclick="App.modalWaterSystem('${sys.id}')">${ic("pencil")} ตั้งค่า</button>
           <button class="btn btn-sm btn-danger-soft" onclick="App.delWaterSystem('${sys.id}')">${ic("trash")}</button>
         </div>
@@ -4188,14 +4226,17 @@ function renderIoT() {
       <div class="row">
         <span style="font-size:2rem;color:#fff">${ic("droplet")}</span>
         <div class="grow">
-          <div class="bold" style="font-size:1rem">ระบบน้ำอัตโนมัติรายแปลง</div>
-          <div style="font-size:.76rem;opacity:.85">ตั้งตารางให้น้ำแยกแต่ละแปลง · บันทึกทุกครั้งที่ให้น้ำ · เห็นภาพรวมในหน้าเดียว</div>
+          <div class="bold" style="font-size:1rem">ระบบน้ำและเซนเซอร์ภาคสนาม</div>
+          <div style="font-size:.76rem;opacity:.85">Phase 1 อ่านข้อมูลจริงจาก Pi 5 · บันทึกงานให้น้ำ · เอาต์พุตทุกช่องยัง SAFE_OFF</div>
         </div>
       </div>
     </div>
 
+    ${typeof SensorTelemetry !== "undefined" ? SensorTelemetry.cardHtml() : ""}
+
     <div class="row row-between iot-section-head">
-      <div class="bold" style="font-size:1.02rem">${T("iotTitle")} (${W.systems.length})</div>
+      <div class="bold" style="font-size:1.02rem" data-tkey="iotTitle">${T("iotTitle")} (${W.systems.length})</div>
+      <button class="btn btn-primary btn-sm" onclick="App.modalWaterSystem()">${ic("plus")} เพิ่มระบบน้ำให้แปลง</button>
     </div>
     ${W.systems.length === 0 ? `<div class="card"><div class="empty"><div class="e-ico">${ic("droplet")}</div><div class="e-title">ยังไม่มีระบบน้ำ</div><div class="muted">เลือกแปลง ตั้งปั๊ม และกำหนดตารางให้น้ำได้จากปุ่มด้านบน</div></div></div>` : ""}
     <div class="card-grid">${sysCards}</div>
@@ -4211,13 +4252,19 @@ function renderIoT() {
       ${logs.length === 0 ? `<div class="muted" style="text-align:center;padding:8px;font-size:.8rem">ยังไม่มีบันทึก — กด "ให้น้ำตอนนี้" ที่การ์ดแปลงเพื่อบันทึก</div>` : logRows}
     </div>
 
-    <div class="section-title">${ic("wifi")} อุปกรณ์ควบคุมที่แปลง (ESP32)</div>
-    <div class="card">
-      <div class="muted" style="font-size:.76rem;margin-bottom:10px">เชื่อม ESP32 เพื่อดึงคำสั่งให้น้ำจาก API และรับ Device Key สำหรับอุปกรณ์ที่แปลง</div>
-      <button class="btn btn-primary btn-block" onclick="App.waterAddDevice()">${ic("plus")} เพิ่มอุปกรณ์ / รับ Device Key</button>
-      <button class="btn btn-outline btn-block mt-8" onclick="App.waterListDevices()">${ic("eye")} ดู Device Key ที่มีอยู่</button>
+    <div class="section-title">${ic("lock")} ขอบเขตความปลอดภัย Phase 1</div>
+    <div class="card sensor-control-lock">
+      <div class="bold">เอาต์พุตถูกปิดทั้งหน้าเว็บและ Worker</div>
+      <div class="muted mt-8" style="font-size:.76rem">ระบบนี้รับและแสดงข้อมูลจาก Pi 5 เท่านั้น ไม่ออก Device Key สำหรับ ESP32 และไม่ส่งคำสั่งเปิดปั๊มหรือวาล์ว การควบคุมจริงจะทำภายใต้ Pi 5 single-writer หลังผ่าน commissioning แยกต่างหาก</div>
     </div>`;
 }
+
+App.refreshMainWaterSensor = function () {
+  if (typeof SensorTelemetry !== "undefined") SensorTelemetry.refresh(true);
+};
+App.setSensorHistoryHours = function (hours) {
+  if (typeof SensorTelemetry !== "undefined") SensorTelemetry.setHours(hours);
+};
 
 /* ดึงสถานะ/โน้ตล่าสุดจากเซิร์ฟเวอร์ (เช่น "ข้ามรอบเพราะฝน") มาแสดงในการ์ด */
 App.waterPullStatus = async function () {
@@ -4234,6 +4281,7 @@ App.waterPullStatus = async function () {
 
 /* สลับสวิตช์วาล์ว — สั่งเซิร์ฟเวอร์จริง (อุปกรณ์ ESP32 ดึงคำสั่งนี้ไปทำงาน) + จำลองในเว็บ */
 App.toggleWater = function (id) {
+  if (SENSOR_PHASE1_READ_ONLY) { toast("Phase 1 อ่านข้อมูลเท่านั้น — เอาต์พุตยัง SAFE_OFF"); return; }
   const sys = (S.water.systems || []).find(x => x.id === id);
   if (!sys) return;
   sys.state = sys.state === "on" ? "off" : "on";
@@ -4248,6 +4296,7 @@ App.toggleWater = function (id) {
 
 /* ซิงก์ระบบน้ำทั้งหมดขึ้นเซิร์ฟเวอร์ (ตารางอัตโนมัติทำงานฝั่งเซิร์ฟเวอร์) */
 App.waterSyncNow = async function () {
+  if (SENSOR_PHASE1_READ_ONLY) { toast("Phase 1 ไม่ส่งตารางควบคุมขึ้นเซิร์ฟเวอร์"); return; }
   if (typeof Auth === "undefined" || !Auth.session) return;
   toast("กำลังซิงก์ระบบน้ำขึ้นเซิร์ฟเวอร์...");
   const r = await Auth.waterSync();
@@ -4255,6 +4304,7 @@ App.waterSyncNow = async function () {
 };
 
 App.waterAddDevice = async function () {
+  if (SENSOR_PHASE1_READ_ONLY) { toast("Phase 1 ปิดการออก Device Key สำหรับควบคุม"); return; }
   if (!(typeof Auth !== "undefined" && Auth.session)) { toast("ต้องล็อกอินก่อน"); return; }
   const r = await authCall("water_register", { token: Auth.session.token, name: "ESP32-" + new Date().toISOString().slice(5, 10) });
   if (!r.ok) { toast(r.error || "ทำรายการไม่สำเร็จ"); return; }
@@ -4266,13 +4316,14 @@ App.waterShowKey = function (key) {
     <h3>${ic("wifi")} Device Key สำหรับ ESP32</h3>
     <div class="modal-sub">คัดลอก Key นี้ไปใส่ในไฟล์ firmware (บรรทัด DEVICE_KEY) — ใครมี Key นี้สั่งวาล์วคุณได้ อย่าเปิดเผย</div>
     <div class="card soft-bg" style="font-family:monospace;font-size:.85rem;word-break:break-all;user-select:all">${esc(key)}</div>
-    <div class="field"><label>URL API ที่อุปกรณ์ใช้ (POST)</label><input readonly value="https://farmbackup.carfork123.workers.dev" onclick="this.select()"></div>
+    <div class="field"><label>URL API ที่อุปกรณ์ใช้ (POST)</label><input readonly value="${esc(FarmUltimateRuntime.apiUrl)}" onclick="this.select()"></div>
     <div class="modal-actions">
       <button class="btn btn-primary" onclick="App.copyText('${esc(key)}')">${ic("save")} คัดลอก Key</button>
       <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
     </div>`);
 };
 App.waterListDevices = async function () {
+  if (SENSOR_PHASE1_READ_ONLY) { toast("Phase 1 ปิดระบบอุปกรณ์ควบคุม"); return; }
   if (!(typeof Auth !== "undefined" && Auth.session)) { toast("ต้องล็อกอินก่อน"); return; }
   const r = await authCall("water_keys", { token: Auth.session.token });
   if (!r.ok) { toast(r.error || "โหลดไม่สำเร็จ"); return; }
@@ -5595,7 +5646,7 @@ function renderSettings() {
     </div>
     <button class="btn btn-danger-soft btn-block mt-8" onclick="App.resetData()">${ic("refresh")} รีเซ็ตข้อมูลทั้งหมด</button>
     </details>
-    <div class="muted mt-8" style="font-size:.7rem;text-align:center">สภาพอากาศรายแปลงจาก Open-Meteo (ECMWF) — ฟรี ไม่ต้องใช้คีย์ · IoT จริงในเวอร์ชันถัดไป</div>`;
+    <div class="muted mt-8" style="font-size:.7rem;text-align:center">สภาพอากาศรายแปลงจาก Open-Meteo · เซนเซอร์ระดับน้ำจริงทำงานแบบ read-only ผ่าน Pi 5 · เอาต์พุตยัง SAFE_OFF</div>`;
 }
 /* เครื่องมือแก้ไข (ใช้ทั้งในหน้าตั้งค่า และ modal จากปุ่ม ✏️ แก้ไขหัวเว็บ) */
 function adminToolsHtml() {
@@ -6160,8 +6211,8 @@ App.confirmChoice = confirmChoice;
 /* ---- plot form ---- */
 App.modalPlot = function (id) {
   const p = id ? plotById(S, id) : null;
-  const lat = p ? p.lat : 14.9823;
-  const lng = p ? p.lng : 100.4582;
+  const lat = p ? p.lat : "";
+  const lng = p ? p.lng : "";
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${p ? "อัปเกรด / แก้ไขแปลง" : "เพิ่มแปลงใหม่"}</h3>
@@ -8373,6 +8424,16 @@ try {
     if (saved.trialMetricId) route.trialMetricId = saved.trialMetricId;
     if (saved.trialTreatmentId) route.trialTreatmentId = saved.trialTreatmentId;
     if (saved.year) route.year = saved.year;
+  }
+} catch (e) {}
+try {
+  const previewUrl = new URL(location.href);
+  const previewHost = String(location.hostname || "").toLowerCase();
+  const localSensorRoute = (previewHost === "localhost" || previewHost === "127.0.0.1") &&
+    (previewUrl.searchParams.get("sensorPreview") === "1" ||
+      (typeof FarmUltimateRuntime !== "undefined" && FarmUltimateRuntime.isRealSensorStaging));
+  if (localSensorRoute) {
+    route.view = "iot";
   }
 } catch (e) {}
 render();

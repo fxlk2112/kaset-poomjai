@@ -5,9 +5,13 @@ const LARK_FN = "https://farmbackup.carfork123.workers.dev";
 const LARK_STOCK_SOURCE_KEY = "farmult-lark-stock-source-v1";
 const LARK_PHOTO_POLICY_KEY = "farmult-lark-photo-policy-v1";
 let larkStockSyncTimer = null;
+globalThis.FARMULTIMATE_PUBLIC_API_URL = LARK_FN;
 
 /* เรียก Cloudflare Worker — คืน data หรือ throw พร้อมข้อความ */
 async function larkCall(action, body, opts) {
+  if (typeof Auth === "undefined" || !Auth.session || !Auth.session.admin) {
+    throw new Error("ต้องเข้าสู่ระบบด้วยบัญชีผู้ดูแลก่อนใช้ Lark Base");
+  }
   const timeoutMs = (opts && opts.timeoutMs) || 60000;
   const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
   const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : null;
@@ -16,7 +20,7 @@ async function larkCall(action, body, opts) {
     r = await fetch(LARK_FN, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(Object.assign({ action }, body || {})),
+      body: JSON.stringify(Object.assign({ action, token: Auth.session.token }, body || {})),
       signal: ctl ? ctl.signal : undefined
     });
   } catch (e) {

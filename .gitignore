@@ -13,3 +13,38 @@ import-plotC-round.json
 # Product images (stored in R2 cloud storage)
 images/products/
 images/product_urls.json
+
+# Local test/runtime caches
+__pycache__/
+*.py[cod]
+.codex-relay/
+
+# Generated Cloudflare Worker static-assets staging directory
+.cloudflare-staging-dist/
+
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+!.env.sample
+secrets/
+*.pem
+*.p12
+*.pfx
+*.secret.*
+
+# Dependencies, build output, and local logs
+node_modules/
+dist/
+coverage/
+*.log
+
+# Private or machine-local field data
+data/private/
+config/local/
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
