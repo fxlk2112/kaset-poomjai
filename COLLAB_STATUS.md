@@ -9,7 +9,15 @@
 - Functional baseline commit: `0ac5b826b5cf8b16b5b2b9ec81194273f27bd11a`
 - Merge source: `origin/master` + `origin/pick/codex-relay-setup` at `d03b82c5cda86031d1dac07e47707f755002edff`
 - Raw source branch: `sucha/sensor-phase1-local` — `PRESERVED / LOCAL_ONLY_DO_NOT_PUSH`
-- Production deployment: `NOT_DEPLOYED`
+- Active release: `OWNER-MAIN-001`, owner SUCHA, branch `pick/owner-main-develop-40721b5`.
+- Approved target: existing Worker `flytech-farmultimate-owner-staging`; Pick explicitly selected it as the main app on 2026-09-05, replacing the Pages URL for day-to-day use.
+- Release source: `origin/develop@40721b5bfa71670ea97aba0d247e5616277c018a`.
+- Production deployment: `OWNER_MAIN_READY_TO_DEPLOY / NOT_DEPLOYED`.
+- Scope lock: owner frontend Worker entry/config, allowlisted asset packaging, deployment runtime configuration, service-worker cache, release tests/docs and status. Existing API Worker, database schema/data and actuator control are outside this release.
+- Existing frontend rollback version: `f062eb54-7ef1-481f-80a1-9ec40752a848`.
+- Existing API: `flytech-farmultimate-api-canary@87ab09f5-1da5-43b3-81c1-30c5a858b11f`; authenticated readback confirms `OUTPUT_CONTROL_ENABLED=false`. It has D1 and no R2 photo binding.
+- Owner-main preflight: `75/75 PASS`, relay `9 messages PASS`, Wrangler dry-run/type generation pass; `37` public asset files, zero forbidden source paths or secret-scan hits.
+- Browser QA: desktop `1280 x 720`, mobile `390 x 844` Home/Map/Pond/Stock inspected; no horizontal overflow, console errors or page errors. Local gateway health and forecast asset both return HTTP 200. Production runtime simulation confirms same-origin `/api` and preserved `owner-canary` storage namespace.
 
 ## Baseline V2 Result
 
@@ -66,4 +74,4 @@ The one-time development approval authorizes publication of this reviewed baseli
 
 ## Next Action
 
-Give Folk exactly one source-pinned Commerce task from `origin/develop` at `0ac5b826b5cf8b16b5b2b9ec81194273f27bd11a`; do not resume the superseded direct-link setup.
+Deploy the committed OWNER-MAIN-001 candidate to the existing owner Worker under Pick's explicit target approval, then independently read the deployed build, API safety flags and desktop/mobile views. Keep the backend and data unchanged.
