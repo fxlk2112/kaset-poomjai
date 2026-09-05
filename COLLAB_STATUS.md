@@ -11,6 +11,18 @@
 - Raw source branch: `sucha/sensor-phase1-local` — `PRESERVED / LOCAL_ONLY_DO_NOT_PUSH`
 - Production deployment: `NOT_DEPLOYED`
 
+## Active Task Lock
+
+- Task ID: `SUCHA-SENSOR-UAT-001`
+- Owner: `SUCHA`
+- Branch: `pick/owner-sensor-local-uat`
+- Source commit: `b462e7f10190fde76f3d92d673f06b3d1b200e85` (`origin/develop`)
+- Scope: repeatable loopback-only owner sensor UAT with an in-memory temporary session and a read-only API allowlist.
+- Writable files: `scripts/owner-canary-uat-server.mjs`, `scripts/tests/owner-canary-uat-server.test.mjs`, `docs/OWNER_SENSOR_LOCAL_UAT.md`, `package.json`, `COLLAB_STATUS.md`.
+- Acceptance: full `npm run check`; real owner-canary browser readback; zero browser console errors; temporary session expired; loopback port closed; secret scan clear.
+- Result: `READY_FOR_PR` — `65/65 PASS`, real current/history rendered, API evidence limited to the three read-only actions, console `0`, cleanup passed.
+- Deployment: `NOT_DEPLOYED`
+
 ## Baseline V2 Result
 
 - Master commerce/auth changes and the reviewed Farm/Map/Telemetry baseline are merged in an isolated worktree.
