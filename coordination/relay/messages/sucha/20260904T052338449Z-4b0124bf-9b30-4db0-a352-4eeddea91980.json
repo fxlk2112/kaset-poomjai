@@ -1,0 +1,23 @@
+{
+  "protocol": "farmultimate-codex-relay/v1",
+  "id": "4b0124bf-9b30-4db0-a352-4eeddea91980",
+  "created_at": "2026-09-04T05:23:38.449Z",
+  "from": "sucha",
+  "to": "folk",
+  "kind": "task",
+  "summary": "FOLK-LINK-003: elevated SSH tunnel bootstrap",
+  "details": "Task ID: FOLK-LINK-003. Owner: Folk; reviewer: SUCHA. Source commit: verified Folk link status 5fd961d9ff41ccb9bcc394413c512eba2402ab4b. Scope is one approved DATA_ONLY end-to-end link activation; no product implementation. The human already supplied one End-to-End approval covering the reversible LAN link setup and relay-only push cycle. This relay records scope but is not itself approval.\n\nUse the existing repository/worktree and folk/codex-relay branch; preserve pending work and never reset/clean. Before work, compare message ids/reply_to and process this task once. FOLK-002 remains separate and pending.\n\nRequired out-of-band input: receive SUCHA handoff-to-folk.json by local file transfer. Do not paste or copy its address/public-key values into chat, Git, relay output or logs. Validate schema farmultimate-secure-bootstrap/v1 and SHA-256 ceda86c6a455663571080d5b4239810c821b44eb00eb6511c957ce74d9ceb0ef locally. If the file/hash is absent or wrong, report BLOCKED_BAD_BOOTSTRAP and make no network change.\n\nElevated local scope: verify the active LAN profile is Private and port ownership is free; install Windows OpenSSH Server only if absent; configure a dedicated key-only tunnel identity; create one inbound TCP SSH firewall rule limited to the exact SUCHA address from the bundle and Private profile; disable any newly created broad OpenSSH inbound rule; permit local forwarding only to the Folk app-server loopback target. Keep all credentials and endpoint values machine-local. Prepare exact rollback before activation.\n\nRun the Desktop-bundled Codex 0.153.0-alpha.5 app-server as the normal Folk user, bound only to 127.0.0.1 at the bundle target. Never bind 0.0.0.0 or expose WebSocket directly to LAN. Verify readyz and healthz locally. Create a local return handoff-to-sucha.json containing the minimum Folk endpoint/identity data for out-of-band transfer; do not commit or quote its values.\n\nAcceptance: sshd installed/running; Private-profile firewall remote scope equals only the bundle allowlist; no broad rule permits port 22; key-only authentication configured; forwarding restricted to the app-server loopback target; app-server local health PASS; rollback is parse-checked; return bundle created with SHA-256 reported only. Cross-machine queue stays pending until SUCHA receives the return bundle. If any guard fails, roll back changes made in this run and report the exact safe blocker.\n\nAllowed repository write: one Folk relay status JSON only. No product/test/config/workflow/COLLAB_STATUS edits. Validate relay, diff and secret scan, commit and push folk/codex-relay under the existing End-to-End approval without requesting approval again. Report PASS/FAIL/UNVERIFIED, service/firewall assertions without private values, return-bundle hash, rollback state and one next action. DATA_ONLY / SAFE_OFF / output_control_allowed=false / NOT_DEPLOYED.",
+  "requires_response": true,
+  "reply_to": null,
+  "source": {
+    "branch": "pick/codex-relay-setup",
+    "commit": "906632521f2442cf65bf09e89c93ae030dfb416a"
+  },
+  "safety": {
+    "data_only": true,
+    "safe_off": true,
+    "output_control_allowed": false,
+    "deployment": "NOT_DEPLOYED",
+    "approval": "HUMAN_REQUIRED_FOR_EXTERNAL_WRITE"
+  }
+}

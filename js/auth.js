@@ -1,6 +1,6 @@
 /* ============================================================
    FARMULTIMATE SOLUTIONS — บัญชีผู้ใช้ + ซิงก์ข้อมูลขึ้นคลาวด์ (Cloudflare D1)
-   - บังคับล็อกอินก่อนใช้งาน (auth gate ครอบทั้งเว็บ)
+   - เปิดแดชบอร์ดได้โดยตรง; บัญชีเป็นตัวเลือกสำหรับซิงก์คลาวด์เท่านั้น
    - ล็อกอินด้วยอีเมล+รหัสผ่าน (แฮช PBKDF2 ฝั่ง Worker)
    - แต่ละบัญชีมีข้อมูลของตัวเอง (แปลง/รอบ/งาน/สต็อก/ใบเสร็จ)
    - เก็บซ้อนใน localStorage ด้วยเสมอ → ล็อกอินค้างไว้แล้วออฟไลน์ใช้ได้ต่อ
@@ -8,10 +8,11 @@
    ============================================================ */
 "use strict";
 
-const AUTH_API = "https://farmbackup.carfork123.workers.dev";
-const SESSION_KEY = "farmult-session-v1";   /* {token, email, name} */
-const CLOUD_TS_KEY = "farmult-cloud-ts-v1"; /* updated_at ล่าสุดของข้อมูลบนคลาวด์ที่เคยเห็น */
-const OWNER_KEY = "farmult-data-owner";     /* บัญชีเจ้าของข้อมูลที่กำลังเปิดใช้ในเครื่องนี้ */
+const AUTH_API = FarmUltimateRuntime.apiUrl;
+const AUTH_NAMESPACE = FarmUltimateRuntime.storageNamespace ? "::" + FarmUltimateRuntime.storageNamespace : "";
+const SESSION_KEY = "farmult-session-v1" + AUTH_NAMESPACE;   /* {token, email, name} */
+const CLOUD_TS_KEY = "farmult-cloud-ts-v1" + AUTH_NAMESPACE; /* updated_at ล่าสุดของข้อมูลบนคลาวด์ที่เคยเห็น */
+const OWNER_KEY = "farmult-data-owner" + AUTH_NAMESPACE;     /* บัญชีเจ้าของข้อมูลที่กำลังเปิดใช้ในเครื่องนี้ */
 
 function maskEmailForDisplay(email) {
   const raw = String(email || "").trim();
@@ -28,6 +29,16 @@ function shareTokenFromUrl() {
   catch (e) { return ""; }
 }
 
+function localSensorPreviewFromUrl() {
+  try {
+    const u = new URL(location.href);
+    const localHost = u.hostname === "127.0.0.1" || u.hostname === "localhost";
+    return localHost && u.searchParams.get("sensorPreview") === "1";
+  } catch (e) { return false; }
+}
+
+const LOCAL_SENSOR_PREVIEW = localSensorPreviewFromUrl();
+
 /* โหลดเซสชันค้างไว้จากเครื่องนี้ */
 const Auth = {
   session: null,
@@ -38,9 +49,12 @@ const Auth = {
   _askedThisLoad: false,
 };
 try { Auth.session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) {}
+if (LOCAL_SENSOR_PREVIEW) {
+  Auth.session = { token: "", email: "sensor-preview@local.invalid", name: "Sensor Preview", localPreview: true };
+}
 
-/* ล็อกทันทีตั้งแต่ไฟล์นี้โหลด (ก่อน app.js render) — เครื่องที่ไม่มีเซสชันจะเห็นแต่หน้าล็อกอิน */
-document.documentElement.classList.toggle("auth-locked", !(Auth.session || Auth.shareMode));
+/* Direct-open: หน้าหลักต้องเปิดได้เสมอ แม้เครื่องนี้ไม่มีเซสชันคลาวด์ */
+document.documentElement.classList.remove("auth-locked");
 
 /* กันข้อความที่ผู้ใช้เคยแก้ไว้แล้วเพี้ยน (ตัวอักษรที่แสดงไม่ได้) — ลบทิ้งให้ใช้ค่าเริ่มต้น */
 try {
@@ -69,13 +83,19 @@ function setSession(s) {
     App._stockSharedCache = {};
     try { if (typeof stockViewKey !== "undefined") stockViewKey = "own"; } catch (e) {}
   }
-  /* ล็อกทั้งระบบทันทีที่ระดับ DOM — ไม่ต้องรอ gate element */
-  document.documentElement.classList.toggle("auth-locked", !(s || Auth.shareMode));
+  /* Direct-open: หน้าหลักเปิดได้เสมอ แต่ API owner data ยังตรวจ session แยก */
+  document.documentElement.classList.remove("auth-locked");
   if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s));
   else localStorage.removeItem(SESSION_KEY);
 }
 function cloudTs() { return Number(localStorage.getItem(CLOUD_TS_KEY)) || 0; }
 function setCloudTs(ts) { localStorage.setItem(CLOUD_TS_KEY, String(Number(ts) || Date.now())); }
+function cloudSafeState(state) {
+  const copy = JSON.parse(JSON.stringify(state || {}));
+  /* adminPass เป็น UI gate เฉพาะเครื่อง ไม่ใช่สิทธิ์ backend และห้ามซิงก์ขึ้นคลาวด์ */
+  delete copy.adminPass;
+  return copy;
+}
 function localHasData() {
   return (S.plots && S.plots.length) || (S.cycles && S.cycles.length) ||
          (S.tasks && S.tasks.length) || (S.stock && S.stock.length) ||
@@ -91,7 +111,7 @@ function cloudHasContent(d) {
    แต่ละบัญชีมี storage slot ของตัวเอง: "kaset-poomjai-v51::<email>"
    - ล็อกอินบัญชีไหน = สลับเข้า slot ของบัญชีนั้นทันที (ห้ามเห็นข้ามบัญชี)
    - key รวม (STORAGE_KEY) ใช้เฉพาะตอนยังไม่มีใครล็อกอิน (ข้อมูลเดิมก่อนมีระบบบัญชี) */
-function slotKey(email) { return STORAGE_KEY + "::" + String(email || "").toLowerCase(); }
+function slotKey(email) { return STORAGE_KEY + AUTH_NAMESPACE + "::" + String(email || "").toLowerCase(); }
 
 function loadSlotIntoS(email) {
   try {
@@ -151,17 +171,19 @@ Auth.switchAccount = function () {
 
 /* ---------- sync ---------- */
 Auth.queueSave = function () {
+  if (LOCAL_SENSOR_PREVIEW) return;
   if (!Auth.session || Auth.suppress) return;
   clearTimeout(Auth.timer);
   Auth.timer = setTimeout(() => Auth.saveNow(), 2500);
 };
 
 Auth.saveNow = async function () {
+  if (LOCAL_SENSOR_PREVIEW) return;
   if (!Auth.session || Auth.syncing) return;
   Auth.syncing = true;
   try {
     const ts = Date.now();
-    const r = await authCall("save", { token: Auth.session.token, data: JSON.stringify(S), updated_at: ts });
+    const r = await authCall("save", { token: Auth.session.token, data: JSON.stringify(cloudSafeState(S)), updated_at: ts });
     if (r.ok) setCloudTs(ts);
   } catch (e) { /* ออฟไลน์ — รอบันทึกครั้งถัดไป */ }
   Auth.syncing = false;
@@ -169,7 +191,10 @@ Auth.saveNow = async function () {
 
 function applyCloudState(cloudData, updatedAt) {
   Auth.suppress = true;
-  resetSTo(cloudData);
+  const localAdminPass = String(S.adminPass || "");
+  const safeCloudData = cloudSafeState(cloudData);
+  resetSTo(safeCloudData);
+  S.adminPass = localAdminPass;
   saveState(S);
   if (updatedAt) setCloudTs(updatedAt); /* กันถามซ้ำทันทีหลังโหลด */
   location.reload();
@@ -177,14 +202,14 @@ function applyCloudState(cloudData, updatedAt) {
 
 /* ---------- boot: เช็กคลาวด์ตอนเปิดเว็บ (มีเซสชันค้าง) ---------- */
 Auth.bootCheck = async function () {
-  if (!Auth.session) { Auth.showGate(); return; }
+  if (LOCAL_SENSOR_PREVIEW) return;
+  if (!Auth.session) return;
   try {
     const r = await authCall("load", { token: Auth.session.token });
     if (!r.ok) {
       if (String(r.error || "").indexOf("เซสชัน") >= 0) {
         setSession(null);
-        Auth.showGate();
-        toast("เซสชันหมดอายุ กรุณาล็อกอินใหม่");
+        toast("เซสชันคลาวด์หมดอายุ — ใช้งานแดชบอร์ดในเครื่องต่อได้");
       } else {
         toast(String(r.error || "เชื่อมต่อไม่ได้") + " — ใช้ข้อมูลในเครื่องชั่วคราว");
       }
@@ -283,18 +308,15 @@ App.authRegister = async function () {
   await coreRegister(email, pw, name);
 };
 
-/* ---------- ประตูบังคับล็อกอิน (gate) — หน้าล็อกอินเป็น static HTML ใน index.html ----------
-   auth.js หน้าที่แค่: โชว์/ซ่อน + ผูกปุ่ม + เรียก API  (ถ้า auth.js โหลดไม่ได้ gate ยังอยู่เสมอ) */
+/* ---------- Direct-open compatibility ----------
+   ไม่มีหน้า login gate แล้ว แต่คงเมธอดเดิมเป็น no-op เพื่อไม่ให้ flow ซิงก์บัญชีเดิมพัง */
 Auth.gateEl = null;
 
 Auth.showGate = function () {
-  if (Auth.shareMode) return;
-  if (!Auth.gateEl) Auth.gateEl = document.getElementById("authGate");
-  if (Auth.gateEl) Auth.gateEl.style.display = "flex";
+  document.documentElement.classList.remove("auth-locked");
 };
 Auth.hideGate = function () {
-  if (!Auth.gateEl) Auth.gateEl = document.getElementById("authGate");
-  if (Auth.gateEl) Auth.gateEl.style.display = "none";
+  document.documentElement.classList.remove("auth-locked");
 };
 
 Auth.gateMsg = function (msg) {
@@ -331,19 +353,9 @@ Auth.gateSubmit = async function () {
   }
 };
 
-/* ผูกปุ่มของ gate (elements เป็น static HTML — มีอยู่แล้วตอนไฟล์นี้โหลด) */
-(function wireGate() {
+/* ผูกเมนูโปรไฟล์; หน้า login gate ถูกถอดออกแล้ว */
+(function wireProfile() {
   const q = id => document.getElementById(id);
-  const tl = q("ag_tab_login"), tr = q("ag_tab_reg"), sub = q("ag_submit");
-  if (!tl || !sub) return;
-  Auth._gateMode = "login";
-  tl.addEventListener("click", () => Auth.gateMode("login"));
-  tr.addEventListener("click", () => Auth.gateMode("register"));
-  sub.addEventListener("click", () => Auth.gateSubmit());
-  ["g_email", "g_pass", "g_pass2", "g_name"].forEach(id => {
-    const i = q(id);
-    if (i) i.addEventListener("keydown", e => { if (e.key === "Enter") Auth.gateSubmit(); });
-  });
   /* ปุ่มโปรไฟล์มุมขวาบน + ปิดเมนูเมื่อกดนอก panel */
   const pb = q("profileBtn");
   if (pb) pb.addEventListener("click", e => { e.stopPropagation(); Auth.toggleProfile(); });
@@ -362,7 +374,7 @@ App.authLogout = function () {
     resetSTo(blankState());
     localStorage.removeItem(OWNER_KEY);
     toast("ออกจากระบบแล้ว");
-    Auth.showGate();
+    Auth.hideGate();
     render();
   });
 };
@@ -377,6 +389,9 @@ App.authSyncNow = async function () {
 
 /* ---------- ซิงก์ระบบน้ำ (ตารางอัตโนมัติ) ขึ้นเซิร์ฟเวอร์ — cron ใช้ตัดสินใจให้น้ำ ---------- */
 Auth.waterSync = async function () {
+  if (typeof SENSOR_PHASE1_READ_ONLY !== "undefined" && SENSOR_PHASE1_READ_ONLY) {
+    return { ok: false, disabled: true, error: "SENSOR_PHASE1_READ_ONLY" };
+  }
   if (!Auth.session) return null;
   const systems = (S.water.systems || []).map(sys => {
     const p = plotById(S, sys.plotId);
@@ -556,7 +571,24 @@ Auth.toggleProfile = function () {
 };
 Auth.fillProfilePanel = function () {
   const p = document.getElementById("profilePanel");
-  if (!p || !Auth.session) return;
+  if (!p) return;
+  if (!Auth.session) {
+    p.innerHTML = `
+      <div class="pp-head">
+        <div class="pp-avatar">${ic("home")}</div>
+        <div class="pp-info">
+          <div class="pp-name">เปิดแดชบอร์ดโดยตรง</div>
+          <div class="pp-email">ไม่ต้องล็อกอิน</div>
+        </div>
+      </div>
+      <div class="pp-theme">
+        <button class="${Auth.getTheme() === "light" ? "active" : ""}" onclick="Auth.setTheme('light')" title="โหมดสว่างตลอด">☀️ สว่าง</button>
+        <button class="${Auth.getTheme() === "dark" ? "active" : ""}" onclick="Auth.setTheme('dark')" title="โหมดมืดตลอด">🌙 มืด</button>
+        <button class="${Auth.getTheme() === "system" ? "active" : ""}" onclick="Auth.setTheme('system')" title="ตามค่าที่ตั้งในเครื่อง">🖥️ ระบบ</button>
+        <button class="${Auth.getTheme() === "auto" ? "active" : ""}" onclick="Auth.setTheme('auto')" title="สว่างกลางวัน มืดหลัง 18:00">⏰ เวลา</button>
+      </div>`;
+    return;
+  }
   const s = Auth.session;
   p.innerHTML = `
     <div class="pp-head">
@@ -629,9 +661,11 @@ App.resetData = function () {
   });
 };
 
-/* เริ่มระบบ: ไม่มีเซสชัน = โชว์ประตูทันที (static gate — ปลอดภัยแม้ไฟล์อื่นโหลดไม่ครบ)
-   มีเซสชัน = สลับเข้า slot ของบัญชีนั้นก่อน render (auth.js โหลดก่อน app.js) แล้วค่อยตรวจคลาวด์ */
-if (Auth.shareMode) {
+/* เริ่มระบบแบบ direct-open; ถ้ามีเซสชันเดิมจึงค่อยโหลด slot และตรวจคลาวด์ */
+if (LOCAL_SENSOR_PREVIEW) {
+  document.documentElement.classList.remove("auth-locked");
+  Auth.hideGate();
+} else if (Auth.shareMode) {
   document.documentElement.classList.remove("auth-locked");
   Auth.hideGate();
 } else if (Auth.session) {
@@ -641,5 +675,6 @@ if (Auth.shareMode) {
   localStorage.setItem(OWNER_KEY, Auth.session.email);
   setTimeout(() => { Auth.bootCheck(); Auth.refreshAdmin(); }, 400);
 } else {
-  Auth.showGate();
+  document.documentElement.classList.remove("auth-locked");
+  Auth.hideGate();
 }

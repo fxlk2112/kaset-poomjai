@@ -1,3 +1,13 @@
+import {
+  SENSOR_SCHEMA,
+  SOURCE_ID_RE,
+  cleanText,
+  cors,
+  normalizeTelemetrySample,
+  outputControlEnabled,
+  sanitizeAppState
+} from "./telemetry-safety.js";
+
 /* ---------------- Lark Base sync proxy (Cloudflare Worker) ----------------
    ใช้แทน Netlify Function (Netlify หมด production deploy ชั่วคราว)
    ความลับ (App Secret) เก็บเป็น Worker Secret — ไม่หลุดไปหน้าเว็บ
@@ -14,16 +24,8 @@ const BATCH = 500;
 /* แคช tenant_access_token ต่อ isolate (Cloudflare เก็บระหว่าง request) */
 let cachedToken = { v: "", exp: 0 };
 
-function cors() {
-  return {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type"
-  };
-}
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), { status, headers: cors() });
+function json(obj, status = 200, request, env) {
+  return new Response(JSON.stringify(obj), { status, headers: cors(request, env) });
 }
 function need(env, name) {
   const v = env[name];
@@ -361,6 +363,17 @@ function makeSalt() {
 function makeToken() {
   return [...crypto.getRandomValues(new Uint8Array(32))].map(b => b.toString(16).padStart(2, "0")).join("");
 }
+async function sha256Hex(value) {
+  const bytes = new TextEncoder().encode(String(value || ""));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function requireOutputControl(env) {
+  if (!outputControlEnabled(env)) {
+    throw new Error("ระบบสั่งงานเอาต์พุตถูกปิดใน SENSOR_PHASE1_READ_ONLY");
+  }
+}
 
 /* จำกัดความถี่พื้นฐาน (ต่อ isolate): register/login ไม่เกิน 20 ครั้ง/นาที/IP */
 const rateMap = new Map();
@@ -425,7 +438,7 @@ async function doAdminGet(env, p) {
   ).bind(String(p.email || "").toLowerCase()).first();
   if (!row) throw new Error("ไม่พบบัญชีนี้");
   let data = null;
-  try { data = row.data ? JSON.parse(row.data) : null; } catch (e) { /* data เสียหาย */ }
+  try { data = row.data ? sanitizeAppState(row.data) : null; } catch (e) { /* data เสียหาย */ }
   return { email: row.email, name: row.name, updated_at: row.updated_at || 0, data };
 }
 
@@ -725,6 +738,147 @@ async function doShareComment(env, request, p) {
   return { ok: true };
 }
 
+/* ==================== Phase 1 sensor telemetry (read-only) ====================
+   The Pi 5 sends normalized samples outbound over HTTPS. Device credentials are
+   independent from user sessions and output-control keys, and are hashed in D1.
+   No function in this section can write an actuator state. */
+async function sensorDeviceFromRequest(env, request) {
+  const authorization = String(request.headers.get("Authorization") || "");
+  const match = authorization.match(/^Bearer\s+([A-Fa-f0-9]{64})$/);
+  if (!match) throw new Error("device credential ไม่ถูกต้อง");
+  const tokenHash = await sha256Hex(match[1]);
+  const device = await env.DB.prepare(
+    "SELECT id, user_id, source_id, name FROM sensor_devices WHERE token_hash = ?1 AND active = 1"
+  ).bind(tokenHash).first();
+  if (!device) throw new Error("device credential ไม่ถูกต้องหรือถูกยกเลิกแล้ว");
+  return device;
+}
+
+async function doSensorRegister(env, p) {
+  const u = await authUser(env, p.token);
+  const sourceId = cleanText(p.source_id, 96);
+  if (!SOURCE_ID_RE.test(sourceId)) throw new Error("source_id ไม่ถูกต้อง");
+  const name = cleanText(p.name || sourceId, 80);
+  const rawToken = makeToken();
+  const tokenHash = await sha256Hex(rawToken);
+  const existing = await env.DB.prepare(
+    "SELECT id FROM sensor_devices WHERE user_id = ?1 AND source_id = ?2"
+  ).bind(u.user_id, sourceId).first();
+  const id = existing ? existing.id : crypto.randomUUID();
+  if (existing) {
+    await env.DB.prepare(
+      "UPDATE sensor_devices SET name = ?3, token_hash = ?4, active = 1, revoked_at = 0 WHERE user_id = ?1 AND source_id = ?2"
+    ).bind(u.user_id, sourceId, name, tokenHash).run();
+  } else {
+    await env.DB.prepare(
+      "INSERT INTO sensor_devices (id,user_id,source_id,name,token_hash,active,created_at,revoked_at) VALUES (?1,?2,?3,?4,?5,1,?6,0)"
+    ).bind(id, u.user_id, sourceId, name, tokenHash, Date.now()).run();
+  }
+  return { id, source_id: sourceId, name, device_token: rawToken, rotated: !!existing };
+}
+
+async function doSensorDevices(env, p) {
+  const u = await authUser(env, p.token);
+  const rows = await env.DB.prepare(
+    `SELECT d.id,d.source_id,d.name,d.active,d.created_at,d.revoked_at,l.observed_at,l.received_at,l.quality
+     FROM sensor_devices d LEFT JOIN sensor_latest l
+       ON l.user_id=d.user_id AND l.source_id=d.source_id
+     WHERE d.user_id=?1 ORDER BY d.created_at DESC`
+  ).bind(u.user_id).all();
+  return { devices: rows.results };
+}
+
+async function doSensorRevoke(env, p) {
+  const u = await authUser(env, p.token);
+  const sourceId = cleanText(p.source_id, 96);
+  const res = await env.DB.prepare(
+    "UPDATE sensor_devices SET active=0, revoked_at=?3 WHERE user_id=?1 AND source_id=?2"
+  ).bind(u.user_id, sourceId, Date.now()).run();
+  if (!res.meta.changes) throw new Error("ไม่พบอุปกรณ์เซนเซอร์นี้");
+  return { revoked: true, source_id: sourceId };
+}
+
+async function doSensorIngest(env, request, p) {
+  const device = await sensorDeviceFromRequest(env, request);
+  const sample = normalizeTelemetrySample(p.sample, device.source_id);
+  const receivedAt = Date.now();
+  const values = [
+    crypto.randomUUID(), device.user_id, device.id, sample.source_id, sample.observed_at,
+    sample.observed_ts, receivedAt, sample.quality, sample.voltage_v, sample.current_ma,
+    sample.depth_m, sample.staff_gauge_m, sample.volume_m3, sample.capacity_percent,
+    sample.stale_after_s, sample.calibration_id, sample.volume_model_id, sample.sample_count, 0
+  ];
+  const inserted = await env.DB.prepare(
+    `INSERT OR IGNORE INTO sensor_samples
+     (id,user_id,device_id,source_id,observed_at,observed_ts,received_at,quality,voltage_v,current_ma,depth_m,staff_gauge_m,volume_m3,capacity_percent,stale_after_s,calibration_id,volume_model_id,sample_count,output_control_allowed)
+     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19)`
+  ).bind(...values).run();
+  const accepted = Number(inserted.meta.changes || 0) > 0;
+  if (accepted) await env.DB.prepare(
+    `INSERT INTO sensor_latest
+     (user_id,source_id,device_id,observed_at,observed_ts,received_at,quality,voltage_v,current_ma,depth_m,staff_gauge_m,volume_m3,capacity_percent,stale_after_s,calibration_id,volume_model_id,sample_count,output_control_allowed)
+     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,0)
+     ON CONFLICT(user_id,source_id) DO UPDATE SET
+       device_id=excluded.device_id,observed_at=excluded.observed_at,observed_ts=excluded.observed_ts,
+       received_at=excluded.received_at,quality=excluded.quality,voltage_v=excluded.voltage_v,current_ma=excluded.current_ma,
+       depth_m=excluded.depth_m,staff_gauge_m=excluded.staff_gauge_m,volume_m3=excluded.volume_m3,
+       capacity_percent=excluded.capacity_percent,stale_after_s=excluded.stale_after_s,
+       calibration_id=excluded.calibration_id,volume_model_id=excluded.volume_model_id,
+       sample_count=excluded.sample_count,output_control_allowed=0
+     WHERE excluded.observed_ts >= sensor_latest.observed_ts`
+  ).bind(device.user_id, sample.source_id, device.id, sample.observed_at, sample.observed_ts, receivedAt,
+    sample.quality, sample.voltage_v, sample.current_ma, sample.depth_m, sample.staff_gauge_m,
+    sample.volume_m3, sample.capacity_percent, sample.stale_after_s, sample.calibration_id,
+    sample.volume_model_id, sample.sample_count).run();
+  return {
+    accepted,
+    duplicate: !accepted,
+    source_id: sample.source_id,
+    observed_at: sample.observed_at,
+    output_control_allowed: false
+  };
+}
+
+async function requireSensorSource(env, userId, sourceId) {
+  const source = await env.DB.prepare(
+    "SELECT source_id,name,active FROM sensor_devices WHERE user_id=?1 AND source_id=?2"
+  ).bind(userId, sourceId).first();
+  if (!source) throw new Error("ไม่พบแหล่งข้อมูลเซนเซอร์นี้");
+  return source;
+}
+
+async function doSensorCurrent(env, p) {
+  const u = await authUser(env, p.token);
+  const sourceId = cleanText(p.source_id, 96);
+  const device = await requireSensorSource(env, u.user_id, sourceId);
+  const row = await env.DB.prepare(
+    `SELECT observed_at,observed_ts,received_at,quality,voltage_v,current_ma,depth_m,staff_gauge_m,
+            volume_m3,capacity_percent,stale_after_s,calibration_id,volume_model_id,sample_count
+     FROM sensor_latest WHERE user_id=?1 AND source_id=?2`
+  ).bind(u.user_id, sourceId).first();
+  if (!row) return { source: device, status: "NO_DATA", current: null, output_control_allowed: false };
+  const ageS = Math.max(0, (Date.now() - Number(row.observed_ts)) / 1000);
+  const status = ageS > Number(row.stale_after_s) ? "STALE" : String(row.quality);
+  return { source: device, status, age_s: Math.round(ageS * 10) / 10, current: row, output_control_allowed: false };
+}
+
+async function doSensorHistory(env, p) {
+  const u = await authUser(env, p.token);
+  const sourceId = cleanText(p.source_id, 96);
+  await requireSensorSource(env, u.user_id, sourceId);
+  const hours = Math.min(168, Math.max(1, Math.round(Number(p.hours) || 24)));
+  const limit = Math.min(1200, Math.max(24, Math.round(Number(p.limit) || 400)));
+  const cutoff = Date.now() - hours * 3600000;
+  const rows = await env.DB.prepare(
+    `SELECT observed_at,observed_ts,quality,depth_m,volume_m3,capacity_percent,current_ma
+     FROM (SELECT observed_at,observed_ts,quality,depth_m,volume_m3,capacity_percent,current_ma
+           FROM sensor_samples WHERE user_id=?1 AND source_id=?2 AND observed_ts>=?3
+           ORDER BY observed_ts DESC LIMIT ?4)
+     ORDER BY observed_ts ASC`
+  ).bind(u.user_id, sourceId, cutoff, limit).all();
+  return { source_id: sourceId, hours, rows: rows.results, output_control_allowed: false };
+}
+
 /* ==================== ระบบน้ำ IoT ====================
    แอป:  water_sync  (ส่งรายการระบบน้ำ+ตารางขึ้นเซิร์ฟเวอร์)
          water_status (อ่านสถานะจริงล่าสุด)
@@ -897,7 +1051,7 @@ async function doMe(env, p) {
 
 async function doSave(env, p) {
   const u = await authUser(env, p.token);
-  const data = typeof p.data === "string" ? p.data : JSON.stringify(p.data || {});
+  const data = JSON.stringify(sanitizeAppState(p.data || {}));
   if (data.length > 900000) throw new Error("ข้อมูลใหญ่เกิน (~0.9MB) — ติดต่อผู้ดูแล");
   const ts = Number(p.updated_at) || Date.now();
   await env.DB.prepare(
@@ -911,7 +1065,7 @@ async function doLoad(env, p) {
   const d = await env.DB.prepare("SELECT data, updated_at FROM user_data WHERE user_id = ?1").bind(u.user_id).first();
   if (!d) return { data: null, updated_at: 0 };
   let parsed = null;
-  try { parsed = JSON.parse(d.data); } catch (e) { /* ข้อมูลเสียหาย */ }
+  try { parsed = sanitizeAppState(d.data); } catch (e) { /* ข้อมูลเสียหาย */ }
   return { data: parsed, updated_at: d.updated_at };
 }
 
@@ -948,7 +1102,7 @@ async function doPhotoDel(env, payload) {
 
 export default {
   async fetch(request, env) {
-    if (request.method === "OPTIONS") return new Response(null, { headers: cors() });
+    if (request.method === "OPTIONS") return new Response(null, { headers: cors(request, env) });
     /* GET /photo/<key> — เสิร์ฟรูปจาก R2 (อ่านสาธารณะ เพราะ key เดายาก + แชร์/QR ต้องโชว์รูปได้) */
     if (request.method === "GET") {
       const url = new URL(request.url);
@@ -968,16 +1122,21 @@ export default {
           });
         } catch (e) { return new Response("photo error", { status: 500 }); }
       }
-      return new Response("ใช้ POST เท่านั้น", { status: 405 });
+      return json({ ok: false, error: "ใช้ POST เท่านั้น" }, 405, request, env);
     }
-    if (request.method !== "POST") return json({ ok: false, error: "ใช้ POST เท่านั้น" }, 405);
+    if (request.method !== "POST") return json({ ok: false, error: "ใช้ POST เท่านั้น" }, 405, request, env);
     let payload = {};
     try { payload = await request.json(); } catch (e) { /* ปล่อยว่าง */ }
     try {
       let data;
-      if (payload.action === "status") data = await doStatus(env);
-      else if (payload.action === "push") data = await doPush(env, payload.records || []);
-      else if (payload.action === "pull") data = await doPull(env);
+      if (payload.action === "health") data = {
+        service: "flytech-farmultimate-api",
+        mode: "SENSOR_PHASE1_READ_ONLY",
+        output_control_allowed: false
+      };
+      else if (payload.action === "status") { await requireAdmin(env, payload.token); data = await doStatus(env); }
+      else if (payload.action === "push") { await requireAdmin(env, payload.token); data = await doPush(env, payload.records || []); }
+      else if (payload.action === "pull") { await requireAdmin(env, payload.token); data = await doPull(env); }
       else if (payload.action === "stock_lark_sync") data = await doStockLarkSync(env, payload);
       else if (payload.action === "register") data = await doRegister(env, request, payload);
       else if (payload.action === "login") data = await doLogin(env, request, payload);
@@ -987,13 +1146,19 @@ export default {
       else if (payload.action === "load") data = await doLoad(env, payload);
       else if (payload.action === "admin_list") data = await doAdminList(env, payload);
       else if (payload.action === "admin_get") data = await doAdminGet(env, payload);
-      else if (payload.action === "water_sync") data = await doWaterSync(env, payload);
+      else if (payload.action === "sensor_register") data = await doSensorRegister(env, payload);
+      else if (payload.action === "sensor_devices") data = await doSensorDevices(env, payload);
+      else if (payload.action === "sensor_revoke") data = await doSensorRevoke(env, payload);
+      else if (payload.action === "sensor_ingest") data = await doSensorIngest(env, request, payload);
+      else if (payload.action === "sensor_current") data = await doSensorCurrent(env, payload);
+      else if (payload.action === "sensor_history") data = await doSensorHistory(env, payload);
+      else if (payload.action === "water_sync") { requireOutputControl(env); data = await doWaterSync(env, payload); }
       else if (payload.action === "water_status") data = await doWaterStatus(env, payload);
-      else if (payload.action === "water_set") data = await doWaterSet(env, payload);
-      else if (payload.action === "water_register") data = await doWaterRegister(env, payload);
-      else if (payload.action === "water_keys") data = await doWaterKeys(env, payload);
-      else if (payload.action === "water_poll") data = await doWaterPoll(env, payload);
-      else if (payload.action === "water_report") data = await doWaterReport(env, payload);
+      else if (payload.action === "water_set") { requireOutputControl(env); data = await doWaterSet(env, payload); }
+      else if (payload.action === "water_register") { requireOutputControl(env); data = await doWaterRegister(env, payload); }
+      else if (payload.action === "water_keys") { requireOutputControl(env); data = await doWaterKeys(env, payload); }
+      else if (payload.action === "water_poll") { requireOutputControl(env); data = await doWaterPoll(env, payload); }
+      else if (payload.action === "water_report") { requireOutputControl(env); data = await doWaterReport(env, payload); }
       else if (payload.action === "market_prices") data = await doMarketPrices(env, payload);
       else if (payload.action === "market_price_history") data = await doMarketPriceHistory(env, payload);
       else if (payload.action === "stock_share_list") data = await doStockShareList(env, payload);
@@ -1008,13 +1173,15 @@ export default {
       else if (payload.action === "photo_put") data = await doPhotoPut(env, payload, request);
       else if (payload.action === "photo_del") data = await doPhotoDel(env, payload);
       else throw new Error("ไม่รู้จัก action: " + payload.action);
-      return json({ ok: true, data });
+      return json({ ok: true, data }, 200, request, env);
     } catch (e) {
-      return json({ ok: false, error: String(e.message || e) }, 400);
+      return json({ ok: false, error: String(e.message || e) }, 400, request, env);
     }
   },
   async scheduled(event, env, ctx) {
-    try { await cronWater(env); } catch (e) { console.error("cron water error:", e); }
+    if (outputControlEnabled(env)) {
+      try { await cronWater(env); } catch (e) { console.error("cron water error:", e); }
+    }
     /* บันทึกราคาตลาดวันนี้ลง D1 (ทุกนาที แต่ INSERT OR REPLACE = idempotent)
        เช็คเฉพาะช่วง 08:00–08:59 BKK เพื่อไม่ให้ query DB ทุกนาที */
     try {

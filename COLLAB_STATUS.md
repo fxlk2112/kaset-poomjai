@@ -1,0 +1,67 @@
+# FARMULTIMATE Collaboration Status
+
+- Updated: `2026-09-05 Asia/Bangkok`
+- State: `INTEGRATION_BASELINE_V2_LOCAL_VALIDATED`
+- Development approval: `APPROVE_FARMULTIMATE_DEV_SETUP_ONCE`
+- Production branch: `master` at `dba54778aa5043c1d699ec7136d30fd4d18da71c`
+- Integration branch: `develop` — `PENDING_PUBLICATION`
+- Integration preparation branch: `pick/integration-baseline-v2`
+- Merge source: `origin/master` + `origin/pick/codex-relay-setup` at `d03b82c5cda86031d1dac07e47707f755002edff`
+- Raw source branch: `sucha/sensor-phase1-local` — `PRESERVED / LOCAL_ONLY_DO_NOT_PUSH`
+- Production deployment: `NOT_DEPLOYED`
+
+## Baseline V2 Result
+
+- Master commerce/auth changes and the reviewed Farm/Map/Telemetry baseline are merged in an isolated worktree.
+- Conflict resolution completed for `index.html`, `js/app.js` and `sw.js`; no unmerged path remains.
+- Deployed runtime uses same-origin `/api`. A Pages Function forwards requests through the `FARMULTIMATE_API` Service Binding and fails closed when unavailable.
+- Farm and Commerce remain parts of one static app, one repository, one integration branch and one release.
+- Feature ownership is defined in `docs/FEATURE_OWNERSHIP.md`.
+- Same-origin architecture and its release gate are defined in `docs/SAME_ORIGIN_API.md`.
+
+## Validation
+
+- `npm run check`: `64/64 PASS`, zero failed/skipped.
+- Relay tree on the integration worktree: `9 messages PASS`.
+- Incoming `origin/folk/codex-relay`: `6 messages PASS`.
+- Git conflict markers/unmerged paths: `NONE`.
+- Desktop browser `1280 x 720`: Home and Master Map `PASS`; no horizontal overflow.
+- Mobile browser `390 x 844`: Master Map and Stock `PASS`; no horizontal overflow.
+- Browser console warnings/errors: `0`.
+- Current production Service Binding and deployed `/api` response: `NOT_TESTED / NOT_DEPLOYED`.
+- Field geometry/survey: `NOT_SURVEYED`.
+- Hardware output/commissioning: `NOT_RUN`.
+
+## Relay Review
+
+- Folk report `21b91065-5089-4878-b679-489c19426280` replies once to `29faf594-950b-4bd1-9ca3-4c7906cf84c2` and was already acknowledged by SUCHA message `5629206a-d0ea-4c77-8c27-29644b44695b`.
+- Folk blocker `4a6cfff6-3b4c-4b9f-ab12-06696d4738e1` was already covered by that ACK and requires no duplicate acknowledgement.
+- Direct Codex ingress remains optional and blocked. Git feature branches and Pull Requests are the active collaboration channel.
+- Old handshake, FOLK-001 and link reports must not be reissued.
+
+## Ownership and Locks
+
+| Area | Owner | Current lock |
+|---|---|---|
+| Farm / Map / Planner / Analytics / Water / Telemetry | Pick + SUCHA | `pick/integration-baseline-v2` until publication |
+| Stock / Sales / Products / Import / Market Price | Folk | `AVAILABLE_AFTER_DEVELOP_PUBLICATION` |
+| Shared shell / contracts / CI / release preparation | SUCHA | `pick/integration-baseline-v2` until publication |
+| `master` and Cloudflare production | Pick approval | `LOCKED_NEEDS_APPROVE_PRODUCTION_DEPLOY` |
+
+## Development Push Policy
+
+The one-time development approval authorizes publication of this reviewed baseline and routine pushes to owner feature branches under `docs/FEATURE_OWNERSHIP.md`. Future work uses Pull Requests into `develop`. It does not authorize direct routine pushes to `develop`, changes to `master`, production binding/deploy, secret/config writes, branch/data deletion or hardware action.
+
+## Pending External Setup
+
+- Publish the validated integration branch and create `origin/develop` at the verified commit.
+- Apply branch protection to `develop` and `master`: Pull Request required, one human approval, `npm-check`, no force push or deletion.
+- Configure the Pages `FARMULTIMATE_API` Service Binding only during an approved production release.
+
+## Safety
+
+`DATA_ONLY / SAFE_OFF / output_control_allowed=false / Raspberry Pi 5 sole writer / NOT_DEPLOYED`
+
+## Next Action
+
+Publish `pick/integration-baseline-v2` and `develop`, independently verify both remote hashes, apply branch protection where authenticated repository administration is available, then give Folk exactly one source-pinned Commerce task from `origin/develop`.
