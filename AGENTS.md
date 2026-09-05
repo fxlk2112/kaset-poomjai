@@ -6,7 +6,9 @@
 
 - Git root ที่ถูกต้องคือ repository `farmultimate-sensor-phase1` นี้ ไม่ใช่โฟลเดอร์แม่ `D:\Agricultural irrigation system design`.
 - GitHub remote เป็น source of truth สำหรับโค้ดข้ามเครื่อง ห้ามใช้ shared folder หรือแก้ working tree เดียวกันผ่าน LAN.
-- `master` คือ production release branch.
+- พี่ปิ๊กเลือก Worker `flytech-farmultimate-owner-staging` เป็นเว็บหลักเมื่อ 2026-09-05 และอนุมัติให้นำ `develop` ล่าสุดขึ้นปลายทางนี้โดยตรงผ่าน release branch ฝั่ง SUCHA.
+- ใช้ `wrangler.owner-main.jsonc` และ `docs/OWNER_MAIN_RELEASE.md` สำหรับเว็บหลักนี้; ชื่อ resource เดิมยังมีคำว่า staging เพื่อรักษาลิงก์และข้อมูลเดิม.
+- `master` คือ release branch ของ Pages เดิม.
 - `.github/workflows/deploy.yml` deploy ไป Cloudflare Pages อัตโนมัติเมื่อมี push เข้า `master`.
 - `develop` คือ integration branch ของแอปเดียวกัน และเป็นฐานของงานฟีเจอร์ทุกชิ้น.
 - ถ้า `origin/develop` ยังไม่มี ห้ามใช้ `origin/master` แทน ให้รายงาน `BLOCKED_WAITING_FOR_BASELINE`.
@@ -56,7 +58,7 @@
 ## One-domain Web Contract
 
 - ผู้ใช้ต้องเปิด FARMULTIMATE ผ่าน public origin เดียว และ browser เรียก backend ผ่าน `/api` ของ origin เดียวกัน.
-- Pages Function ส่งต่อ `/api` ไป Worker ผ่าน Service Binding ชื่อ `FARMULTIMATE_API`; ห้ามฝัง public backend URL ใน frontend หรือ source.
+- เว็บหลัก Workers ใช้ `worker/frontend-owner.js`; Pages เดิมใช้ Pages Function. ทั้งคู่ส่งต่อ `/api` ผ่าน Service Binding ชื่อ `FARMULTIMATE_API`; ห้ามฝัง public backend URL ใน frontend หรือ source.
 - ถ้า binding ไม่พร้อม ให้ fail closed และรายงาน `API_SERVICE_UNAVAILABLE`; ห้าม fallback ไป endpoint ภายนอกบนหน้าที่ deploy แล้ว.
 - รายละเอียดสถาปัตยกรรมและ release gate อยู่ใน `docs/SAME_ORIGIN_API.md`.
 
