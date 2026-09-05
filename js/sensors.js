@@ -460,8 +460,8 @@
     const start = new Date(String(startAt || ""));
     const end = new Date(String(endAtExclusive || ""));
     if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return "ไม่ทราบช่วงเวลา";
-    const dateOptions = { day: "numeric", month: "short" };
-    const timeOptions = { hour: "2-digit", minute: "2-digit", hour12: false };
+    const dateOptions = { day: "numeric", month: "short", timeZone: "Asia/Bangkok" };
+    const timeOptions = { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Bangkok" };
     const startDate = start.toLocaleDateString("th-TH", dateOptions);
     const endDate = end.toLocaleDateString("th-TH", dateOptions);
     const startTime = start.toLocaleTimeString("th-TH", timeOptions);
