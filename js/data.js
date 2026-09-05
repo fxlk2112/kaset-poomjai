@@ -104,74 +104,173 @@ function unitToBase(unit) {
   const u = String(unit).trim().replace(/\.+$/, "");
   return VOLUME_UNITS[u] || MASS_UNITS[u] || 1;
 }
-/* นำเข้าสินค้า (Item Master) — เพิ่มรายการใหม่ และอัปเดตรายการเดิมเมื่อ import มีข้อมูลใหม่ */
-function mergeStockProducts(s, products) {
-  let added = 0, updated = 0, skipped = 0;
-  const keyOf = x => (x.name || "").trim().toLowerCase() + "|" + (x.size || "") + "|" + (x.unit || "") + "|" + (x.supplier || "");
-  const existing = new Map((s.stock || []).map(x => [keyOf(x), x]));
-  (products || []).forEach(p => {
-    const name = String(p.name || p.productName || "").trim();
-    if (!name) return;
-    const size = String(p.size || "").trim();
-    const unit = String(p.unit || "").trim() || "ชิ้น";
-    const supplier = String(p.supplier || p.company || "").trim();
-    const key = name.toLowerCase() + "|" + size + "|" + unit + "|" + supplier;
-    const photos = Array.isArray(p.photos) ? p.photos.map(x => String(x || "").trim()).filter(Boolean)
-      : String(p.photo || p.photoName || "").split(",").map(x => x.trim()).filter(Boolean);
-    const item = {
-      name,
-      code: String(p.code || "").trim(), // รหัสสินค้าเดิม (จากไฟล์ Excel)
-      generic: String(p.generic || p.genericName || "").trim(),
-      category: String(p.category || "").trim(),
-      size, unit, supplier,
-      photo: photos[0] || "",
-      photos,
-      qty: Number(p.qty) || 0,
-      avgCost: Number(p.avgCost) || 0,
-      salePrice: Number(p.salePrice) || 0 // ราคาขายต่อหน่วย (จากไฟล์ Excel / แก้ไขเอง)
-    };
-    const old = existing.get(key);
-    if (old) {
-      let changed = false;
-      ["code", "generic", "category"].forEach(k => {
-        if (item[k] !== "" && old[k] !== item[k]) { old[k] = item[k]; changed = true; }
-      });
-      if (p.salePrice !== undefined && Number(old.salePrice) !== item.salePrice) {
-        old.salePrice = item.salePrice;
-        changed = true;
+function stockImportKey(x) {
+  return (x.name || "").trim().toLowerCase() + "|" + (x.size || "") + "|" + (x.unit || "") + "|" + (x.supplier || "");
+}
+function stockImportCode(x) {
+  return String((x && x.code) || "").trim().toLowerCase();
+}
+function stockImportIndexes(s) {
+  const byKey = new Map();
+  const codeCount = new Map();
+  const byCode = new Map();
+  (s.stock || []).forEach(x => {
+    byKey.set(stockImportKey(x), x);
+    const code = stockImportCode(x);
+    if (!code) return;
+    codeCount.set(code, (codeCount.get(code) || 0) + 1);
+    byCode.set(code, x);
+  });
+  codeCount.forEach((n, code) => {
+    if (n > 1) byCode.delete(code);
+  });
+  return { byKey, byCode };
+}
+function normalizeStockImportProduct(p) {
+  const name = String(p.name || p.productName || "").trim();
+  const size = String(p.size || "").trim();
+  const unit = String(p.unit || "").trim() || "ชิ้น";
+  const supplier = String(p.supplier || p.company || p.manufacturer || "").trim();
+  const photos = Array.isArray(p.photos) ? p.photos.map(x => String(x || "").trim()).filter(Boolean)
+    : String(p.photo || p.photoName || "").split(",").map(x => x.trim()).filter(Boolean);
+  return {
+    name,
+    code: String(p.code || "").trim(),
+    generic: String(p.generic || p.genericName || "").trim(),
+    category: String(p.category || "").trim(),
+    size, unit, supplier,
+    photo: photos[0] || "",
+    photos,
+    qty: Number(p.qty) || 0,
+    avgCost: Number(p.avgCost) || 0,
+    salePrice: Number(p.salePrice) || 0,
+    memberPrice: Number(p.memberPrice || p.regularPrice || p.wholesalePrice || 0) || 0
+  };
+}
+function stockImportPriceChanges(old, item, p) {
+  const changes = [];
+  const priceFields = [
+    ["avgCost", "ต้นทุน"],
+    ["salePrice", "ราคาทั่วไป"],
+    ["memberPrice", "ราคาลูกค้าประจำ"]
+  ];
+  priceFields.forEach(([field, label]) => {
+    if (p[field] !== undefined && Number(item[field]) > 0 && Number(old[field]) !== Number(item[field])) {
+      changes.push({ field, label, from: Number(old[field]) || 0, to: Number(item[field]) || 0, isMoney: true });
+    }
+  });
+  return changes;
+}
+function stockImportOptions(options = {}) {
+  if (options.priceOnly) {
+    return { priceOnly: true, addNew: false, updateMeta: false, updatePrices: true, updateQty: false, updatePhotos: false };
+  }
+  return {
+    priceOnly: false,
+    addNew: options.addNew !== false,
+    updateMeta: options.updateMeta !== false,
+    updatePrices: options.updatePrices !== false,
+    updateQty: options.updateQty !== false,
+    updatePhotos: options.updatePhotos !== false
+  };
+}
+function stockImportItemForAdd(item, opts) {
+  return Object.assign({}, item, {
+    generic: opts.updateMeta ? item.generic : "",
+    category: opts.updateMeta ? item.category : "",
+    qty: opts.updateQty ? item.qty : 0,
+    avgCost: opts.updatePrices ? item.avgCost : 0,
+    salePrice: opts.updatePrices ? item.salePrice : 0,
+    memberPrice: opts.updatePrices ? item.memberPrice : 0,
+    photo: opts.updatePhotos ? item.photo : "",
+    photos: opts.updatePhotos ? item.photos : []
+  });
+}
+function stockImportChanges(old, item, p, options = {}) {
+  const opts = stockImportOptions(options);
+  const changes = [];
+  if (opts.updateMeta) {
+    ["code", "generic", "category"].forEach(k => {
+      if (item[k] !== "" && old[k] !== item[k]) changes.push({ field: k, label: ({ code: "รหัส", generic: "ชื่อสามัญ", category: "หมวด" })[k], from: old[k] || "", to: item[k] });
+    });
+  }
+  if (opts.updatePrices) changes.push(...stockImportPriceChanges(old, item, p));
+  if (opts.updateQty && p.qty !== undefined && Number(old.qty) !== Number(item.qty)) {
+    changes.push({ field: "qty", label: "จำนวน", from: Number(old.qty) || 0, to: Number(item.qty) || 0 });
+  }
+  if (opts.updatePhotos && item.photos.length) {
+    const nextPhotos = p.appendPhotos
+      ? [...(old.photos || (old.photo ? [old.photo] : [])), ...item.photos].filter((v, i, arr) => v && arr.indexOf(v) === i)
+      : item.photos;
+    if (JSON.stringify(old.photos || []) !== JSON.stringify(nextPhotos)) {
+      changes.push({ field: "photos", label: "รูป", from: (old.photos || []).length, to: nextPhotos.length, photos: nextPhotos });
+    }
+  }
+  return changes;
+}
+function stockImportPlan(s, products, options = {}) {
+  const idx = stockImportIndexes(s);
+  const opts = stockImportOptions(options);
+  let added = 0, updated = 0, skipped = 0, invalid = 0, missing = 0;
+  const rows = [];
+  (products || []).forEach((p, order) => {
+    const item = normalizeStockImportProduct(p);
+    if (!item.name) { invalid++; return; }
+    const key = stockImportKey(item);
+    const code = stockImportCode(item);
+    const old = idx.byKey.get(key) || (code ? idx.byCode.get(code) : null);
+    if (!old) {
+      if (!opts.addNew) {
+        missing++;
+        rows.push({ action: "missing", item, order, changes: [], match: "missing" });
+      } else {
+        added++;
+        rows.push({ action: "add", item: stockImportItemForAdd(item, opts), order, changes: [], match: "new" });
       }
-      if (photos.length) {
-        const nextPhotos = p.appendPhotos
-          ? [...(old.photos || (old.photo ? [old.photo] : [])), ...photos].filter((v, i, arr) => v && arr.indexOf(v) === i)
-          : photos;
-        if (JSON.stringify(old.photos || []) !== JSON.stringify(nextPhotos)) {
-          old.photos = nextPhotos;
-          old.photo = nextPhotos[0] || "";
-          changed = true;
-        }
-      }
-      if (photos.length && !old.photo) {
-        old.photo = (old.photos || [])[0] || photos[0] || "";
-        changed = true;
-      }
-      if (p.qty !== undefined && Number(old.qty) !== item.qty) {
-        old.qty = item.qty;
-        changed = true;
-      }
-      if (p.avgCost !== undefined && Number(old.avgCost) !== item.avgCost) {
-        old.avgCost = item.avgCost;
-        changed = true;
-      }
-      if (changed) updated++;
-      else skipped++;
       return;
     }
-    const fresh = Object.assign({ id: uid(), openQty: 0 }, item);
-    s.stock.push(fresh);
-    existing.set(key, fresh);
-    added++;
+    const changes = stockImportChanges(old, item, p, opts);
+    if (changes.length) {
+      updated++;
+      rows.push({ action: "update", item, old, order, changes, match: idx.byKey.get(key) ? "key" : "code" });
+    } else {
+      skipped++;
+      rows.push({ action: "skip", item, old, order, changes: [], match: idx.byKey.get(key) ? "key" : "code" });
+    }
   });
-  return { added, updated, skipped };
+  const countChanges = field => rows.reduce((a, r) => a + (r.changes || []).filter(c => c.field === field).length, 0);
+  return {
+    rows,
+    summary: {
+      total: rows.length,
+      added, updated, skipped, invalid, missing,
+      costUpdates: countChanges("avgCost"),
+      saleUpdates: countChanges("salePrice"),
+      memberUpdates: countChanges("memberPrice"),
+      qtyUpdates: countChanges("qty"),
+      photoUpdates: countChanges("photos")
+    }
+  };
+}
+/* นำเข้าสินค้า (Item Master) — เพิ่มรายการใหม่ และอัปเดตรายการเดิมเมื่อ import มีข้อมูลใหม่ */
+function mergeStockProducts(s, products, options = {}) {
+  const plan = stockImportPlan(s, products, options);
+  plan.rows.forEach(row => {
+    if (row.action === "add") {
+      s.stock.push(Object.assign({ id: uid(), openQty: 0 }, row.item));
+      return;
+    }
+    if (row.action !== "update" || !row.old) return;
+    row.changes.forEach(ch => {
+      if (ch.field === "photos") {
+        row.old.photos = ch.photos || [];
+        row.old.photo = row.old.photos[0] || "";
+      } else {
+        row.old[ch.field] = ch.to;
+      }
+    });
+  });
+  return plan.summary;
 }
 /* หมวดต้นทุนทั้งหมด = หมวดพื้นฐาน + หมวดที่ผู้ใช้เพิ่มเอง (เก็บใน state.customCostCats) */
 function allCostCats(s) {
@@ -554,6 +653,9 @@ function ensureDefaults(s) {
     if (typeof x.generic !== "string") x.generic = "";
     if (typeof x.supplier !== "string") x.supplier = "";
     if (typeof x.photo !== "string") x.photo = "";
+    x.avgCost = Number(x.avgCost) || 0;
+    x.salePrice = Number(x.salePrice) || 0;
+    x.memberPrice = Number(x.memberPrice || x.regularPrice || x.wholesalePrice || x.customerPrice || 0) || 0;
     /* รูปหลายใบ: ข้อมูลเก่ามี photo (รูปเดียว) -> ย้ายเข้ารายการ photos */
     if (!Array.isArray(x.photos)) x.photos = x.photo ? [x.photo] : [];
     x.photo = x.photos[0] || "";
@@ -947,6 +1049,7 @@ function buildSaleItems(s, data) {
         unit: String(it.unit || "ชิ้น"),
         qty,
         price,
+        priceMode: ["sale", "member", "custom"].includes(it.priceMode) ? it.priceMode : "custom",
         total: Math.round(qty * price),
         fromOpen: 0,   // ขายไม่แตะของที่เปิดใช้แล้ว
         fromMain: qty  // เบิกจากหลักทั้งหมด

@@ -4,6 +4,18 @@ let saleQueries = {};    // คำค้นหาสต็อกต่อแถ�
 let saleEditingId = "";
 /* ขายจากสต็อกหลัก (หน่วยเต็ม) เท่านั้น — ไม่นับของที่เปิดใช้แล้ว */
 function saleAvail(x) { return Math.floor(Number(x.qty) || 0); }
+function salePriceFromMode(st, mode) {
+  if (!st) return 0;
+  if (mode === "member") return Number(st.memberPrice) || 0;
+  if (mode === "sale") return Number(st.salePrice) || 0;
+  return 0;
+}
+function salePriceModeOf(st, price) {
+  const v = Number(price) || 0;
+  if (st && Number(st.memberPrice) > 0 && v === Number(st.memberPrice)) return "member";
+  if (st && Number(st.salePrice) > 0 && v === Number(st.salePrice)) return "sale";
+  return "custom";
+}
 function saleItemsHtml(i) {
   const it = saleItems[i];
   if (!it) return "";
@@ -24,8 +36,10 @@ function saleItemsHtml(i) {
     const sel = it.stockId === x.id;
     const sub = `ขายได้ ${fmtNum(saleAvail(x))} ${esc(x.unit)}`;
     const sp = Number(x.salePrice) || 0;
+    const mp = Number(x.memberPrice) || 0;
+    const priceTxt = [sp ? `ทั่วไป ${fmtMoney(sp)}` : "", mp ? `ประจำ ${fmtMoney(mp)}` : ""].filter(Boolean).join(" · ");
     return `<button type="button" class="stock-pick-item ${sel ? "selected" : ""}" onclick="App.salePick(${i}, '${x.id}')" ${sel ? `title="กดอีกครั้งเพื่อเอารายการนี้ออก"` : ""}>
-      <span class="sp-name">${esc(x.name)}</span>${sel ? `<span class="sp-x">✕</span>` : (sp ? `<span class="sp-sub">${sub} · ขาย ${fmtMoney(sp)} บาท</span>` : `<span class="sp-sub">${sub}</span>`)}
+      <span class="sp-name">${esc(x.name)}</span>${sel ? `<span class="sp-x">✕</span>` : `<span class="sp-sub">${sub}${priceTxt ? ` · ${esc(priceTxt)}` : ""}</span>`}
     </button>`;
   }).join("") + (more > 0 ? `<div class="sale-more-hint">${q ? `แสดง 20 รายการแรก · เหลือ ${fmtNum(more)} รายการ` : `พิมพ์ค้นหาเพื่อดูอีก ${fmtNum(more)} รายการ`}</div>` : "");
 }
@@ -48,7 +62,8 @@ App.salePick = function (i, id) {
   it.stockId = id;
   it.name = x.name;
   it.unit = x.unit;
-  it.price = Number(x.salePrice) || 0;
+  it.priceMode = Number(x.salePrice) > 0 ? "sale" : (Number(x.memberPrice) > 0 ? "member" : "custom");
+  it.price = salePriceFromMode(x, it.priceMode);
   it.qty = it.qty || 1;
   App.saleRender();
 };
@@ -56,6 +71,7 @@ App.saleSet = function (i, field, v) {
   const it = saleItems[i];
   if (!it) return;
   it[field] = v;
+  if (field === "price") it.priceMode = "custom";
   if (field === "qty") App.saleCheckLimit(i);
   App.saleSum();
 };
@@ -130,6 +146,7 @@ App.saleRender = function () {
   list.innerHTML = saleItems.map((it, i) => {
     const st = it.stockId ? stockById(S, it.stockId) : null;
     const max = st ? saleAvail(st) : 0;
+    const priceMode = it.priceMode || salePriceModeOf(st, it.price);
     return `
     <div class="usage-row">
       <div class="usage-row-head">
@@ -147,7 +164,14 @@ App.saleRender = function () {
         <div class="field"><label>จำนวน * (หน่วยเต็ม)</label><input id="saleQty_${i}" type="number" min="1" max="${max}" step="1" value="${it.qty}" oninput="App.saleSet(${i}, 'qty', this.value)">
           ${saleLimitHtml(i, it)}
           <div class="hint">ขายเป็นหน่วยเต็มเท่านั้น</div></div>
-        <div class="field"><label>ราคา/หน่วย (บาท)</label><input type="number" min="0" step="0.5" value="${it.price || ""}" oninput="App.saleSet(${i}, 'price', this.value)"></div>
+        <div class="field"><label>ราคา/หน่วย (บาท)</label>
+          ${st ? `<select class="sale-pricemode" onchange="App.salePriceMode(${i}, this.value)">
+            ${st.salePrice ? `<option value="sale" ${priceMode === "sale" ? "selected" : ""}>ราคาทั่วไป (${fmtMoney(st.salePrice)} บาท)</option>` : ""}
+            ${st.memberPrice ? `<option value="member" ${priceMode === "member" ? "selected" : ""}>ลูกค้าประจำ (${fmtMoney(st.memberPrice)} บาท)</option>` : ""}
+            <option value="custom" ${priceMode === "custom" ? "selected" : ""}>พิมพ์เอง</option>
+          </select>` : ""}
+          <input type="number" min="0" step="0.5" value="${it.price || ""}" ${st && priceMode !== "custom" ? "readonly" : ""} oninput="App.saleSet(${i}, 'price', this.value)">
+        </div>
       </div>
       <div class="row row-between muted" style="font-size:.78rem;padding:2px 2px 0"><span>รวมรายการนี้</span><b>${fmtMoney(saleLineTotal(it))} บาท</b></div>` : ""}
     </div>`;
@@ -155,12 +179,21 @@ App.saleRender = function () {
   App.saleSum();
   saleItems.forEach((_, i) => App.saleCheckLimit(i));
 };
+App.salePriceMode = function (i, mode) {
+  const it = saleItems[i];
+  if (!it || !it.stockId) return;
+  const st = stockById(S, it.stockId);
+  if (!st) return;
+  it.priceMode = mode;
+  if (mode !== "custom") it.price = salePriceFromMode(st, mode);
+  App.saleRender();
+};
 /* เปิดฟอร์มขายสินค้า — ใส่ saleId เพื่อแก้ไขใบเสร็จเดิม */
 App.modalSale = function (saleId) {
   const editing = saleId ? (S.sales || []).find(x => x.id === saleId) : null;
   saleEditingId = editing ? editing.id : "";
   saleItems = editing
-    ? editing.items.map(it => ({ stockId: it.stockId, name: it.name, unit: it.unit, qty: it.qty, price: it.price }))
+    ? editing.items.map(it => ({ stockId: it.stockId, name: it.name, unit: it.unit, qty: it.qty, price: it.price, priceMode: it.priceMode || salePriceModeOf(stockById(S, it.stockId), it.price) }))
     : [{ stockId: "", name: "", unit: "", qty: 1, price: 0 }];
   saleQueries = {};
   const today = todayISO();

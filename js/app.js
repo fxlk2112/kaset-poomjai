@@ -358,7 +358,8 @@ function render() {
   };
   const navKey = VIEW_GROUP[route.view] || route.view;
   if (fd) {
-    fd.style.display = navKey === "more" ? "none" : "";
+    const inTrialDetail = route.view === "plots" && route.tab === "trials" && !!route.trialId;
+    fd.style.display = navKey === "more" || inTrialDetail ? "none" : "";
     fd.classList.remove("open");
   }
   if (!keys.includes(navKey)) {
@@ -503,12 +504,12 @@ function renderHome() {
   const doneToday = tToday.filter(t => t.status === "done").length;
   const todayPct = tToday.length ? Math.round(doneToday / tToday.length * 100) : 0;
   const overdue = S.tasks.filter(t => taskStatusOf(t) === "overdue");
-  /* กิจกรรมล่าสุด: เรียงตามเวลาที่เพิ่งทำจริง (เพิ่ม/ทำเสร็จ/แก้ไข) ไม่ใช่ตามวันที่งาน
-     งานเก่าที่ยังไม่มี timestamp -> ใช้เวลาวันที่ของงานแทน */
+  /* กิจกรรมล่าสุด: โชว์ประวัติงานที่ปิดงานแล้วเท่านั้น เพื่อไม่ซ้ำกับงานถัดไป */
   const tsOf = t => t.updatedAt || t.createdAt || new Date(t.date + "T12:00:00").getTime() || 0;
   const recent = [...S.tasks]
+    .filter(t => t.status === "done")
     .sort((a, b) => tsOf(b) - tsOf(a))
-    .slice(0, 5);
+    .slice(0, 4);
   const kpiProfit = ytd.net >= 0;
   const kpiClass = kpiProfit ? "pos" : "neg";
   /* กำไรตามแปลง: ใช้ปีปัจจุบัน (สอดคล้องกับ KPI กำไรสุทธิ) — ไม่ใช้ทุกปีปนกัน */
@@ -681,12 +682,11 @@ function renderHome() {
           <button class="btn btn-sm btn-ghost" onclick="App.nav('planner')">${ic("calendar")} ดูเพิ่มเติม</button>
         </div>
         <div class="card">
-          ${recent.length === 0 ? `<div class="muted" style="text-align:center;padding:8px">ยังไม่มีกิจกรรม</div>` : ""}
+          ${recent.length === 0 ? `<div class="empty compact-empty"><div class="e-ico">${ic("check")}</div><div class="e-title">ยังไม่มีประวัติงานที่ทำเสร็จ</div><div class="muted">งานที่ยังต้องทำดูที่งานถัดไปด้านบน</div></div>` : ""}
           ${recent.map(t => {
             /* บอกว่าพึ่งทำอะไรกับงานนี้ */
-            let act = "เพิ่มแผน";
-            if (t.updatedAt && t.status === "done") act = "ทำเสร็จ";
-            else if (t.updatedAt && t.status === "planned") act = "แก้ไข";
+            let act = "ทำเสร็จ";
+            if (t.updatedAt && t.status !== "done") act = "แก้ไข";
             const st = taskStatusOf(t);
             const dotCls = st === "done" ? "dot-green" : st === "overdue" ? "dot-red" : "dot-amber";
             return `
@@ -1000,6 +1000,14 @@ function trialTreatmentRecipe(t) {
   if (t.mixName || t.mixRate) parts.push(`${esc(t.mixName || "สารผสม")} ${trialRateText(t.mixRate)}`);
   return parts.length ? parts.join(" + ") : esc(t.desc || "");
 }
+function trialTaskForTreatment(tr, treatmentId) {
+  return (S.tasks || [])
+    .filter(t => t.trialId === tr.id && t.trialTreatmentId === treatmentId)
+    .sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0))[0] || null;
+}
+function trialTasksForTreatment(tr, treatmentId) {
+  return (S.tasks || []).filter(t => t.trialId === tr.id && t.trialTreatmentId === treatmentId);
+}
 function trialMetrics(tr) {
   const rows = Array.isArray(tr.metrics) && tr.metrics.length
     ? tr.metrics
@@ -1188,6 +1196,47 @@ function trialMissingUnits(tr) {
     return `บล็อก ${u.block} ${t.code || ""}`.trim();
   });
 }
+function trialMeasureProgress(tr) {
+  const total = (tr.units || []).length;
+  const done = new Set(trialLatestValues(tr, trialActiveMetricId(tr)).map(x => x.unit.id)).size;
+  return { total, done, pct: total ? Math.round(done / total * 100) : 0 };
+}
+function trialCleanText(value) {
+  return String(value || "").trim();
+}
+function trialHeroMetaHtml(tr, photoCount) {
+  const period = trialCleanText(tr.startDate) || trialCleanText(tr.endDate)
+    ? `${tr.startDate || "ยังไม่ระบุ"} → ${tr.endDate || "ยังไม่ระบุ"}`
+    : "ยังไม่ระบุ";
+  const rows = [
+    ["พืช/หัวข้อ", trialCleanText(tr.crop)],
+    ["ตัวชี้วัด", `${trialMetric(tr)} · ${fmtNum(trialMetrics(tr).length)} ค่า`],
+    ["ช่วงทดลอง", period],
+    ["ข้อมูล", `${fmtNum((tr.observations || []).length)} ค่า · ${fmtNum(photoCount)} รูป`]
+  ];
+  if (trialCleanText(tr.sprayMethod)) rows.splice(3, 0, ["วิธีพ่น/ใส่", trialCleanText(tr.sprayMethod)]);
+  return `<div class="meta-grid trial-hero-meta mt-8">
+    ${rows.filter(([, value]) => trialCleanText(value)).map(([label, value]) => `
+      <div class="meta-box ${label === "ช่วงทดลอง" ? "trial-meta-period" : ""}"><div class="lb">${esc(label)}</div><div class="vl">${esc(value)}</div></div>`).join("")}
+  </div>`;
+}
+function trialPlanKvHtml(label, value, always) {
+  const v = trialCleanText(value);
+  if (!v && !always) return "";
+  return `<div class="trial-plan-kv"><span>${esc(label)}</span><b>${esc(v || "ยังไม่ระบุ")}</b></div>`;
+}
+function trialQuickNavHtml() {
+  const items = [
+    ["plan", "แผน"],
+    ["areas", "แปลง"],
+    ["layout", "ผัง"],
+    ["analysis", "วิเคราะห์"],
+    ["timeline", "ไทม์ไลน์"],
+    ["photos", "รูป"]
+  ];
+  return `<div class="trial-jumpbar">${items.map(([id, label]) =>
+    `<button type="button" onclick="App.scrollTrialSection('${id}')">${esc(label)}</button>`).join("")}</div>`;
+}
 function trialMeanChartItems(tr) {
   const a = trialAnalysis(tr);
   return a.rows.filter(r => r.n).map(r => ({
@@ -1278,21 +1327,29 @@ function trialTreatmentPhotosHtml(tr) {
   </div>`;
 }
 function trialPlanHtml(tr) {
+  const optionalMissing = [
+    ["เป้าหมาย", tr.objective],
+    ["วิธีพ่น/ใส่", tr.sprayMethod],
+    ["น้ำ/พาหะ", tr.waterRate],
+    ["ผสมต่อครั้ง", tr.mixVolume]
+  ].filter(([, value]) => !trialCleanText(value)).map(([label]) => label);
+  const timedTreatments = (tr.treatments || []).filter(t => trialCleanText(t.timing));
   return `<div class="trial-plan-grid">
     <div class="card trial-plan-card">
       <div class="trial-plan-head">${ic("info")} ข้อมูลงานทดลอง</div>
-      <div class="trial-plan-kv"><span>ชนิดงาน</span><b>${esc(trialTypeLabel(tr))}</b></div>
-      <div class="trial-plan-kv"><span>เป้าหมาย</span><b>${esc(tr.objective || "-")}</b></div>
-      <div class="trial-plan-kv"><span>รูปแบบผัง</span><b>${trialLayoutMode(tr) === "manual" ? "จัดผังเอง" : "สุ่มอัตโนมัติ"}</b></div>
-      <div class="trial-plan-kv"><span>วิธีพ่น/ใส่</span><b>${esc(tr.sprayMethod || "-")}</b></div>
-      <div class="trial-plan-kv"><span>น้ำ/พาหะ</span><b>${esc(tr.waterRate || "-")}</b></div>
-      <div class="trial-plan-kv"><span>ผสมต่อครั้ง</span><b>${esc(tr.mixVolume || "-")}</b></div>
+      ${trialPlanKvHtml("ชนิดงาน", trialTypeLabel(tr), true)}
+      ${trialPlanKvHtml("รูปแบบผัง", trialLayoutMode(tr) === "manual" ? "จัดผังเอง" : "สุ่มอัตโนมัติ", true)}
+      ${trialPlanKvHtml("เป้าหมาย", tr.objective)}
+      ${trialPlanKvHtml("วิธีพ่น/ใส่", tr.sprayMethod)}
+      ${trialPlanKvHtml("น้ำ/พาหะ", tr.waterRate)}
+      ${trialPlanKvHtml("ผสมต่อครั้ง", tr.mixVolume)}
+      ${optionalMissing.length ? `<div class="trial-empty-note">${ic("info")} ยังไม่ได้ใส่ ${esc(optionalMissing.join(", "))}</div>` : ""}
     </div>
     <div class="card trial-plan-card">
       <div class="trial-plan-head">${ic("clock")} ช่วงเวลาพ่นโดยประมาณ</div>
-      ${(tr.treatments || []).some(t => t.timing) ? (tr.treatments || []).map(t => `
+      ${timedTreatments.length ? timedTreatments.map(t => `
         <div class="trial-timing-row" style="--tr-color:${trialTreatmentColor(tr, t.id)}">
-          <b>${esc(t.code)}</b><span>${esc(t.timing || "-")}</span>
+          <b>${esc(t.code)}</b><span>${esc(t.timing)}</span>
         </div>`).join("") : `<div class="muted">ยังไม่ได้ใส่ช่วงพ่นของแต่ละสูตร</div>`}
     </div>
   </div>
@@ -1302,15 +1359,26 @@ function trialPlanHtml(tr) {
       <span class="badge badge-blue">${fmtNum((tr.treatments || []).length)} สูตร</span>
     </div>
     <div class="trial-program-grid">
-      ${(tr.treatments || []).map(t => `<div class="trial-program-item" style="--tr-color:${trialTreatmentColor(tr, t.id)}">
-        <div class="trial-program-code">${esc(t.code)}</div>
-        <b>${esc(t.name)}</b>
-        <span>${trialTreatmentRecipe(t) ? trialTreatmentRecipe(t) : "ยังไม่ได้ใส่รายละเอียดสูตร"}</span>
+      ${(tr.treatments || []).map(t => {
+        const linkedTask = trialTaskForTreatment(tr, t.id);
+        const recipe = trialTreatmentRecipe(t);
+        return `<div class="trial-program-item ${linkedTask ? "has-linked-task" : ""}" style="--tr-color:${trialTreatmentColor(tr, t.id)}">
+        <div class="trial-program-title">
+          <div class="trial-program-code">${esc(t.code)}</div>
+          <b>${esc(t.name)}</b>
+        </div>
+        <span class="${recipe ? "" : "trial-program-incomplete"}">${recipe ? recipe : `${ic("alert")} ยังไม่ได้ใส่รายละเอียดสูตร`}</span>
         ${t.desc ? `<small>${esc(t.desc)}</small>` : ""}
         <div class="trial-program-actions">
-          <button class="btn btn-sm btn-outline" onclick="App.createTaskFromTrialTreatment('${tr.id}', '${t.id}')">${ic("plus")} สร้างกิจกรรม</button>
+          <div class="trial-program-main">
+            ${linkedTask
+              ? `<button class="btn btn-sm btn-primary" onclick="App.viewTask('${linkedTask.id}')">${ic("eye")} เปิดกิจกรรม</button><small class="trial-linked-task">สร้างไว้แล้ว · ${esc(dateLabel(linkedTask.date))}</small>`
+              : `<button class="btn btn-sm btn-outline" onclick="App.createTaskFromTrialTreatment('${tr.id}', '${t.id}')">${ic("plus")} สร้างกิจกรรม</button>`}
+          </div>
+          <button class="btn btn-sm btn-danger-soft btn-icon trial-program-delete" onclick="App.deleteTrialTreatment('${tr.id}', '${t.id}')" title="ลบสูตรนี้" aria-label="ลบสูตร ${esc(t.code)}">${ic("trash")}</button>
         </div>
-      </div>`).join("")}
+      </div>`;
+      }).join("")}
     </div>
   </div>`;
 }
@@ -1450,6 +1518,8 @@ function trialLayoutHtml(tr) {
 }
 function renderTrialDetail(tr) {
   const status = trialEffectiveStatus(tr);
+  const progress = trialMeasureProgress(tr);
+  const photoCount = (tr.treatments || []).reduce((n, t) => n + ((t.photos || []).filter(Boolean).length), 0);
   return `
     <div class="trial-detail">
       <div class="row" style="margin-bottom:10px">
@@ -1461,39 +1531,45 @@ function renderTrialDetail(tr) {
             <div class="plot-name">${ic("search")} ${esc(tr.name)} ${trialStatusBadge(tr)}</div>
             <div class="muted">${esc(trialPlotName(tr))} · ${esc(trialTypeLabel(tr))} · ${trialLayoutMode(tr) === "manual" ? "จัดผังเอง" : "สุ่มอัตโนมัติ"} · ${fmtNum((tr.treatments || []).length)} ทรีตเมนต์</div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="App.modalTrialObs('${tr.id}')">${ic("plus")} บันทึกค่าวัด</button>
         </div>
-        <div class="meta-grid mt-8">
-          <div class="meta-box"><div class="lb">พืช/หัวข้อ</div><div class="vl">${esc(tr.crop || "-")}</div></div>
-          <div class="meta-box"><div class="lb">ตัวชี้วัด</div><div class="vl">${esc(trialMetric(tr))} · ${fmtNum(trialMetrics(tr).length)} ค่า</div></div>
-          <div class="meta-box"><div class="lb">วิธีพ่น/ใส่</div><div class="vl">${esc(tr.sprayMethod || "-")}</div></div>
-          <div class="meta-box"><div class="lb">ช่วงทดลอง</div><div class="vl">${esc(tr.startDate || "-")} → ${esc(tr.endDate || "-")}</div></div>
-          <div class="meta-box"><div class="lb">ค่าวัดทั้งหมด</div><div class="vl">${fmtNum((tr.observations || []).length)} รายการ</div></div>
+        <div class="trial-progress-card mt-8">
+          <div class="trial-progress-head">
+            <span>${ic("chart")} ความคืบหน้าค่าวัด</span>
+            <b>${fmtNum(progress.done)}/${fmtNum(progress.total)} แปลงย่อย</b>
+          </div>
+          <div class="hp-bar"><i style="width:${progress.pct}%"></i></div>
+          <div class="muted">${progress.total ? `ครบ ${fmtNum(progress.pct)}% ของตัวชี้วัด "${esc(trialMetric(tr))}"` : "ยังไม่มีผังแปลงย่อย"}</div>
         </div>
+        ${trialHeroMetaHtml(tr, photoCount)}
         ${tr.note ? `<div class="td-note-body mt-8">${esc(tr.note)}</div>` : ""}
-        <div class="actions-row mt-8">
-          <button class="btn btn-sm btn-outline" onclick="App.modalTrial('', '${tr.id}')">${ic("pencil")} แก้ไขงานทดลอง</button>
-          <button class="btn btn-sm btn-outline" onclick="App.modalTrialLayout('${tr.id}')">${ic("map")} จัดผังเอง</button>
-          <button class="btn btn-sm btn-outline" onclick="App.randomizeTrial('${tr.id}')">${ic("refresh")} สุ่มผังใหม่</button>
+        <div class="trial-manage-grid mt-8">
+          <button class="btn btn-primary" onclick="App.modalTrialObs('${tr.id}')">${ic("plus")} บันทึกค่าวัด</button>
+          <button class="btn btn-outline" onclick="App.modalTrialAreas('${tr.id}')">${ic("map")} จัดผัง/พื้นที่</button>
+          <button class="btn btn-outline" onclick="App.scrollTrialSection('photos')">${ic("camera")} รูปเปรียบเทียบ</button>
+          <button class="btn btn-outline" onclick="App.modalTrial('', '${tr.id}')">${ic("pencil")} แก้ไขงานทดลอง</button>
+        </div>
+        <div class="trial-secondary-actions">
+          <button class="btn btn-sm btn-ghost" onclick="App.randomizeTrial('${tr.id}')">${ic("refresh")} สุ่มผังใหม่</button>
           ${status === "done" ? `<button class="btn btn-sm btn-primary" onclick="App.setTrialStatus('${tr.id}', 'active')">${ic("refresh")} เปิดทดลองต่อ</button>` : `<button class="btn btn-sm btn-primary" onclick="App.setTrialStatus('${tr.id}', 'done')">${ic("check")} สรุปผลแล้ว</button>`}
-          <button class="btn btn-sm btn-danger-soft" onclick="App.deleteTrial('${tr.id}')">${ic("trash")} ลบ</button>
+          <button class="btn btn-sm btn-danger-soft trial-danger-action" onclick="App.deleteTrial('${tr.id}')">${ic("trash")} ลบงานทดลอง</button>
         </div>
       </div>
-      <div class="section-title">แผนทดลอง</div>
+      ${trialQuickNavHtml()}
+      <div class="section-title trial-anchor" id="trialSec_plan">แผนทดลอง</div>
       ${trialPlanHtml(tr)}
-      <div class="section-title">แปลงทดสอบ</div>
+      <div class="section-title trial-anchor" id="trialSec_areas">แปลงทดสอบ</div>
       ${trialAreaHtml(tr)}
-      <div class="section-title">สูตรผสม</div>
+      <div class="section-title trial-anchor" id="trialSec_mix">สูตรผสม</div>
       ${trialMixTableHtml(tr)}
       ${trialMetricFilterHtml(tr)}
       ${trialTreatmentFilterHtml(tr)}
-      <div class="section-title">${trialLayoutMode(tr) === "manual" ? "ผังแปลงทดลอง" : "ผังสุ่มแปลงทดลอง"}</div>
+      <div class="section-title trial-anchor" id="trialSec_layout">${trialLayoutMode(tr) === "manual" ? "ผังแปลงทดลอง" : "ผังสุ่มแปลงทดลอง"}</div>
       ${trialLayoutHtml(tr)}
-      <div class="section-title">วิเคราะห์ผลทดลอง</div>
+      <div class="section-title trial-anchor" id="trialSec_analysis">วิเคราะห์ผลทดลอง</div>
       ${trialAnalysisHtml(tr)}
-      <div class="section-title">ไทม์ไลน์ค่าวัด</div>
+      <div class="section-title trial-anchor" id="trialSec_timeline">ไทม์ไลน์ค่าวัด</div>
       ${trialTimelineHtml(tr)}
-      <div class="section-title">รูปเปรียบเทียบ</div>
+      <div class="section-title trial-anchor" id="trialSec_photos">รูปเปรียบเทียบ</div>
       ${trialTreatmentPhotosHtml(tr)}
     </div>`;
 }
@@ -1565,6 +1641,10 @@ App.closeTrial = function () {
   route.view = "plots";
   route.tab = "trials";
   render();
+};
+App.scrollTrialSection = function (id) {
+  const el = document.getElementById(`trialSec_${id}`);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 };
 App.setTrialMetric = function (metricId) {
   route.trialMetricId = metricId || "";
@@ -1974,6 +2054,12 @@ App.createTaskFromTrialTreatment = function (trialId, treatmentId) {
   const tr = trialById(S, trialId);
   const t = tr ? trialTreatment(tr, treatmentId) : null;
   if (!tr || !t) return;
+  const existing = trialTaskForTreatment(tr, t.id);
+  if (existing) {
+    App.viewTask(existing.id);
+    toast(`สูตร ${t.code} มีกิจกรรมอยู่แล้ว`);
+    return existing;
+  }
   const area = trialTreatmentArea(tr, t.id);
   const cycle = tr.plotId ? (S.cycles || []).find(c => c.plotId === tr.plotId && c.status === "active") : null;
   const activeTotal = trialChemicalTotal(t.activeRate, area);
@@ -2055,6 +2141,55 @@ App.deleteTrial = function (id) {
     saveState(S);
     render();
     toast("ลบแปลงทดลองแล้ว");
+  });
+};
+App.deleteTrialTreatment = function (trialId, treatmentId) {
+  const tr = trialById(S, trialId);
+  const t = tr ? trialTreatment(tr, treatmentId) : null;
+  if (!tr || !t) return;
+  if ((tr.treatments || []).length <= 2) {
+    toast("ต้องมีอย่างน้อย 2 ทรีตเมนต์");
+    return;
+  }
+  const units = (tr.units || []).filter(u => u.treatmentId === t.id);
+  const unitIds = new Set(units.map(u => u.id));
+  const obsCount = (tr.observations || []).filter(o => unitIds.has(o.unitId)).length;
+  const photoCount = (t.photos || []).filter(Boolean).length;
+  const taskCount = trialTasksForTreatment(tr, t.id).length;
+  const details = [
+    `จะลบ ${t.code} ${t.name}`,
+    `${fmtNum(units.length)} แปลงย่อย`,
+    obsCount ? `${fmtNum(obsCount)} ค่าวัด` : "",
+    photoCount ? `${fmtNum(photoCount)} รูปสรุป` : "",
+    taskCount ? `${fmtNum(taskCount)} กิจกรรมจะถูกถอดการผูกกับงานทดลอง แต่ไม่ลบงาน/สต็อก` : ""
+  ].filter(Boolean).join(" · ");
+  confirmChoice("ลบทรีตเมนต์นี้?", details, [
+    { label: "ลบสูตรนี้", cls: "btn-danger-soft", value: "delete" },
+    { label: "ยกเลิก", cls: "btn-ghost", value: "cancel" }
+  ], v => {
+    if (v !== "delete") return;
+    tr.treatments = (tr.treatments || []).filter(x => x.id !== t.id);
+    tr.units = (tr.units || []).filter(u => u.treatmentId !== t.id);
+    tr.observations = (tr.observations || []).filter(o => !unitIds.has(o.unitId));
+    const byBlock = {};
+    tr.units.forEach(u => {
+      const key = String(u.block || 1);
+      byBlock[key] = byBlock[key] || [];
+      byBlock[key].push(u);
+    });
+    Object.values(byBlock).forEach(rows => rows
+      .sort((a, b) => (a.order || 0) - (b.order || 0))
+      .forEach((u, i) => { u.order = i + 1; }));
+    trialTasksForTreatment(tr, t.id).forEach(task => {
+      task.trialId = null;
+      task.trialTreatmentId = null;
+      task.updatedAt = Date.now();
+    });
+    if (route.trialTreatmentId === t.id) route.trialTreatmentId = "";
+    tr.updatedAt = Date.now();
+    saveState(S);
+    rerender();
+    toast(`ลบทรีตเมนต์ ${t.code} แล้ว`);
   });
 };
 App.modalTrialObs = function (trialId, unitId, obsId) {
@@ -5745,7 +5880,7 @@ App.modalStock = function (id) {
       </div>
       <div class="field"><label>จำนวนเริ่มต้น</label><input id="s_qty" type="number" min="0" step="1" value="${x ? x.qty : 0}">
         <div class="hint">สต็อกหลักเก็บเป็นจำนวนเต็ม (ถุง/ขวดเต็ม) — ของที่ใช้ไม่หมดจะไปเป็น "ของเหลือจากการเปิดใช้" อัตโนมัติ</div></div>
-      <div class="field"><label>ต้นทุนต่อหน่วย (บาท)</label><input id="s_price" type="number" min="0" step="0.5" value="${x ? x.avgCost : 0}"></div>
+      <div class="field"><label>ราคาต้นทุนต่อหน่วย (บาท)</label><input id="s_price" type="number" min="0" step="0.5" value="${x ? x.avgCost : 0}"></div>
       <details class="optional-fields" ${x ? "open" : ""}>
         <summary>${ic("menu")} รายละเอียดเสริม</summary>
         <div class="field"><label>ชื่อสามัญ (สารออกฤทธิ์ / สูตร)</label><input id="s_generic" value="${x ? esc(x.generic || "") : ""}" placeholder="เช่น ไกลโฟเซต หรือ 46-0-0"></div>
@@ -5756,7 +5891,10 @@ App.modalStock = function (id) {
         <div class="field"><label>บริษัท / ผู้จำหน่าย</label><input id="s_supplier" list="stockSupplierList" value="${x ? esc(x.supplier || "") : ""}" placeholder="เช่น ซินเจนทา / บาก้า">
           <datalist id="stockSupplierList">${stockSuppliers().map(s => `<option value="${esc(s)}">`).join("")}</datalist>
         </div>
-        <div class="field"><label>ราคาขายต่อหน่วย (บาท)</label><input id="s_saleprice" type="number" min="0" step="0.5" value="${x ? (x.salePrice || "") : ""}" placeholder="เว้นว่างไว้ได้"></div>
+        <div class="form-row-2">
+          <div class="field"><label>ราคาทั่วไปต่อหน่วย (บาท)</label><input id="s_saleprice" type="number" min="0" step="0.5" value="${x ? (x.salePrice || "") : ""}" placeholder="เว้นว่างไว้ได้"></div>
+          <div class="field"><label>ราคาลูกค้าประจำ (บาท)</label><input id="s_memberprice" type="number" min="0" step="0.5" value="${x ? (x.memberPrice || "") : ""}" placeholder="เว้นว่างไว้ได้"></div>
+        </div>
       </details>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
@@ -5778,7 +5916,8 @@ App.submitStock = function (e, editId) {
     supplier: (document.getElementById("s_supplier").value || "").trim(),
     qty: Number(document.getElementById("s_qty").value) || 0,
     avgCost: Number(document.getElementById("s_price").value) || 0,
-    salePrice: Number(document.getElementById("s_saleprice").value) || 0
+    salePrice: Number(document.getElementById("s_saleprice").value) || 0,
+    memberPrice: Number(document.getElementById("s_memberprice").value) || 0
   };
   if (editId) {
     const x = stockById(S, editId);
@@ -6125,6 +6264,29 @@ App.editTask = function (id) {
 /* ===== รายการค่าใช้จ่าย/ตัดสต็อก (หลายรายการต่องาน — แบบเว็บอ้างอิง) ===== */
 let taskCostItems = [];   // state ชั่วคราวระหว่างเปิด modal
 let taskStockQueries = {}; // คำค้นหาสต็อก ต่อรายการ (index -> string) เพื่อไม่ให้ rebuild ขณะพิมพ์
+let taskEditingId = "";   // งานที่กำลังแก้ไขอยู่ ใช้บวกยอดเดิมกลับเฉพาะตอนตรวจจำนวน
+function taskOriginalStockQty(stockId) {
+  if (!taskEditingId || !stockId) return 0;
+  const t = S.tasks.find(x => x.id === taskEditingId);
+  if (!t) return 0;
+  const rows = (t.costItems && t.costItems.length)
+    ? t.costItems
+    : (t.stockId ? [{ stockId: t.stockId, qty: t.qty }] : []);
+  return rndQty(rows
+    .filter(x => x.stockId === stockId)
+    .reduce((sum, x) => sum + (Number(x.qty) || 0), 0));
+}
+function costEditableAvail(stockId, rowIndex) {
+  const st = stockById(S, stockId);
+  if (!st) return 0;
+  const actual = rndQty((Number(st.qty) || 0) + (Number(st.openQty) || 0));
+  const original = taskOriginalStockQty(stockId);
+  const usedByOtherRows = taskCostItems.reduce((sum, row, idx) => {
+    if (idx === rowIndex || !row || row.stockId !== stockId) return sum;
+    return sum + (Number(row.qty) || 0);
+  }, 0);
+  return rndQty(Math.max(0, actual + original - usedByOtherRows));
+}
 /* รายการสต็อกใน picker (กรองตามคำค้น) */
 function stockPickItemsHtml(i) {
   const it = taskCostItems[i];
@@ -6132,30 +6294,36 @@ function stockPickItemsHtml(i) {
   const q = (taskStockQueries[i] || "").trim().toLowerCase();
   /* เอาเฉพาะรายการที่มีของ (ยาหมดไม่โชว์ในตัวเลือกตัดสต็อก) */
   const list = S.stock.filter(x => {
-    const avail = rndQty((Number(x.qty) || 0) + (Number(x.openQty) || 0));
-    if (avail <= 0) return false;
+    const avail = costEditableAvail(x.id, i);
+    if (avail <= 0 && it.stockId !== x.id) return false;
     return !q || x.name.toLowerCase().includes(q) || (x.code || "").toLowerCase().includes(q) || x.unit.toLowerCase().includes(q) || (x.category || "").toLowerCase().includes(q);
   });
   if (!list.length) return `<div class="muted" style="font-size:.72rem;padding:6px 2px">${q ? "ไม่พบรายการที่ค้นหา" : "ยังไม่มีของในสต็อก — ไปรับของเข้าก่อน"}</div>`;
   return list.map(x => {
     const open = rndQty(x.openQty);
-    const avail = rndQty((Number(x.qty) || 0) + open);
+    const avail = costEditableAvail(x.id, i);
     const out = avail <= 0; // ของหมด -> แถบแดง + กดไม่ได้
     const sel = it.stockId === x.id;
-    const sub = open > 0 ? `หลัก ${fmtNum(x.qty)} + เหลือเปิด ${fmtNum(open)} ${esc(x.unit)}` : `คงเหลือ ${fmtNum(x.qty)} ${esc(x.unit)}`;
+    const original = taskOriginalStockQty(x.id);
+    const sub = original > 0
+      ? `แก้ได้ ${fmtNum(avail)} ${esc(x.unit)} (รวมของเดิม ${fmtNum(original)})`
+      : (open > 0 ? `หลัก ${fmtNum(x.qty)} + เหลือเปิด ${fmtNum(open)} ${esc(x.unit)}` : `คงเหลือ ${fmtNum(x.qty)} ${esc(x.unit)}`);
     return `<button type="button" class="stock-pick-item ${sel ? "selected" : ""} ${out ? "out" : ""}" onclick="App.costSet(${i}, 'stockId', '${x.id}')" ${sel ? `title="กดอีกครั้งเพื่อเอารายการนี้ออก"` : ""}>
       <span class="sp-name">${esc(x.name)}</span>${sel ? `<span class="sp-x">✕</span>` : (out ? `<span class="sp-out">ยาหมด</span>` : `<span class="sp-sub">${sub}</span>`)}
     </button>`;
   }).join("");
 }
-function costAvailInfo(it) {
+function costAvailInfo(it, rowIndex) {
   if (!it || !it.stockId) return null;
   const st = stockById(S, it.stockId);
   if (!st) return null;
-  const avail = rndQty((Number(st.qty) || 0) + (Number(st.openQty) || 0));
+  const avail = costEditableAvail(it.stockId, rowIndex);
+  const original = taskOriginalStockQty(it.stockId);
   const need = Number(it.qty) || 0;
   const unit = st.unit || it.unit || "";
-  let msg = `ใช้ได้ไม่เกิน ${fmtNum(avail)} ${unit}`;
+  let msg = original > 0
+    ? `แก้ได้ไม่เกิน ${fmtNum(avail)} ${unit} (รวมของเดิมในกิจกรรมนี้ ${fmtNum(original)} ${unit})`
+    : `ใช้ได้ไม่เกิน ${fmtNum(avail)} ${unit}`;
   let over = false;
   if (avail <= 0) {
     msg = `"${st.name}" หมดแล้ว — ไม่มี ${unit} เหลือในสต็อก`;
@@ -6167,7 +6335,7 @@ function costAvailInfo(it) {
   return { st, avail, need, unit, msg, over };
 }
 function costLimitHtml(i, it) {
-  const info = costAvailInfo(it);
+  const info = costAvailInfo(it, i);
   if (!info) return "";
   return `<div class="stock-limit ${info.over ? "is-error" : ""}" id="ciLimit_${i}">${ic(info.over ? "alert" : "info")} ${esc(info.msg)}</div>`;
 }
@@ -6201,7 +6369,7 @@ App.costRender = function () {
     let priceMode = it.priceMode;
     if (!priceMode && st) {
       const v = Number(it.unitCost) || 0;
-      priceMode = v === (Number(st.avgCost) || 0) ? "cost" : ((st.salePrice && v === (Number(st.salePrice) || 0)) ? "sale" : "custom");
+      priceMode = v === (Number(st.avgCost) || 0) ? "cost" : ((st.memberPrice && v === (Number(st.memberPrice) || 0)) ? "member" : ((st.salePrice && v === (Number(st.salePrice) || 0)) ? "sale" : "custom"));
     }
     if (!priceMode) priceMode = "custom";
     return `
@@ -6227,7 +6395,7 @@ App.costRender = function () {
         <input class="ci-name" value="${esc(it.name || "")}" placeholder="เช่น ค่าน้ำมัน, ยาจากร้านนอกสต็อก" oninput="App.costSet(${i}, 'name', this.value)">
       </div>
       <div class="form-row-2">
-        <div class="field"><label>จำนวนที่ใช้</label><input class="ci-qty" type="number" min="0" ${st ? `max="${costAvailInfo(it).avail}"` : ""} step="0.01" value="${it.qty || ""}" oninput="App.costSet(${i}, 'qty', this.value)">
+        <div class="field"><label>จำนวนที่ใช้</label><input class="ci-qty" type="number" min="0" ${st ? `max="${costAvailInfo(it, i).avail}"` : ""} step="0.01" value="${it.qty || ""}" oninput="App.costSet(${i}, 'qty', this.value)">
           ${costLimitHtml(i, it)}
         </div>
         <div class="field"><label>หน่วย</label><input class="ci-unit" value="${esc(it.unit || "")}" placeholder="เช่น cc, กก., ขวด" oninput="App.costSet(${i}, 'unit', this.value)"></div>
@@ -6237,7 +6405,8 @@ App.costRender = function () {
           ${st ? `
           <select class="ci-pricemode" onchange="App.costPriceMode(${i}, this.value)" title="เลือกใช้ราคาไหนคำนวณต้นทุน">
             <option value="cost" ${priceMode === "cost" ? "selected" : ""}>ต้นทุน (${fmtMoney(st.avgCost)} บาท)</option>
-            ${st.salePrice ? `<option value="sale" ${priceMode === "sale" ? "selected" : ""}>ราคาขาย (${fmtMoney(st.salePrice)} บาท)</option>` : ""}
+            ${st.salePrice ? `<option value="sale" ${priceMode === "sale" ? "selected" : ""}>ราคาทั่วไป (${fmtMoney(st.salePrice)} บาท)</option>` : ""}
+            ${st.memberPrice ? `<option value="member" ${priceMode === "member" ? "selected" : ""}>ลูกค้าประจำ (${fmtMoney(st.memberPrice)} บาท)</option>` : ""}
             <option value="custom" ${priceMode === "custom" ? "selected" : ""}>พิมพ์เอง…</option>
           </select>` : ""}
           <input class="ci-price" type="number" min="0" step="0.01" value="${it.unitCost || ""}" ${(st && priceMode !== "custom") ? "readonly" : ""} oninput="App.costSet(${i}, 'unitCost', this.value)">
@@ -6415,7 +6584,7 @@ App.costSet = function (i, field, value) {
   /* บล็อกการเลือกของที่หมดสต็อก (qty + openQty = 0) ก่อนตั้งค่า */
   if (field === "stockId" && value) {
     const chk = stockById(S, value);
-    if (chk && (Number(chk.qty) || 0) + (Number(chk.openQty) || 0) <= 0) {
+    if (chk && costEditableAvail(value, i) <= 0) {
       toast(`"${chk.name}" หมดแล้ว — ไม่มีเหลือในสต็อก (ถ้าซื้อนอกสต็อกใช้ช่อง "ชื่อรายการ" แทนได้)`);
       return;
     }
@@ -6454,7 +6623,7 @@ App.costSet = function (i, field, value) {
   App.costSum();
   checkStockWarn(i, it, row);
 };
-/* เลือกใช้ราคาต่อหน่วยของวัสดุจากสต็อก: ต้นทุน / ราคาขาย / พิมพ์เอง */
+/* เลือกใช้ราคาต่อหน่วยของวัสดุจากสต็อก: ต้นทุน / ราคาทั่วไป / ลูกค้าประจำ / พิมพ์เอง */
 App.costPriceMode = function (i, mode) {
   const it = taskCostItems[i];
   if (!it || !it.stockId) return;
@@ -6464,6 +6633,7 @@ App.costPriceMode = function (i, mode) {
   const input = document.querySelector(`[data-ci="${i}"] .ci-price`);
   if (mode === "cost") it.unitCost = (Number(st.avgCost) || 0).toFixed(2);
   else if (mode === "sale") it.unitCost = (Number(st.salePrice) || 0).toFixed(2);
+  else if (mode === "member") it.unitCost = (Number(st.memberPrice) || 0).toFixed(2);
   if (input) {
     input.value = it.unitCost;
     input.readOnly = mode !== "custom";
@@ -6481,7 +6651,7 @@ function checkStockWarn(i, it, row) {
   const limit = document.getElementById("ciLimit_" + i);
   const qtyInput = row ? row.querySelector(".ci-qty") : null;
   const field = qtyInput ? qtyInput.closest(".field") : null;
-  const info = costAvailInfo(it);
+  const info = costAvailInfo(it, i);
   const msg = info && info.over ? info.msg : "";
   if (limit && info) {
     limit.innerHTML = `${ic(info.over ? "alert" : "info")} ${esc(info.msg)}`;
@@ -6512,6 +6682,7 @@ App.taskCalcHarvest = function () {
 App.modalTask = function (date, preset) {
   preset = preset || {};
   const editing = preset.taskId ? S.tasks.find(x => x.id === preset.taskId) : null;
+  taskEditingId = editing ? editing.id : "";
   if (!editing) taskEditReturnToDetail = false;
   const type = editing ? editing.type : (preset.type || "work");
   const title = editing ? editing.title : (preset.title || "");
@@ -6688,15 +6859,19 @@ App.submitTask = function (e, editId) {
       totalCost: Math.round((Number(it.qty) || 0) * (Number(it.unitCost) || 0))
     }))
     .filter(it => it.name || it.stockId || it.qty > 0 || it.unitCost > 0);
-  /* ตรวจจำนวนกับสต็อกก่อนบันทึก — กันกรอกเกินของที่มี (เช่น ยาหมดแล้วใส่จำนวนอีก) */
-  for (const it of costItems) {
-    if (!it.stockId || !it.qty) continue;
-    const st = stockById(S, it.stockId);
+  /* ตรวจจำนวนกับสต็อกก่อนบันทึก — ตอนแก้ไขต้องบวกยอดเดิมของงานนี้กลับแบบชั่วคราว */
+  const stockNeeds = {};
+  costItems.forEach(it => {
+    if (!it.stockId || !it.qty) return;
+    stockNeeds[it.stockId] = (stockNeeds[it.stockId] || 0) + (Number(it.qty) || 0);
+  });
+  for (const stockId of Object.keys(stockNeeds)) {
+    const st = stockById(S, stockId);
     if (!st) continue;
     /* ปัดเป็น 4 ตำแหน่งกันเลขทศนิยมลอย — กรอก 40.02 พอดีกับของเหลือ จะได้ไม่โดนบล็อก */
-    const avail = rndQty((Number(st.qty) || 0) + (Number(st.openQty) || 0));
-    if (Number(it.qty) - avail > 1e-9) {
-      toast(`"${st.name}" มีในสต็อกแค่ ${fmtNum(avail)} ${st.unit} — กรอกจำนวนใหม่`);
+    const avail = rndQty((Number(st.qty) || 0) + (Number(st.openQty) || 0) + taskOriginalStockQty(stockId));
+    if (rndQty(stockNeeds[stockId]) - avail > 1e-9) {
+      toast(`"${st.name}" ใช้ได้ไม่เกิน ${fmtNum(avail)} ${st.unit} — กรอกจำนวนใหม่`);
       return false;
     }
   }
@@ -6760,6 +6935,7 @@ App.submitTask = function (e, editId) {
     render();
     if (editId && taskEditReturnToDetail) App.viewTask(editId);
     taskEditReturnToDetail = false;
+    taskEditingId = "";
     if (restocked) toast("บันทึกแล้ว · คืนสต็อกส่วนที่ไม่ได้ใช้");
   };
   if (existing) {
@@ -6779,7 +6955,7 @@ App.submitTask = function (e, editId) {
       if (oldUsed && !newUsed) {
         // เคยใช้สต็อกแต่ตอนแก้ไขเอาออก → ถามว่าจะคืนไหม
         confirmChoice("ได้ใช้ของจากสต็อกแล้วหรือยัง?",
-          "งานนี้เคยเบิกของจากสต็อก ${existing.costItems.filter(i => i.stockId).length} รายการ ตอนนี้คุณนำรายการสต็อกออก — ถ้ายังไม่ได้ใช้จริง ระบบจะคืนของเข้าสต็อก",
+          `งานนี้เคยเบิกของจากสต็อก ${existing.costItems.filter(i => i.stockId).length} รายการ ตอนนี้คุณนำรายการสต็อกออก — ถ้ายังไม่ได้ใช้จริง ระบบจะคืนของเข้าสต็อก`,
           [
             { label: "ยังไม่ได้ใช้ — คืนสต็อก", cls: "btn-primary", value: "restock" },
             { label: "ใช้แล้ว", cls: "btn-ghost", value: "keep" },

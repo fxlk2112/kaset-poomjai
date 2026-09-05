@@ -80,7 +80,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .brand-text { min-width: 0; }
 .brand-name { font-weight: 800; font-size: 1rem; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .v-badge {
-  display: inline-block; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.35);
+  display: none; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.35);
   font-size: .62rem; font-weight: 700; padding: 1px 6px; border-radius: 999px; vertical-align: 2px; margin-left: 3px;
 }
 .brand-sub { font-size: .68rem; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1454,6 +1454,92 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 .trial-card .meta-grid { margin-top: 9px; }
 .trial-hero .plot-name .ic,
 .trial-intro .ic { width: 1em; height: 1em; vertical-align: -0.15em; }
+.trial-progress-card {
+  display: grid;
+  gap: 6px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--green-soft);
+}
+.trial-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--green-deep);
+  font-size: .78rem;
+  font-weight: 850;
+}
+.trial-progress-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.trial-progress-head .ic { width: 1em; height: 1em; }
+.trial-hero-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+.trial-hero-meta .meta-box {
+  padding: 8px 9px;
+}
+.trial-hero-meta .trial-meta-period {
+  grid-column: 1 / -1;
+}
+.trial-manage-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.trial-manage-grid .btn {
+  min-height: 42px;
+  justify-content: center;
+  white-space: normal;
+  line-height: 1.2;
+}
+.trial-secondary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+}
+.trial-secondary-actions .btn { flex: 1 1 auto; }
+.trial-secondary-actions .trial-danger-action {
+  flex: 0 0 auto;
+  margin-left: auto;
+  opacity: .88;
+}
+.trial-jumpbar {
+  position: sticky;
+  top: calc(var(--topbar-h) + 6px);
+  z-index: 20;
+  display: flex;
+  gap: 7px;
+  margin: 10px 0 4px;
+  padding: 7px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  -webkit-overflow-scrolling: touch;
+}
+.trial-jumpbar button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--green-deep);
+  font-size: .74rem;
+  font-weight: 850;
+}
+.trial-jumpbar button:active { background: var(--green-light); }
+.trial-anchor { scroll-margin-top: calc(var(--topbar-h) + 72px); }
 .trial-treatment-list {
   display: grid;
   gap: 8px;
@@ -1646,6 +1732,19 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   overflow-wrap: anywhere;
   line-height: 1.35;
 }
+.trial-empty-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--green-soft) 70%, transparent);
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+.trial-empty-note .ic { width: 1em; height: 1em; color: var(--green); }
 .trial-timing-row {
   grid-template-columns: 42px minmax(0, 1fr);
   border-left: 4px solid var(--tr-color, var(--green));
@@ -1659,7 +1758,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
 }
 .trial-program-item {
   min-width: 0;
-  min-height: 118px;
+  min-height: 112px;
   display: grid;
   align-content: start;
   gap: 5px;
@@ -1668,6 +1767,13 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   border-top: 5px solid var(--tr-color, var(--green));
   border-radius: 12px;
   background: color-mix(in srgb, var(--tr-color, #16a34a) 10%, #fff);
+}
+.trial-program-title {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
 }
 .trial-program-code {
   width: 34px;
@@ -1689,12 +1795,52 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); out
   font-weight: 720;
   line-height: 1.35;
 }
+.trial-program-item .trial-program-incomplete {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 7px;
+  border: 1px solid #fde68a;
+  border-radius: 9px;
+  background: #fffbeb;
+  color: #92400e;
+  font-weight: 800;
+}
+.trial-program-incomplete .ic { width: 1em; height: 1em; }
 .trial-program-actions {
   margin-top: auto;
   padding-top: 5px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  align-items: end;
+  gap: 5px;
 }
-.trial-program-actions .btn {
+.trial-program-main {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.trial-program-main .btn {
   width: 100%;
+}
+.trial-program-delete {
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  border-radius: 12px;
+}
+.trial-program-item.has-linked-task {
+  border-color: color-mix(in srgb, var(--tr-color) 36%, var(--card-border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tr-color) 8%, var(--card)), var(--card));
+}
+.trial-linked-task {
+  color: var(--muted);
+  font-size: .66rem;
+  font-weight: 750;
+  text-align: center;
 }
 .trial-mix-table {
   display: grid;
@@ -2552,6 +2698,39 @@ html.modal-open, html.modal-open body {
 .td-cost-row:last-child { border-bottom: none; }
 .td-cost-row b { color: var(--green-deep); flex-shrink: 0; }
 @media (max-width: 480px) {
+  .topbar { padding: 7px 10px; border-radius: 0 0 14px 14px; }
+  .brand { gap: 8px; }
+  .brand-logo[src] { width: 32px; height: 32px; }
+  .brand-name { font-size: .86rem; }
+  .brand-sub { display: none; }
+  .v-badge { display: none; }
+  .topbar-actions { gap: 6px; }
+  .icon-btn { width: 34px; height: 34px; }
+  .hero-ver { display: none; }
+  .trial-hero .plot-name { font-size: .9rem; line-height: 1.25; }
+  .trial-hero-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .trial-hero-meta .meta-box {
+    padding: 7px 8px;
+    min-height: 48px;
+  }
+  .trial-progress-card { padding: 8px 9px; }
+  .trial-manage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .trial-manage-grid .btn {
+    min-height: 38px;
+    padding: 8px 9px;
+    font-size: .76rem;
+  }
+  .trial-secondary-actions .btn { flex-basis: calc(50% - 4px); }
+  .trial-secondary-actions .trial-danger-action {
+    flex-basis: auto;
+    margin-left: auto;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .trial-jumpbar { margin-left: -2px; margin-right: -2px; }
   .form-row-2 { grid-template-columns: 1fr; }
   .task-photo-head { grid-template-columns: 1fr; }
   .task-photo-head .btn { width: 100%; }
@@ -2676,8 +2855,95 @@ html.modal-open, html.modal-open body {
   display: inline-block; background: var(--green-soft); color: var(--green-dark);
   font-size: .64rem; font-weight: 700; padding: 0 6px; border-radius: 20px; vertical-align: 1px;
 }
-/* เลือกโหมดราคาต่อหน่วยของวัสดุ (ต้นทุน/ราคาขาย/พิมพ์เอง) */
-.ci-pricemode { width: 100%; margin-bottom: 5px; font-size: .78rem; }
+/* เลือกโหมดราคาต่อหน่วยของวัสดุ/การขาย */
+.ci-pricemode,
+.sale-pricemode { width: 100%; margin-bottom: 5px; font-size: .78rem; }
+.stock-price-line { overflow-wrap: anywhere; }
+.stock-import-price-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.stock-import-price-summary span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--green-soft);
+  color: var(--green-deep);
+  font-size: .72rem;
+  font-weight: 850;
+}
+.stock-import-options {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid var(--green-light);
+  border-radius: 12px;
+  background: var(--green-soft);
+}
+.stock-import-options-preview {
+  margin-top: 10px;
+  background: var(--soft);
+  border-color: var(--line);
+}
+.stock-import-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.stock-import-option.is-disabled { opacity: .62; }
+.stock-import-option input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  accent-color: var(--green);
+}
+.stock-import-option b,
+.stock-import-option small {
+  display: block;
+  line-height: 1.3;
+}
+.stock-import-option b { font-size: .8rem; }
+.stock-import-option small { color: var(--muted); font-size: .7rem; margin-top: 1px; }
+.stock-import-preview-list {
+  display: grid;
+  gap: 7px;
+  max-height: min(44vh, 420px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+.stock-import-preview-row {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--soft);
+  font-size: .76rem;
+}
+.stock-import-preview-row b,
+.stock-import-preview-row small,
+.stock-import-preview-row span {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.stock-import-preview-row small,
+.stock-import-preview-row span { color: var(--muted); line-height: 1.35; }
+@media (max-width: 480px) {
+  .stock-import-preview-row { grid-template-columns: 1fr; }
+}
 /* อันดับในรายการ Top (สินค้าขายดี / ลูกค้าท็อป) */
 .rank-badge {
   flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
@@ -3514,6 +3780,15 @@ html[data-theme="dark"] .trial-area-edit-row {
   background: var(--card);
   color: var(--text);
   border-color: var(--card-border);
+}
+html[data-theme="dark"] .trial-empty-note {
+  background: rgba(22, 163, 74, .1);
+  border: 1px solid rgba(134, 239, 172, .14);
+}
+html[data-theme="dark"] .trial-program-incomplete {
+  background: rgba(245, 158, 11, .14);
+  border-color: rgba(251, 191, 36, .28);
+  color: #fcd34d;
 }
 html[data-theme="dark"] .trial-unit {
   background: color-mix(in srgb, var(--tr-color, #16a34a) 16%, var(--card));

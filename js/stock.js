@@ -61,6 +61,15 @@ function stockThumbHtml(x) {
   const photo = firstStockPhoto(x);
   return photo ? `<img src="${esc(stockPhotoSrc({ photo }))}" alt="" loading="lazy" onerror="stockPhotoError(this)">` : ic("box");
 }
+function stockPriceShort(v) {
+  return Number(v) > 0 ? fmtMoney(v) : "ยังไม่ตั้ง";
+}
+function stockPriceSummaryHtml(x) {
+  return `<div class="muted stock-meta-line stock-price-line">ทุน ${stockPriceShort(x.avgCost)} · ทั่วไป ${stockPriceShort(x.salePrice)} · ประจำ ${stockPriceShort(x.memberPrice)}</div>`;
+}
+function stockPriceRow(label, value, unit) {
+  return `<div class="sd-row"><span class="k">${label}</span><span class="bold">${Number(value) > 0 ? `${fmtMoney(value)} บาท/${esc(unit)}` : `<span class="muted">ยังไม่ตั้งราคา</span>`}</span></div>`;
+}
 function stockHasPhoto(x) {
   return stockPhotos(x).length > 0;
 }
@@ -100,7 +109,7 @@ function stockListHtml() {
             ${x.code ? `<div class="muted stock-meta-line">รหัส: <b>${esc(x.code)}</b></div>` : ""}
             ${x.generic ? `<div class="muted stock-meta-line stock-meta-secondary">ชื่อสามัญ: ${esc(x.generic)}</div>` : ""}
             ${x.supplier ? `<div class="muted stock-meta-line stock-meta-secondary">บริษัทจำหน่าย: ${esc(x.supplier)}</div>` : ""}
-            <div class="muted stock-meta-line">ต้นทุนถัวเฉลี่ย ${fmtMoney(x.avgCost)} บาท/${x.unit}${x.salePrice ? ` · ขาย ${fmtMoney(x.salePrice)} บาท/${x.unit}` : ""}</div>
+            ${stockPriceSummaryHtml(x)}
             ${out ? `<div class="stock-out">${ic("alert")} ยาหมด — ไม่มีของในสต็อก</div>` : (open > 0 ? `<div class="stock-open">${ic("unlock")} เหลือจากการเปิดใช้ ${fmtNum(open)} ${esc(x.unit)} — ใช้ได้ก่อน</div>` : `<div class="stock-sealed">${ic("lock")} ยังไม่เปิดใช้</div>`)}
           </div>
           <div class="stock-qty ${out ? "out" : ""}">${out ? "0" : fmtNum(x.qty)} <small>${esc(x.unit)}</small></div>
@@ -336,7 +345,11 @@ App.stockToolsOpen = function () {
       </button>
       <button class="action-item" onclick="App.closeModal();App.importProducts()">
         <span class="action-ico">${ic("upload")}</span>
-        <span><b>นำเข้า Excel</b><small>เพิ่มรายการจากไฟล์สินค้า/สต็อก</small></span>
+        <span><b>อัปเดตราคา Excel</b><small>เติมเฉพาะราคาจากไฟล์เสริม</small></span>
+      </button>
+      <button class="action-item" onclick="App.closeModal();App.importProducts('full')">
+        <span class="action-ico">${ic("box")}</span>
+        <span><b>นำเข้าสินค้า Excel</b><small>เพิ่มสินค้าใหม่ พร้อมเลือกว่าจะทับอะไร</small></span>
       </button>
       <button class="action-item" onclick="App.closeModal();App.saleHistory()">
         <span class="action-ico">${ic("box")}</span>
@@ -548,9 +561,11 @@ App.stockDetail = function (id) {
       ${row("หน่วยนับ", x.unit)}
       ${row("บริษัทจำหน่าย", x.supplier)}
       <div class="sd-row"><span class="k">ในสต็อก</span><span class="bold">${fmtNum(x.qty)} ${esc(x.unit)}${open > 0 ? ` <span class="stock-open" style="display:inline">+ เปิดใช้แล้ว ${fmtNum(open)} ${esc(x.unit)}</span>` : ""}</span></div>
-      <div class="sd-row"><span class="k">ต้นทุนถัวเฉลี่ย</span><span class="bold">${fmtMoney(x.avgCost)} บาท/${esc(x.unit)}</span></div>
-      ${row("ราคาขาย", x.salePrice ? `${fmtMoney(x.salePrice)} บาท/${esc(x.unit)}` : "")}
-      ${x.salePrice ? `<div class="sd-row"><span class="k">กำไร/หน่วย</span><span class="bold ${x.salePrice - x.avgCost >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(x.salePrice - x.avgCost)} บาท/${esc(x.unit)}</span></div>` : ""}
+      ${stockPriceRow("ราคาต้นทุน", x.avgCost, x.unit)}
+      ${stockPriceRow("ราคาทั่วไป", x.salePrice, x.unit)}
+      ${stockPriceRow("ราคาลูกค้าประจำ", x.memberPrice, x.unit)}
+      ${x.salePrice ? `<div class="sd-row"><span class="k">กำไรทั่วไป/หน่วย</span><span class="bold ${x.salePrice - x.avgCost >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(x.salePrice - x.avgCost)} บาท/${esc(x.unit)}</span></div>` : ""}
+      ${x.memberPrice ? `<div class="sd-row"><span class="k">กำไรลูกค้าประจำ/หน่วย</span><span class="bold ${x.memberPrice - x.avgCost >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(x.memberPrice - x.avgCost)} บาท/${esc(x.unit)}</span></div>` : ""}
       <div class="sd-row"><span class="k">มูลค่ารวม</span><span class="bold">${fmtMoney((x.qty + open) * x.avgCost)} บาท</span></div>
     </div>
     ${readonly ? "" : `<div class="sd-danger-zone">
@@ -727,7 +742,31 @@ function xlsxCellText(cell, shared) {
   if (t === "s") { const i = Number(v.textContent); return shared[i] || ""; }
   return v.textContent;
 }
-/* แยกคอลัมน์จากไฟล์ .xlsx -> รายการสินค้า {name, generic, category, size, unit, supplier} */
+function xlsxHeaderNorm(v) {
+  return String(v || "").trim().replace(/\s+/g, "").toLowerCase();
+}
+function xlsxFindCol(headers, aliases) {
+  const keys = aliases.map(xlsxHeaderNorm).filter(Boolean);
+  return headers.findIndex(h => {
+    const v = xlsxHeaderNorm(h);
+    return keys.some(k => v.includes(k));
+  });
+}
+function xlsxFindHeaderRow(grid) {
+  const nameAliases = ["ชื่อสินค้า", "ชื่อรายการสินค้า", "รายการสินค้า", "productname", "สินค้า"];
+  for (let i = 0; i < grid.length; i++) {
+    if (grid[i].some(v => xlsxFindCol([v], nameAliases) >= 0)) return i;
+  }
+  return -1;
+}
+function cleanXlsxPhotoName(v) {
+  const s = String(v || "").trim();
+  if (!s) return "";
+  /* ไฟล์ export บางตัวใส่ image.png ซ้ำทุกแถว เป็น placeholder ไม่ใช่รูปสินค้าจริง */
+  if (/^image\.(png|jpe?g|webp|gif)$/i.test(s)) return "";
+  return s;
+}
+/* แยกคอลัมน์จากไฟล์ .xlsx -> รายการสินค้า {name, generic, category, size, unit, supplier, avgCost, salePrice, memberPrice} */
 async function parseXlsxProducts(file) {
   const u8 = new Uint8Array(await file.arrayBuffer());
   const entries = await zipEntries(u8);
@@ -778,20 +817,23 @@ async function parseXlsxProducts(file) {
     }
     grid.push(rowArr);
   }
-  /* หาแถวหัวตาราง (มีคอลัมน์ "ชื่อสินค้า") */
-  let hi = -1;
-  for (let i = 0; i < grid.length; i++) {
-    if (grid[i].some(v => String(v || "").includes("ชื่อสินค้า"))) { hi = i; break; }
-  }
-  if (hi < 0) throw new Error("ไม่พบคอลัมน์ 'ชื่อสินค้า' ในไฟล์");
+  /* หาแถวหัวตาราง (รองรับทั้ง "ชื่อสินค้า" และ "ชื่อรายการสินค้า") */
+  const hi = xlsxFindHeaderRow(grid);
+  if (hi < 0) throw new Error("ไม่พบคอลัมน์ชื่อสินค้า/ชื่อรายการสินค้าในไฟล์");
   const headers = grid[hi].map(h => String(h || "").trim());
-  const findCol = (key) => {
-    const i = headers.findIndex(h => h.includes(key));
-    return i >= 0 ? i : -1;
-  };
-  const iName = findCol("ชื่อสินค้า"), iCode = findCol("รหัสสินค้า"), iGeneric = findCol("ชื่อสามัญ"), iCat = findCol("หมวดสินค้า"),
-        iUnit = findCol("หน่วยนับ"), iSize = findCol("ขนาดสินค้า"), iSupp = findCol("บริษัทจำหน่าย"),
-        iPhoto = findCol("รูปถ่าย"), iSale = findCol("ราคาขาย"), iQty = findCol("จำนวนที่นับ");
+  const findCol = aliases => xlsxFindCol(headers, aliases);
+  const iName = findCol(["ชื่อสินค้า", "ชื่อรายการสินค้า", "รายการสินค้า", "product name", "product"]),
+        iCode = findCol(["รหัสสินค้า", "รหัสสินค้าเดิม", "sku", "code"]),
+        iGeneric = findCol(["ชื่อสามัญ", "สารสำคัญ", "generic"]),
+        iCat = findCol(["หมวดสินค้า", "หมวดหมู่ของสินค้า", "หมวดหมู่", "category"]),
+        iUnit = findCol(["หน่วยนับ", "หน่วย", "unit"]),
+        iSize = findCol(["ขนาดสินค้า", "ขนาด", "size"]),
+        iSupp = findCol(["บริษัทจำหน่าย", "บริษัทผู้ผลิต", "ผู้ผลิต", "supplier", "manufacturer"]),
+        iPhoto = findCol(["รูปถ่าย", "รูปสินค้า", "รูปภาพ", "photo", "image"]),
+        iQty = findCol(["จำนวนที่นับ", "จำนวนในคลังสินค้า", "จำนวนคงเหลือ", "qty", "stock"]),
+        iAvgCost = findCol(["ราคาต้นทุน", "ต้นทุน", "cost"]),
+        iSale = findCol(["ราคาลูกค้าทั่วไป", "ราคาขาย", "ขายปลีก", "sale price", "retail"]),
+        iMember = findCol(["ราคาลูกค้าประจำ", "ราคานักบิน", "ราคาส่ง", "member", "wholesale"]);
   const products = [];
   /* แปลงตัวเลขจาก Excel: ตัดเครื่องหมายคั่น/สกุลเงิน/ช่องว่างออก */
   const toNum = v => {
@@ -810,60 +852,190 @@ async function parseXlsxProducts(file) {
       size: String(row[iSize] || "").trim(),
       unit: String(row[iUnit] || "").trim() || "ชิ้น",
       supplier: String(row[iSupp] || "").trim(),
-      photo: String(row[iPhoto] || "").trim(),
+      photo: cleanXlsxPhotoName(row[iPhoto]),
       qty: iQty >= 0 ? toNum(row[iQty]) : undefined,
-      salePrice: iSale >= 0 ? toNum(row[iSale]) : undefined
+      avgCost: iAvgCost >= 0 ? toNum(row[iAvgCost]) : undefined,
+      salePrice: iSale >= 0 ? toNum(row[iSale]) : undefined,
+      memberPrice: iMember >= 0 ? toNum(row[iMember]) : undefined
     });
   }
-  return { products, sheetName };
+  return { products, sheetName, headers };
 }
-/* กด "นำเข้าสินค้า" → แสดงวิธีเรียงไฟล์ Excel ก่อน แล้วค่อยเลือกไฟล์ */
-App.importProducts = function () {
-  const req = ["ชื่อสินค้า"];
+function stockImportDefaultOptions(mode) {
+  if (mode === "full") {
+    return { priceOnly: false, addNew: true, updateMeta: true, updatePrices: true, updateQty: false, updatePhotos: false };
+  }
+  return { priceOnly: true, addNew: false, updateMeta: false, updatePrices: true, updateQty: false, updatePhotos: false };
+}
+function stockImportOptionsFromForm() {
+  const mode = (App._stockImportMode || "price");
+  if (mode !== "full") return stockImportDefaultOptions("price");
+  const checked = id => !!document.getElementById(id)?.checked;
+  return {
+    priceOnly: false,
+    addNew: checked("imp_addnew"),
+    updateMeta: checked("imp_meta"),
+    updatePrices: checked("imp_prices"),
+    updateQty: checked("imp_qty"),
+    updatePhotos: checked("imp_photos")
+  };
+}
+function stockImportOptionCheckbox(id, label, note, checked, disabled) {
+  return `
+    <label class="stock-import-option ${disabled ? "is-disabled" : ""}">
+      <input id="${id}" type="checkbox" ${checked ? "checked" : ""} ${disabled ? "disabled" : ""}>
+      <span><b>${label}</b><small>${note}</small></span>
+    </label>`;
+}
+function stockImportOptionsHtml(options, locked) {
+  const o = Object.assign(stockImportDefaultOptions(locked ? "price" : "full"), options || {});
+  return `
+    <div class="stock-import-options">
+      <div class="bold">${ic("check")} เลือกข้อมูลที่จะบันทึก</div>
+      ${stockImportOptionCheckbox("imp_addnew", "เพิ่มสินค้าใหม่", "ถ้า Excel มีสินค้าใหม่ ให้เพิ่มเข้าสต็อก", o.addNew, locked)}
+      ${stockImportOptionCheckbox("imp_prices", "อัปเดตราคา", "ต้นทุน / ราคาทั่วไป / ราคาลูกค้าประจำ", o.updatePrices, locked)}
+      ${stockImportOptionCheckbox("imp_meta", "อัปเดตข้อมูลสินค้า", "รหัส ชื่อสามัญ และหมวดสินค้า", o.updateMeta, locked)}
+      ${stockImportOptionCheckbox("imp_qty", "อัปเดตจำนวนสต็อก", "เปิดเฉพาะตอนต้องการใช้จำนวนจากไฟล์นับจริง", o.updateQty, locked)}
+      ${stockImportOptionCheckbox("imp_photos", "อัปเดตรูปสินค้า", "เปิดเมื่อไฟล์มีชื่อรูปใหม่ที่ต้องการใช้แทนเดิม", o.updatePhotos, locked)}
+    </div>`;
+}
+/* กดนำเข้า Excel: มีทั้งโหมดราคาเสริม และโหมดนำเข้าสินค้าเต็มแบบเลือก field ได้ */
+App.importProducts = function (mode = "price") {
+  App._stockImportMode = mode === "full" ? "full" : "price";
+  const fullMode = App._stockImportMode === "full";
+  const options = stockImportDefaultOptions(App._stockImportMode);
+  const req = ["ชื่อสินค้า / ชื่อรายการสินค้า"];
   const cols = [
-    ["ชื่อสินค้า", "จำเป็น", "สารกำจัดเพลี้ย ฟลูไดออกโซนิล"],
-    ["รหัสสินค้าเดิม", "ไม่จำเป็น", "00-0000-269"],
-    ["ชื่อสามัญ", "ไม่จำเป็น", "Fluopyram"],
-    ["หมวดสินค้า", "ไม่จำเป็น", "ยากำจัดศัตรูพืช"],
-    ["หน่วยนับ", "ไม่จำเป็น (ว่าง = ชิ้น)", "ขวด"],
-    ["ขนาดสินค้า", "ไม่จำเป็น", "1,000 ซีซี"],
-    ["บริษัทจำหน่าย", "ไม่จำเป็น", "บริษัทตัวอย่าง"],
-    ["จำนวนที่นับ", "ไม่จำเป็น", "12"],
-    ["รูปถ่าย", "ไม่จำเป็น", "photo_123.jpeg"],
-    ["ราคาขาย", "ไม่จำเป็น", "250"],
+    ["ชื่อสินค้า / ชื่อรายการสินค้า", "จำเป็น", "สารกำจัดเพลี้ย"],
+    ["รหัสสินค้า", "แนะนำ", "00-0000-269"],
+    ["หน่วยนับ", "ช่วยจับคู่", "ขวด"],
+    ["ขนาดสินค้า", "ช่วยจับคู่", "1,000 ซีซี"],
+    ["บริษัทจำหน่าย / บริษัทผู้ผลิต", "ช่วยจับคู่", "บริษัทตัวอย่าง"],
+    ["ราคาต้นทุน", "ไม่จำเป็น", "220"],
+    ["ราคาลูกค้าทั่วไป", "ไม่จำเป็น", "250"],
+    ["ราคาลูกค้าประจำ / ราคาส่ง", "ไม่จำเป็น", "230"],
   ];
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
-    <h3>${ic("upload")} นำเข้าสินค้าจาก Excel</h3>
-    <div class="modal-sub">อ่านคำแนะนำด้านล่าง แล้วกด "เลือกไฟล์ .xlsx" เพื่อนำเข้า</div>
+    <h3>${ic("upload")} ${fullMode ? "นำเข้าสินค้าจาก Excel" : "อัปเดตราคาจาก Excel"}</h3>
+    <div class="modal-sub">${fullMode ? "เหมาะกับบัญชีที่ใช้ Excel เป็นฐานสินค้า เลือกก่อนว่ารอบนี้จะบันทึกอะไร" : "ใช้ไฟล์ราคาเสริมกับสต็อกที่มีอยู่แล้วจาก Lark"}</div>
 
     <div class="bold" style="font-size:.86rem;margin:4px 0 6px">${ic("info")} ข้อกำหนดไฟล์</div>
     <div class="td-list" style="border:1px solid var(--line);border-radius:10px;padding:2px 10px">
       <div class="td-row"><span class="td-k">นามสกุล</span><span class="td-v">.xlsx เท่านั้น (Excel 2007+ / Google Sheets) — .xls อ่านไม่ได้</span></div>
       <div class="td-row"><span class="td-k">ชีต</span><span class="td-v">ระบบอ่านเฉพาะชีตแรก (Sheet 1)</span></div>
-      <div class="td-row"><span class="td-k">หัวตาราง</span><span class="td-v">ต้องมีแถวที่มีคำว่า "${req[0]}" — ข้อมูลเริ่มจากแถวถัดไป</span></div>
-      <div class="td-row"><span class="td-k">สินค้าซ้ำ</span><span class="td-v">ชื่อ+ขนาด+หน่วย+บริษัท ซ้ำ → อัปเดตข้อมูล/จำนวนให้ตรงไฟล์</span></div>
-      <div class="td-row"><span class="td-k">จำนวน</span><span class="td-v">ถ้ามีคอลัมน์ "จำนวนที่นับ" ระบบจะตั้งเป็นจำนวนคงเหลือในสต็อก</span></div>
+      <div class="td-row"><span class="td-k">หัวตาราง</span><span class="td-v">ต้องมีแถวที่มี "${req[0]}" — ข้อมูลเริ่มจากแถวถัดไป</span></div>
+      <div class="td-row"><span class="td-k">ตรวจซ้ำ</span><span class="td-v">เทียบชื่อ+ขนาด+หน่วย+บริษัทก่อน ถ้าไม่เจอจะใช้รหัสสินค้าที่ไม่ซ้ำ</span></div>
+      <div class="td-row"><span class="td-k">อัปเดต</span><span class="td-v">${fullMode ? "เลือกได้ว่าจะเพิ่มสินค้าใหม่/แก้ราคา/จำนวน/รูปหรือไม่" : "เฉพาะราคาเท่านั้น ไม่เพิ่มสินค้าใหม่ ไม่แก้หมวด จำนวน หรือรูป"}</span></div>
+      <div class="td-row"><span class="td-k">ก่อนบันทึก</span><span class="td-v">ระบบจะแสดง Preview ให้ยืนยันก่อนทุกครั้ง</span></div>
+      <div class="td-row"><span class="td-k">ราคา 0/ว่าง</span><span class="td-v">จะไม่ทับราคาที่มีอยู่เดิม เพื่อกันไฟล์ที่ยังกรอกไม่ครบ</span></div>
     </div>
+
+    ${fullMode ? stockImportOptionsHtml(options, false) : ""}
 
     <div class="bold" style="font-size:.86rem;margin:14px 0 6px">${ic("menu")} คอลัมน์ในหัวตาราง</div>
     <div class="td-list" style="border:1px solid var(--line);border-radius:10px;padding:2px 10px">
       ${cols.map(c => `
         <div class="td-row">
           <span class="td-k" style="flex-basis:110px">${c[0]}</span>
-          <span class="td-v" style="font-weight:400">${c[1]}${c[1].includes("จำเป็น") ? ` <span class="badge badge-red" style="margin-left:4px">ต้องมี</span>` : ""}</span>
+          <span class="td-v" style="font-weight:400">${c[1]}${c[1] === "จำเป็น" ? ` <span class="badge badge-red" style="margin-left:4px">ต้องมี</span>` : ""}</span>
           <span class="muted" style="font-size:.72rem;text-align:right;flex-shrink:0">${esc(c[2])}</span>
         </div>`).join("")}
     </div>
-    <div class="muted" style="font-size:.7rem;margin-top:10px">${ic("image")} รูปถ่าย: ใส่ชื่อไฟล์ แล้ววางรูปไว้ที่โฟลเดอร์ images/products/ (หรือเพิ่มรูปทีหลังได้) · ${ic("dollar")} ราคาขาย: ตัวเลขต่อ 1 หน่วย เช่น 250 = 250 บาท/ขวด · ${ic("info")} รหัสสินค้าเดิม: ใช้รหัสเดียวกับที่เคยใช้ในระบบเดิม</div>
+    <div class="muted" style="font-size:.7rem;margin-top:10px">${ic("dollar")} ราคาเป็นตัวเลขต่อ 1 หน่วย เช่น 250 = 250 บาท/ขวด · คอลัมน์อื่นในไฟล์จะถูกอ่านเพื่อจับคู่เท่านั้น</div>
 
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
       <button class="btn btn-primary" onclick="App.pickImportFile()">${ic("upload")} เลือกไฟล์ .xlsx</button>
     </div>`);
 };
+function stockImportChangeText(ch) {
+  const from = ch.isMoney ? fmtMoney(ch.from) : (ch.field === "photos" ? `${fmtNum(ch.from)} รูป` : esc(ch.from));
+  const to = ch.isMoney ? fmtMoney(ch.to) : (ch.field === "photos" ? `${fmtNum(ch.to)} รูป` : esc(ch.to));
+  return `${esc(ch.label)} ${from} → ${to}`;
+}
+function stockImportPreviewHtml(ctx) {
+  const priceOnly = ctx && ctx.options && ctx.options.priceOnly;
+  const plan = ctx.plan || stockImportPlan(S, ctx.products || [], ctx.options || {});
+  const s = plan.summary || {};
+  const changed = (plan.rows || []).filter(r => r.action === "add" || r.action === "update");
+  const shown = changed.slice(0, 80);
+  const card = (label, value, sub, cls) => `
+    <div class="lark-sync-result ${cls || ""}">
+      <b>${fmtNum(value || 0)}</b><span>${label}</span>${sub ? `<small>${sub}</small>` : ""}
+    </div>`;
+  return `
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("upload")} ${priceOnly ? "Preview อัปเดตราคา" : "Preview นำเข้าสินค้า"}</h3>
+    <div class="modal-sub">${esc(ctx.fileName || "")}${ctx.sheetName ? ` · ชีต ${esc(ctx.sheetName)}` : ""}</div>
+    ${priceOnly ? "" : stockImportPreviewOptionsHtml(ctx.options || {})}
+    <div class="lark-sync-results">
+      ${card("ทั้งหมดในไฟล์", s.total, "รายการที่อ่านได้", "blue")}
+      ${priceOnly
+        ? `${card("อัปเดตราคา", s.updated, "รายการที่ราคาเปลี่ยน", "amber")}
+           ${card("ไม่เปลี่ยน", s.skipped, "ราคาตรงเดิมหรือไม่มีราคาใหม่", "")}
+           ${card("ไม่พบในสต็อก", s.missing, "ยังไม่เพิ่ม เพราะต้องอ้างอิงจาก Lark", "green")}`
+        : `${card("เพิ่มใหม่", s.added, "ยังไม่มีในสต็อก", "green")}
+           ${card("อัปเดตเดิม", s.updated, "มีข้อมูลเปลี่ยน", "amber")}
+           ${card("ไม่เปลี่ยน", s.skipped, "ตรงกับข้อมูลเดิม", "")}
+           ${s.missing ? card("ไม่พบในสต็อก", s.missing, "ข้าม เพราะปิดเพิ่มสินค้าใหม่", "green") : ""}`}
+    </div>
+    <div class="stock-import-price-summary">
+      <span>ต้นทุน ${fmtNum(s.costUpdates || 0)}</span>
+      <span>ราคาทั่วไป ${fmtNum(s.saleUpdates || 0)}</span>
+      <span>ราคาประจำ ${fmtNum(s.memberUpdates || 0)}</span>
+      ${priceOnly ? "" : `<span>จำนวน ${fmtNum(s.qtyUpdates || 0)}</span><span>รูป ${fmtNum(s.photoUpdates || 0)}</span>`}
+    </div>
+    <div class="lark-sync-summary-note">${ic("info")} ${priceOnly ? "Excel รอบนี้อัปเดตเฉพาะราคา ไม่เพิ่มสินค้าใหม่ ไม่แตะจำนวน หมวด หรือรูป" : "ตรวจแล้วค่อยกดบันทึกจริง"} · ราคา 0 หรือช่องว่างจาก Excel จะไม่ทับราคาที่มีอยู่เดิม</div>
+    ${!shown.length ? `<div class="empty"><div class="e-ico">${ic("check")}</div><div class="e-title">ไม่มีรายการเปลี่ยนแปลง</div><div class="muted">ไฟล์นี้ตรงกับข้อมูลสต็อกปัจจุบันแล้ว</div></div>` : `
+      <div class="stock-import-preview-list">
+        ${shown.map(r => `
+          <div class="stock-import-preview-row">
+            <div>
+              <b>${r.action === "add" ? "เพิ่ม" : "อัปเดต"} · ${esc(r.item.name)}</b>
+              <small>${r.item.code ? `รหัส ${esc(r.item.code)} · ` : ""}${esc(r.item.size || "-")} · ${esc(r.item.unit || "-")}${r.match === "code" ? " · เทียบจากรหัส" : ""}</small>
+            </div>
+            <span>${r.action === "add" ? "รายการใหม่" : (r.changes || []).slice(0, 4).map(stockImportChangeText).join(" · ")}</span>
+          </div>`).join("")}
+      </div>
+      ${changed.length > shown.length ? `<div class="sale-more-hint">แสดง 80 รายการแรก · ยังมีอีก ${fmtNum(changed.length - shown.length)} รายการ</div>` : ""}
+    `}
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="App.confirmImportProducts()" ${changed.length ? "" : "disabled"}>${ic("save")} บันทึกจริง</button>
+    </div>`;
+}
+function stockImportPreviewOptionsHtml(options) {
+  const o = Object.assign(stockImportDefaultOptions("full"), options || {});
+  return `
+    <div class="stock-import-options stock-import-options-preview">
+      <div class="bold">${ic("check")} ปรับตัวเลือกแล้ว Preview จะเปลี่ยนทันที</div>
+      ${["addNew", "updatePrices", "updateMeta", "updateQty", "updatePhotos"].map(k => {
+        const meta = {
+          addNew: ["เพิ่มสินค้าใหม่", "เพิ่มรายการที่ยังไม่มีในสต็อก"],
+          updatePrices: ["อัปเดตราคา", "ต้นทุน / ทั่วไป / ลูกค้าประจำ"],
+          updateMeta: ["อัปเดตข้อมูลสินค้า", "รหัส ชื่อสามัญ และหมวด"],
+          updateQty: ["อัปเดตจำนวน", "ใช้จำนวนจาก Excel ทับจำนวนเดิม"],
+          updatePhotos: ["อัปเดตรูป", "ใช้ชื่อรูปจาก Excel ทับรูปเดิม"]
+        }[k];
+        return `
+          <label class="stock-import-option">
+            <input type="checkbox" ${o[k] ? "checked" : ""} onchange="App.stockImportOption('${k}', this.checked)">
+            <span><b>${meta[0]}</b><small>${meta[1]}</small></span>
+          </label>`;
+      }).join("")}
+    </div>`;
+}
+App.stockImportOption = function (key, value) {
+  const pending = App._stockImportPending;
+  if (!pending || !pending.products || !pending.options || pending.options.priceOnly) return;
+  pending.options[key] = !!value;
+  pending.plan = stockImportPlan(S, pending.products, pending.options);
+  openModal(stockImportPreviewHtml(pending));
+};
 /* เลือกไฟล์จริงและนำเข้า (เรียกจากปุ่มในหน้าต่างคำแนะนำ) */
 App.pickImportFile = function () {
+  const options = stockImportOptionsFromForm();
   closeModal();
   const input = document.createElement("input");
   input.type = "file";
@@ -877,14 +1049,25 @@ App.pickImportFile = function () {
     try {
       const { products, sheetName } = await parseXlsxProducts(file);
       if (!products.length) { toast("ไม่พบรายการสินค้าในไฟล์"); return; }
-      const { added, updated, skipped } = mergeStockProducts(S, products);
-      saveState(S);
-      render();
-      toast(`นำเข้าสินค้าแล้ว ${added} รายการ${updated ? ` · อัปเดต ${updated}` : ""}${skipped ? ` · ไม่เปลี่ยน ${skipped}` : ""}${sheetName ? ` จากชีต "${sheetName}"` : ""}`);
+      const plan = stockImportPlan(S, products, options);
+      App._stockImportPending = { products, plan, sheetName, fileName: file.name, options };
+      openModal(stockImportPreviewHtml(App._stockImportPending));
     } catch (err) {
       toast("อ่านไฟล์ไม่สำเร็จ: " + (err && err.message ? err.message : "ไฟล์ไม่ใช่ .xlsx"));
       console.error(err);
     }
   };
   input.click();
+};
+App.confirmImportProducts = function () {
+  const pending = App._stockImportPending;
+  if (!pending || !pending.products) { toast("ไม่มีไฟล์รอบันทึก"); return; }
+  const { added, updated, skipped, missing } = mergeStockProducts(S, pending.products, pending.options || {});
+  App._stockImportPending = null;
+  saveState(S);
+  closeModal();
+  render();
+  toast(pending.options && pending.options.priceOnly
+    ? `อัปเดตราคาแล้ว ${fmtNum(updated)} รายการ${skipped ? ` · ไม่เปลี่ยน ${fmtNum(skipped)}` : ""}${missing ? ` · ไม่พบในสต็อก ${fmtNum(missing)}` : ""}`
+    : `นำเข้าสินค้าแล้ว ${fmtNum(added)} รายการ${updated ? ` · อัปเดต ${fmtNum(updated)}` : ""}${skipped ? ` · ไม่เปลี่ยน ${fmtNum(skipped)}` : ""}${pending.sheetName ? ` จากชีต "${pending.sheetName}"` : ""}`);
 };
