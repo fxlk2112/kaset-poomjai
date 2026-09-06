@@ -8,7 +8,13 @@
 - Writable lock: `js/sensors.js`, sensor-only hooks in `js/auth.js`, sensor styles in `css/style.css`, `js/tests/sensor-access.test.mjs`, `js/tests/sensors.test.mjs`, `docs/OWNER_SENSOR_PAGE.md`, `qa/owner-sensor-page/*.png`, this status file.
 - Acceptance: public health works without login; private sensor reads require the existing owner session; account changes discard old readings; requests finish or show a retry state; current/history failures remain distinct; desktop/mobile screenshots and full `npm run check` pass.
 - Safety: `DATA_ONLY / SAFE_OFF`; no API deployment, database write, ingestion change or hardware action. Commerce ownership remains with Folk.
-- Status: `READY_FOR_OWNER_MAIN_RELEASE`; full check 85 tests and relay 9 messages pass, desktop/mobile browser checks pass, Wrangler dry-run passes.
+- Status: `FRONTEND_DEPLOYED / READBACK_VERIFIED` on 2026-09-06; full check 85 tests and relay 9 messages pass, desktop/mobile browser checks pass, Wrangler dry-run passes.
+- Release commit: `f60bfd2fa5bcb14ac71b5296de85d77e4fd07229`; frontend Worker version: `8eb56284-a1af-45f3-855a-043871923279`.
+- Live readback: build/source commit match; five changed/core asset hashes match; GET `/api/health` confirms `SENSOR_PHASE1_READ_ONLY` and output false. Desktop/mobile live signed-out page and login entry have no overflow or script/console errors.
+- Backend version remains `87ab09f5-1da5-43b3-81c1-30c5a858b11f`. Read-only D1 aggregate checks confirmed incoming readings for the active source. Actual owner login and private readings in Pick's browser remain unverified; authenticated browser QA used local synthetic responses.
+- Next action: Pick opens the sensor page on the same main URL and signs in with the existing sensor owner account if prompted. Source integration uses normal review into `develop`, with PR #5 as its dependency.
+
+## Previous gateway release checkpoint (2026-09-05)
 
 - Updated: `2026-09-05 Asia/Bangkok`
 - State: `BASELINE_READY`

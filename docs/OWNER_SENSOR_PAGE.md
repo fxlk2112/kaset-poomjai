@@ -24,7 +24,7 @@ Changing accounts clears cached telemetry immediately and discards responses fro
 
 `DATA_ONLY / SAFE_OFF`. This is a frontend change only. The API Worker, database schema/data, sensor ingestion, hardware configuration, protected branches and old Pages deployment are unchanged. No API key, private endpoint or field coordinate is published.
 
-Deployment and independent live readback will be recorded in `COLLAB_STATUS.md`. The previous frontend rollback version is `329c90e5-7298-499d-9ab6-54bdf8774d7f`.
+Deployed to the existing owner main Worker on 2026-09-06: code `f60bfd2fa5bcb14ac71b5296de85d77e4fd07229`, version `8eb56284-a1af-45f3-855a-043871923279`. Independent live readback matched the build/source commits and five changed/core asset hashes. Live desktop/mobile signed-out and login-entry checks passed with no overflow or script/console errors. Backend version is unchanged. The previous frontend rollback version is `329c90e5-7298-499d-9ab6-54bdf8774d7f`.
 
 ## Owner use
 
