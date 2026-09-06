@@ -1,5 +1,15 @@
 # FARMULTIMATE Collaboration Status
 
+## Active task: OWNER-SENSOR-001
+
+- Owner: SUCHA; branch: `pick/owner-sensor-page-v1`.
+- Source: `origin/develop@40721b5bfa71670ea97aba0d247e5616277c018a` plus deployed owner gateway/tooling checkpoint `3f601723feef2dc9184425fd6861594617f45d82` (PR #5 dependency).
+- Scope: repair sensor loading, account access, refresh and error states on the existing owner main website.
+- Writable lock: `js/sensors.js`, sensor-only hooks in `js/auth.js`, sensor styles in `css/style.css`, `js/tests/sensor-access.test.mjs`, `js/tests/sensors.test.mjs`, `docs/OWNER_SENSOR_PAGE.md`, `qa/owner-sensor-page/*.png`, this status file.
+- Acceptance: public health works without login; private sensor reads require the existing owner session; account changes discard old readings; requests finish or show a retry state; current/history failures remain distinct; desktop/mobile screenshots and full `npm run check` pass.
+- Safety: `DATA_ONLY / SAFE_OFF`; no API deployment, database write, ingestion change or hardware action. Commerce ownership remains with Folk.
+- Status: `READY_FOR_OWNER_MAIN_RELEASE`; full check 85 tests and relay 9 messages pass, desktop/mobile browser checks pass, Wrangler dry-run passes.
+
 - Updated: `2026-09-05 Asia/Bangkok`
 - State: `BASELINE_READY`
 - Development approval: `APPROVE_FARMULTIMATE_DEV_SETUP_ONCE`

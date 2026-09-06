@@ -4708,7 +4708,7 @@ body.view-iot-digital-twin .view {
   background: currentColor;
   box-shadow: 0 0 12px currentColor;
 }
-.digital-live.stale { color: #f7c86a; }
+.digital-live.stale, .digital-live.warn { color: #f7c86a; }
 .digital-live.fault { color: #ff8d8d; }
 .digital-live.muted { color: #a9c4c1; }
 .digital-canary {
@@ -4734,6 +4734,38 @@ body.view-iot-digital-twin .view {
 .digital-canary.online b { color: #67f2b1; }
 .digital-canary.fault { border-color: rgba(255, 141, 141, .7); }
 .digital-canary.fault b { color: #ff8d8d; }
+.digital-access {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 158px 14px 0;
+  padding: 14px;
+  border: 1px solid rgba(150, 245, 244, .45);
+  border-radius: 12px;
+  background: #183f42;
+  color: #e1ffff;
+  font-size: .86rem;
+}
+.digital-access p { margin: 5px 0 0; line-height: 1.6; }
+.digital-access button, .digital-sensor-tools button, .digital-history-controls button {
+  padding: 9px 13px;
+  min-height: 44px;
+  border: 1px solid #71c9c9;
+  border-radius: 9px;
+  background: #205154;
+  color: #e1ffff;
+  font: inherit;
+  cursor: pointer;
+}
+.digital-access button:focus-visible, .digital-sensor-tools button:focus-visible, .digital-history-controls button:focus-visible { outline: 2px solid #e1ffff; outline-offset: 3px; }
+.digital-sensor-tools, .digital-history-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; font-size: .75rem; }
+.digital-sensor-tools { justify-content: space-between; }
+.digital-sensor-tools button:disabled, .digital-history-controls button:disabled { opacity: .65; cursor: wait; }
+.digital-history-controls button[aria-pressed="true"] { background: #d8ffff; color: #153c3e; }
 
 .digital-hero {
   position: relative;
