@@ -3244,15 +3244,16 @@ html.modal-open, html.modal-open body {
 }
 .chip:active { transform: scale(.96); }
 
-/* ---- main water management entry ---- */
+/* ---- FLYTECH farm operations entry ---- */
 .home-water-entry {
   width: 100%;
+  min-height: 154px;
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto;
+  grid-template-columns: 124px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
+  gap: 18px;
   margin: 0 0 14px;
-  padding: 13px 15px;
+  padding: 18px;
   border: 1.5px solid #7dd3fc;
   border-radius: 15px;
   color: #0c4a6e;
@@ -3261,32 +3262,31 @@ html.modal-open, html.modal-open body {
   text-align: left;
   transition: transform .18s, border-color .18s, box-shadow .18s;
 }
-.home-water-entry-icon {
-  width: 48px;
-  height: 48px;
+.home-water-entry-logo {
+  width: 124px;
+  height: 114px;
   display: grid;
   place-items: center;
   border-radius: 14px;
-  color: #ffffff;
-  background: linear-gradient(145deg, #06b6d4, #0284c7);
-  box-shadow: 0 8px 18px rgba(2, 132, 199, .25);
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid rgba(14, 116, 144, .12);
 }
-.home-water-entry-icon .ic { width: 25px; height: 25px; }
+.home-water-entry-logo img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .home-water-entry-copy { min-width: 0; }
 .home-water-entry-copy strong {
   display: block;
   color: #075985;
-  font-size: 1rem;
+  font-size: 1.6rem;
   font-weight: 800;
+  letter-spacing: .035em;
 }
 .home-water-entry-copy small {
   display: block;
-  margin-top: 2px;
-  overflow: hidden;
+  margin-top: 5px;
   color: #477486;
-  font-size: .72rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: .85rem;
+  line-height: 1.5;
 }
 .home-water-entry-status {
   display: flex;
@@ -3325,9 +3325,11 @@ html[data-theme="dark"] .home-water-entry {
 html[data-theme="dark"] .home-water-entry-copy strong { color: #bae6fd; }
 html[data-theme="dark"] .home-water-entry-copy small { color: #91b8c7; }
 
-@media (max-width: 380px) {
-  .home-water-entry { grid-template-columns: 42px minmax(0, 1fr) auto; gap: 9px; padding: 11px 12px; }
-  .home-water-entry-icon { width: 42px; height: 42px; }
+@media (max-width: 480px) {
+  .home-water-entry { min-height: 136px; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 12px; padding: 16px 12px; }
+  .home-water-entry-logo { width: 96px; height: 90px; }
+  .home-water-entry-copy strong { font-size: 1.3rem; }
+  .home-water-entry-copy small { font-size: .76rem; }
   .home-water-entry-status b { display: none; }
 }
 

@@ -1,6 +1,15 @@
 # FARMULTIMATE Collaboration Status
 
-## Active task: OWNER-MONITOR-001
+## Active task: OWNER-FLYTECH-ENTRY-001
+
+- Owner SUCHA; branch `pick/flytech-entry-v1`; integration source `origin/develop@40721b5`, prior owner checkpoint `9e80e64` (PRs #5, #6 and #7 dependencies).
+- Owner request and deployment approval: make the Home water-entry card taller, replace its droplet icon with the supplied FLYTECH logo, change the title to `FLYTECH` and subtitle to `Precision AgTech Solutions`, and publish to the existing owner main website.
+- Writable lock: only the Home entry markup in `js/app.js`, its styles in `css/style.css`, the corresponding existing assertion in `js/tests/navigation.test.mjs`, supplied logo under `images/brand/`, `qa/flytech-entry/`, `docs/OWNER_FLYTECH_ENTRY.md` and this status file. SUCHA owns the shared-shell changes. The click still opens the same plot map.
+- Acceptance: supplied logo appears faithfully; taller card and complete requested text at phone/tablet/desktop sizes; map navigation works; `npm run check`, screenshots, asset/secret review, release dry-run and independent live readback pass.
+- Safety: UI-only; `DATA_ONLY / SAFE_OFF`. Existing auth, data feeds, device services, backend, Worker configuration, Commerce and other logos are outside scope.
+- Status: `UI_VALIDATED`; 99 tests and 9-message relay validation pass. Browser QA passes at phone 360 x 800, tablet 840 x 1180 and desktop 1280 x 900: supplied logo loaded, exact text, 136/154px card height, no overflow and preserved map navigation.
+
+## Previous task: OWNER-MONITOR-001
 
 - Owner follow-up (2026-09-06): SUCHA refined the same task/PR #7. Writable UI scope: `js/farm-map.js`, `js/sensors.js`, `css/style.css`, related QA evidence, `docs/OWNER_MONITOR.md` and this status file. Separate **สภาพอากาศ** and **สุขภาพระบบ** buttons now sit above the plot map, open separate pages, and keep the map's pond view focused on water. Existing auth, data feeds, Worker logic/config, device services and Commerce were outside this follow-up. Status: `UI_DEPLOYED / LIVE_READBACK_VERIFIED`; desktop/mobile navigation and visual checks pass, 99 tests and relay validation pass.
 - Current frontend release `21ea1096b2a768198ae99ee4409dea55a1929c11`, version `0cf534c7-1323-4819-b957-e5ab7c238834`, independently verified at 11:13 Bangkok. Build and four asset hashes match; the existing public forecast returns 10 models and the API backend version is unchanged. Live QA verifies two buttons above the map, separate pages, the return path and a water-only pond view. Rollback frontend version: `338de5f6-591e-4bd6-a448-0ebd259414bb`. Evidence: `qa/owner-monitor/map-navigation-readback.json` and `*-map-navigation.png`.

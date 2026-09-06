@@ -635,11 +635,11 @@ function renderHome() {
       <div class="hero-chips">${quickActs}</div>
     </div>
 
-    <button class="home-water-entry" onclick="App.nav('iot')" aria-label="เปิดหน้าการจัดการน้ำ">
-      <span class="home-water-entry-icon">${ic("droplet")}</span>
+    <button class="home-water-entry" onclick="App.nav('iot')" aria-label="FLYTECH — เปิดแผนที่ฟาร์ม">
+      <span class="home-water-entry-logo"><img src="images/brand/flytech-logo.jpg" alt="โลโก้ FLYTECH" width="1179" height="1084"></span>
       <span class="home-water-entry-copy">
-        <strong>การจัดการน้ำ</strong>
-        <small>ดูระดับน้ำ สัญญาณเซนเซอร์ และประวัติข้อมูล</small>
+        <strong>FLYTECH</strong>
+        <small>Precision AgTech Solutions</small>
       </span>
       <span class="home-water-entry-status"><b>LIVE</b><i aria-hidden="true">›</i></span>
     </button>
