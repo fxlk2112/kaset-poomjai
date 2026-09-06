@@ -317,7 +317,7 @@ test("dashboard loads and renders 10-model snapshot with GET only and no accurac
   assert.match(requestedUrl, /^data\/weather-models\.json\?v=/);
   assert.equal(requestedOptions.method, "GET");
   assert.equal(requestedOptions.cache, "no-store");
-  const html = Sensors.weatherModelsHtml();
+  const html = Sensors.weatherModelsHtml(Date.parse("2026-08-31T17:00:00+07:00"));
   assert.match(html, /พยากรณ์หลายโมเดล/);
   assert.match(html, /10 โมเดล · FORECAST ONLY/);
   assert.match(html, /ยังไม่จัดอันดับความแม่น/);
@@ -336,7 +336,7 @@ test("dashboard loads and renders 10-model snapshot with GET only and no accurac
 
 test("forecast rain window shows an explicit no-consensus state", () => {
   Sensors.state.weatherModels.data = Sensors.normalizeWeatherModelsSnapshot(weatherModelsPayload({ rain_windows: [] }));
-  const html = Sensors.weatherModelsHtml();
+  const html = Sensors.weatherModelsHtml(Date.parse("2026-08-31T17:00:00+07:00"));
   assert.match(html, /ยังไม่มีอย่างน้อย 2 โมเดลเห็นตรงกัน/);
   Sensors.state.weatherModels.data = null;
 });

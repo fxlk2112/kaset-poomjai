@@ -4,16 +4,22 @@
 
   const SOURCE_ID = "MAIN_WATER_LEVEL_PI_ZERO_01";
   const AUTO_REFRESH_MS = 60 * 1000;
+  const REQUEST_TIMEOUT_MS = 15000;
   const WEATHER_REFRESH_MS = 30 * 60 * 1000;
   const WEATHER_MODELS_REFRESH_MS = 5 * 60 * 1000;
   const RESERVOIR_VISUAL_LEVELS = Object.freeze([0, 10, 25, 50, 75, 100, 120]);
   let autoRefreshTimer = null;
   let localPreviewLoading = false;
   let localPreviewLoadedAt = 0;
+  let sessionToken = "";
+  let requestGeneration = 0;
+  let weatherGeneration = 0;
   const state = {
     sourceId: SOURCE_ID,
     loading: false,
     error: "",
+    accessStatus: "SIGNED_OUT",
+    historyError: "",
     current: null,
     status: "NO_DATA",
     ageS: null,
@@ -50,6 +56,54 @@
       data: null
     }
   };
+
+  // Keep credentials out of public state, HTML and logs. Late responses from an
+  // old account must never replace the currently selected account's readings.
+  function clearReadings() {
+    state.current = null;
+    state.history = [];
+    state.status = "NO_DATA";
+    state.ageS = null;
+    state.historyError = "";
+  }
+
+  function syncSession() {
+    const token = typeof Auth !== "undefined" && Auth.session && Auth.session.token || "";
+    if (token !== sessionToken) {
+      sessionToken = token;
+      requestGeneration++;
+      clearReadings();
+      state.error = "";
+      state.loadedAt = 0;
+      state.loading = false;
+      state.accessStatus = token ? "CHECKING" : "SIGNED_OUT";
+      weatherGeneration++;
+      Object.assign(state.weather, { loading: false, error: "", loadedAt: 0, locationKey: "", locationName: "", data: null });
+    }
+    return token;
+  }
+
+  async function withDeadline(operation) {
+    let timer;
+    try {
+      return await Promise.race([
+        Promise.resolve().then(operation),
+        new Promise((_, reject) => {
+          timer = root.setTimeout(() => reject(new Error("เซิร์ฟเวอร์ตอบช้า กรุณาลองใหม่")), REQUEST_TIMEOUT_MS);
+        })
+      ]);
+    } finally {
+      root.clearTimeout(timer);
+    }
+  }
+
+  function sessionError(result) {
+    return result && !result.ok && /ยังไม่ได้ล็อกอิน|เซสชันหมดอายุ/.test(String(result.error || ""));
+  }
+
+  function renderSensorView() {
+    if (typeof route !== "undefined" && route.view === "iot" && typeof render === "function") render();
+  }
 
   function finiteOrNull(value) {
     if (value === null || value === undefined || value === "") return null;
@@ -280,17 +334,21 @@
     }
     weather.loading = true;
     weather.error = "";
+    const generation = ++weatherGeneration;
     try {
-      const response = await request(weatherForecastUrl(location), { method: "GET", cache: "no-store" });
+      const response = await withDeadline(() => request(weatherForecastUrl(location), { method: "GET", cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }));
       if (!response || !response.ok) throw new Error("Open-Meteo ตอบกลับไม่สำเร็จ");
-      weather.data = normalizeWeatherForecast(await response.json());
+      const data = normalizeWeatherForecast(await withDeadline(() => response.json()));
+      if (generation !== weatherGeneration) return null;
+      weather.data = data;
       weather.loadedAt = Date.now();
       return weather.data;
     } catch (error) {
+      if (generation !== weatherGeneration) return null;
       weather.error = String(error && error.message || error || "โหลดพยากรณ์อากาศไม่สำเร็จ");
       return weather.data;
     } finally {
-      weather.loading = false;
+      if (generation === weatherGeneration) weather.loading = false;
     }
   }
 
@@ -394,9 +452,9 @@
     weatherModels.error = "";
     try {
       const version = Math.floor(Date.now() / WEATHER_MODELS_REFRESH_MS);
-      const response = await request("data/weather-models.json?v=" + version, { method: "GET", cache: "no-store" });
+      const response = await withDeadline(() => request("data/weather-models.json?v=" + version, { method: "GET", cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }));
       if (!response || !response.ok) throw new Error("ยังไม่มี snapshot พยากรณ์หลายโมเดล");
-      weatherModels.data = normalizeWeatherModelsSnapshot(await response.json());
+      weatherModels.data = normalizeWeatherModelsSnapshot(await withDeadline(() => response.json()));
       weatherModels.loadedAt = Date.now();
       return weatherModels.data;
     } catch (error) {
@@ -636,7 +694,7 @@
     if (fresh) return state.backendStatus === "ONLINE_SAFE_OFF";
     state.backendStatus = "CHECKING";
     try {
-      const health = await authCall("health");
+      const health = await withDeadline(() => authCall("health"));
       const safe = health && health.ok && health.data &&
         health.data.mode === "SENSOR_PHASE1_READ_ONLY" &&
         health.data.output_control_allowed === false;
@@ -666,39 +724,71 @@
       if (typeof route !== "undefined" && route.view === "iot" && typeof render === "function") render();
       return;
     }
-    if (typeof Auth === "undefined" || !Auth.session || typeof authCall !== "function") return;
+    const token = syncSession();
     if (state.loading) return;
     if (!force && state.loadedAt && Date.now() - state.loadedAt < 30000) return;
+    const generation = ++requestGeneration;
     state.loading = true;
     state.error = "";
+    state.historyError = "";
+    state.accessStatus = token ? "CHECKING" : "SIGNED_OUT";
+    renderSensorView();
+    // Weather is independent of private telemetry and must not delay readings.
+    const supplementary = Promise.allSettled([
+      refreshLocalPiHealth(force), refreshLocalWaterBalance(force), refreshWeather(force), refreshWeatherModels(force)
+    ]);
     try {
-      await Promise.all([refreshLocalPiHealth(force), refreshLocalWaterBalance(force), refreshWeather(force), refreshWeatherModels(force)]);
       const safeBackend = await probeSafeBackend(force);
+      if (generation !== requestGeneration) return;
       if (root.FarmUltimateRuntime && root.FarmUltimateRuntime.isOwnerCanary && !safeBackend) {
-        throw new Error("Canary ไม่ยืนยัน DATA ONLY / SAFE_OFF");
+        throw new Error("ยังยืนยันการเชื่อมต่อแบบอ่านอย่างเดียวไม่ได้ กรุณาลองใหม่");
       }
+      if (!token) return;
+      if (typeof authCall !== "function") throw new Error("การเชื่อมต่อข้อมูลยังไม่พร้อม กรุณาโหลดหน้าใหม่");
       const results = await Promise.all([
-        authCall("sensor_current", { token: Auth.session.token, source_id: state.sourceId }),
-        authCall("sensor_history", { token: Auth.session.token, source_id: state.sourceId, hours: state.hours, limit: 400 })
+        withDeadline(() => authCall("sensor_current", { token, source_id: state.sourceId })),
+        withDeadline(() => authCall("sensor_history", { token, source_id: state.sourceId, hours: state.hours, limit: 400 }))
+          .catch(() => ({ ok: false, error: "โหลดประวัติไม่สำเร็จ กรุณาลองใหม่" }))
       ]);
-      if (!results[0].ok) throw new Error(results[0].error || "โหลดค่าล่าสุดไม่สำเร็จ");
+      syncSession();
+      if (generation !== requestGeneration) return;
+      if (results.some(sessionError)) {
+        state.accessStatus = "SESSION_EXPIRED";
+        throw new Error("เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้งเพื่อดูเซ็นเซอร์");
+      }
+      if (!results[0].ok) {
+        if (String(results[0].error || "").includes("ไม่พบแหล่งข้อมูลเซนเซอร์")) {
+          state.accessStatus = "SOURCE_UNAVAILABLE";
+          throw new Error("บัญชีนี้ยังไม่ได้เชื่อมแหล่งข้อมูลระดับน้ำ กรุณาใช้บัญชีเจ้าของเซ็นเซอร์");
+        }
+        throw new Error("โหลดค่าล่าสุดไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วลองใหม่");
+      }
       const normalized = normalizeCurrentResponse(results[0].data);
       state.current = normalized.current;
       state.status = normalized.status;
       state.ageS = normalized.ageS;
+      state.accessStatus = "AUTHENTICATED";
       if (results[1].ok && results[1].data && results[1].data.output_control_allowed === false) {
         state.history = historyRows(results[1].data.rows);
       } else {
         state.history = [];
+        state.historyError = "โหลดประวัติไม่สำเร็จ ค่าล่าสุดด้านบนยังแสดงได้ กรุณาลองใหม่";
       }
-      state.loadedAt = Date.now();
     } catch (error) {
+      syncSession();
+      if (generation !== requestGeneration) return;
+      clearReadings();
+      if (token && state.accessStatus === "CHECKING") state.accessStatus = "ERROR";
       state.error = String(error && error.message || error || "โหลดข้อมูลไม่สำเร็จ");
-      state.loadedAt = Date.now();
     } finally {
-      state.loading = false;
+      if (generation === requestGeneration) {
+        state.loadedAt = Date.now();
+        state.loading = false;
+        renderSensorView();
+      }
+      await supplementary;
+      if (generation === requestGeneration) renderSensorView();
     }
-    if (typeof route !== "undefined" && route.view === "iot" && typeof render === "function") render();
   }
 
   function shouldAutoRefresh(activeView, pageHidden) {
@@ -859,10 +949,12 @@
     </section>`;
   }
 
-  function weatherModelsHtml() {
+  function weatherModelsHtml(now = Date.now()) {
     const weatherModels = state.weatherModels;
     const data = weatherModels.data;
     const hasData = !!(data && data.models && data.models.length);
+    const validUntil = hasData ? Date.parse(data.freshness.lastValidAt) : NaN;
+    const expired = hasData && (!Number.isFinite(validUntil) || validUntil < now);
     const modelCount = hasData ? data.models.length : 0;
     const consensus = hasData ? data.consensus : {};
     const rain = consensus.rain24hMm || {};
@@ -870,8 +962,8 @@
     const wetCount = finiteOrNull(consensus.wetModelCount);
     const rainCount = finiteOrNull(consensus.rainModelCount);
     const statusLabel = weatherModels.loading && !hasData
-      ? "กำลังโหลด" : weatherModels.error && hasData ? "ข้อมูลล่าสุดที่มี" : hasData ? modelCount + " โมเดล · FORECAST ONLY" : "ยังไม่พร้อม";
-    const statusClass = weatherModels.error ? "warn" : hasData ? "good" : "muted";
+      ? "กำลังโหลด" : expired ? "พยากรณ์หมดอายุ" : weatherModels.error && hasData ? "ข้อมูลล่าสุดที่มี" : hasData ? modelCount + " โมเดล · FORECAST ONLY" : "ยังไม่พร้อม";
+    const statusClass = expired || weatherModels.error ? "warn" : hasData ? "good" : "muted";
     const models = hasData ? data.models.slice().sort((a, b) => {
       const rainA = a.rain24hMm === null ? -1 : a.rain24hMm;
       const rainB = b.rain24hMm === null ? -1 : b.rain24hMm;
@@ -910,11 +1002,12 @@
     const issuedAt = hasData ? observedLabel(data.freshness.latestIssuedAt) : "—";
     return `<section class="digital-weather-models" aria-label="เปรียบเทียบพยากรณ์หลายโมเดล" aria-busy="${weatherModels.loading ? "true" : "false"}">
       <header class="digital-weather-title">
-        <div><span>เปรียบเทียบก่อนใช้สถานีจริงตัดสินความแม่น</span><h2>พยากรณ์หลายโมเดล</h2><small>ค่าพยากรณ์ 24 ชั่วโมงข้างหน้า</small></div>
+        <div><span>เปรียบเทียบก่อนใช้สถานีจริงตัดสินความแม่น</span><h2>พยากรณ์หลายโมเดล</h2><small>ค่าพยากรณ์ตามช่วงเวลาของชุดข้อมูล</small></div>
         <b class="${statusClass}">${safeText(statusLabel)}</b>
       </header>
       ${errorMessage}
-      ${hasData ? `<div class="digital-weather-model-kpis">
+      ${expired ? `<div class="digital-weather-message cached">ชุดพยากรณ์นี้พ้นช่วงเวลาแล้ว รอชุดใหม่ก่อนแสดงแนวโน้มฝน</div>` : ""}
+      ${hasData && !expired ? `<div class="digital-weather-model-kpis">
         <article><span>ฝน 24 ชม. · ค่ากลาง</span><strong>${numberLabel(rain.median, 1)} <b>มม.</b></strong><small>ช่วง ${numberLabel(rain.min, 1)}–${numberLabel(rain.max, 1)} มม.</small></article>
         <article><span>อุณหภูมิชั่วโมงถัดไป</span><strong>${numberLabel(temperature.median, 1)}<b>°C</b></strong><small>ช่วง ${numberLabel(temperature.min, 1)}–${numberLabel(temperature.max, 1)}°C</small></article>
         <article><span>โมเดลที่คาดว่ามีฝน</span><strong>${numberLabel(wetCount, 0)}<b> / ${numberLabel(rainCount, 0)}</b></strong><small>เกณฑ์ฝนรวมตั้งแต่ 0.2 มม.</small></article>
@@ -930,6 +1023,7 @@
   }
 
   function cardHtml(options) {
+    if (!isLocalPreview()) syncSession();
     const viewOptions = options && typeof options === "object" ? options : {};
     const backAction = viewOptions.backAction === "App.farmMapBack()"
       ? "App.farmMapBack()"
@@ -940,8 +1034,9 @@
     const c = state.current;
     const meta = statusMeta(state.status, c && c.current_ma);
     const hasData = !!c;
-    const statusClass = state.error ? "fault" : meta.cls;
-    const statusLabel = state.loading && !c ? "กำลังรับข้อมูล" : state.error ? "เชื่อมต่อไม่ได้" : meta.label;
+    const needsLogin = !isLocalPreview() && ["SIGNED_OUT", "SESSION_EXPIRED", "SOURCE_UNAVAILABLE"].includes(state.accessStatus);
+    const statusClass = needsLogin ? "warn" : state.error ? "fault" : meta.cls;
+    const statusLabel = needsLogin ? "รอเข้าสู่ระบบ" : state.loading && !c ? "กำลังรับข้อมูล" : state.error ? "โหลดข้อมูลไม่ได้" : meta.label;
     const observed = hasData ? observedLabel(c.observed_at) : "—";
     const level = hasData ? numberLabel(c.depth_m, 3) : "—";
     const volume = hasData ? numberLabel(c.volume_m3, 1) : "—";
@@ -953,9 +1048,14 @@
       day: "numeric", month: "short", year: "numeric"
     }) : "—";
     const errorNote = state.error ? `<div class="digital-alert" role="alert">${safeText(state.error)} <button onclick="App.refreshMainWaterSensor()">ลองใหม่</button></div>` : "";
+    const accessNote = needsLogin
+      ? `<div class="digital-access" role="status"><div><strong>${state.accessStatus === "SESSION_EXPIRED" ? "เข้าสู่ระบบอีกครั้ง" : state.accessStatus === "SOURCE_UNAVAILABLE" ? "ใช้บัญชีที่เชื่อมเซ็นเซอร์" : "เข้าสู่ระบบเพื่อดูระดับน้ำจริง"}</strong><p>ใช้บัญชีเจ้าของเซ็นเซอร์บนเว็บนี้ ข้อมูลจะโหลดให้หลังเข้าสู่ระบบ</p></div><button type="button" onclick="App.openSensorLogin()">เข้าสู่ระบบเพื่อดูเซ็นเซอร์</button></div>`
+      : state.accessStatus === "AUTHENTICATED" && !c
+        ? `<div class="digital-access" role="status"><div><strong>ยังไม่มีข้อมูลจากเซ็นเซอร์</strong><p>บัญชีเชื่อมแล้ว แต่แหล่งข้อมูลนี้ยังไม่มีค่าที่ส่งเข้ามา หน้าเว็บจะตรวจให้อีกทุก 1 นาที</p></div></div>`
+        : "";
     const runtime = root.FarmUltimateRuntime;
     const canaryNote = runtime && runtime.isOwnerCanary
-      ? `<div class="digital-canary ${state.backendStatus === "ONLINE_SAFE_OFF" ? "online" : state.backendStatus === "ERROR" ? "fault" : "checking"}"><b>OWNER CANARY</b><span>${state.backendStatus === "ONLINE_SAFE_OFF" ? "Cloudflare เชื่อมต่อแล้ว · SAFE_OFF" : state.backendStatus === "ERROR" ? "เชื่อมต่อ Canary ไม่สำเร็จ" : "กำลังตรวจ Cloudflare Canary"}</span></div>`
+      ? `<div class="digital-canary ${state.backendStatus === "ONLINE_SAFE_OFF" ? "online" : state.backendStatus === "ERROR" ? "fault" : "checking"}"><b>การเชื่อมต่อ</b><span>${state.backendStatus === "ONLINE_SAFE_OFF" ? "เว็บเชื่อมต่อแล้ว · อ่านอย่างเดียว" : state.backendStatus === "ERROR" ? "ตรวจการเชื่อมต่อไม่สำเร็จ" : "กำลังตรวจการเชื่อมต่อ"}</span></div>`
       : "";
 
     return `<section class="sensor-digital-twin" aria-live="polite" aria-busy="${state.loading ? "true" : "false"}">
@@ -966,11 +1066,12 @@
         </button>
         <div class="digital-title">
           <h1>แหล่งน้ำหลัก</h1>
-          <div class="digital-live ${statusClass}"><span aria-hidden="true"></span> LIVE · ${safeText(statusLabel)}</div>
+          <div class="digital-live ${statusClass}"><span aria-hidden="true"></span> ${!state.error && !state.loading && c && state.status === "GOOD" ? "LIVE · " : ""}${safeText(statusLabel)}</div>
         </div>
       </header>
 
       ${canaryNote}
+      ${accessNote}
 
       <div class="digital-hero ${reservoirVisual.known ? "has-water-level" : "is-unknown"}" style="--water-pin-top:${reservoirVisual.pinTop}%" data-water-band="${reservoirVisual.band === null ? "unknown" : reservoirVisual.band}">
         <img class="reservoir-level-image ${reservoirVisual.className}" src="${reservoirVisual.image}" alt="${reservoirVisual.known ? "ภาพกราฟิกสามมิติของแหล่งเก็บน้ำที่แสดงความจุ " + numberLabel(reservoirVisual.capacity, 1) + " เปอร์เซ็นต์" : "ภาพกราฟิกแหล่งเก็บน้ำ ขณะนี้ยังไม่มีค่าระดับที่เชื่อถือได้"}">
@@ -984,6 +1085,7 @@
 
       <div class="digital-panel">
         ${errorNote}
+        <div class="digital-sensor-tools"><span>ตรวจข้อมูลทุก 1 นาที</span><button type="button" onclick="App.refreshMainWaterSensor()" ${state.loading ? "disabled" : ""}>${state.loading ? "กำลังโหลด…" : "รีเฟรชข้อมูล"}</button></div>
         <div class="digital-primary-grid">
           <div class="digital-volume">
             <span>ปริมาตรโดยประมาณ</span>
@@ -1014,6 +1116,8 @@
           </section>
           <section class="digital-chart-card">
             <h2>แนวโน้ม ${state.hours === 168 ? "7 วัน" : "24 ชั่วโมง"}</h2>
+            <div class="digital-history-controls"><button type="button" aria-pressed="${state.hours === 24}" onclick="App.setSensorHistoryHours(24)" ${state.loading ? "disabled" : ""}>24 ชั่วโมง</button><button type="button" aria-pressed="${state.hours === 168}" onclick="App.setSensorHistoryHours(168)" ${state.loading ? "disabled" : ""}>7 วัน</button></div>
+            ${state.historyError ? `<div class="digital-alert" role="alert">${safeText(state.historyError)}</div>` : ""}
             <div class="chart-caption">ปริมาตร (ลบ.ม.)</div>
             <canvas id="sensorHistoryChart" aria-label="กราฟแนวโน้มปริมาตร"></canvas>
           </section>
@@ -1081,6 +1185,10 @@
 
   function drawDepthProfile() {
     const canvas = typeof document !== "undefined" ? document.getElementById("sensorDepthProfileChart") : null;
+    if (!state.current || state.current.depth_m === null) {
+      drawEmptyChart(canvas, "ยังไม่มีค่าความลึก");
+      return;
+    }
     const setup = canvasContext(canvas, 90);
     if (!setup) return;
     const { ctx, width, height } = setup;
@@ -1267,6 +1375,7 @@
     normalizePiHealthHistory,
     downsample,
     probeSafeBackend,
+    syncSession,
     refresh,
     shouldAutoRefresh,
     startAutoRefresh,

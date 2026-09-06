@@ -1,15 +1,44 @@
 # FARMULTIMATE Collaboration Status
 
+## Active task: OWNER-SENSOR-001
+
+- Owner: SUCHA; branch: `pick/owner-sensor-page-v1`.
+- Source: `origin/develop@40721b5bfa71670ea97aba0d247e5616277c018a` plus deployed owner gateway/tooling checkpoint `3f601723feef2dc9184425fd6861594617f45d82` (PR #5 dependency).
+- Scope: repair sensor loading, account access, refresh and error states on the existing owner main website.
+- Writable lock: `js/sensors.js`, sensor-only hooks in `js/auth.js`, sensor styles in `css/style.css`, `js/tests/sensor-access.test.mjs`, `js/tests/sensors.test.mjs`, `docs/OWNER_SENSOR_PAGE.md`, `qa/owner-sensor-page/*.png`, this status file.
+- Acceptance: public health works without login; private sensor reads require the existing owner session; account changes discard old readings; requests finish or show a retry state; current/history failures remain distinct; desktop/mobile screenshots and full `npm run check` pass.
+- Safety: `DATA_ONLY / SAFE_OFF`; no API deployment, database write, ingestion change or hardware action. Commerce ownership remains with Folk.
+- Status: `FRONTEND_DEPLOYED / READBACK_VERIFIED` on 2026-09-06; full check 85 tests and relay 9 messages pass, desktop/mobile browser checks pass, Wrangler dry-run passes.
+- Release commit: `f60bfd2fa5bcb14ac71b5296de85d77e4fd07229`; frontend Worker version: `8eb56284-a1af-45f3-855a-043871923279`.
+- Live readback: build/source commit match; five changed/core asset hashes match; GET `/api/health` confirms `SENSOR_PHASE1_READ_ONLY` and output false. Desktop/mobile live signed-out page and login entry have no overflow or script/console errors.
+- Backend version remains `87ab09f5-1da5-43b3-81c1-30c5a858b11f`. Read-only D1 aggregate checks confirmed incoming readings for the active source. Actual owner login and private readings in Pick's browser remain unverified; authenticated browser QA used local synthetic responses.
+- Next action: Pick opens the sensor page on the same main URL and signs in with the existing sensor owner account if prompted. Source integration uses normal review into `develop`, with PR #5 as its dependency.
+
+## Previous gateway release checkpoint (2026-09-05)
+
 - Updated: `2026-09-05 Asia/Bangkok`
 - State: `BASELINE_READY`
 - Development approval: `APPROVE_FARMULTIMATE_DEV_SETUP_ONCE`
-- Production branch: `master` at `dba54778aa5043c1d699ec7136d30fd4d18da71c`
-- Integration branch: `develop` — `REMOTE_VERIFIED`
+- Legacy Pages branch: `master` at `0e2dbbaa4d170f4864d230b8d2a7169f6c65cadd`; unchanged by this release.
+- Integration branch: `develop` — `REMOTE_VERIFIED` at `40721b5bfa71670ea97aba0d247e5616277c018a`.
 - Integration preparation branch: `pick/integration-baseline-v2` — `REMOTE_VERIFIED` at the same branch head
 - Functional baseline commit: `0ac5b826b5cf8b16b5b2b9ec81194273f27bd11a`
 - Merge source: `origin/master` + `origin/pick/codex-relay-setup` at `d03b82c5cda86031d1dac07e47707f755002edff`
 - Raw source branch: `sucha/sensor-phase1-local` — `PRESERVED / LOCAL_ONLY_DO_NOT_PUSH`
-- Production deployment: `NOT_DEPLOYED`
+- Active release: `OWNER-MAIN-001`, owner SUCHA, branch `pick/owner-main-develop-40721b5`.
+- Approved target: existing Worker `flytech-farmultimate-owner-staging`; Pick explicitly selected it as the main app on 2026-09-05, replacing the Pages URL for day-to-day use.
+- Release source: `origin/develop@40721b5bfa71670ea97aba0d247e5616277c018a`.
+- Production deployment: `OWNER_MAIN_DEPLOYED / READBACK_VERIFIED`.
+- Main URL: https://flytech-farmultimate-owner-staging.pongnarin-pa.workers.dev/
+- Deployed release commit: `8674b1d8c46efc0cdaa317a5cb4ac2a0aa46e17f`; Worker version: `329c90e5-7298-499d-9ab6-54bdf8774d7f`.
+- Scope lock: owner frontend Worker entry/config, allowlisted asset packaging, deployment runtime configuration, service-worker cache, release tests/docs and status. Existing API Worker, database schema/data and actuator control are outside this release.
+- Existing frontend rollback version: `f062eb54-7ef1-481f-80a1-9ec40752a848`.
+- Existing API: `flytech-farmultimate-api-canary@87ab09f5-1da5-43b3-81c1-30c5a858b11f`; authenticated readback confirms `OUTPUT_CONTROL_ENABLED=false`. It has D1 and no R2 photo binding.
+- Owner-main preflight: `75/75 PASS`, relay `9 messages PASS`, Wrangler dry-run/type generation pass; `37` public asset files, zero forbidden source paths or secret-scan hits.
+- Browser QA: desktop `1280 x 720`, mobile `390 x 844` Home/Map/Pond/Stock inspected; no horizontal overflow, console errors or page errors. Local gateway health and forecast asset both return HTTP 200. Production runtime simulation confirms same-origin `/api` and preserved `owner-canary` storage namespace.
+- Independent live readback: `/build.json` matches both source commits; eight core asset hashes match the staged release. GET `/api/health`, POST `/api` health and forecast JSON return HTTP 200. Both live browser viewports pass with same-origin API, preserved session namespace and zero console/page errors.
+- Service binding readback: `FARMULTIMATE_API` points to the existing canary; the API deployment version remains unchanged. No hardware or authenticated business-data writes were performed by release validation.
+- Known limits: live field telemetry and authenticated cloud writes are unverified; the existing API has no R2 photo binding. Screenshots use an empty, isolated browser context. Home has a pre-existing narrow empty-state caption on mobile; this release does not change its layout.
 
 ## Baseline V2 Result
 
@@ -31,7 +60,7 @@
 - Desktop browser `1280 x 720`: Home and Master Map `PASS`; no horizontal overflow.
 - Mobile browser `390 x 844`: Master Map and Stock `PASS`; no horizontal overflow.
 - Browser console warnings/errors: `0`.
-- Current production Service Binding and deployed `/api` response: `NOT_TESTED / NOT_DEPLOYED`.
+- Owner main Service Binding and deployed `/api`: `READBACK_VERIFIED`; original Pages target remains unchanged.
 - Field geometry/survey: `NOT_SURVEYED`.
 - Hardware output/commissioning: `NOT_RUN`.
 
@@ -48,8 +77,9 @@
 |---|---|---|
 | Farm / Map / Planner / Analytics / Water / Telemetry | Pick + SUCHA | `AVAILABLE_BY_TASK_LOCK` |
 | Stock / Sales / Products / Import / Market Price | Folk | `READY_FROM_ORIGIN_DEVELOP` |
-| Shared shell / contracts / CI / release preparation | SUCHA | `AVAILABLE_BY_TASK_LOCK` |
-| `master` and Cloudflare production | Pick approval | `LOCKED_NEEDS_APPROVE_PRODUCTION_DEPLOY` |
+| Shared shell / contracts / CI / release preparation | SUCHA | `OWNER-MAIN-001 DEPLOYED`; source integration PR pending normal review |
+| Owner main Cloudflare Worker | Pick + SUCHA | `OWNER_APPROVED / DEPLOYED / SAFE_OFF` |
+| Legacy `master` and Pages | Existing owners | `UNCHANGED / PR4_SUPERSEDED_TARGET` |
 
 ## Development Push Policy
 
@@ -57,13 +87,13 @@ The one-time development approval authorizes publication of this reviewed baseli
 
 ## Remaining External Setup
 
-- Branch protection is `BLOCKED_NEEDS_REPOSITORY_ADMIN`: the authenticated SUCHA account has push permission but not repository admin permission. An admin must apply this once to `develop` and `master`: Pull Request required, one human approval, `npm-check`, no force push or deletion.
-- Configure the Pages `FARMULTIMATE_API` Service Binding only during an approved production release.
+- GitHub protected-branch review remains required for source integration. The authenticated SUCHA account has write permission; no protected branch was changed by this owner-approved Worker release.
+- Original Pages configuration and its repository-owner dependencies are not part of the selected main app target.
 
 ## Safety
 
-`DATA_ONLY / SAFE_OFF / output_control_allowed=false / Raspberry Pi 5 sole writer / NOT_DEPLOYED`
+`FRONTEND_DEPLOYED / DATA_ONLY / SAFE_OFF / output_control_allowed=false / Raspberry Pi 5 sole writer / BACKEND_UNCHANGED / HARDWARE_NOT_COMMISSIONED`
 
 ## Next Action
 
-Give Folk exactly one source-pinned Commerce task from `origin/develop` at `0ac5b826b5cf8b16b5b2b9ec81194273f27bd11a`; do not resume the superseded direct-link setup.
+Use the owner main URL. Integrate the deployment tooling through the normal `develop` PR workflow; future product changes still use separate owner branches and the shared integration source.

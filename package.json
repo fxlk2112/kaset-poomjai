@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "preview": "node scripts/serve-local.mjs",
+    "build:owner": "node scripts/build-owner-site.mjs",
     "relay:validate": "node scripts/codex-relay.mjs validate-tree",
     "check": "node --check worker/src/lark.js && node --check js/runtime-config.js && node --check js/auth.js && node --check js/sensors.js && node --check js/farm-map.js && node --check js/app.js && node --check functions/api/[[path]].js && node --check scripts/codex-relay.mjs && node --test worker/tests/*.test.mjs js/tests/*.test.mjs functions/tests/*.test.mjs && node scripts/codex-relay.mjs validate-tree"
   }
