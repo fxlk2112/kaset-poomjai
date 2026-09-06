@@ -3,7 +3,7 @@
 Task `OWNER-MONITOR-001`, owner SUCHA, branch `pick/owner-health-weather-v1`.
 Integration source `40721b5`; prior owner release checkpoint `2b4658a` (PRs #5 and #6 dependencies).
 
-The owner requested publishing the existing Pi 5/Pi Zero health dashboard and existing weather forecast on the same main app. The map and pond now link to dedicated Health and Forecast views. Health includes temperature, system load, uptime and 24-hour/7-day charts. The weather page retains the existing 10-model comparison and rain windows, identifies forecasts separately from station observations, and hides expired predictions.
+The owner requested publishing the existing Pi 5/Pi Zero health dashboard and existing weather forecast on the same main app. Two prominent buttons above the plot map open separate pages: **สภาพอากาศ** and **สุขภาพระบบ**. They remain available when a plot is selected. Each page has a return-to-map button; the map's pond page focuses on water and links to the other pages. Health includes temperature, system load, uptime and 24-hour/7-day charts. The weather page retains the existing 10-model comparison and rain windows, identifies forecasts separately from station observations, and hides expired predictions.
 
 ## Data path
 
@@ -20,6 +20,7 @@ The only database change is an additive table holding at most one health and one
 
 ## Validation
 
+- Navigation refinement: desktop/mobile browser checks verify both buttons are visible above the map, separate weather/health pages, return navigation, unchanged selection of all 13 map regions and a water-only pond page. No auth, data-feed, service or Worker logic changes are part of this UI refinement.
 - Full check: 99 tests pass, relay 9 messages pass. Additional tests cover owner/source authorization, public/private separation, stale timestamps, unsafe/future rejection, private-field projection, oversized requests and newer-only publication.
 - Wrangler bundle dry-run and binding type generation pass using current Workers types.
 - Read-only publisher dry-run on the Pi found real current readings for both nodes and seven-day history (673/653 sampled points at check time).

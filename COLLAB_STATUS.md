@@ -2,6 +2,7 @@
 
 ## Active task: OWNER-MONITOR-001
 
+- Owner follow-up (2026-09-06): SUCHA is refining the same task/PR #7. Writable UI scope: `js/farm-map.js`, `js/sensors.js`, `css/style.css`, related QA evidence, `docs/OWNER_MONITOR.md` and this status file. Separate **สภาพอากาศ** and **สุขภาพระบบ** buttons now sit above the plot map, open separate pages, and keep the map's pond view focused on water. Existing auth, data feeds, Worker logic/config, device services and Commerce are outside this follow-up. Status: `UI_VALIDATED`; desktop/mobile navigation and visual checks pass, 99 tests and relay validation pass. Publication readback will be recorded after the release.
 - Owner SUCHA; branch `pick/owner-health-weather-v1`; integration source `origin/develop@40721b5`, existing owner release checkpoint `2b4658a` (PRs #5 and #6 dependencies).
 - Request: publish the existing Pi 5/Pi Zero health dashboard and existing 10-model forecast on the same owner main website, with ongoing refresh.
 - Scope lock: monitor-only Worker modules and new snapshot table, owner frontend Worker/config, `js/sensors.js`, sensor login-return hook in `js/auth.js`, dashboard navigation in `js/farm-map.js`, `js/runtime-config.js`, `css/style.css`, related tests, scripts/owner-monitor publisher/install/uninstall and their scoped LF attributes, forecast snapshot, QA evidence, docs and status.

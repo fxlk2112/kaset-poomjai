@@ -5692,6 +5692,21 @@ body.view-iot-farm-map #app {
   box-shadow: 0 20px 44px rgba(0, 12, 14, .24);
 }
 .farm-map-canvas-card { overflow: hidden; }
+.farm-map-page-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; border-bottom: 1px solid var(--farm-line); }
+.farm-map-page-links button { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 68px; padding: 12px; border: 1px solid rgba(119, 224, 219, .5); border-radius: 13px; background: #104d50; color: #edffff; text-align: left; font: inherit; cursor: pointer; }
+.farm-map-page-links button:hover { background: #166366; border-color: var(--farm-cyan); }
+.farm-map-page-links button:focus-visible { outline: 3px solid var(--farm-cyan); outline-offset: 2px; }
+.farm-map-page-links svg { flex: 0 0 26px; width: 26px; height: 26px; fill: none; stroke: var(--farm-cyan); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.farm-map-page-links strong, .farm-map-page-links small { display: block; }
+.farm-map-page-links strong { font-size: clamp(.86rem, 1.7vw, 1rem); }
+.farm-map-page-links small { margin-top: 3px; color: #bde1df; font-size: .68rem; }
+.farm-map-page-links b { margin-left: auto; color: var(--farm-cyan); font-size: 1.5rem; }
+@media (max-width: 460px) {
+  .farm-map-page-links { gap: 8px; padding: 9px; }
+  .farm-map-page-links button { gap: 7px; padding: 10px 8px; }
+  .farm-map-page-links svg { flex-basis: 22px; width: 22px; height: 22px; }
+  .farm-map-page-links b { display: none; }
+}
 .farm-map-canvas {
   position: relative;
   width: 100%;

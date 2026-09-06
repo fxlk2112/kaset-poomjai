@@ -904,8 +904,8 @@
   function monitorHtml(panel) {
     const health = panel === "health";
     return `<section class="sensor-digital-twin sensor-monitor-page">
-      <div class="sensor-monitor-nav"><button onclick="App.farmMapBack()">← แผนที่ฟาร์ม</button><button onclick="App.farmMapSelect('pond')">ระดับน้ำ</button><button onclick="App.farmMapSelect('health')" aria-pressed="${health}">สุขภาพ Pi</button><button onclick="App.farmMapSelect('forecast')" aria-pressed="${!health}">พยากรณ์อากาศ</button></div>
-      <header class="sensor-monitor-heading"><span>FARMULTIMATE</span><h1>${health ? "สุขภาพ Pi 5 และ Pi Zero" : "พยากรณ์อากาศ 10 โมเดล"}</h1><p>${health ? "อุณหภูมิ โหลดระบบ และเวลาทำงาน จากเครื่องจริง" : "ข้อมูลจากตัวเก็บพยากรณ์เดิม · แยกจากสถานีตรวจวัดจริง"}</p></header>
+      <div class="sensor-monitor-nav"><button onclick="App.farmMapBack()">← แผนที่ฟาร์ม</button><button onclick="App.farmMapSelect('pond')">ระดับน้ำ</button><button onclick="App.farmMapSelect('forecast')" aria-pressed="${!health}">สภาพอากาศ</button><button onclick="App.farmMapSelect('health')" aria-pressed="${health}">สุขภาพระบบ</button></div>
+      <header class="sensor-monitor-heading"><span>FARMULTIMATE</span><h1>${health ? "สุขภาพระบบ" : "สภาพอากาศ"}</h1><p>${health ? "Pi 5 และ Pi Zero · อุณหภูมิ โหลดระบบ และเวลาทำงาน" : "พยากรณ์อากาศ 10 โมเดล · แยกจากสถานีตรวจวัดจริง"}</p></header>
       <div class="digital-sensor-tools"><span>${health ? "ตรวจข้อมูลทุก 1 นาที" : "เก็บพยากรณ์ทุก 3 ชั่วโมง · ตรวจชุดใหม่ทุก 5 นาที"}</span><button onclick="App.refreshMainWaterSensor()" ${state.loading ? "disabled" : ""}>รีเฟรชข้อมูล</button></div>
       ${health ? `<div class="digital-history-controls"><button onclick="App.setSensorHistoryHours(24)" aria-pressed="${state.hours === 24}" ${state.loading ? "disabled" : ""}>24 ชั่วโมง</button><button onclick="App.setSensorHistoryHours(168)" aria-pressed="${state.hours === 168}" ${state.loading ? "disabled" : ""}>7 วัน</button></div>${piHealthHtml()}` : weatherModelsHtml()}
       <footer class="digital-footer"><span>ข้อมูลเก่าจะแสดงสถานะตามเวลาอัปเดต</span><b>DATA ONLY · SAFE_OFF</b></footer>
@@ -1134,7 +1134,7 @@
       </div>
 
       <div class="digital-panel">
-        <div class="sensor-monitor-nav"><button onclick="App.farmMapSelect('health')">สุขภาพ Pi 5 / Pi Zero</button><button onclick="App.farmMapSelect('forecast')">พยากรณ์อากาศ</button></div>
+        <div class="sensor-monitor-nav"><button onclick="App.farmMapSelect('forecast')">สภาพอากาศ</button><button onclick="App.farmMapSelect('health')">สุขภาพระบบ</button></div>
         ${errorNote}
         <div class="digital-sensor-tools"><span>ตรวจข้อมูลทุก 1 นาที</span><button type="button" onclick="App.refreshMainWaterSensor()" ${state.loading ? "disabled" : ""}>${state.loading ? "กำลังโหลด…" : "รีเฟรชข้อมูล"}</button></div>
         <div class="digital-primary-grid">
@@ -1153,9 +1153,9 @@
           <div class="digital-secondary-item"><span>อัปเดต</span><strong>${safeText(age)}</strong><small>${safeText(observed)}</small></div>
         </div>
 
-        ${weatherHtml()}
+        ${viewOptions.separateMonitorPages ? "" : weatherHtml()}
 
-        ${weatherModelsHtml()}
+        ${viewOptions.separateMonitorPages ? "" : weatherModelsHtml()}
 
         ${waterBalanceHtml()}
 
@@ -1179,7 +1179,7 @@
           <b>DATA ONLY · SAFE_OFF</b>
         </footer>
       </div>
-      ${piHealthHtml()}
+      ${viewOptions.separateMonitorPages ? "" : piHealthHtml()}
     </section>`;
   }
 

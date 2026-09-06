@@ -89,7 +89,6 @@
       <article><span>เอาต์พุตทำงาน</span><strong>0</strong><small>จาก 32 ช่อง</small></article>
     </div>
     <button class="farm-map-primary" type="button" onclick="App.farmMapSelect('pond')">เปิดข้อมูลสระน้ำ</button>
-    <div class="sensor-monitor-nav"><button onclick="App.farmMapSelect('health')">สุขภาพ Pi 5 / Pi Zero</button><button onclick="App.farmMapSelect('forecast')">พยากรณ์อากาศ 10 โมเดล</button></div>
     <div class="farm-map-contract">
       <b>Pi 5 · SINGLE WRITER</b>
       <span>PoE Relay ยังไม่ผูกช่องจริง · Output disabled</span>
@@ -165,6 +164,16 @@
 
       <div class="farm-map-layout">
         <div class="farm-map-canvas-card">
+          <nav class="farm-map-page-links" aria-label="ข้อมูลฟาร์ม">
+            <button type="button" onclick="App.farmMapSelect('forecast')" aria-label="สภาพอากาศ">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"></circle><path d="M8 1v2M1 8h2M3 3l1.5 1.5M13 3l-1.5 1.5M6 19h12a4 4 0 0 0 0-8 5 5 0 0 0-9.5 1.5A3.5 3.5 0 0 0 6 19Z"></path></svg>
+              <span><strong>สภาพอากาศ</strong><small>พยากรณ์ 10 โมเดล</small></span><b aria-hidden="true">›</b>
+            </button>
+            <button type="button" onclick="App.farmMapSelect('health')" aria-label="สุขภาพระบบ">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"></rect><path d="M1 12h6l3-5 4 10 3-5h6"></path></svg>
+              <span><strong>สุขภาพระบบ</strong><small>Pi 5 และ Pi Zero</small></span><b aria-hidden="true">›</b>
+            </button>
+          </nav>
           <div class="farm-map-canvas">
             <img src="images/farm-map/pixel-art-farm-master-v1.png" alt="ภาพแผนที่ฟาร์ม แสดงสระน้ำ แปลง A ถึง J และ E5 ขนาดย่อที่เว้นพื้นที่พักพนักงาน">
             <svg class="farm-map-overlay" viewBox="0 0 1024 1024" preserveAspectRatio="xMidYMid meet" aria-label="พื้นที่ที่เลือกได้บนแผนที่">
@@ -191,7 +200,8 @@
     if (state.selection === "pond" && root.SensorTelemetry) {
       return root.SensorTelemetry.cardHtml({
         backAction: "App.farmMapBack()",
-        backLabel: "← แผนที่ฟาร์ม"
+        backLabel: "← แผนที่ฟาร์ม",
+        separateMonitorPages: true
       });
     }
     return mapSurfaceHtml();
