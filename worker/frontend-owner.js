@@ -1,9 +1,11 @@
 import { onRequest } from "../functions/api/[[path]].js";
 import { handleMonitor } from "./owner-monitor.js";
+import { handleRelayBench } from "./relay-bench.js";
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname.startsWith("/api/relay-bench/")) return handleRelayBench(request, env);
     if (url.pathname.startsWith("/api/monitor/")) return handleMonitor(request, env);
     if (url.pathname === "/api" || url.pathname.startsWith("/api/") || url.pathname.startsWith("/photo/")) {
       let upstreamRequest = request;

@@ -52,7 +52,8 @@ if (!/const CACHE = "[^"]+";/.test(sw)) throw new Error("Service-worker cache an
 await writeFile(swPath, sw.replace(/const CACHE = "[^"]+";/, `const CACHE = "farmult-${releaseId}";`));
 await writeFile(path.join(output, "build.json"), JSON.stringify({
   app: "FARMULTIMATE", release_id: releaseId, integration_commit: integrationCommit,
-  release_commit: releaseCommit, safety: "DATA_ONLY / SAFE_OFF", output_control_allowed: false
+  release_commit: releaseCommit, safety: "IRRIGATION_SAFE_OFF / NO_LOAD_BENCH",
+  output_control_allowed: false, field_output_control_allowed: false, no_load_bench_available: true
 }, null, 2) + "\n");
 await writeFile(path.join(output, "_headers"), "/*\n  X-Content-Type-Options: nosniff\n  X-Robots-Tag: noindex, nofollow, noarchive\n/index.html\n  Cache-Control: no-cache\n/sw.js\n  Cache-Control: no-cache\n/build.json\n  Cache-Control: no-store\n/js/deployment-config.js\n  Cache-Control: no-cache\n");
 await writeFile(path.join(output, "robots.txt"), "User-agent: *\nDisallow: /\n");

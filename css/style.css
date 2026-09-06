@@ -5903,3 +5903,16 @@ body.view-iot-farm-map #app {
 @media (max-width: 380px) {
   .relay-channel { grid-template-columns: minmax(0, 1fr) 58px 92px; gap: 5px; padding: 11px 9px; }
 }
+
+/* Unloaded bench session controls. */
+.relay-channel { grid-template-columns: minmax(0, 1fr) 65px 118px; }
+.relay-actions button:first-child { min-width: 70px; }
+.relay-actions button:enabled { cursor: pointer; background: #087b72; color: white; border-color: #39d6ce; }
+.relay-actions button:enabled:hover { background: #09988c; }
+.relay-actions button:focus-visible { outline: 3px solid #64eeea; outline-offset: 2px; }
+.relay-bench-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 16px 0; }
+.relay-bench-tools > strong { flex-basis: 100%; color: #b9f3e1; }
+.relay-bench-tools button { width: auto; max-width: 100%; padding-inline: 16px; margin-top: 0; }
+.relay-bench-tools button:disabled { opacity: .55; cursor: not-allowed; }
+.relay-command-status { color: #b9f3e1; background: #124b4b; border-radius: 9px; padding: 12px; font-size: .85rem; }
+@media (max-width: 380px) { .relay-channel { grid-template-columns: minmax(0, 1fr) 55px 118px; } }

@@ -155,7 +155,7 @@
           <span>FARM OPERATIONS · MASTER MAP</span>
           <h1>ภาพรวมระบบชลประทาน</h1>
         </div>
-        <div class="farm-map-safety"><b>DATA ONLY</b><strong>SAFE_OFF</strong></div>
+        <div class="farm-map-safety"><b>NO LOAD TEST</b><strong>FIELD SAFE_OFF</strong></div>
       </header>
 
       <div class="farm-map-layout">

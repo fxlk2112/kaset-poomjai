@@ -1,6 +1,15 @@
 # FARMULTIMATE Collaboration Status
 
-## Active task: OWNER-MAP-RELAY-001
+## Active task: OWNER-RELAY-BENCH-001
+
+- Owner SUCHA; branch `pick/relay-bench-v1`; source `origin/develop@40721b5` plus deployed checkpoint `2d2050f` (PRs #5–#9 dependencies).
+- Explicit owner authorization on 2026-09-06: no loads are connected; implement actual relay ON/OFF for testing from the existing web page. This is a bounded no-load bench-control task, not irrigation commissioning.
+- Writable lock: relay UI and map safety labels, relay-only App/auth hooks, new Worker bench API/contracts and additive bench tables, frontend route/config, new isolated Pi bench agent/install/uninstall, release metadata wording, related tests, `qa/relay-bench/`, `docs/OWNER_RELAY_BENCH.md`, this status file. Commerce and existing observer/telemetry/controller candidate services and maps stay unchanged.
+- Acceptance: owner-authenticated 15-minute no-load sessions; one channel at a time; hardware timed flash ON for 5 seconds; early OFF and disarm; fresh identity/mode/CRC checks; durable deduplication and expired commands discarded; real ON and automatic/early OFF readback through Pi 5; no Windows Modbus, inbound port or firewall change; fault-path tests, screenshots, scoped secret review, live readback and rollback.
+- Status: `HARDWARE_BENCH_PASS / CLOUD_PUBLICATION_BLOCKED`. All 16 unloaded channels passed ON and autonomous five-second OFF readback; early OFF also passed. The Pi unit is prepared, not enabled. All outputs were left OFF. Automatic approval review rejected the command containing additive D1 schema application with `blocked by policy`; no schema or new frontend deployment occurred.
+- Validation: 111 JavaScript/Worker tests, six Python tests and 9-message relay validation pass. Local browser QA covers actual Worker handlers and SQLite with a labeled synthetic Pi adapter. Real owner-session cloud-to-Pi actuation remains unverified. Concrete remaining deployment scope and rollback: `docs/OWNER_RELAY_BENCH.md`.
+
+## Previous task: OWNER-MAP-RELAY-001
 
 - Owner SUCHA; branch `pick/map-relay-v1`; source `origin/develop@40721b5` plus deployed owner checkpoint `9bca8d3` (PRs #5–#8 dependencies).
 - Request: update this app's Master Map from the current company Booking page and put relay/switch controls on the same page.

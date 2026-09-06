@@ -6,6 +6,7 @@
     "global_fetch_strictly_public"
   ],
   "workers_dev": true,
+  "vars": { "RELAY_BENCH_ENABLED": "true" },
   "assets": {
     "directory": "./.cloudflare-staging-dist",
     "binding": "ASSETS",

@@ -39,7 +39,7 @@ test("map surface is interactive but contains no actuator command", () => {
   MapDashboard.reset();
   const html = MapDashboard.cardHtml();
   assert.match(html, /pixel-art-farm-master-v1\.png/);
-  assert.match(html, /DATA ONLY/);
+  assert.match(html, /NO LOAD TEST/);
   assert.match(html, /SAFE_OFF/);
   assert.match(html, /App\.farmMapSelect\('pond'\)/);
   assert.match(html, /role="button" tabindex="0"/);

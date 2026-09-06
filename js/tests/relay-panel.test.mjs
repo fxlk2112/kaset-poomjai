@@ -17,11 +17,11 @@ test("stale, future, mismatched identity, offline and malformed values never app
   const p = structuredClone(sample); p.modules[0].relay_status[0] = "false";
   assert.equal(panel.viewModel(p, now).modules[0].relays[0], null);
 });
-test("rendered switches are disabled regardless of data and cannot call command handlers", () => {
+test("readback alone does not enable bench switches without owner/session readiness", () => {
   globalThis.SensorTelemetry = { state: { piHealth: { relays: sample } } };
   const html = panel.cardHtml();
-  assert.equal((html.match(/disabled aria-describedby="relay-control-blocker"/g) || []).length, 32);
-  assert.match(html, /ยังสั่งเปิด–ปิดอุปกรณ์จริงไม่ได้/);
-  assert.doesNotMatch(html, /onclick="[^\"]*(?:command|toggle|relayOn|relayOff)/i);
+  assert.equal((html.match(/<button[^>]* disabled[^>]*aria-describedby="relay-control-blocker"/g) || []).length, 32);
+  assert.match(html, /ทดสอบรีเลย์จริง · ไม่มีโหลดต่ออยู่/);
+  assert.equal(panel.benchControls().canPulse, false);
   delete globalThis.SensorTelemetry;
 });
