@@ -25,7 +25,8 @@ To implement real switching, first obtain the relay/module + CH-to-load list, lo
 - Isolated Chrome: 360 x 800, 840 x 1180, 1280 x 900; map, keyboard E5 selection, weather/health routes, relay jump/login-return, locked controls and stale state pass without overflow or script errors.
 - `*-fixture.png` shows explicitly synthetic owner responses, including an ON example; no real output was actuated to make screenshots. Real owner-session UI and physical iPad Safari remain unverified.
 - Asset package contains 39 allowlisted files. Wrangler dry-run and Pi publisher preflight pass. Publication to the existing owner main Worker follows the owner's ongoing main-site authorization; no protected-branch merge or Pages/backend deployment.
-- Deployment and independent live readback evidence will be appended below after publication.
+- Deployed release `22acffe08bc24333bddf7867d4c13cd78721bab1`, frontend version `6098e543-bcc4-4b74-ae48-03a2fc8d9916`. Independent readback at 16:31 Bangkok confirmed build + nine asset hashes, fresh GOOD relay data for both 8CH modules, both Pi health sources GOOD, forecast 10 models, and the API backend unchanged. Missing/invalid owner sessions return 401/403. See `qa/map-relay/release-readback.json` and `publisher-readback.json`.
+- The updated isolated Pi service successfully published and its timer, existing relay observer, water dashboard and telemetry forwarder all remain active. The installed publisher and service unit match their source hashes; previous files are backed up for rollback.
 
 ## Rollback
 
