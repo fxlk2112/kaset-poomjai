@@ -1,0 +1,49 @@
+{
+  "checked_at": "2026-09-06T02:09:20.352Z",
+  "result": "PASS",
+  "snapshots": [
+    {
+      "kind": "health",
+      "observed_ts": 1788660556266,
+      "received_at": 1788660556461,
+      "bytes": 234603,
+      "models": null,
+      "pi5_status": "GOOD",
+      "pi5_observed_at": "2026-09-06T02:08:25.421Z",
+      "pi_zero_status": "GOOD",
+      "pi_zero_observed_at": "2026-09-06T02:08:45.084Z",
+      "pi5_history": 673,
+      "pi_zero_history": 653,
+      "output_enabled": 0
+    },
+    {
+      "kind": "weather",
+      "observed_ts": 1788657233000,
+      "received_at": 1788660334537,
+      "bytes": 5264,
+      "models": 10,
+      "pi5_status": null,
+      "pi5_observed_at": null,
+      "pi_zero_status": null,
+      "pi_zero_observed_at": null,
+      "pi5_history": null,
+      "pi_zero_history": null,
+      "output_enabled": 0
+    }
+  ],
+  "public_forecast_models": 10,
+  "missing_owner_session": 401,
+  "invalid_owner_session": 403,
+  "asset_hash_matches": 5,
+  "build_match": true,
+  "build": {
+    "app": "FARMULTIMATE",
+    "release_id": "owner-main-40721b5-27376a5",
+    "integration_commit": "40721b5bfa71670ea97aba0d247e5616277c018a",
+    "release_commit": "27376a5284c6c0a4fb7e758ac684dd0928d22da9",
+    "safety": "DATA_ONLY / SAFE_OFF",
+    "output_control_allowed": false
+  },
+  "owner_private_browser_session": "NOT_VERIFIED",
+  "output_control_allowed": false
+}

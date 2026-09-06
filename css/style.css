@@ -4708,7 +4708,7 @@ body.view-iot-digital-twin .view {
   background: currentColor;
   box-shadow: 0 0 12px currentColor;
 }
-.digital-live.stale { color: #f7c86a; }
+.digital-live.stale, .digital-live.warn { color: #f7c86a; }
 .digital-live.fault { color: #ff8d8d; }
 .digital-live.muted { color: #a9c4c1; }
 .digital-canary {
@@ -4734,6 +4734,47 @@ body.view-iot-digital-twin .view {
 .digital-canary.online b { color: #67f2b1; }
 .digital-canary.fault { border-color: rgba(255, 141, 141, .7); }
 .digital-canary.fault b { color: #ff8d8d; }
+.digital-access {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 158px 14px 0;
+  padding: 14px;
+  border: 1px solid rgba(150, 245, 244, .45);
+  border-radius: 12px;
+  background: #183f42;
+  color: #e1ffff;
+  font-size: .86rem;
+}
+.digital-access p { margin: 5px 0 0; line-height: 1.6; }
+.digital-access button, .digital-sensor-tools button, .digital-history-controls button {
+  padding: 9px 13px;
+  min-height: 44px;
+  border: 1px solid #71c9c9;
+  border-radius: 9px;
+  background: #205154;
+  color: #e1ffff;
+  font: inherit;
+  cursor: pointer;
+}
+.digital-access button:focus-visible, .digital-sensor-tools button:focus-visible, .digital-history-controls button:focus-visible { outline: 2px solid #e1ffff; outline-offset: 3px; }
+.digital-sensor-tools, .digital-history-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; font-size: .75rem; }
+.digital-sensor-tools { justify-content: space-between; }
+.digital-sensor-tools button:disabled, .digital-history-controls button:disabled { opacity: .65; cursor: wait; }
+.digital-history-controls button[aria-pressed="true"] { background: #d8ffff; color: #153c3e; }
+.sensor-monitor-page { padding: 18px 14px; }
+.sensor-monitor-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.sensor-monitor-nav button { min-height: 44px; padding: 9px 13px; border: 1px solid #71c9c9; border-radius: 10px; background: #16484b; color: #e1ffff; font: inherit; cursor: pointer; }
+.sensor-monitor-nav button[aria-pressed="true"] { background: #d8ffff; color: #153c3e; }
+.sensor-monitor-nav button:focus-visible { outline: 2px solid #e1ffff; outline-offset: 3px; }
+.sensor-monitor-heading { margin: 24px 0; }
+.sensor-monitor-heading h1 { font-size: clamp(1.35rem, 5vw, 2rem); margin: 8px 0; }
+.sensor-monitor-heading p { color: #bfdcda; line-height: 1.7; }
+.sensor-monitor-page .digital-health-panel { margin: 0; }
 
 .digital-hero {
   position: relative;
@@ -5651,6 +5692,21 @@ body.view-iot-farm-map #app {
   box-shadow: 0 20px 44px rgba(0, 12, 14, .24);
 }
 .farm-map-canvas-card { overflow: hidden; }
+.farm-map-page-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; border-bottom: 1px solid var(--farm-line); }
+.farm-map-page-links button { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 68px; padding: 12px; border: 1px solid rgba(119, 224, 219, .5); border-radius: 13px; background: #104d50; color: #edffff; text-align: left; font: inherit; cursor: pointer; }
+.farm-map-page-links button:hover { background: #166366; border-color: var(--farm-cyan); }
+.farm-map-page-links button:focus-visible { outline: 3px solid var(--farm-cyan); outline-offset: 2px; }
+.farm-map-page-links svg { flex: 0 0 26px; width: 26px; height: 26px; fill: none; stroke: var(--farm-cyan); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.farm-map-page-links strong, .farm-map-page-links small { display: block; }
+.farm-map-page-links strong { font-size: clamp(.86rem, 1.7vw, 1rem); }
+.farm-map-page-links small { margin-top: 3px; color: #bde1df; font-size: .68rem; }
+.farm-map-page-links b { margin-left: auto; color: var(--farm-cyan); font-size: 1.5rem; }
+@media (max-width: 460px) {
+  .farm-map-page-links { gap: 8px; padding: 9px; }
+  .farm-map-page-links button { gap: 7px; padding: 10px 8px; }
+  .farm-map-page-links svg { flex-basis: 22px; width: 22px; height: 22px; }
+  .farm-map-page-links b { display: none; }
+}
 .farm-map-canvas {
   position: relative;
   width: 100%;
