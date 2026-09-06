@@ -30,7 +30,9 @@ The only database change is an additive table holding at most one health and one
 
 ## Live release evidence — 6 September 2026
 
-Frontend code `27376a5` is live as Worker version `338de5f6-591e-4bd6-a448-0ebd259414bb`. Build metadata and five changed asset hashes match. Later installation fixes change only the host-side publisher, deployment line endings and documentation; they do not change the deployed frontend code.
+Current frontend code `21ea109` is live as Worker version `0cf534c7-1323-4819-b957-e5ab7c238834`. At 11:13 Bangkok, independent build/four-asset hash checks and live desktop/mobile navigation checks passed. Both buttons are above the plot map; weather and health open separate pages, and the pond no longer embeds those panels. The backend version remains unchanged. Evidence: [mobile plot-map navigation](../qa/owner-monitor/mobile-map-navigation.png), [desktop plot-map navigation](../qa/owner-monitor/desktop-map-navigation.png), and [release readback](../qa/owner-monitor/map-navigation-readback.json).
+
+The initial dashboard release `27376a5` / `338de5f6-591e-4bd6-a448-0ebd259414bb` established the real data feeds below. Host publisher fixes are recorded in `4710dbe`; the navigation refinement changes only UI and evidence.
 
 The new snapshot table contains real health and weather publications with output control false. Independent readback at 09:09 Bangkok found both nodes GOOD, observations less than one minute old, and 673/653 sampled history points. The Pi timer successfully published a later snapshot without a manual trigger. The existing water dashboard and telemetry forwarder remain active.
 
@@ -45,4 +47,4 @@ Installation exposed two host-specific issues that are now addressed: Git checko
 - Run `install-weather-task.ps1 -ProjectRoot <existing irrigation project root>` on SUCHA's Windows host. The task reads the existing export and existing SSH target configuration. Safe receipts are logged under project `artifacts/owner-monitor`.
 - Keep the installed script worktree available while the Windows publisher task uses it; reinstall the task with the new script location before retiring that worktree. The current task uses the logged-in owner's Windows context and has no stored password.
 - Disable the new Pi timer/service with `uninstall.sh`; disable only the new Windows task with `uninstall-weather-task.ps1`. These preserve files, logs, source collectors and all stored data.
-- Previous frontend rollback version: `8eb56284-a1af-45f3-855a-043871923279`. Leave the additive snapshot table in place when rolling back the frontend; do not delete or alter existing data.
+- Previous frontend rollback version: `338de5f6-591e-4bd6-a448-0ebd259414bb`. Leave the additive snapshot table in place when rolling back the frontend; do not delete or alter existing data.
