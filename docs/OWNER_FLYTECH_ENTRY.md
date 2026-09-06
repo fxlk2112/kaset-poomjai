@@ -12,3 +12,5 @@ Only the entry markup/styles, matching existing navigation-test label, logo and 
 Local browser checks pass at 360 x 800, 840 x 1180 and 1280 x 900: logo decoded, exact title/subtitle, minimum height, no card/subtitle/page overflow, unchanged map navigation and no script/console errors. See `qa/flytech-entry/`. The existing label assertion was updated to match the owner's new title.
 
 Deploy only the existing owner main Worker using `wrangler.owner-main.jsonc`. Prior frontend rollback version: `0cf534c7-1323-4819-b957-e5ab7c238834`. Current deployment version and independent readback are recorded in `COLLAB_STATUS.md` after release.
+
+Published on 6 September 2026: source `36fe596`, Worker version `86e7be2a-f3f0-4fdd-9913-c776af61638c`. Live build and four asset hashes match, including the supplied logo; backend version is unchanged and output control remains false. All 99 tests pass. Live Chrome viewport checks pass at all three sizes; this is not a physical iPad Safari verification. See [release readback](../qa/flytech-entry/release-readback.json), [tablet](../qa/flytech-entry/tablet-home.png) and [phone](../qa/flytech-entry/phone-home.png).

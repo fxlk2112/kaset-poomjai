@@ -7,7 +7,8 @@
 - Writable lock: only the Home entry markup in `js/app.js`, its styles in `css/style.css`, the corresponding existing assertion in `js/tests/navigation.test.mjs`, supplied logo under `images/brand/`, `qa/flytech-entry/`, `docs/OWNER_FLYTECH_ENTRY.md` and this status file. SUCHA owns the shared-shell changes. The click still opens the same plot map.
 - Acceptance: supplied logo appears faithfully; taller card and complete requested text at phone/tablet/desktop sizes; map navigation works; `npm run check`, screenshots, asset/secret review, release dry-run and independent live readback pass.
 - Safety: UI-only; `DATA_ONLY / SAFE_OFF`. Existing auth, data feeds, device services, backend, Worker configuration, Commerce and other logos are outside scope.
-- Status: `UI_VALIDATED`; 99 tests and 9-message relay validation pass. Browser QA passes at phone 360 x 800, tablet 840 x 1180 and desktop 1280 x 900: supplied logo loaded, exact text, 136/154px card height, no overflow and preserved map navigation.
+- Status: `DEPLOYED / LIVE_READBACK_VERIFIED`; 99 tests and 9-message relay validation pass. Live browser QA passes at phone 360 x 800, tablet 840 x 1180 and desktop 1280 x 900: supplied logo loaded, exact text, 136/154px card height, no overflow and preserved map navigation. Browser checks use isolated Chrome contexts; physical iPad Safari is not verified.
+- Release commit `36fe596719979622a664a0f739963731eea266cd`; frontend Worker version `86e7be2a-f3f0-4fdd-9913-c776af61638c`. Independent readback at 15:15 Bangkok: build and four asset hashes match, including the unchanged supplied JPEG; backend version remains `87ab09f5-1da5-43b3-81c1-30c5a858b11f`, public health output false. Rollback frontend version: `0cf534c7-1323-4819-b957-e5ab7c238834`. Evidence: `qa/flytech-entry/release-readback.json` and phone/tablet screenshots.
 
 ## Previous task: OWNER-MONITOR-001
 
