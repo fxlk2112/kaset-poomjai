@@ -27,10 +27,21 @@ The only database change is an additive table holding at most one health and one
 - UI evidence: [mobile health fixture](../qa/owner-monitor/mobile-health-fixture.png) and [desktop forecast](../qa/owner-monitor/desktop-forecast.png). The test overlay labels synthetic health metrics.
 - Deployment, real publisher receipts and independent live readback are recorded in `COLLAB_STATUS.md` after release.
 
+## Live release evidence — 6 September 2026
+
+Frontend code `27376a5` is live as Worker version `338de5f6-591e-4bd6-a448-0ebd259414bb`. Build metadata and five changed asset hashes match. Later installation fixes change only the host-side publisher, deployment line endings and documentation; they do not change the deployed frontend code.
+
+The new snapshot table contains real health and weather publications with output control false. Independent readback at 09:09 Bangkok found both nodes GOOD, observations less than one minute old, and 673/653 sampled history points. The Pi timer successfully published a later snapshot without a manual trigger. The existing water dashboard and telemetry forwarder remain active.
+
+The public forecast returns all ten models from the existing collector's 08:13 issue. The new Windows publisher task completed with exit result 0; duplicate delivery preserves the existing issue. Live desktop/mobile checks cover the public forecast and the health login entry. The real owner-session health view is still unverified; synthetic chart QA is labeled separately. See [live forecast](../qa/owner-monitor/mobile-forecast-live.png), [health login entry](../qa/owner-monitor/desktop-health-login-live.png), and [sanitized readback](../qa/owner-monitor/live-readback.json).
+
+Installation exposed two host-specific issues that are now addressed: Git checkouts require LF for Linux scripts/units, and SQLite read-only WAL readers need access to coordination files. The unit permits that one source directory for WAL reader coordination while keeping the database file mounted read-only; the connection also enforces `mode=ro` and `query_only=ON`. The publisher identifies itself as `FARMULTIMATE-Owner-Monitor/1.0`. The default Python client encountered [Cloudflare error 1010](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1010/); no Cloudflare protection rule was disabled.
+
 ## Install and recovery
 
 - Apply `worker/schema-owner-monitor.sql` to the existing canary database after verifying the configured identity; deploy only `wrangler.owner-main.jsonc` to the owner main Worker.
 - Copy `scripts/owner-monitor` publisher/service/timer/install files to the Pi and run `install.sh`. It adds one isolated oneshot unit and timer, using the existing source database and credential. No source service restart is required.
 - Run `install-weather-task.ps1 -ProjectRoot <existing irrigation project root>` on SUCHA's Windows host. The task reads the existing export and existing SSH target configuration. Safe receipts are logged under project `artifacts/owner-monitor`.
+- Keep the installed script worktree available while the Windows publisher task uses it; reinstall the task with the new script location before retiring that worktree. The current task uses the logged-in owner's Windows context and has no stored password.
 - Disable the new Pi timer/service with `uninstall.sh`; disable only the new Windows task with `uninstall-weather-task.ps1`. These preserve files, logs, source collectors and all stored data.
 - Previous frontend rollback version: `8eb56284-a1af-45f3-855a-043871923279`. Leave the additive snapshot table in place when rolling back the frontend; do not delete or alter existing data.

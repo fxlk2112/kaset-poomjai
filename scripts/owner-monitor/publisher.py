@@ -39,7 +39,7 @@ def publish(kind, data, endpoint=ENDPOINT):
     raw = json.dumps({"kind":kind,"data":data}, separators=(",", ":"), ensure_ascii=False).encode()
     if len(raw) > 512000:
         raise ValueError("Snapshot too large")
-    request = urllib.request.Request(endpoint, data=raw, headers={"Content-Type":"application/json", "Authorization":"Bearer "+token}, method="POST")
+    request = urllib.request.Request(endpoint, data=raw, headers={"Content-Type":"application/json", "Authorization":"Bearer "+token, "User-Agent":"FARMULTIMATE-Owner-Monitor/1.0", "Accept":"application/json"}, method="POST")
     with urllib.request.urlopen(request, timeout=20) as response:
         result = json.loads(response.read(4096))
     if not result.get("ok"):
@@ -67,7 +67,7 @@ def main():
         return 0
     except Exception as error:
         # Never log payloads, credentials, private paths, endpoint errors or coordinates.
-        print(json.dumps({"result":"FAILED", "error_type":type(error).__name__, "output_control_allowed":False}))
+        print(json.dumps({"result":"FAILED", "error_type":type(error).__name__, "sqlite_errorcode":getattr(error,"sqlite_errorcode",None), "output_control_allowed":False}))
         return 1
 
 if __name__ == "__main__":

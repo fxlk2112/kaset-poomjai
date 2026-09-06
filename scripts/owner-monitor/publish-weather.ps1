@@ -17,12 +17,19 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Publisher failed' }
     $receipt = ($result -join "`n") | ConvertFrom-Json
     if ($receipt.result -ne 'PASS') { throw 'Publisher rejected snapshot' }
-    $safeReceipt = [ordered]@{checked_at=[DateTimeOffset]::Now.ToString('o');result='PASS';kind='weather';stored=[bool]$receipt.stored;observed_at=[string]$receipt.observed_at;output_control_allowed=$false}
+    $safeReceipt = [ordered]@{checked_at=[DateTimeOffset]::Now.ToString('o');result='PASS';kind='weather';stored=[bool]$receipt.stored;observed_at=([DateTimeOffset]$receipt.observed_at).ToUniversalTime().ToString('o');output_control_allowed=$false}
     $logRoot = Join-Path $root 'artifacts/owner-monitor'
     New-Item -ItemType Directory -Force -Path $logRoot | Out-Null
     $safeReceipt | ConvertTo-Json -Compress | Add-Content -LiteralPath (Join-Path $logRoot 'weather-publisher.jsonl') -Encoding UTF8
     $safeReceipt | ConvertTo-Json -Compress
 } catch {
+    if ($root) {
+        try {
+            $logRoot = Join-Path $root 'artifacts/owner-monitor'
+            New-Item -ItemType Directory -Force -Path $logRoot | Out-Null
+            [ordered]@{checked_at=[DateTimeOffset]::Now.ToString('o');result='FAILED';kind='weather';output_control_allowed=$false} | ConvertTo-Json -Compress | Add-Content -LiteralPath (Join-Path $logRoot 'weather-publisher.jsonl') -Encoding UTF8
+        } catch { }
+    }
     Write-Output '{"result":"FAILED","kind":"weather","output_control_allowed":false}'
     exit 1
 }
