@@ -1,14 +1,25 @@
 #!/bin/sh
 set -eu
 test "$(id -u)" = 0
+if systemctl is-active --quiet sucha-relay-bench.service; then
+  printf 'STOP_BENCH_BEFORE_INSTALL\n' >&2
+  exit 1
+fi
 cd "$(dirname "$0")"
 test -f /opt/sucha-relay-observer/app/relay-observer.json
 test -f /etc/sucha-irrigation/farmultimate-device-token.secret
 getent group sucha-relay-observer >/dev/null
 getent passwd sucha-relay-bench >/dev/null || useradd --system --no-create-home --shell /usr/sbin/nologin sucha-relay-bench
 install -d -m 755 /opt/sucha-relay-bench
+install -d -m 750 -o root -g sucha-relay-observer /var/lib/sucha-relay-bus
+touch /var/lib/sucha-relay-bus/access.lock
+chown root:sucha-relay-observer /var/lib/sucha-relay-bus/access.lock
+chmod 660 /var/lib/sucha-relay-bus/access.lock
 install -d -m 750 -o root -g sucha-relay-bench /etc/sucha-relay-bench
 install -m 644 agent.py /opt/sucha-relay-bench/agent.py
+install -m 644 bus_lock.py observer_serialized.py /opt/sucha-relay-bench/
+install -d -m 755 /etc/systemd/system/relay-observer.service.d
+install -m 644 observer-serialization.conf /etc/systemd/system/relay-observer.service.d/bench-serialization.conf
 install -m 644 sucha-relay-bench.service /etc/systemd/system/sucha-relay-bench.service
 python3 - <<'PY'
 import hashlib,json,os,grp

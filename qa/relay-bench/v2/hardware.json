@@ -1,12 +1,12 @@
 {
   "mode": "REAL_NO_LOAD_LOCAL_PI_CONTROLLER",
   "cloud_owner_session_test": false,
-  "sixteen_channel_batch_ms": 4215,
+  "sixteen_channel_batch_ms": 4164,
   "simultaneous_on_count": 16,
   "hardware_auto_off_all": true,
-  "individual_off_ms": 490,
+  "individual_off_ms": 480,
   "individual_off_preserves_other_channels": true,
   "global_off_verified": true,
   "result": "MULTICHANNEL_HARDWARE_PASS",
-  "checked_at": "2026-09-06T14:35:13.689Z"
+  "checked_at": "2026-09-06T14:48:07.089Z"
 }

@@ -16,6 +16,7 @@ import http.client
 from urllib.parse import urlsplit
 from datetime import datetime, timezone
 from pathlib import Path
+from bus_lock import serialized_bus
 
 ENDPOINT = "https://flytech-farmultimate-owner-staging.pongnarin-pa.workers.dev/api/relay-bench/poll"
 MODULES = {"RELAY_A": "relay_a", "RELAY_B": "relay_b"}
@@ -62,7 +63,8 @@ class Driver:
     def read_one(self, module, require_normal=True):
         d = self.devices[module]
         try:
-            data, _ = self.reader.read_device(d)
+            with serialized_bus():
+                data, _ = self.reader.read_device(d)
         except Exception:
             raise BenchFault("READBACK_FAILED") from None
         if (self.observer.read_arp_mac(d["ip_address"]) != d["mac_address"] or
@@ -90,7 +92,7 @@ class Driver:
         if turning_on and (deadline is None or time.monotonic() >= deadline):
             raise BenchFault("WRITE_FAILED")
         try:
-            with socket.create_connection((d["ip_address"], d["port"]), timeout=1.5) as stream:
+            with serialized_bus(), socket.create_connection((d["ip_address"], d["port"]), timeout=1.5) as stream:
                 stream.settimeout(1.5)
                 if turning_on and time.monotonic() >= deadline:
                     raise BenchFault("WRITE_FAILED")

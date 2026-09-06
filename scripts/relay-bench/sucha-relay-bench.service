@@ -12,6 +12,7 @@ LoadCredential=farmultimate_device_token:/etc/sucha-irrigation/farmultimate-devi
 ExecStart=/usr/bin/python3 /opt/sucha-relay-bench/agent.py
 StateDirectory=sucha-relay-bench
 StateDirectoryMode=0700
+ReadWritePaths=/var/lib/sucha-relay-bus
 Restart=on-failure
 RestartSec=10
 TimeoutStopSec=25
