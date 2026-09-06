@@ -1,0 +1,27 @@
+[Unit]
+Description=FARMULTIMATE outbound read-only Pi health snapshot
+After=network-online.target water-level-dashboard.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=sucha-dashboard
+Group=sucha-dashboard
+# Read the existing observer snapshot with its existing group permissions.
+SupplementaryGroups=sucha-relay-observer
+LoadCredential=farmultimate_device_token:/etc/sucha-irrigation/farmultimate-device-token.secret
+ExecStart=/usr/bin/python3 /opt/sucha-owner-monitor/publisher.py
+TimeoutStartSec=40
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+# SQLite read-only connections still coordinate WAL readers through -shm files.
+ReadWritePaths=/var/lib/sucha-water-dashboard
+ReadOnlyPaths=/var/lib/sucha-water-dashboard/water-level.sqlite3
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077

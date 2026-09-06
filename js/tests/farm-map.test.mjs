@@ -20,17 +20,19 @@ test("master map contains every owner-confirmed area and five automation zones",
   );
 });
 
-test("E5 follows the compact usable strip and excludes staff accommodation", () => {
-  const e5 = MapDashboard.zoneById("E5");
-  assert.equal(e5.points, "434,245 466,247 448,409 438,407 439,374 435,348 429,325 431,278");
-  assert.match(e5.type, /compact-layout/);
-  assert.equal(e5.x, 447);
-  assert.equal(e5.y, 294);
+test("all map polygons and label centers match the captured Booking reference", () => {
+  const reference = JSON.parse(readFileSync(new URL("../../qa/map-relay/booking-reference.json", import.meta.url), "utf8"));
+  for (const source of reference.zones) {
+    const zone = MapDashboard.zoneById(source.id);
+    assert.equal(zone.points, source.points);
+    assert.equal(zone.x, source.x);
+    assert.equal(zone.y, source.y);
+  }
 });
 
 test("G and J use their corrected physical locations", () => {
-  assert.equal(MapDashboard.zoneById("J").points, "993,115 971,289 699,263 722,89");
-  assert.equal(MapDashboard.zoneById("G").points, "648,663 909,690 778,749 643,739");
+  assert.equal(MapDashboard.zoneById("J").points, "723,88 992,114 971,295 700,267");
+  assert.equal(MapDashboard.zoneById("G").points, "925,672 922,688 778,749 644,741 650,641");
 });
 
 test("map surface is interactive but contains no actuator command", () => {
@@ -50,8 +52,8 @@ test("automation zone details remain unassigned and safe off", () => {
   assert.match(html, /แปลง E5/);
   assert.match(html, /PRE-COMMISSIONING · SAFE_OFF/);
   assert.match(html, /UNASSIGNED/);
-  assert.match(html, /ย่อหลบที่พักพนักงาน/);
-  assert.match(html, /เว้นสระน้ำและพื้นที่พักพนักงาน/);
+  assert.match(html, /ตามผัง Booking ล่าสุด/);
+  assert.match(html, /ยังไม่ใช่ผลสำรวจภาคสนาม/);
   assert.match(html, /คำสั่งอัตโนมัติ<\/dt><dd>ปิด/);
   MapDashboard.reset();
 });

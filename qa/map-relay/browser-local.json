@@ -1,0 +1,47 @@
+{
+  "mode": "LOCAL",
+  "results": [
+    {
+      "device": "phone",
+      "map_zones": 13,
+      "booking_revision": true,
+      "weather_health_routes": true,
+      "relay_jump": true,
+      "login_return": true,
+      "fixture_on": 1,
+      "fixture_off": 15,
+      "stale_unknown": 16,
+      "disabled_controls": 32,
+      "horizontal_overflow": false,
+      "script_errors": 0
+    },
+    {
+      "device": "tablet",
+      "map_zones": 13,
+      "booking_revision": true,
+      "weather_health_routes": true,
+      "relay_jump": true,
+      "login_return": true,
+      "fixture_on": 1,
+      "fixture_off": 15,
+      "stale_unknown": 16,
+      "disabled_controls": 32,
+      "horizontal_overflow": false,
+      "script_errors": 0
+    },
+    {
+      "device": "desktop",
+      "map_zones": 13,
+      "booking_revision": true,
+      "weather_health_routes": true,
+      "relay_jump": true,
+      "login_return": true,
+      "fixture_on": 1,
+      "fixture_off": 15,
+      "stale_unknown": 16,
+      "disabled_controls": 32,
+      "horizontal_overflow": false,
+      "script_errors": 0
+    }
+  ]
+}

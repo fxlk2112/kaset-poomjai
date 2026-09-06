@@ -1,0 +1,4 @@
+scripts/owner-monitor/*.sh text eol=lf
+scripts/owner-monitor/*.py text eol=lf
+scripts/owner-monitor/*.service text eol=lf
+scripts/owner-monitor/*.timer text eol=lf
