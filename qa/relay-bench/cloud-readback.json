@@ -1,0 +1,73 @@
+{
+  "checked_at": "2026-09-06T14:05:25.435Z",
+  "release_commit": "fce08bdf9079c3453d5fd13448e631ed5e53af15",
+  "assets": [
+    {
+      "file": "build.json",
+      "status": 200,
+      "hash_match": true
+    },
+    {
+      "file": "js/relay-panel.js",
+      "status": 200,
+      "hash_match": true
+    },
+    {
+      "file": "js/farm-map.js",
+      "status": 200,
+      "hash_match": true
+    },
+    {
+      "file": "css/style.css",
+      "status": 200,
+      "hash_match": true
+    },
+    {
+      "file": "index.html",
+      "status": 200,
+      "hash_match": true
+    },
+    {
+      "file": "sw.js",
+      "status": 200,
+      "hash_match": true
+    }
+  ],
+  "auth": [
+    {
+      "action": "read",
+      "status": 401,
+      "unauthenticated_blocked": true
+    },
+    {
+      "action": "poll",
+      "status": 401,
+      "unauthenticated_blocked": true
+    }
+  ],
+  "backend_unchanged": true,
+  "states": [
+    {
+      "heartbeat_age_seconds": 3,
+      "session_active": false,
+      "stop_acknowledged": true,
+      "ready": true,
+      "fault": "NONE",
+      "modules": [
+        {
+          "id": "RELAY_A",
+          "channels": 8,
+          "on_count": 0,
+          "all_off": true
+        },
+        {
+          "id": "RELAY_B",
+          "channels": 8,
+          "on_count": 0,
+          "all_off": true
+        }
+      ]
+    }
+  ],
+  "result": "LIVE_READBACK_PASS"
+}

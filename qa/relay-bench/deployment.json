@@ -1,0 +1,7 @@
+{
+  "result": "DEPLOYED",
+  "version": "f73672eb-bb83-4733-bc6e-a8b2f6d203ce",
+  "previous": "6098e543-bcc4-4b74-ae48-03a2fc8d9916",
+  "backend_before": "87ab09f5-1da5-43b3-81c1-30c5a858b11f",
+  "release_commit": "fce08bdf9079c3453d5fd13448e631ed5e53af15"
+}

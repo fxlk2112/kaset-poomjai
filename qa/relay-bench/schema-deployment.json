@@ -1,0 +1,8 @@
+{
+  "checked_at": "2026-09-06T14:02:29.568Z",
+  "result": "SCHEMA_CREATED_READBACK_VERIFIED",
+  "new_tables": 2,
+  "new_indexes": 2,
+  "existing_table_changes": 0,
+  "definition_match": true
+}
