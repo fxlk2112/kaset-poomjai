@@ -57,8 +57,10 @@ test("owner login reads current and history and logout immediately clears both",
   assert.equal(h.sensors.state.history.length, 1);
   assert.equal(h.sensors.state.accessStatus, "AUTHENTICATED");
   assert.match(h.sensors.cardHtml(), /LIVE ·/);
+  h.sensors.state.piHealth.relays = { output_control_allowed: false, modules: [{ id: "RELAY_A" }] };
   h.context.Auth.session = null;
   h.sensors.syncSession();
+  assert.equal(h.sensors.state.piHealth.relays, null);
   assert.equal(h.sensors.state.current, null);
   assert.equal(h.sensors.state.history.length, 0);
   assert.doesNotMatch(h.sensors.cardHtml(), /LIVE ·|1\.230/);

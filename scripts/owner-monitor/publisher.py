@@ -14,8 +14,40 @@ SOURCES = ("PI5_CONTROLLER_01", "PI_ZERO_GATEWAY_01")
 DEFAULT_DATABASE = "/var/lib/sucha-water-dashboard/water-level.sqlite3"
 ENDPOINT = "https://flytech-farmultimate-owner-staging.pongnarin-pa.workers.dev/api/monitor/publish"
 METRICS = "observed_at,quality,temp_c,load1,load5,load15,uptime_s,cpu_count"
+DEFAULT_RELAY_SNAPSHOT = "/var/lib/sucha-relay-observer/latest.json"
 
-def health_snapshot(database=DEFAULT_DATABASE, now=None):
+def relay_snapshot(path=DEFAULT_RELAY_SNAPSHOT):
+    """Project the existing observer file; never poll or write hardware here."""
+    empty = {"observed_at": None, "modules": [], "output_control_allowed": False}
+    try:
+        with Path(path).open("rb") as stream:
+            raw = stream.read(65537)
+        if len(raw) > 65536:
+            return empty
+        data = json.loads(raw)
+        safety = data.get("safety", {})
+        if safety.get("output_control_allowed") is not False or safety.get("actual_output_write_enabled") is not False:
+            return empty
+        observed = data.get("observed_at")
+        if not isinstance(observed, str) or datetime.fromisoformat(observed.replace("Z", "+00:00")).tzinfo is None:
+            return empty
+        modules, seen = [], set()
+        for device in data.get("devices", []):
+            identifier = {"relay_a": "RELAY_A", "relay_b": "RELAY_B"}.get(device.get("id"))
+            if not identifier or identifier in seen:
+                return empty
+            seen.add(identifier)
+            def bits(key):
+                rows = device.get(key)
+                return [v if isinstance(v, bool) else None for v in rows] if isinstance(rows, list) and len(rows) == 8 else [None] * 8
+            modules.append({"id": identifier, "online": device.get("connectivity") is True,
+                "identity_verified": device.get("identity_match") is True, "crc_valid": device.get("crc_valid") is True,
+                "relay_status": bits("relay_status"), "digital_inputs": bits("digital_inputs")})
+        return {"observed_at": observed, "modules": modules, "output_control_allowed": False}
+    except (OSError, ValueError, TypeError, AttributeError):
+        return empty
+
+def health_snapshot(database=DEFAULT_DATABASE, now=None, relay_path=DEFAULT_RELAY_SNAPSHOT):
     now = time.time() if now is None else now
     out = {"generated_at": datetime.fromtimestamp(now, timezone.utc).isoformat(), "output_control_allowed": False, "sources": {}, "history": {}}
     with sqlite3.connect(Path(database).as_uri() + "?mode=ro", uri=True) as db:
@@ -28,6 +60,7 @@ def health_snapshot(database=DEFAULT_DATABASE, now=None):
             # Keep the final real sample in each 15-minute interval; do not average faults away.
             rows = db.execute("SELECT " + METRICS + ",MAX(observed_epoch) AS observed_epoch FROM pi_health_samples WHERE source_id=? AND observed_epoch>=? GROUP BY CAST(observed_epoch/900 AS INTEGER) ORDER BY observed_epoch", (source, now-7*86400)).fetchall()
             out["history"][source] = [dict(row) for row in rows][-700:]
+    out["relays"] = relay_snapshot(relay_path)
     return out
 
 def publish(kind, data, endpoint=ENDPOINT):

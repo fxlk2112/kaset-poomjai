@@ -15,9 +15,29 @@ function metrics(row) {
   if (out.temp_c === null || out.load1 === null) out.quality = "DEGRADED";
   return out;
 }
+// Relay data is observational only. A good readback never grants control.
+export function projectRelays(p, now = Date.now()) {
+  const empty = { observed_at: null, status: "NO_DATA", modules: [], output_control_allowed: false };
+  try {
+    if (!p || p.output_control_allowed !== false || !Array.isArray(p.modules) || p.modules.length > 2) return empty;
+    const observed_at = date(p.observed_at), age = now - Date.parse(observed_at);
+    if (age < -120000) return empty;
+    const seen = new Set();
+    const bits = rows => Array.from({ length: 8 }, (_, i) => Array.isArray(rows) && rows.length === 8 && typeof rows[i] === "boolean" ? rows[i] : null);
+    const modules = p.modules.map(m => {
+      if (!m || !["RELAY_A", "RELAY_B"].includes(m.id) || seen.has(m.id)) throw new Error("INVALID_RELAY");
+      seen.add(m.id);
+      const valid = m.online === true && m.identity_verified === true && m.crc_valid === true;
+      return { id: m.id, online: m.online === true, identity_verified: m.identity_verified === true, crc_valid: m.crc_valid === true,
+        status: age > 180000 ? "STALE" : !valid ? "UNVERIFIED" : "GOOD",
+        relay_status: bits(valid ? m.relay_status : null), digital_inputs: bits(valid ? m.digital_inputs : null) };
+    });
+    return { observed_at, status: !modules.length ? "NO_DATA" : age > 180000 ? "STALE" : modules.every(m => m.status === "GOOD") ? "GOOD" : "DEGRADED", modules, output_control_allowed: false };
+  } catch { return empty; }
+}
 export function projectHealth(p, now = Date.now()) {
   safe(p);
-  const out = { ...safety, generated_at: date(p.generated_at), sources: {}, history: {} };
+  const out = { ...safety, generated_at: date(p.generated_at), sources: {}, history: {}, relays: projectRelays(p.relays, now) };
   for (const id of SOURCES) {
     const source = p.sources?.[id];
     const current = source?.current ? metrics(source.current) : null;

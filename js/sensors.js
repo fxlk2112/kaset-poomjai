@@ -34,7 +34,8 @@
       error: "",
       loadedAt: 0,
       sources: {},
-      history: {}
+      history: {},
+      relays: null
     },
     waterBalance: {
       loading: false,
@@ -80,7 +81,7 @@
       state.accessStatus = token ? "CHECKING" : "SIGNED_OUT";
       weatherGeneration++;
       healthGeneration++;
-      Object.assign(state.piHealth, { loading: false, error: "", loadedAt: 0, sources: {}, history: {} });
+      Object.assign(state.piHealth, { loading: false, error: "", loadedAt: 0, sources: {}, history: {}, relays: null });
       Object.assign(state.weather, { loading: false, error: "", loadedAt: 0, locationKey: "", locationName: "", data: null });
     }
     return token;
@@ -671,7 +672,7 @@
     const health = state.piHealth;
     const token = typeof Auth !== "undefined" && Auth.session && Auth.session.token;
     if (!token) {
-      health.sources = {}; health.history = {}; health.error = "เข้าสู่ระบบด้วยบัญชีเจ้าของเซ็นเซอร์เพื่อดูสุขภาพ Pi";
+      health.sources = {}; health.history = {}; health.relays = null; health.error = "เข้าสู่ระบบด้วยบัญชีเจ้าของเซ็นเซอร์เพื่อดูสุขภาพ Pi";
       return;
     }
     if (health.loading || (!force && health.loadedAt && Date.now() - health.loadedAt < 30000)) return;
@@ -687,10 +688,11 @@
       if (response.status === 401 || response.status === 403) throw new Error("เข้าสู่ระบบด้วยบัญชีเจ้าของเซ็นเซอร์อีกครั้งเพื่อดูสุขภาพ Pi");
       if (!response.ok || !result.ok) throw new Error("ยังรับข้อมูลสุขภาพ Pi จากคลาวด์ไม่ได้ กรุณาลองใหม่");
       health.sources = normalizePiHealthResponse(result.data);
+      health.relays = result.data.relays || null;
       health.history = normalizePiHealthHistory({ output_control_allowed: result.data.output_control_allowed, sources: result.data.history });
     } catch (error) {
       if (generation !== healthGeneration) return;
-      health.sources = {}; health.history = {}; health.error = String(error.message || "โหลดสุขภาพ Pi ไม่สำเร็จ");
+      health.sources = {}; health.history = {}; health.relays = null; health.error = String(error.message || "โหลดสุขภาพ Pi ไม่สำเร็จ");
     } finally {
       if (generation === healthGeneration) { health.loading = false; health.loadedAt = Date.now(); }
     }

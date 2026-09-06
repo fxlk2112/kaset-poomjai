@@ -7,6 +7,8 @@ Wants=network-online.target
 Type=oneshot
 User=sucha-dashboard
 Group=sucha-dashboard
+# Read the existing observer snapshot with its existing group permissions.
+SupplementaryGroups=sucha-relay-observer
 LoadCredential=farmultimate_device_token:/etc/sucha-irrigation/farmultimate-device-token.secret
 ExecStart=/usr/bin/python3 /opt/sucha-owner-monitor/publisher.py
 TimeoutStartSec=40

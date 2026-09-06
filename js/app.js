@@ -455,6 +455,15 @@ App.farmMapSelect = function (id) {
   if (typeof FarmMapDashboard === "undefined") return;
   FarmMapDashboard.select(id);
   render();
+  if (id === "relays") requestAnimationFrame(() => {
+    const panel = document.getElementById("farm-relay-panel");
+    if (panel) { panel.scrollIntoView({ block: "start" }); panel.focus({ preventScroll: true }); }
+  });
+};
+App.farmMapRelays = function () { App.farmMapSelect("relays"); };
+App.openRelayLogin = function () {
+  FarmMapDashboard.select("relays");
+  App.openSensorLogin();
 };
 App.farmMapBack = function () {
   if (typeof FarmMapDashboard === "undefined") return;

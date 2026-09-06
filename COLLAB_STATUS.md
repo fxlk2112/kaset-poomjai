@@ -1,6 +1,15 @@
 # FARMULTIMATE Collaboration Status
 
-## Active task: OWNER-FLYTECH-ENTRY-001
+## Active task: OWNER-MAP-RELAY-001
+
+- Owner SUCHA; branch `pick/map-relay-v1`; source `origin/develop@40721b5` plus deployed owner checkpoint `9bca8d3` (PRs #5–#8 dependencies).
+- Request: update this app's Master Map from the current company Booking page and put relay/switch controls on the same page.
+- Writable lock: `js/farm-map.js`, new `js/relay-panel.js`, relay-only hooks in `js/app.js`, `js/auth.js`, `js/sensors.js`, `index.html`, `css/style.css`, map image, `worker/monitor-contract.js`, read-only `scripts/owner-monitor/` publisher and service, related tests, `qa/map-relay/`, `docs/OWNER_MAP_RELAY.md`, this status file. Commerce stays with Folk.
+- Acceptance: source image and all 13 polygons match the live Booking reference; responsive map navigation; owner-authorized real relay/DI observations without private identities; stale/unknown states remain explicit; controls stay disabled while channel mapping and the Pi controller are missing; full checks, screenshots, deployment dry-run and independent readback.
+- Status: `IN_PROGRESS / ACTUAL_CONTROL_BLOCKED`. Fresh Pi audit finds two healthy read-only 8CH modules; 32 candidate channels remain UNASSIGNED/disabled and no output-controller service is installed. Wiring details requested from Pick. No hardware command will be sent or queued in this release.
+- Safety: `DATA_ONLY / SAFE_OFF`; only frontend and the existing isolated outbound monitor publisher may be updated. No Modbus writes, source-service changes, firewall changes, actuator deployment or protected-branch merge.
+
+## Previous task: OWNER-FLYTECH-ENTRY-001
 
 - Owner SUCHA; branch `pick/flytech-entry-v1`; integration source `origin/develop@40721b5`, prior owner checkpoint `9e80e64` (PRs #5, #6 and #7 dependencies).
 - Owner request and deployment approval: make the Home water-entry card taller, replace its droplet icon with the supplied FLYTECH logo, change the title to `FLYTECH` and subtitle to `Precision AgTech Solutions`, and publish to the existing owner main website.
