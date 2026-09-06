@@ -6,9 +6,9 @@ Owner SUCHA; branch `pick/relay-bench-v1`; source `origin/develop@40721b5` plus 
 
 On 2026-09-06 Pick confirmed that no loads are connected and requested actual relay switching for testing. A bounded no-load controller is prepared on Pi 5. Real testing passed all 16 channels: ON readback, autonomous five-second OFF readback, and an additional early-OFF test. All channels were left OFF. The persistent service is prepared but has not been started/enabled.
 
-Cloud publication is BLOCKED. Automatic approval review rejected the command containing the additive D1 schema application, returning only `blocked by policy`. The schema was not applied and the new Worker/frontend was not deployed. The existing live site remains at release `22acffe`, with its previous locked relay controls.
+Pick granted `APPROVE_RELAY_BENCH_CLOUD` on 2026-09-06, resolving the previous automatic approval rejection. At 21:02 Bangkok, independent readback confirms that both new tables and both indexes exactly match the prepared schema. Existing business tables were not changed. The frontend and Pi service are next in the approved publication sequence.
 
-The remaining approval scope is concrete: create only the two tables and indexes in `worker/relay-bench-schema.sql` in the existing bound database, deploy the prepared owner-main Worker/frontend, start the isolated Pi bench service, and independently verify cloud receipt and owner access. No existing business tables, field mappings, protected branches or original telemetry services are changed.
+The approved scope is limited to the two tables and indexes in `worker/relay-bench-schema.sql` in the existing bound database, the prepared owner-main Worker/frontend, the isolated Pi bench service, and independent verification of cloud receipt and owner access. No existing business tables, field mappings, protected branches or original telemetry services are changed.
 
 ## User flow
 
