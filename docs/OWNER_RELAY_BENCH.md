@@ -1,46 +1,39 @@
-# OWNER-RELAY-BENCH-001 — unloaded relay bench
+# OWNER-RELAY-BENCH-001 — independent unloaded relay channels
 
-Owner SUCHA; branch `pick/relay-bench-v1`; source `origin/develop@40721b5` plus deployed checkpoint `2d2050f` (PRs #5–#9 dependencies).
+Owner SUCHA; branch `pick/relay-bench-v1`; integration source `origin/develop@40721b5`, v1 checkpoint `d42c264` (PR #10, dependencies #5–#9).
 
-## Authorization and current result
+## Current owner correction
 
-On 2026-09-06 Pick confirmed that no loads are connected and requested actual relay switching for testing. A bounded no-load controller is installed on Pi 5. Real testing passed all 16 channels: ON readback, autonomous five-second OFF readback, and an additional early-OFF test. All channels were left OFF. The persistent service is now active/enabled and waits for an authenticated owner to start a no-load session.
-
-Pick granted `APPROVE_RELAY_BENCH_CLOUD` on 2026-09-06, resolving the previous automatic approval rejection. Both new tables and both indexes exactly match the prepared schema. The owner-main frontend is deployed at release `fce08bdf9079c3453d5fd13448e631ed5e53af15`, Worker version `f73672eb-bb83-4733-bc6e-a8b2f6d203ce`. At 21:05 Bangkok, independent readback verified six live asset hashes, an authenticated Pi heartbeat three seconds old, acknowledged stop generation, no active session, both modules ready and all 16 outputs OFF. Requests without owner/device authentication return 401. The backend version remains `87ab09f5-1da5-43b3-81c1-30c5a858b11f`.
-
-The approved scope is limited to the two tables and indexes in `worker/relay-bench-schema.sql` in the existing bound database, the prepared owner-main Worker/frontend, the isolated Pi bench service, and independent verification of cloud receipt and owner access. No existing business tables, field mappings, protected branches or original telemetry services are changed.
+Pick confirmed no connected loads, authorized `APPROVE_RELAY_BENCH_CLOUD`, then reported slow clicks and the one-channel restriction. Protocol v2 addresses that same no-load test: independently operate up to 16 channels, retain fixed five-second hardware timers, provide individual OFF and global OFF, and reduce polling/connection delay. Field irrigation remains disabled. Pi 5 remains the sole hardware writer.
 
 ## User flow
 
-FLYTECH → รีเลย์ / สวิตช์ → existing sensor-owner login → “เริ่มทดสอบ · ยืนยันไม่มีโหลด”. A session lasts 15 minutes. “เปิด 5 วิ” energizes one channel using the relay's own five-second timer. Another channel cannot start while one is queued or active. “ปิด” ends the active pulse early; “ปิดทุกช่อง” requests OFF for both modules; “จบการทดสอบ” also ends the session. These commands await Pi delivery and are not a hardwired emergency stop.
+FLYTECH → รีเลย์ / สวิตช์ → existing owner login → “เริ่มทดสอบ · ยืนยันไม่มีโหลด”. A session lasts 15 minutes. Each “เปิด 5 วิ” affects its channel; other channels remain usable. “ปิด” closes that channel; “ปิดทุกช่อง” closes both modules; “จบการทดสอบ” closes all and disarms. Pending/received states are distinct from real ON/OFF readback. Stop is delivered over the network and is not a hardwired emergency stop. End bench mode before attaching any load.
 
-End and disable bench mode before connecting loads. Pump/valve commissioning and all field-channel assignments remain outside this task.
+## Changes and preserved boundaries
 
-## Implementation and safety
+- Each active channel has its own command and hardware timer. Repeated ON on that channel cannot extend the timer. Cross-tab uniqueness is enforced in D1 and independently on Pi.
+- The additive v2 migration adds an action column and replaces only the dedicated bench queue's global index with a channel index. It disarms/cancels pending bench commands for rollout; all four existing audit rows are preserved. Existing business tables are unchanged.
+- Individual OFF records cancellation of any in-flight ON id, so a delayed ON HTTP request cannot start after OFF completes. Global OFF uses a stop generation; agent restart disarms and cancels queued work.
+- Owner sessions and scoped device credentials retain their existing boundaries. No owner token/session is extracted, fabricated or stored in Git. Browser requests remain on the same public origin.
+- Pi protocol v2 batches up to 16 commands and acknowledgements, prioritizes OFF, and consumes each id durably before writing. Requests expire after eight seconds. ON is never retried automatically.
+- Every ON still verifies device identity, address, firmware, CRC, NORMAL mode and allowed relay states. Unknown ON or a write/readback fault causes OFF recovery. Config identities remain pinned locally.
+- Only fixed five-second flash ON, individual OFF and all-OFF frames are available. No latched ON, toggle or register-configuration builder exists. Manufacturer reference: https://www.waveshare.com/wiki/Modbus_POE_ETH_Relay_(C).
+- HTTPS connections are reused. Active Pi polling has a 50 ms scheduling pause; inactive polling has a one-second pause. Both also include actual I/O time. Worker requests use fewer sequential D1 round trips.
+- Browser pending feedback is immediate, per-channel requests are independent, and readbacks update existing DOM buttons instead of rebuilding the page. Real contact states change only from Pi observations.
+- Old agent protocol versions cannot enable v2 pulses. The original observer, telemetry forwarder, dashboard and monitor timer are untouched.
 
-- Browser → same-origin `/api/relay-bench/*` → existing D1 binding → outbound Pi polling. Pi 5 is the sole writer; no Windows Modbus, inbound listener or firewall changes.
-- Existing owner-session/source authorization is required. The device credential can only poll/acknowledge, not arm or enqueue. Unknown channels, foreign origins, long durations and stale/unverified readings fail closed.
-- `relay_bench_state` stores session/stop generations; `relay_bench_commands` stores auditable outcomes. Conditional insertion and a partial unique index enforce one active pulse across concurrent tabs. Commands expire after eight seconds; ON is never automatically retried.
-- The isolated service uses an exclusive local writer lock and a durable SQLite consume-before-write journal. Agent restart disarms the cloud session and cannot replay a consumed ON.
-- The controller pins the existing observer configuration hash and checks device identity, address, firmware, NORMAL mode and CRC before writes. Private identities and credentials stay on Pi.
-- The only write frames are function 05 at `0x0200 + channel - 1`, value 50, or at `0x00FF`, value 0. No latched ON, toggle, register configuration or field-control frame builder exists.
-- Actual units are Waveshare Modbus POE ETH Relay (C), two 8-output/8-input modules, firmware raw version 100. Manufacturer timer reference: https://www.waveshare.com/wiki/Modbus_POE_ETH_Relay_(C) — flash-on interval is value × 100 ms.
-- Hardware timers bound ON independently of the Pi/cloud/browser. Startup/shutdown and lost connectivity attempt OFF with readback. An unknown device is never written. The original read-only observer is unchanged.
-- The map explicitly labels `NO LOAD TEST` and `FIELD SAFE_OFF`. Existing telemetry's output flag refers to its field-control API; separate bench capability is declared in build metadata and the new bench API.
+## Verification
 
-## Evidence and limitations
+- 114 JavaScript/Worker tests, eight Python fault-path tests, and nine-message relay validation pass.
+- Browser QA at 360×800, 840×1180 and 1280×900 verifies immediate pending feedback, independent channels, individual OFF, automatic OFF, global OFF, delayed-ON cancellation, login/session locks, no horizontal overflow and no script errors. These use actual Worker/SQLite handlers with an explicitly synthetic Pi.
+- Real Pi-controller test: all 16 outputs read ON simultaneously after a 4,215 ms batch, then all automatically read OFF. Individual OFF took 490 ms locally and left the two other active channels unchanged. Global OFF readback passed. See `qa/relay-bench/v2/hardware.json`; this is physical evidence, not a cloud-owner-session test.
+- Baseline read-only timing: both devices read in 236–238 ms. One fresh HTTPS request took 502 ms; subsequent reused requests took 184–203 ms. These isolate local reads/transport and are not browser click-to-relay latency.
+- V2 cloud schema readback passed with all four prior audit rows preserved. V2 publication and final live readback follow in this same task.
+- The browser connector times out. A real owner browser → v2 cloud → Pi ON/OFF timing measurement remains pending; no simulated measurement is presented as real end-to-end timing.
 
-- 111 JavaScript/Worker tests and 9-message relay validation pass.
-- Six Python fault-path tests pass: frame limits, durable dedupe, expired commands, ambiguous writes, stop generations and idle connection recovery.
-- `qa/relay-bench/hardware-self-test.json` records real unloaded ON/automatic-OFF success for all 16 channels and early OFF.
-- Isolated Chrome QA uses actual Worker handlers/SQLite with a labeled synthetic Pi adapter at 360×800, 840×1180 and 1280×900. Session arm, pulse/ACK, automatic OFF, early OFF, disarm and sign-out locks pass without overflow/script errors. Fixture screenshots are not hardware evidence.
-- The deployed assets also pass the same three-viewport browser fixture checks. They validate UI behavior separately from hardware evidence; no fixture request reaches the real command API.
-- Real owner browser → cloud → Pi ON/OFF remains unverified. The browser connector timed out; no owner session was extracted or fabricated. Live Pi polling and stop acknowledgement are verified independently in `qa/relay-bench/cloud-readback.json`. All four original services/timers remain active.
+## Operations and rollback
 
-## Install and rollback
+The isolated `sucha-relay-bench.service` uses its own account, restricted systemd unit, existing scoped credential, exclusive writer lock and durable journal. During rollout it is stopped and outputs verified OFF before changing queue schema and agent. Restart only after the matching v2 Worker is deployed; startup disarms stale sessions.
 
-`scripts/relay-bench/install.sh` prepares the isolated service and runs a read-only preflight; it does not start the writer. Local Pi configuration records the no-load authorization and observer fingerprint. The existing token is supplied through systemd LoadCredential.
-
-The approved publication started the unit with `systemctl enable --now sucha-relay-bench.service`. `scripts/relay-bench/uninstall.sh` stops/disables it and invalidates the local no-load confirmation while retaining the journal/config for audit. Original observer, dashboard, monitor timer and forwarder remain untouched.
-
-Cloud rollback: set only `RELAY_BENCH_ENABLED=false`, or restore frontend version `6098e543-bcc4-4b74-ae48-03a2fc8d9916`. The Pi treats an unavailable API as loss of control and attempts OFF; previously issued hardware pulses still expire independently. Keep the additive tables and audit history; do not delete existing data.
+Safe rollback: stop/disable only `sucha-relay-bench.service` (OFF readback on shutdown), leaving all original telemetry services active. Preserve the queue tables and journal. If the previous frontend version `f73672eb-bb83-4733-bc6e-a8b2f6d203ce` is restored, keep the bench service stopped until matching versions and an empty/disarmed queue are verified; never run a v1 agent against v2 OFF commands. No protected-branch merge, load commissioning, data deletion or firewall change is authorized by this work.

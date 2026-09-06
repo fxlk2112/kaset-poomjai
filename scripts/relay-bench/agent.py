@@ -12,7 +12,8 @@ import struct
 import sys
 import time
 import uuid
-import urllib.request
+import http.client
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -31,13 +32,15 @@ def crc16(data):
             crc = (crc >> 1) ^ 0xA001 if crc & 1 else crc >> 1
     return crc
 
-def write_frame(slave, channel=None):
+def write_frame(slave, channel=None, off=False):
     """None = all OFF; channel 1..8 = fixed five-second hardware flash ON."""
     if type(slave) is not int or not 1 <= slave <= 247:
         raise BenchFault("WRITE_FAILED")
     if channel is not None and (type(channel) is not int or not 1 <= channel <= 8):
         raise BenchFault("WRITE_FAILED")
-    address, value = (0x00FF, 0) if channel is None else (0x0200 + channel - 1, 50)
+    if type(off) is not bool:
+        raise BenchFault("WRITE_FAILED")
+    address, value = (0x00FF, 0) if channel is None else ((channel - 1, 0) if off else (0x0200 + channel - 1, 50))
     frame = struct.pack(">BBHH", slave, 5, address, value)
     return frame + struct.pack("<H", crc16(frame))
 
@@ -75,19 +78,21 @@ class Driver:
     def read_all(self):
         return [self.read_one(module) for module in MODULES]
 
-    def _write(self, module, channel=None, deadline=None):
+    def _write(self, module, channel=None, deadline=None, allowed_on=(), off=False):
         # Fresh identity/mode check before each write; never send to an unknown unit.
-        before = self.read_one(module, require_normal=channel is not None)
-        if channel is not None and any(before["relay_status"]):
+        turning_on = channel is not None and not off
+        before = self.read_one(module, require_normal=turning_on)
+        on = {i + 1 for i, value in enumerate(before["relay_status"]) if value}
+        if turning_on and (channel in on or not on.issubset(set(allowed_on))):
             raise BenchFault("UNEXPECTED_ON")
         d = self.devices[module]
-        frame = write_frame(d["modbus_address"], channel)
-        if channel is not None and (deadline is None or time.monotonic() >= deadline):
+        frame = write_frame(d["modbus_address"], channel, off=off)
+        if turning_on and (deadline is None or time.monotonic() >= deadline):
             raise BenchFault("WRITE_FAILED")
         try:
             with socket.create_connection((d["ip_address"], d["port"]), timeout=1.5) as stream:
                 stream.settimeout(1.5)
-                if channel is not None and time.monotonic() >= deadline:
+                if turning_on and time.monotonic() >= deadline:
                     raise BenchFault("WRITE_FAILED")
                 stream.sendall(frame)
                 header = read_exact(stream, 2)
@@ -97,13 +102,21 @@ class Driver:
         except Exception:
             raise BenchFault("WRITE_FAILED") from None
 
-    def pulse(self, module, channel, deadline):
+    def pulse(self, module, channel, deadline, allowed_on=()):
         if module not in MODULES:
             raise BenchFault("WRITE_FAILED")
-        self._write(module, channel, deadline)
+        self._write(module, channel, deadline, allowed_on)
         after = self.read_one(module)
-        if after["relay_status"] != [i == channel - 1 for i in range(8)]:
+        on = {i + 1 for i, value in enumerate(after["relay_status"]) if value}
+        if channel not in on or not on.issubset(set(allowed_on) | {channel}):
             raise BenchFault("WRITE_FAILED")
+
+    def channel_off(self, module, channel):
+        if module not in MODULES:
+            raise BenchFault("WRITE_FAILED")
+        self._write(module, channel, off=True)
+        if self.read_one(module, require_normal=False)["relay_status"][channel - 1]:
+            raise BenchFault("OFF_UNVERIFIED")
 
     def all_off(self):
         failed = False
@@ -137,78 +150,96 @@ class Journal:
 class Controller:
     def __init__(self, driver, journal):
         self.driver, self.journal = driver, journal
-        self.active = None
-        self.ack = None
+        self.active = {}
+        self.acks = {}
         self.seen_stop_seq = -1
         self.fault = "NONE"
 
+    def finish(self, key, status):
+        command = self.active.get(key)
+        if command:
+            self.journal.record(command["id"], status)
+            self.acks[command["id"]] = {"id": command["id"], "status": status}
+            del self.active[key]
+
     def stop(self):
         self.driver.all_off()
-        if self.active:
-            self.finish("OFF_VERIFIED")
+        for key in list(self.active):
+            self.finish(key, "OFF_VERIFIED")
         self.fault = "NONE"
-
-    def finish(self, status):
-        if self.active:
-            self.ack = {"id": self.active["id"], "status": status}
-            self.journal.record(self.active["id"], status)
-        self.active = None
 
     def snapshot(self):
         rows = self.driver.read_all()
-        on = [(m["id"], i + 1) for m in rows for i, value in enumerate(m["relay_status"]) if value]
-        if self.active:
-            expected = (self.active["module"], self.active["channel"])
-            if not on:
-                self.finish("OFF_VERIFIED")
-            elif on != [expected]:
-                raise BenchFault("UNEXPECTED_ON")
-            elif time.monotonic() > self.active["deadline"] + 1:
-                raise BenchFault("OFF_UNVERIFIED")
-        elif on:
+        on = {(m["id"], i + 1) for m in rows for i, value in enumerate(m["relay_status"]) if value}
+        if not on.issubset(set(self.active)):
             raise BenchFault("UNEXPECTED_ON")
-        return {"observed_at": datetime.now(timezone.utc).isoformat(), "modules": rows, "fault": self.fault}
+        for key, command in list(self.active.items()):
+            if key not in on:
+                self.finish(key, "OFF_VERIFIED")
+            elif time.monotonic() > command["deadline"] + 1:
+                raise BenchFault("OFF_UNVERIFIED")
+        return {"protocol_version": 2, "observed_at": datetime.now(timezone.utc).isoformat(), "modules": rows, "fault": self.fault}
 
     def accept(self, result, elapsed):
         seq = result.get("stop_seq")
         server_now, armed = result.get("server_now", 0), result.get("armed_until", 0)
-        if type(seq) is not int or type(server_now) not in (int, float) or type(armed) not in (int, float):
+        if result.get("protocol_version") != 2 or type(seq) is not int or type(server_now) not in (int, float) or type(armed) not in (int, float):
             raise BenchFault("READBACK_FAILED")
-        # A fault has already been reported in this poll. Re-verify OFF before
-        # clearing it, including an idle connection loss with no new stop epoch.
+        # Clear only ACKs confirmed by the server. Lost responses never replay ON.
+        for identifier in result.get("acknowledged_ids", [])[:32]:
+            self.acks.pop(identifier, None)
         if seq != self.seen_stop_seq or self.fault != "NONE" or (armed <= server_now and self.active):
             self.stop()
             self.seen_stop_seq = seq
             return
-        if armed <= server_now:
-            return
-        command = result.get("command")
-        if not command:
-            return
-        try:
-            if str(uuid.UUID(command["id"])) != command["id"] or command["module"] not in MODULES or type(command["channel"]) is not int or not 1 <= command["channel"] <= 8:
-                raise ValueError()
-            if command["pulse_seconds"] != 5 or command["stop_seq"] != seq or armed - server_now <= 6000 or command["expires_at"] - server_now <= elapsed * 1000 + 1000:
-                raise ValueError()
-        except (KeyError, TypeError, ValueError, AttributeError):
-            raise BenchFault("WRITE_FAILED") from None
-        expires = time.monotonic() + (command["expires_at"] - server_now) / 1000 - elapsed
-        if self.active or self.fault != "NONE":
-            raise BenchFault("UNEXPECTED_ON")
-        if not self.journal.claim(command["id"]):
-            # Durable consume-before-write means a lost ACK never repeats ON.
-            self.ack = {"id": command["id"], "status": "FAILED"}
-            return
-        self.snapshot()
-        self.active = {"id": command["id"], "module": command["module"], "channel": command["channel"], "deadline": time.monotonic() + 5}
-        try:
-            self.driver.pulse(command["module"], command["channel"], expires)
-            self.ack = {"id": command["id"], "status": "ON_VERIFIED"}
-            self.journal.record(command["id"], "ON_VERIFIED")
-        except Exception:
-            self.finish("FAILED")
-            self.driver.all_off()
-            raise
+        commands = result.get("commands", [])
+        if not isinstance(commands, list) or len(commands) > 16:
+            raise BenchFault("READBACK_FAILED")
+        received = time.monotonic()
+        if commands:
+            self.snapshot()
+        # OFF precedes ON when a batch contains both. Each channel has its own timer.
+        for command in sorted(commands, key=lambda c: c.get("action") != "OFF"):
+            try:
+                kind = command["action"]
+                if str(uuid.UUID(command["id"])) != command["id"] or command["module"] not in MODULES or type(command["channel"]) is not int or not 1 <= command["channel"] <= 8 or kind not in ("PULSE", "OFF"):
+                    raise ValueError()
+                spent = elapsed + time.monotonic() - received
+                if command["stop_seq"] != seq or command["expires_at"] - server_now <= spent * 1000 + 100:
+                    raise ValueError()
+                if kind == "PULSE" and (command["pulse_seconds"] != 5 or armed - server_now <= spent * 1000 + 6000):
+                    raise ValueError()
+            except (KeyError, TypeError, ValueError, AttributeError):
+                raise BenchFault("WRITE_FAILED") from None
+            expires = received + (command["expires_at"] - server_now) / 1000 - elapsed
+            key = (command["module"], command["channel"])
+            if not self.journal.claim(command["id"]):
+                self.acks[command["id"]] = {"id": command["id"], "status": "FAILED"}
+                continue
+            try:
+                if kind == "OFF":
+                    self.driver.channel_off(*key)
+                    self.finish(key, "OFF_VERIFIED")
+                    status = "OFF_VERIFIED"
+                else:
+                    if key in self.active or len(self.active) >= 16:
+                        raise BenchFault("UNEXPECTED_ON")
+                    allowed = [ch for module, ch in self.active if module == key[0]]
+                    self.active[key] = {**command, "deadline": time.monotonic() + 5}
+                    self.driver.pulse(*key, expires, allowed_on=allowed)
+                    status = "ON_VERIFIED"
+                self.journal.record(command["id"], status)
+                self.acks[command["id"]] = {"id": command["id"], "status": status}
+            except Exception:
+                self.acks[command["id"]] = {"id": command["id"], "status": "FAILED"}
+                # Always attempt OFF, even if writing the local journal fails.
+                try:
+                    self.journal.record(command["id"], "FAILED")
+                finally:
+                    self.driver.all_off()
+                    self.active.clear()
+                raise
+
 
 def load_driver(config_path):
     cfg = json.loads(Path(config_path).read_text())
@@ -228,19 +259,32 @@ def load_driver(config_path):
     devices = {public: next(d for d in observed["devices"] if d["id"] == local) for public, local in MODULES.items()}
     return Driver(observer, devices)
 
-def poll(payload):
-    token = (Path(os.environ["CREDENTIALS_DIRECTORY"]) / "farmultimate_device_token").read_text().strip()
-    if len(token) != 64 or any(c not in "0123456789abcdefABCDEF" for c in token):
-        raise BenchFault("LOCAL_DISABLED")
-    request = urllib.request.Request(ENDPOINT, data=json.dumps(payload).encode(), method="POST", headers={"Content-Type": "application/json", "Authorization": "Bearer " + token, "User-Agent": "FARMULTIMATE-Relay-Bench/1.0", "Accept": "application/json"})
-    with urllib.request.urlopen(request, timeout=8) as response:
-        raw = response.read(8193)
-    if len(raw) > 8192:
-        raise BenchFault("READBACK_FAILED")
-    result = json.loads(raw)
-    if result.get("ok") is not True:
-        raise BenchFault("READBACK_FAILED")
-    return result["data"]
+class CloudClient:
+    """Reuse HTTPS/TLS between polls. Never replay a failed command request."""
+    def __init__(self):
+        self.connection = None
+        self.target = urlsplit(ENDPOINT)
+    def poll(self, payload):
+        token = (Path(os.environ["CREDENTIALS_DIRECTORY"]) / "farmultimate_device_token").read_text().strip()
+        if len(token) != 64 or any(c not in "0123456789abcdefABCDEF" for c in token):
+            raise BenchFault("LOCAL_DISABLED")
+        if self.connection is None:
+            self.connection = http.client.HTTPSConnection(self.target.hostname, timeout=5)
+        try:
+            self.connection.request("POST", self.target.path, body=json.dumps(payload), headers={"Content-Type": "application/json", "Authorization": "Bearer " + token, "User-Agent": "FARMULTIMATE-Relay-Bench/2.0", "Accept": "application/json"})
+            response = self.connection.getresponse()
+            raw = response.read(8193)
+            if response.status != 200 or len(raw) > 8192:
+                raise BenchFault("READBACK_FAILED")
+            result = json.loads(raw)
+            if result.get("ok") is not True:
+                raise BenchFault("READBACK_FAILED")
+            return result["data"]
+        except Exception:
+            self.connection.close()
+            self.connection = None
+            raise
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -287,22 +331,30 @@ def main():
         signal.signal(signal.SIGTERM, stop_signal)
         signal.signal(signal.SIGINT, stop_signal)
         instance = str(uuid.uuid4())
+        cloud = CloudClient()
+        cycles = 0
         controller.stop()
         print(json.dumps({"result": "STARTED_ALL_OFF_VERIFIED", "mode": "NO_LOAD_BENCH"}), flush=True)
         try:
             while running:
                 interval = 5
                 try:
+                    cycle_start = time.monotonic()
                     snapshot = controller.snapshot()
                     started = time.monotonic()
-                    result = poll({"instance_id": instance, "seen_stop_seq": controller.seen_stop_seq, "snapshot": snapshot, "ack": controller.ack})
+                    result = cloud.poll({"instance_id": instance, "seen_stop_seq": controller.seen_stop_seq, "snapshot": snapshot, "acks": list(controller.acks.values())[:32]})
+                    network_ms = round((time.monotonic() - started) * 1000)
                     controller.accept(result, time.monotonic() - started)
-                    interval = 0.7 if result["armed_until"] > result["server_now"] else 5
+                    interval = 0.05 if result["armed_until"] > result["server_now"] or controller.acks else 1
+                    cycles += 1
+                    if cycles <= 5 or cycles % 60 == 0 or result.get("commands"):
+                        print(json.dumps({"result": "POLL_TIMING", "cloud_ms": network_ms, "cycle_ms": round((time.monotonic() - cycle_start) * 1000), "commands": len(result.get("commands", []))}), flush=True)
                 except Exception as error:
                     controller.fault = str(error) if isinstance(error, BenchFault) else "READBACK_FAILED"
                     try:
                         try:
-                            controller.finish("FAILED")
+                            for key in list(controller.active):
+                                controller.finish(key, "FAILED")
                         finally:
                             driver.all_off()
                     except Exception:

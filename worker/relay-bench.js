@@ -18,30 +18,37 @@ export function projectBenchSnapshot(p, now = Date.now()) {
   const readings = projectRelays({ ...p, output_control_allowed: false }, now);
   const modes = Array.isArray(p?.modules) && p.modules.length === 2 && p.modules.every(m => m.mode_verified === true);
   const fault = ["NONE", "READBACK_FAILED", "IDENTITY_MISMATCH", "MODE_MISMATCH", "UNEXPECTED_ON", "WRITE_FAILED", "OFF_UNVERIFIED", "JOURNAL_FAILED", "LOCAL_DISABLED"].includes(p?.fault) ? p.fault : "READBACK_FAILED";
-  const ready = readings.status === "GOOD" && readings.modules.length === 2 && modes && fault === "NONE" && readings.modules.every(m => [...m.relay_status, ...m.digital_inputs].every(v => typeof v === "boolean"));
-  return { mode: "NO_LOAD_BENCH", observed_at: readings.observed_at, modules: readings.modules, mode_verified: modes, fault, ready };
+  const observed = Date.parse(readings.observed_at);
+  const ready = readings.status === "GOOD" && observed <= now + 2000 && now - observed < 12000 && readings.modules.length === 2 && modes && fault === "NONE" && readings.modules.every(m => [...m.relay_status, ...m.digital_inputs].every(v => typeof v === "boolean"));
+  return { protocol_version: p?.protocol_version === 2 ? 2 : 1, mode: "NO_LOAD_BENCH", observed_at: readings.observed_at, modules: readings.modules, mode_verified: modes, fault, ready };
 }
 const stmt = (db, sql, ...args) => db.prepare(sql).bind(...args);
 async function stateFor(db, user) {
-  await stmt(db, "INSERT OR IGNORE INTO relay_bench_state(user_id) VALUES(?1)", user).run();
-  return stmt(db, "SELECT * FROM relay_bench_state WHERE user_id=?1", user).first();
+  let state = await stmt(db, "SELECT * FROM relay_bench_state WHERE user_id=?1", user).first();
+  if (!state) {
+    await stmt(db, "INSERT OR IGNORE INTO relay_bench_state(user_id) VALUES(?1)", user).run();
+    state = await stmt(db, "SELECT * FROM relay_bench_state WHERE user_id=?1", user).first();
+  }
+  return state;
 }
-async function publicState(db, user, now) {
-  const s = await stateFor(db, user);
+async function publicState(db, user, now, supplied) {
+  const [s, rows] = await Promise.all([supplied || stateFor(db, user), stmt(db, "SELECT id,module,channel,action,status,created_at,updated_at FROM relay_bench_commands WHERE user_id=?1 ORDER BY created_at DESC LIMIT 32", user).all()]);
   const p = JSON.parse(s.snapshot);
-  const fresh = now - s.heartbeat_at < 12000 && now - Date.parse(p.observed_at) < 12000;
-  const last = await stmt(db, "SELECT id,module,channel,status,created_at,updated_at FROM relay_bench_commands WHERE user_id=?1 ORDER BY created_at DESC LIMIT 1", user).first();
-  return { mode: "NO_LOAD_BENCH", field_control_allowed: false, session_active: s.armed_until > now, armed_until: s.armed_until,
-    ready: fresh && p.ready === true && s.seen_stop_seq === s.stop_seq, connected: fresh, stopping: s.seen_stop_seq !== s.stop_seq,
+  const observed = Date.parse(p.observed_at);
+  const fresh = now - s.heartbeat_at < 12000 && observed <= now + 2000 && now - observed < 12000;
+  const compatible = p.protocol_version === 2;
+  return { mode: "NO_LOAD_BENCH", protocol_version: 2, field_control_allowed: false, session_active: s.armed_until > now, armed_until: s.armed_until,
+    ready: fresh && compatible && p.ready === true && s.seen_stop_seq === s.stop_seq, connected: fresh, stopping: s.seen_stop_seq !== s.stop_seq,
     snapshot: fresh ? p : { mode: "NO_LOAD_BENCH", observed_at: p.observed_at || null, modules: [], ready: false, fault: "READBACK_FAILED" },
-    last_command: last, pulse_seconds: 5, session_minutes: 15, server_now: now };
+    commands: rows.results, last_command: rows.results[0] || null, pulse_seconds: 5, session_minutes: 15, server_now: now };
 }
 async function cancel(db, user, now, disarm) {
   await db.batch([
-    stmt(db, `UPDATE relay_bench_commands SET status='CANCELLED',updated_at=?2 WHERE user_id=?1 AND status IN ${ACTIVE}`, user, now),
-    stmt(db, `UPDATE relay_bench_state SET stop_seq=stop_seq+1,armed_until=CASE WHEN ?2=1 THEN 0 ELSE armed_until END WHERE user_id=?1`, user, disarm ? 1 : 0)
+    stmt(db, "UPDATE relay_bench_commands SET status='CANCELLED',updated_at=?2 WHERE user_id=?1 AND status IN " + ACTIVE, user, now),
+    stmt(db, "UPDATE relay_bench_state SET stop_seq=stop_seq+1,armed_until=CASE WHEN ?2=1 THEN 0 ELSE armed_until END WHERE user_id=?1", user, disarm ? 1 : 0)
   ]);
 }
+const validChannel = p => ["RELAY_A", "RELAY_B"].includes(p.module) && Number.isInteger(p.channel) && p.channel >= 1 && p.channel <= 8;
 export async function handleRelayBench(request, env) {
   if (env.RELAY_BENCH_ENABLED !== "true" || !env.MONITOR_DB) return reply({ ok: false, error: "BENCH_DISABLED" }, 503);
   const url = new URL(request.url), action = url.pathname.slice("/api/relay-bench/".length), origin = request.headers.get("Origin");
@@ -61,52 +68,76 @@ export async function handleRelayBench(request, env) {
     }
     if (!owner) return reply({ ok: false, error: "AUTH_DENIED" }, 403);
     const user = owner.user_id;
+    if (action === "pulse" || (action === "off" && (p.module !== undefined || p.channel !== undefined))) {
+      const kind = action === "pulse" ? "PULSE" : "OFF";
+      if (!UUID.test(p.id) || !validChannel(p) || (kind === "PULSE" && p.pulse_seconds !== 5) || (p.cancel_id !== undefined && !UUID.test(p.cancel_id))) return reply({ ok: false, error: "INVALID_PULSE" }, 400);
+      const old = await stmt(db, "SELECT id,module,channel,action,status FROM relay_bench_commands WHERE id=?1 AND user_id=?2", p.id, user).first();
+      if (old) {
+        if (old.module !== p.module || old.channel !== p.channel || old.action !== kind) return reply({ ok: false, error: "ID_REUSED" }, 409);
+        return reply({ ok: true, accepted: old, server_now: now });
+      }
+      const command = { id: p.id, module: p.module, channel: p.channel, action: kind, status: "QUEUED" };
+      if (kind === "OFF") {
+        await db.batch([
+          // Remember an in-flight ON cancelled by this click, even if its HTTP
+          // request arrives after OFF has completed. Never replay that ON id.
+          ...(p.cancel_id ? [stmt(db, "INSERT OR IGNORE INTO relay_bench_commands(id,user_id,module,channel,action,created_at,expires_at,stop_seq,status,updated_at) SELECT ?1,user_id,?3,?4,'PULSE',?5,?5,stop_seq,'CANCELLED',?5 FROM relay_bench_state WHERE user_id=?2", p.cancel_id, user, p.module, p.channel, now)] : []),
+          stmt(db, "UPDATE relay_bench_commands SET status='CANCELLED',updated_at=?4 WHERE user_id=?1 AND module=?2 AND channel=?3 AND status IN " + ACTIVE, user, p.module, p.channel, now),
+          stmt(db, "INSERT INTO relay_bench_commands(id,user_id,module,channel,action,created_at,expires_at,stop_seq,status,updated_at) SELECT ?1,user_id,?3,?4,'OFF',?5,?6,stop_seq,'QUEUED',?5 FROM relay_bench_state WHERE user_id=?2", p.id, user, p.module, p.channel, now, now + COMMAND_MS)
+        ]);
+      } else {
+        const inserted = await stmt(db, `INSERT INTO relay_bench_commands(id,user_id,module,channel,action,created_at,expires_at,stop_seq,status,updated_at)
+          SELECT ?1,user_id,?3,?4,'PULSE',?5,?6,stop_seq,'QUEUED',?5 FROM relay_bench_state
+          WHERE user_id=?2 AND armed_until>?5+6000 AND heartbeat_at>?5-12000 AND seen_stop_seq=stop_seq
+          AND json_extract(snapshot,'$.ready')=1 AND json_extract(snapshot,'$.protocol_version')=2
+          AND NOT EXISTS(SELECT 1 FROM relay_bench_commands WHERE user_id=?2 AND module=?3 AND channel=?4 AND status IN ${ACTIVE})
+          AND (SELECT COUNT(*) FROM relay_bench_commands WHERE user_id=?2 AND action='PULSE' AND created_at>?5-60000)<120`, p.id, user, p.module, p.channel, now, now + COMMAND_MS).run();
+        if (!inserted.meta.changes) return reply({ ok: false, error: "NOT_READY_OR_BUSY" }, 409);
+      }
+      return reply({ ok: true, accepted: command, server_now: now });
+    }
     let s = await stateFor(db, user);
-    // Expired, never-delivered commands cannot be picked up on reconnection.
-    await stmt(db, "UPDATE relay_bench_commands SET status='EXPIRED',updated_at=?2 WHERE user_id=?1 AND status='QUEUED' AND expires_at<=?2", user, now).run();
     if (action === "poll") {
       if (!UUID.test(p.instance_id) || !Number.isInteger(p.seen_stop_seq) || p.seen_stop_seq < -1) return reply({ ok: false, error: "INVALID_POLL" }, 400);
       const snapshot = projectBenchSnapshot(p.snapshot, now);
       if (s.instance_id !== p.instance_id) {
         await cancel(db, user, now, true);
         await stmt(db, "UPDATE relay_bench_state SET instance_id=?2,seen_stop_seq=-1 WHERE user_id=?1", user, p.instance_id).run();
-      } else if (s.armed_until && (s.armed_until <= now || snapshot.fault !== "NONE")) await cancel(db, user, now, true);
-      s = await stateFor(db, user);
+        s = await stateFor(db, user);
+      } else if (s.armed_until && (s.armed_until <= now || snapshot.fault !== "NONE" || snapshot.protocol_version !== 2)) {
+        await cancel(db, user, now, true); s = await stateFor(db, user);
+      }
       const seen = p.seen_stop_seq === s.stop_seq ? p.seen_stop_seq : -1;
-      await stmt(db, "UPDATE relay_bench_state SET heartbeat_at=?2,snapshot=?3,seen_stop_seq=?4 WHERE user_id=?1 AND instance_id=?5", user, now, JSON.stringify(snapshot), seen, p.instance_id).run();
-      if (p.ack && UUID.test(p.ack.id) && ["ON_VERIFIED", "OFF_VERIFIED", "FAILED"].includes(p.ack.status)) {
-        await stmt(db, "UPDATE relay_bench_commands SET status=?3,updated_at=?4 WHERE user_id=?1 AND id=?2 AND claimed_by=?5 AND status IN ('CLAIMED','ON_VERIFIED')", user, p.ack.id, p.ack.status, now, p.instance_id).run();
+      const acks = (Array.isArray(p.acks) ? p.acks : p.ack ? [p.ack] : []).slice(0,32).filter(a => a && UUID.test(a.id) && ["ON_VERIFIED", "OFF_VERIFIED", "FAILED"].includes(a.status));
+      await db.batch([
+        stmt(db, "UPDATE relay_bench_commands SET status='EXPIRED',updated_at=?2 WHERE user_id=?1 AND status='QUEUED' AND expires_at<=?2", user, now),
+        stmt(db, "UPDATE relay_bench_state SET heartbeat_at=?2,snapshot=?3,seen_stop_seq=?4 WHERE user_id=?1 AND instance_id=?5", user, now, JSON.stringify(snapshot), seen, p.instance_id),
+        ...acks.map(a => stmt(db, "UPDATE relay_bench_commands SET status=?3,updated_at=?4 WHERE user_id=?1 AND id=?2 AND claimed_by=?5 AND status IN ('CLAIMED','ON_VERIFIED') AND (action='PULSE' OR ?3!='ON_VERIFIED')", user, a.id, a.status, now, p.instance_id))
+      ]);
+      let commands = [];
+      if (snapshot.ready && snapshot.protocol_version === 2 && seen === s.stop_seq) {
+        // Atomically claim one bounded batch; per-channel unique index prevents overlap.
+        const claimed = await stmt(db, `UPDATE relay_bench_commands SET status='CLAIMED',claimed_by=?2,updated_at=?3
+          WHERE id IN (SELECT c.id FROM relay_bench_commands c JOIN relay_bench_state s ON s.user_id=c.user_id
+          WHERE c.user_id=?1 AND c.status='QUEUED' AND c.expires_at>?3 AND c.stop_seq=s.stop_seq AND s.stop_seq=?4
+          AND s.seen_stop_seq=s.stop_seq AND s.instance_id=?2 AND (c.action='OFF' OR s.armed_until>?3+6000)
+          ORDER BY CASE c.action WHEN 'OFF' THEN 0 ELSE 1 END,c.created_at LIMIT 16)
+          RETURNING id,module,channel,action,expires_at,stop_seq`, user, p.instance_id, now, s.stop_seq).all();
+        commands = claimed.results.map(c => ({ ...c, pulse_seconds: c.action === "PULSE" ? 5 : 0 }));
       }
-      let command = null;
-      if (snapshot.ready && seen === s.stop_seq && s.armed_until > now + 6000) {
-        command = await stmt(db, "UPDATE relay_bench_commands SET status='CLAIMED',claimed_by=?2,updated_at=?3 WHERE id=(SELECT id FROM relay_bench_commands WHERE user_id=?1 AND status='QUEUED' AND expires_at>?3 AND stop_seq=?4 ORDER BY created_at LIMIT 1) RETURNING id,module,channel,expires_at,stop_seq", user, p.instance_id, now, s.stop_seq).first();
-      }
-      return reply({ ok: true, data: { server_now: now, armed_until: s.armed_until, stop_seq: s.stop_seq, command: command ? { ...command, pulse_seconds: 5 } : null } });
+      return reply({ ok: true, data: { protocol_version: 2, server_now: now, armed_until: s.armed_until, stop_seq: s.stop_seq, commands, acknowledged_ids: acks.map(a => a.id) } });
     }
-    if (action === "off" || action === "disarm") await cancel(db, user, now, action === "disarm");
+    if (action === "off" || action === "disarm") {
+      await cancel(db, user, now, action === "disarm");
+      return reply({ ok: true, accepted: { action: action === "off" ? "ALL_OFF" : "DISARM" }, server_now: now });
+    }
     if (action === "arm") {
-      const state = await publicState(db, user, now);
+      const state = await publicState(db, user, now, s);
       const allOff = state.snapshot.modules.length === 2 && state.snapshot.modules.every(m => m.relay_status.every(v => v === false));
       if (p.no_load_confirmed !== true || !state.ready || !allOff) return reply({ ok: false, error: "NO_LOAD_AND_READY_REQUIRED" }, 409);
       await stmt(db, "UPDATE relay_bench_state SET armed_until=?2 WHERE user_id=?1", user, now + SESSION_MS).run();
+      s.armed_until = now + SESSION_MS;
     }
-    if (action === "pulse") {
-      if (!UUID.test(p.id) || !["RELAY_A", "RELAY_B"].includes(p.module) || !Number.isInteger(p.channel) || p.channel < 1 || p.channel > 8 || p.pulse_seconds !== 5) return reply({ ok: false, error: "INVALID_PULSE" }, 400);
-      const old = await stmt(db, "SELECT id,module,channel FROM relay_bench_commands WHERE id=?1 AND user_id=?2", p.id, user).first();
-      if (old) {
-        if (old.module !== p.module || old.channel !== p.channel) return reply({ ok: false, error: "ID_REUSED" }, 409);
-        return reply({ ok: true, data: await publicState(db, user, now) });
-      }
-      // The conditional insert + partial unique index enforce a single active pulse,
-      // even for concurrent tabs. The Pi independently enforces the same boundary.
-      const inserted = await stmt(db, `INSERT INTO relay_bench_commands(id,user_id,module,channel,created_at,expires_at,stop_seq,status,updated_at)
-        SELECT ?1,user_id,?3,?4,?5,?6,stop_seq,'QUEUED',?5 FROM relay_bench_state
-        WHERE user_id=?2 AND armed_until>?5+6000 AND heartbeat_at>?5-12000 AND seen_stop_seq=stop_seq
-        AND json_extract(snapshot,'$.ready')=1
-        AND NOT EXISTS(SELECT 1 FROM relay_bench_commands WHERE user_id=?2 AND status IN ${ACTIVE})
-        AND (SELECT COUNT(*) FROM relay_bench_commands WHERE user_id=?2 AND created_at>?5-60000)<12`, p.id, user, p.module, p.channel, now, now + COMMAND_MS).run();
-      if (!inserted.meta.changes) return reply({ ok: false, error: "NOT_READY_OR_BUSY" }, 409);
-    }
-    return reply({ ok: true, data: await publicState(db, user, now) });
+    return reply({ ok: true, data: await publicState(db, user, now, s) });
   } catch { return reply({ ok: false, error: "BENCH_REQUEST_FAILED" }, 400); }
 }

@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS relay_bench_commands (
   user_id TEXT NOT NULL,
   module TEXT NOT NULL CHECK(module IN ('RELAY_A','RELAY_B')),
   channel INTEGER NOT NULL CHECK(channel BETWEEN 1 AND 8),
+  action TEXT NOT NULL DEFAULT 'PULSE' CHECK(action IN ('PULSE','OFF')),
   created_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL,
   stop_seq INTEGER NOT NULL,
@@ -20,5 +21,5 @@ CREATE TABLE IF NOT EXISTS relay_bench_commands (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS relay_bench_owner_time ON relay_bench_commands(user_id,created_at DESC);
-CREATE UNIQUE INDEX IF NOT EXISTS relay_bench_one_active ON relay_bench_commands(user_id)
+CREATE UNIQUE INDEX IF NOT EXISTS relay_bench_one_active_channel ON relay_bench_commands(user_id,module,channel)
   WHERE status IN ('QUEUED','CLAIMED','ON_VERIFIED');

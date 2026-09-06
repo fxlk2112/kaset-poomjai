@@ -1,0 +1,62 @@
+{
+  "mode": "LOCAL",
+  "results": [
+    {
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "local_worker_and_sqlite": true,
+      "fake_pi": "LABELED_SYNTHETIC_NO_HARDWARE",
+      "signed_out_locked": true,
+      "delayed_on_cancelled": true,
+      "immediate_pending": true,
+      "other_channels_enabled": true,
+      "two_simultaneous_channels": true,
+      "individual_off_preserves_other": true,
+      "arm_pulse_ack_auto_off": true,
+      "early_off": true,
+      "disarm": true,
+      "overflow": false,
+      "script_errors": 0
+    },
+    {
+      "viewport": {
+        "width": 840,
+        "height": 1180
+      },
+      "local_worker_and_sqlite": true,
+      "fake_pi": "LABELED_SYNTHETIC_NO_HARDWARE",
+      "signed_out_locked": true,
+      "delayed_on_cancelled": true,
+      "immediate_pending": true,
+      "other_channels_enabled": true,
+      "two_simultaneous_channels": true,
+      "individual_off_preserves_other": true,
+      "arm_pulse_ack_auto_off": true,
+      "early_off": true,
+      "disarm": true,
+      "overflow": false,
+      "script_errors": 0
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "local_worker_and_sqlite": true,
+      "fake_pi": "LABELED_SYNTHETIC_NO_HARDWARE",
+      "signed_out_locked": true,
+      "delayed_on_cancelled": true,
+      "immediate_pending": true,
+      "other_channels_enabled": true,
+      "two_simultaneous_channels": true,
+      "individual_off_preserves_other": true,
+      "arm_pulse_ack_auto_off": true,
+      "early_off": true,
+      "disarm": true,
+      "overflow": false,
+      "script_errors": 0
+    }
+  ]
+}
