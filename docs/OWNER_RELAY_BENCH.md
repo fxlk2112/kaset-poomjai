@@ -4,9 +4,9 @@ Owner SUCHA; branch `pick/relay-bench-v1`; source `origin/develop@40721b5` plus 
 
 ## Authorization and current result
 
-On 2026-09-06 Pick confirmed that no loads are connected and requested actual relay switching for testing. A bounded no-load controller is prepared on Pi 5. Real testing passed all 16 channels: ON readback, autonomous five-second OFF readback, and an additional early-OFF test. All channels were left OFF. The persistent service is prepared but has not been started/enabled.
+On 2026-09-06 Pick confirmed that no loads are connected and requested actual relay switching for testing. A bounded no-load controller is installed on Pi 5. Real testing passed all 16 channels: ON readback, autonomous five-second OFF readback, and an additional early-OFF test. All channels were left OFF. The persistent service is now active/enabled and waits for an authenticated owner to start a no-load session.
 
-Pick granted `APPROVE_RELAY_BENCH_CLOUD` on 2026-09-06, resolving the previous automatic approval rejection. At 21:02 Bangkok, independent readback confirms that both new tables and both indexes exactly match the prepared schema. Existing business tables were not changed. The frontend and Pi service are next in the approved publication sequence.
+Pick granted `APPROVE_RELAY_BENCH_CLOUD` on 2026-09-06, resolving the previous automatic approval rejection. Both new tables and both indexes exactly match the prepared schema. The owner-main frontend is deployed at release `fce08bdf9079c3453d5fd13448e631ed5e53af15`, Worker version `f73672eb-bb83-4733-bc6e-a8b2f6d203ce`. At 21:05 Bangkok, independent readback verified six live asset hashes, an authenticated Pi heartbeat three seconds old, acknowledged stop generation, no active session, both modules ready and all 16 outputs OFF. Requests without owner/device authentication return 401. The backend version remains `87ab09f5-1da5-43b3-81c1-30c5a858b11f`.
 
 The approved scope is limited to the two tables and indexes in `worker/relay-bench-schema.sql` in the existing bound database, the prepared owner-main Worker/frontend, the isolated Pi bench service, and independent verification of cloud receipt and owner access. No existing business tables, field mappings, protected branches or original telemetry services are changed.
 
@@ -34,12 +34,13 @@ End and disable bench mode before connecting loads. Pump/valve commissioning and
 - Six Python fault-path tests pass: frame limits, durable dedupe, expired commands, ambiguous writes, stop generations and idle connection recovery.
 - `qa/relay-bench/hardware-self-test.json` records real unloaded ON/automatic-OFF success for all 16 channels and early OFF.
 - Isolated Chrome QA uses actual Worker handlers/SQLite with a labeled synthetic Pi adapter at 360×800, 840×1180 and 1280×900. Session arm, pulse/ACK, automatic OFF, early OFF, disarm and sign-out locks pass without overflow/script errors. Fixture screenshots are not hardware evidence.
-- Real owner browser → cloud → Pi actuation remains unverified. The browser connector timed out; no owner session was extracted or fabricated. Existing live frontend/backend are unchanged.
+- The deployed assets also pass the same three-viewport browser fixture checks. They validate UI behavior separately from hardware evidence; no fixture request reaches the real command API.
+- Real owner browser → cloud → Pi ON/OFF remains unverified. The browser connector timed out; no owner session was extracted or fabricated. Live Pi polling and stop acknowledgement are verified independently in `qa/relay-bench/cloud-readback.json`. All four original services/timers remain active.
 
 ## Install and rollback
 
 `scripts/relay-bench/install.sh` prepares the isolated service and runs a read-only preflight; it does not start the writer. Local Pi configuration records the no-load authorization and observer fingerprint. The existing token is supplied through systemd LoadCredential.
 
-After cloud approval and publication, start the prepared unit with `systemctl enable --now sucha-relay-bench.service`. `scripts/relay-bench/uninstall.sh` stops/disables it and invalidates the local no-load confirmation while retaining the journal/config for audit. Original observer, dashboard, monitor timer and forwarder remain untouched.
+The approved publication started the unit with `systemctl enable --now sucha-relay-bench.service`. `scripts/relay-bench/uninstall.sh` stops/disables it and invalidates the local no-load confirmation while retaining the journal/config for audit. Original observer, dashboard, monitor timer and forwarder remain untouched.
 
 Cloud rollback: set only `RELAY_BENCH_ENABLED=false`, or restore frontend version `6098e543-bcc4-4b74-ae48-03a2fc8d9916`. The Pi treats an unavailable API as loss of control and attempts OFF; previously issued hardware pulses still expire independently. Keep the additive tables and audit history; do not delete existing data.
