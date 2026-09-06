@@ -34,7 +34,7 @@
   }
 
   function normalizeSelection(id) {
-    return id === DEFAULT_SELECTION || zoneById(id) ? id : DEFAULT_SELECTION;
+    return [DEFAULT_SELECTION, "health", "forecast"].includes(id) || zoneById(id) ? id : DEFAULT_SELECTION;
   }
 
   function select(id) {
@@ -46,7 +46,7 @@
   }
 
   function isMapSurface() {
-    return state.selection !== "pond";
+    return !["pond", "health", "forecast"].includes(state.selection);
   }
 
   function sensorSummary() {
@@ -89,6 +89,7 @@
       <article><span>เอาต์พุตทำงาน</span><strong>0</strong><small>จาก 32 ช่อง</small></article>
     </div>
     <button class="farm-map-primary" type="button" onclick="App.farmMapSelect('pond')">เปิดข้อมูลสระน้ำ</button>
+    <div class="sensor-monitor-nav"><button onclick="App.farmMapSelect('health')">สุขภาพ Pi 5 / Pi Zero</button><button onclick="App.farmMapSelect('forecast')">พยากรณ์อากาศ 10 โมเดล</button></div>
     <div class="farm-map-contract">
       <b>Pi 5 · SINGLE WRITER</b>
       <span>PoE Relay ยังไม่ผูกช่องจริง · Output disabled</span>
@@ -186,6 +187,7 @@
   }
 
   function cardHtml() {
+    if (["health", "forecast"].includes(state.selection) && root.SensorTelemetry) return root.SensorTelemetry.monitorHtml(state.selection);
     if (state.selection === "pond" && root.SensorTelemetry) {
       return root.SensorTelemetry.cardHtml({
         backAction: "App.farmMapBack()",

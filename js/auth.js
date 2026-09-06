@@ -275,7 +275,7 @@ async function coreLogin(email, pw) {
   if (Auth._sensorLoginReturn) {
     Auth._sensorLoginReturn = false;
     route.view = "iot";
-    if (typeof FarmMapDashboard !== "undefined") FarmMapDashboard.select("pond");
+    if (typeof FarmMapDashboard !== "undefined") FarmMapDashboard.select(Auth._sensorLoginPanel || "pond");
   }
   render();
   toast("ล็อกอินสำเร็จ");
@@ -301,6 +301,7 @@ async function coreRegister(email, pw, name) {
 
 /* ปุ่มในหน้าตั้งค่า (การ์ด au_*) */
 App.openSensorLogin = function () {
+  Auth._sensorLoginPanel = typeof FarmMapDashboard !== "undefined" && FarmMapDashboard.state.selection === "health" ? "health" : "pond";
   Auth._sensorLoginReturn = true;
   App.nav("settings");
   document.getElementById("au_email")?.focus();
@@ -308,7 +309,7 @@ App.openSensorLogin = function () {
 App.cancelSensorLogin = function () {
   Auth._sensorLoginReturn = false;
   App.nav("iot");
-  App.farmMapSelect("pond");
+  App.farmMapSelect(Auth._sensorLoginPanel || "pond");
 };
 App.authLogin = async function () {
   const email = (document.getElementById("au_email")?.value || "").trim();

@@ -4766,6 +4766,15 @@ body.view-iot-digital-twin .view {
 .digital-sensor-tools { justify-content: space-between; }
 .digital-sensor-tools button:disabled, .digital-history-controls button:disabled { opacity: .65; cursor: wait; }
 .digital-history-controls button[aria-pressed="true"] { background: #d8ffff; color: #153c3e; }
+.sensor-monitor-page { padding: 18px 14px; }
+.sensor-monitor-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.sensor-monitor-nav button { min-height: 44px; padding: 9px 13px; border: 1px solid #71c9c9; border-radius: 10px; background: #16484b; color: #e1ffff; font: inherit; cursor: pointer; }
+.sensor-monitor-nav button[aria-pressed="true"] { background: #d8ffff; color: #153c3e; }
+.sensor-monitor-nav button:focus-visible { outline: 2px solid #e1ffff; outline-offset: 3px; }
+.sensor-monitor-heading { margin: 24px 0; }
+.sensor-monitor-heading h1 { font-size: clamp(1.35rem, 5vw, 2rem); margin: 8px 0; }
+.sensor-monitor-heading p { color: #bfdcda; line-height: 1.7; }
+.sensor-monitor-page .digital-health-panel { margin: 0; }
 
 .digital-hero {
   position: relative;

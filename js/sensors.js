@@ -14,6 +14,7 @@
   let sessionToken = "";
   let requestGeneration = 0;
   let weatherGeneration = 0;
+  let healthGeneration = 0;
   const state = {
     sourceId: SOURCE_ID,
     loading: false,
@@ -78,6 +79,8 @@
       state.loading = false;
       state.accessStatus = token ? "CHECKING" : "SIGNED_OUT";
       weatherGeneration++;
+      healthGeneration++;
+      Object.assign(state.piHealth, { loading: false, error: "", loadedAt: 0, sources: {}, history: {} });
       Object.assign(state.weather, { loading: false, error: "", loadedAt: 0, locationKey: "", locationName: "", data: null });
     }
     return token;
@@ -452,9 +455,12 @@
     weatherModels.error = "";
     try {
       const version = Math.floor(Date.now() / WEATHER_MODELS_REFRESH_MS);
-      const response = await withDeadline(() => request("data/weather-models.json?v=" + version, { method: "GET", cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }));
+      const cloudUrl = root.FarmUltimateRuntime && root.FarmUltimateRuntime.weatherModelsApiUrl;
+      const response = await withDeadline(() => request(cloudUrl || "data/weather-models.json?v=" + version, { method: "GET", cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }));
       if (!response || !response.ok) throw new Error("ยังไม่มี snapshot พยากรณ์หลายโมเดล");
-      weatherModels.data = normalizeWeatherModelsSnapshot(await withDeadline(() => response.json()));
+      const payload = await withDeadline(() => response.json());
+      if (cloudUrl && !payload.ok) throw new Error("ยังรับชุดพยากรณ์ล่าสุดจากคลาวด์ไม่ได้");
+      weatherModels.data = normalizeWeatherModelsSnapshot(cloudUrl ? payload.data : payload);
       weatherModels.loadedAt = Date.now();
       return weatherModels.data;
     } catch (error) {
@@ -636,6 +642,7 @@
 
   async function refreshLocalPiHealth(force) {
     const runtime = root.FarmUltimateRuntime;
+    if (runtime && runtime.hasCloudPiHealth) return refreshCloudPiHealth(force);
     if (!runtime || !runtime.hasLocalPiHealth || !runtime.piHealthApiUrl || typeof fetch !== "function") return;
     const health = state.piHealth;
     if (health.loading) return;
@@ -657,6 +664,35 @@
     } finally {
       health.loadedAt = Date.now();
       health.loading = false;
+    }
+  }
+
+  async function refreshCloudPiHealth(force) {
+    const health = state.piHealth;
+    const token = typeof Auth !== "undefined" && Auth.session && Auth.session.token;
+    if (!token) {
+      health.sources = {}; health.history = {}; health.error = "เข้าสู่ระบบด้วยบัญชีเจ้าของเซ็นเซอร์เพื่อดูสุขภาพ Pi";
+      return;
+    }
+    if (health.loading || (!force && health.loadedAt && Date.now() - health.loadedAt < 30000)) return;
+    const generation = ++healthGeneration;
+    health.loading = true; health.error = "";
+    try {
+      const response = await withDeadline(() => fetch(root.FarmUltimateRuntime.apiUrl + "/monitor/read", {
+        method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        body: JSON.stringify({ token, hours: state.hours })
+      }));
+      const result = await withDeadline(() => response.json());
+      if (generation !== healthGeneration) return;
+      if (response.status === 401 || response.status === 403) throw new Error("เข้าสู่ระบบด้วยบัญชีเจ้าของเซ็นเซอร์อีกครั้งเพื่อดูสุขภาพ Pi");
+      if (!response.ok || !result.ok) throw new Error("ยังรับข้อมูลสุขภาพ Pi จากคลาวด์ไม่ได้ กรุณาลองใหม่");
+      health.sources = normalizePiHealthResponse(result.data);
+      health.history = normalizePiHealthHistory({ output_control_allowed: result.data.output_control_allowed, sources: result.data.history });
+    } catch (error) {
+      if (generation !== healthGeneration) return;
+      health.sources = {}; health.history = {}; health.error = String(error.message || "โหลดสุขภาพ Pi ไม่สำเร็จ");
+    } finally {
+      if (generation === healthGeneration) { health.loading = false; health.loadedAt = Date.now(); }
     }
   }
 
@@ -842,14 +878,17 @@
 
   function piHealthHtml() {
     const runtime = root.FarmUltimateRuntime;
-    if (!runtime || !runtime.hasLocalPiHealth) return "";
+    if (!runtime || (!runtime.hasLocalPiHealth && !runtime.hasCloudPiHealth)) return "";
     const health = state.piHealth;
+    const sources = Object.values(health.sources);
+    const allGood = sources.length === 2 && sources.every(source => source.status === "GOOD");
     const stateLabel = health.loading && !Object.keys(health.sources).length
-      ? "กำลังโหลด" : health.error ? "เชื่อมต่อ Pi 5 ไม่สำเร็จ" : "LIVE · DATA ONLY";
-    const stateClass = health.error ? "fault" : "good";
+      ? "กำลังโหลด" : health.error ? "รอตรวจการเชื่อมต่อ" : allGood ? "ข้อมูลสด · DATA ONLY" : "ตรวจเวลาอัปเดต";
+    const stateClass = health.error ? "fault" : allGood ? "good" : "warn";
     return `<section class="digital-health-panel" aria-label="สุขภาพ Raspberry Pi">
       <header class="digital-health-title"><div><span>ระบบประมวลผล</span><h2>Pi Health</h2></div><b class="${stateClass}">${safeText(stateLabel)}</b></header>
       ${health.error ? `<div class="digital-health-error">${safeText(health.error)}</div>` : ""}
+      ${health.error && health.error.includes("เข้าสู่ระบบ") ? `<button class="btn btn-primary" onclick="App.openSensorLogin()">เข้าสู่ระบบเพื่อดูสุขภาพ Pi</button>` : ""}
       <div class="digital-health-nodes">
         ${piHealthSourceHtml("PI5_CONTROLLER_01", "Raspberry Pi 5", "Controller")}
         ${piHealthSourceHtml("PI_ZERO_GATEWAY_01", "Raspberry Pi Zero", "Sensor Gateway")}
@@ -859,6 +898,17 @@
         <section><h3>โหลด 1 นาที</h3><canvas id="piHealthLoadChart" aria-label="กราฟโหลด Pi 5 และ Pi Zero"></canvas></section>
       </div>
       <footer><span><i class="pi5"></i>Pi 5</span><span><i class="pizero"></i>Pi Zero</span><b>รีเฟรชทุก 1 นาที · อ่านอย่างเดียว</b></footer>
+    </section>`;
+  }
+
+  function monitorHtml(panel) {
+    const health = panel === "health";
+    return `<section class="sensor-digital-twin sensor-monitor-page">
+      <div class="sensor-monitor-nav"><button onclick="App.farmMapBack()">← แผนที่ฟาร์ม</button><button onclick="App.farmMapSelect('pond')">ระดับน้ำ</button><button onclick="App.farmMapSelect('health')" aria-pressed="${health}">สุขภาพ Pi</button><button onclick="App.farmMapSelect('forecast')" aria-pressed="${!health}">พยากรณ์อากาศ</button></div>
+      <header class="sensor-monitor-heading"><span>FARMULTIMATE</span><h1>${health ? "สุขภาพ Pi 5 และ Pi Zero" : "พยากรณ์อากาศ 10 โมเดล"}</h1><p>${health ? "อุณหภูมิ โหลดระบบ และเวลาทำงาน จากเครื่องจริง" : "ข้อมูลจากตัวเก็บพยากรณ์เดิม · แยกจากสถานีตรวจวัดจริง"}</p></header>
+      <div class="digital-sensor-tools"><span>${health ? "ตรวจข้อมูลทุก 1 นาที" : "เก็บพยากรณ์ทุก 3 ชั่วโมง · ตรวจชุดใหม่ทุก 5 นาที"}</span><button onclick="App.refreshMainWaterSensor()" ${state.loading ? "disabled" : ""}>รีเฟรชข้อมูล</button></div>
+      ${health ? `<div class="digital-history-controls"><button onclick="App.setSensorHistoryHours(24)" aria-pressed="${state.hours === 24}" ${state.loading ? "disabled" : ""}>24 ชั่วโมง</button><button onclick="App.setSensorHistoryHours(168)" aria-pressed="${state.hours === 168}" ${state.loading ? "disabled" : ""}>7 วัน</button></div>${piHealthHtml()}` : weatherModelsHtml()}
+      <footer class="digital-footer"><span>ข้อมูลเก่าจะแสดงสถานะตามเวลาอัปเดต</span><b>DATA ONLY · SAFE_OFF</b></footer>
     </section>`;
   }
 
@@ -1084,6 +1134,7 @@
       </div>
 
       <div class="digital-panel">
+        <div class="sensor-monitor-nav"><button onclick="App.farmMapSelect('health')">สุขภาพ Pi 5 / Pi Zero</button><button onclick="App.farmMapSelect('forecast')">พยากรณ์อากาศ</button></div>
         ${errorNote}
         <div class="digital-sensor-tools"><span>ตรวจข้อมูลทุก 1 นาที</span><button type="button" onclick="App.refreshMainWaterSensor()" ${state.loading ? "disabled" : ""}>${state.loading ? "กำลังโหลด…" : "รีเฟรชข้อมูล"}</button></div>
         <div class="digital-primary-grid">
@@ -1385,6 +1436,7 @@
     weatherHtml,
     weatherModelsHtml,
     piHealthHtml,
+    monitorHtml,
     waterBalanceHtml,
     mountChart,
     setHours

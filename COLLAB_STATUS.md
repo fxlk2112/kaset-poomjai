@@ -1,6 +1,16 @@
 # FARMULTIMATE Collaboration Status
 
-## Active task: OWNER-SENSOR-001
+## Active task: OWNER-MONITOR-001
+
+- Owner SUCHA; branch `pick/owner-health-weather-v1`; integration source `origin/develop@40721b5`, existing owner release checkpoint `2b4658a` (PRs #5 and #6 dependencies).
+- Request: publish the existing Pi 5/Pi Zero health dashboard and existing 10-model forecast on the same owner main website, with ongoing refresh.
+- Scope lock: monitor-only Worker modules and new snapshot table, owner frontend Worker/config, `js/sensors.js`, sensor login-return hook in `js/auth.js`, dashboard navigation in `js/app.js`/`js/farm-map.js`, `js/runtime-config.js`, `css/style.css`, related tests, scripts/owner-monitor publisher/install/uninstall, forecast snapshot, QA evidence, docs and status.
+- Deployment scope: same owner main Worker; additive snapshot storage only; an outbound-only Pi health publisher and a Windows task forwarding the existing sanitized forecast export. Existing sensor API/ingestion, source services, field settings and Commerce stay unchanged.
+- Acceptance: owner-authorized health reads, sanitized projection only, bounded payloads and polling, stale state based on observation timestamps, verified real health/forecast delivery, desktop/mobile QA, full checks, independent cloud readback and rollback/uninstall path.
+- `DATA_ONLY / SAFE_OFF / NO_HARDWARE_CONTROL`; no inbound Pi listener or firewall change, actuator command, reboot, existing-record alteration or protected-branch merge.
+- Status: `PREPARED`; 99 tests and relay 9 messages pass; desktop/mobile UI QA, Pi read-only dry-run, binding type generation and Wrangler dry-run pass.
+
+## Previous task: OWNER-SENSOR-001
 
 - Owner: SUCHA; branch: `pick/owner-sensor-page-v1`.
 - Source: `origin/develop@40721b5bfa71670ea97aba0d247e5616277c018a` plus deployed owner gateway/tooling checkpoint `3f601723feef2dc9184425fd6861594617f45d82` (PR #5 dependency).
