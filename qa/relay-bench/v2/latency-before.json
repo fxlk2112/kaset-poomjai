@@ -1,0 +1,51 @@
+{
+  "checked_at": "2026-09-06T14:18:52.418Z",
+  "pi": {
+    "read_all_ms": [
+      238,
+      236,
+      238
+    ],
+    "https_unauthenticated_ms": [
+      {
+        "ms": 502,
+        "status": 401
+      },
+      {
+        "ms": 203,
+        "status": 401
+      },
+      {
+        "ms": 184,
+        "status": 401
+      }
+    ],
+    "modbus_writes": 0
+  },
+  "recent_commands": [
+    {
+      "module": "RELAY_A",
+      "channel": 4,
+      "status": "OFF_VERIFIED",
+      "last_status_ms": 7451
+    },
+    {
+      "module": "RELAY_A",
+      "channel": 3,
+      "status": "CANCELLED",
+      "last_status_ms": 6919
+    },
+    {
+      "module": "RELAY_A",
+      "channel": 2,
+      "status": "OFF_VERIFIED",
+      "last_status_ms": 9009
+    },
+    {
+      "module": "RELAY_A",
+      "channel": 1,
+      "status": "CANCELLED",
+      "last_status_ms": 9786
+    }
+  ]
+}

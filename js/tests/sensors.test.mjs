@@ -317,7 +317,7 @@ test("dashboard loads and renders 10-model snapshot with GET only and no accurac
   assert.match(requestedUrl, /^data\/weather-models\.json\?v=/);
   assert.equal(requestedOptions.method, "GET");
   assert.equal(requestedOptions.cache, "no-store");
-  const html = Sensors.weatherModelsHtml();
+  const html = Sensors.weatherModelsHtml(Date.parse("2026-08-31T17:00:00+07:00"));
   assert.match(html, /พยากรณ์หลายโมเดล/);
   assert.match(html, /10 โมเดล · FORECAST ONLY/);
   assert.match(html, /ยังไม่จัดอันดับความแม่น/);
@@ -336,7 +336,7 @@ test("dashboard loads and renders 10-model snapshot with GET only and no accurac
 
 test("forecast rain window shows an explicit no-consensus state", () => {
   Sensors.state.weatherModels.data = Sensors.normalizeWeatherModelsSnapshot(weatherModelsPayload({ rain_windows: [] }));
-  const html = Sensors.weatherModelsHtml();
+  const html = Sensors.weatherModelsHtml(Date.parse("2026-08-31T17:00:00+07:00"));
   assert.match(html, /ยังไม่มีอย่างน้อย 2 โมเดลเห็นตรงกัน/);
   Sensors.state.weatherModels.data = null;
 });
@@ -350,25 +350,24 @@ test("out-of-range status explains low and high sensor signals", () => {
   assert.equal(Sensors.statusMeta("OUT_OF_RANGE", null).label, "ค่านอกช่วงตรวจวัด");
 });
 
-test("reservoir artwork follows trusted capacity in seven calibrated visual levels", () => {
-  const levels = [
-    Sensors.reservoirVisualState({ capacity_percent: 1 }, "GOOD"),
-    Sensors.reservoirVisualState({ capacity_percent: 13.1 }, "GOOD"),
-    Sensors.reservoirVisualState({ capacity_percent: 24 }, "GOOD"),
-    Sensors.reservoirVisualState({ capacity_percent: 51 }, "GOOD"),
-    Sensors.reservoirVisualState({ capacity_percent: 74 }, "GOOD"),
-    Sensors.reservoirVisualState({ capacity_percent: 91 }, "STALE"),
-    Sensors.reservoirVisualState({ capacity_percent: 118 }, "GOOD")
-  ];
-  assert.deepEqual(levels.map(item => item.band), [0, 10, 25, 50, 75, 100, 120]);
-  assert.match(levels[1].image, /reservoir-level-010-v1\.png$/);
-  const medium = levels[3];
-  const high = levels[5];
-  const overfull = levels[6];
-  assert.match(medium.image, /reservoir-level-050-v1\.png$/);
-  assert.equal(high.className, "is-stale");
-  assert.match(overfull.image, /reservoir-level-120-v1\.png$/);
-  assert.match(overfull.className, /is-high-water/);
+test("reservoir illustration reaches the foreground pier at 33 percent and moves continuously", () => {
+  const reading = { capacity_percent: 32.8, depth_m: 1.445, volume_m3: 262.7 };
+  const before = { ...reading };
+  const visual = Sensors.reservoirVisualState(reading, "STALE");
+  assert.deepEqual(reading, before);
+  assert.equal(visual.capacity, 32.8);
+  assert.equal(visual.className, "is-stale");
+  assert.match(visual.nextImage, /reservoir-level-075-v1\.png$/);
+  assert.ok(visual.blend > .98 && visual.blend < 1);
+  assert.match(Sensors.reservoirVisualState({ capacity_percent: 33 }, "GOOD").image, /reservoir-level-075-v1\.png$/);
+  let previous = -1;
+  for (let percent = 0; percent <= 120; percent += .1) {
+    const frame = Sensors.reservoirVisualState({ capacity_percent: percent }, "GOOD");
+    assert.ok(frame.visualLevel > previous);
+    assert.ok(frame.blend >= 0 && frame.blend < 1);
+    previous = frame.visualLevel;
+  }
+  assert.match(Sensors.reservoirVisualState({ capacity_percent: 118 }, "GOOD").className, /is-high-water/);
 });
 
 test("fault telemetry never presents an invented zero-water image", () => {
@@ -386,7 +385,7 @@ test("digital twin surface remains telemetry-only", () => {
   assert.match(html, /App\.nav\('home'\)/);
   assert.match(html, /DATA ONLY · SAFE_OFF/);
   assert.match(html, /data-water-band=/);
-  assert.match(html, /ระดับในภาพ/);
+  assert.match(html, /ภาพประกอบระดับน้ำ/);
   assert.doesNotMatch(html, /เปิดปั๊ม|เปิดวาล์ว|สั่งรีเลย์/);
 });
 

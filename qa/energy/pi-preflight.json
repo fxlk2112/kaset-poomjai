@@ -1,0 +1,11 @@
+{
+  "result": "PASS",
+  "energy_status": "INGEST_NOT_READY",
+  "energy_sources": 0,
+  "health_sources": 2,
+  "relay_modules": 2,
+  "payload_bytes": 280145,
+  "output_control_allowed": false,
+  "candidate_sha256": "a5bbfd57bfc9646e5a15ba4a8a6f08c4dd57d645aabd9babebcc31d9df445a1b",
+  "installed_source_matches_checkpoint": true
+}

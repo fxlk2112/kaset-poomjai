@@ -1,0 +1,71 @@
+{
+  "checked_at": "2026-09-07T11:32:48.414Z",
+  "release_commit": "e6c0dcd3f8111a1e8ed6eb611597462f80e6eb45",
+  "frontend_version": "8b6fe6bb-7fc7-4e36-8b0a-1a3d674cf597",
+  "backend_unchanged": true,
+  "assets": [
+    {
+      "file": "build.json",
+      "http": 200,
+      "hash_match": true
+    },
+    {
+      "file": "index.html",
+      "http": 200,
+      "hash_match": true
+    },
+    {
+      "file": "sw.js",
+      "http": 200,
+      "hash_match": true
+    },
+    {
+      "file": "js/energy.js",
+      "http": 200,
+      "hash_match": true
+    },
+    {
+      "file": "css/energy.css",
+      "http": 200,
+      "hash_match": true
+    },
+    {
+      "file": "js/farm-map.js",
+      "http": 200,
+      "hash_match": true
+    },
+    {
+      "file": "js/app.js",
+      "http": 200,
+      "hash_match": true
+    },
+    {
+      "file": "js/auth.js",
+      "http": 200,
+      "hash_match": true
+    },
+    {
+      "file": "js/relay-panel.js",
+      "http": 200,
+      "hash_match": true
+    }
+  ],
+  "signedout_http": 401,
+  "invalid_session_http": 403,
+  "private_cloud_snapshots": [
+    {
+      "snapshot_age_seconds": 47,
+      "energy_status": "INGEST_NOT_READY",
+      "energy_sources": 0,
+      "energy_output_control_allowed": false,
+      "health": {
+        "PI5_CONTROLLER_01": "GOOD",
+        "PI_ZERO_GATEWAY_01": "GOOD"
+      },
+      "relay_observation_modules": 2
+    }
+  ],
+  "forecast_models": 10,
+  "actual_meter_readings_verified": false,
+  "result": "PASS"
+}

@@ -2,27 +2,23 @@
 (function (root) {
   "use strict";
 
-  const MAP_REVISION = "OWNER_LAYOUT_2026_09_01_C";
+  const MAP_REVISION = "BOOKING_LAYOUT_2026_09_06";
   const DEFAULT_SELECTION = "overview";
 
   const zones = Object.freeze([
-    { id: "A", type: "field", points: "452,587 567,845 367,943 243,685", x: 405, y: 765 },
-    { id: "B", type: "field", points: "333,311 447,577 238,675 117,409", x: 282, y: 493 },
-    { id: "C", type: "field", points: "328,297 113,400 22,186 19,168 22,151 31,136 42,120 53,110 88,90 119,76 142,65 160,60 176,60 191,58 207,61 224,66 232,76", x: 173.5, y: 229 },
-    { id: "D", type: "field", points: "699,91 679,261 322,224 342,62", x: 510.5, y: 161.5 },
-    /* Owner correction: the former G location is now J. */
-    { id: "J", type: "field", points: "993,115 971,289 699,263 722,89", x: 846, y: 189 },
-    { id: "H-I", type: "field", points: "700,272 970,300 923,670 651,638", x: 810.5, y: 471 },
-    /* Owner correction: the former J location is now G. */
-    { id: "G", type: "field", points: "648,663 909,690 778,749 643,739", x: 776, y: 706 },
-    { id: "E1", type: "automation", points: "458,329 560,341 553,422 448,409", x: 504, y: 375.5 },
-    { id: "E2", type: "automation", points: "561,341 670,355 660,434 553,422", x: 611.5, y: 387.5 },
-    { id: "E3", type: "automation", points: "678,270 568,259 561,342 669,355", x: 619.5, y: 307 },
-    { id: "E4", type: "automation", points: "466,247 569,259 562,342 457,329", x: 513, y: 294.5 },
-    /* Owner update: E5 is a compact strip that follows the usable ground beside E4/E1.
-       The pond wall and staff accommodation remain outside the automation boundary. */
-    { id: "E5", type: "automation compact-layout", points: "434,245 466,247 448,409 438,407 439,374 435,348 429,325 431,278", x: 447, y: 294 },
-    { id: "pond", label: "สระ", ariaLabel: "สระน้ำหลัก", type: "pond", points: "349,249 424,254 419,325 407,350 379,343 365,318", x: 380, y: 286 }
+    {"id":"A","points":"454,584 571,845 366,945 243,685","x":407,"y":764.5,"type":"field"},
+    {"id":"B","points":"335,306 451,577 238,675 117,409","x":284,"y":490.5,"type":"field"},
+    {"id":"C","points":"332,300 114,402 22,186 21,168 22,151 29,137 42,118 59,104 87,89 117,75 142,65 163,58 181,57 198,57 217,62 228,67 232,75","x":176.5,"y":229.5,"type":"field"},
+    {"id":"D","points":"699,91 679,261 318,222 335,61","x":508.5,"y":161,"type":"field"},
+    {"id":"J","points":"723,88 992,114 971,295 700,267","x":846,"y":191.5,"type":"field"},
+    {"id":"H-I","points":"699,270 971,298 925,672 650,641","x":810.5,"y":471,"type":"field"},
+    {"id":"G","points":"925,672 922,688 778,749 644,741 650,641","x":784.5,"y":695,"type":"field"},
+    {"id":"E1","points":"459,332 560,341 552,421 449,412","x":504.5,"y":376.5,"type":"automation"},
+    {"id":"E2","points":"560,341 668,351 659,431 552,421","x":610,"y":386,"type":"automation"},
+    {"id":"E3","points":"567,256 678,268 668,351 560,341","x":619,"y":303.5,"type":"automation"},
+    {"id":"E4","points":"470,246 567,256 560,341 459,332","x":513,"y":293.5,"type":"automation"},
+    {"id":"E5","points":"438,244 470,246 449,412 425,365","x":447.5,"y":328,"type":"automation compact-layout"},
+    {"id":"pond","points":"333,237 432,247 420,351 386,353","x":382.5,"y":295,"type":"pond","label":"สระ","ariaLabel":"สระน้ำหลัก"}
   ]);
 
   const state = {
@@ -34,7 +30,7 @@
   }
 
   function normalizeSelection(id) {
-    return id === DEFAULT_SELECTION || zoneById(id) ? id : DEFAULT_SELECTION;
+    return [DEFAULT_SELECTION, "health", "forecast", "relays", "energy"].includes(id) || zoneById(id) ? id : DEFAULT_SELECTION;
   }
 
   function select(id) {
@@ -46,7 +42,7 @@
   }
 
   function isMapSurface() {
-    return state.selection !== "pond";
+    return !["pond", "health", "forecast", "energy"].includes(state.selection);
   }
 
   function sensorSummary() {
@@ -81,12 +77,12 @@
     return `<div class="farm-map-detail-copy">
       <span class="farm-map-eyebrow">MASTER OVERVIEW</span>
       <h2>ภาพรวมฟาร์ม</h2>
-      <p>เลือกพื้นที่บนแผนที่เพื่อดูข้อมูลเฉพาะจุด สระน้ำเชื่อมข้อมูลระดับและปริมาตร ส่วน E1–E4 และ E5 ขนาดย่อเตรียมไว้สำหรับระบบให้น้ำอัตโนมัติผ่าน Pi 5</p>
+      <p>เลือกพื้นที่บนแผนที่เพื่อดูข้อมูลเฉพาะจุด สระน้ำเชื่อมข้อมูลระดับและปริมาตร ส่วน E1–E5 เตรียมไว้สำหรับระบบให้น้ำอัตโนมัติผ่าน Pi 5</p>
     </div>
     <div class="farm-map-kpi-grid">
       <article><span>สระน้ำหลัก</span><strong>1</strong><small>${statusText(pond.status)}</small></article>
       <article><span>โซนอัตโนมัติ</span><strong>5</strong><small>E1–E5</small></article>
-      <article><span>เอาต์พุตทำงาน</span><strong>0</strong><small>จาก 32 ช่อง</small></article>
+      <article><span>ช่องพร้อมสั่งงาน</span><strong>0</strong><small>ยังไม่ผูกอุปกรณ์</small></article>
     </div>
     <button class="farm-map-primary" type="button" onclick="App.farmMapSelect('pond')">เปิดข้อมูลสระน้ำ</button>
     <div class="farm-map-contract">
@@ -98,7 +94,7 @@
   function automationPanelHtml(zone) {
     const isCompactE5 = zone.id === "E5";
     const description = isCompactE5
-      ? "ขอบเขต E5 ถูกย่อตามพื้นที่ใช้งานจริงข้างหัวแปลง E4/E1 โดยเว้นสระน้ำและพื้นที่พักพนักงานออกจากโซนให้น้ำอัตโนมัติ"
+      ? "ขอบเขต E5 อ้างอิงผัง Booking ล่าสุด อยู่เป็นแนวยาวระหว่างสระน้ำกับ E4/E1 ยังไม่ใช่ผลสำรวจภาคสนาม"
       : "โซนนี้อยู่ในขอบเขตระบบให้น้ำอัตโนมัติ E1–E5 แต่ยังไม่มีการจับคู่รีเลย์ วาล์ว หรือระยะเวลาเปิดจริง";
     return `<div class="farm-map-detail-copy">
       <span class="farm-map-eyebrow">AUTOMATION ZONE</span>
@@ -107,7 +103,7 @@
       <p>${description}</p>
     </div>
     <dl class="farm-map-specs">
-      <div><dt>ขอบเขตพื้นที่</dt><dd>${isCompactE5 ? "ย่อหลบที่พักพนักงาน" : "ตามผังแปลง"}</dd></div>
+      <div><dt>ขอบเขตพื้นที่</dt><dd>${isCompactE5 ? "ตามผัง Booking ล่าสุด" : "ตามผังแปลง"}</dd></div>
       <div><dt>ผู้เขียนเอาต์พุต</dt><dd>Raspberry Pi 5</dd></div>
       <div><dt>PoE Relay channel</dt><dd>UNASSIGNED</dd></div>
       <div><dt>วาล์วภาคสนาม</dt><dd>รอยืนยัน</dd></div>
@@ -157,15 +153,33 @@
         <img src="images/digital-twin/fus-logo-white-v1.png" alt="FARMULTIMATE SOLUTIONS">
         <div>
           <span>FARM OPERATIONS · MASTER MAP</span>
-          <h1>ภาพรวมระบบชลประทาน</h1>
+          <h1>ภาพรวมระบบการจัดการ</h1>
         </div>
-        <div class="farm-map-safety"><b>DATA ONLY</b><strong>SAFE_OFF</strong></div>
+        <div class="farm-map-safety"><b>NO LOAD TEST</b><strong>FIELD SAFE_OFF</strong></div>
       </header>
 
       <div class="farm-map-layout">
         <div class="farm-map-canvas-card">
+          <nav class="farm-map-page-links" aria-label="ข้อมูลฟาร์ม">
+            <button type="button" onclick="App.farmMapSelect('forecast')" aria-label="สภาพอากาศ">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"></circle><path d="M8 1v2M1 8h2M3 3l1.5 1.5M13 3l-1.5 1.5M6 19h12a4 4 0 0 0 0-8 5 5 0 0 0-9.5 1.5A3.5 3.5 0 0 0 6 19Z"></path></svg>
+              <span><strong>สภาพอากาศ</strong><small>พยากรณ์ 10 โมเดล</small></span><b aria-hidden="true">›</b>
+            </button>
+            <button type="button" onclick="App.farmMapSelect('health')" aria-label="สุขภาพระบบ">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"></rect><path d="M1 12h6l3-5 4 10 3-5h6"></path></svg>
+              <span><strong>สุขภาพระบบ</strong><small>Pi 5 และ Pi Zero</small></span><b aria-hidden="true">›</b>
+            </button>
+            <button type="button" onclick="App.farmMapSelect('energy')" aria-label="พลังงานไฟฟ้า">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-8 12h6l-1 8 9-13h-7z"></path></svg>
+              <span><strong>พลังงานไฟฟ้า</strong><small>Acrel · มิเตอร์ 3 เฟส</small></span><b aria-hidden="true">›</b>
+            </button>
+            <button class="farm-map-relay-link" type="button" onclick="App.farmMapRelays()" aria-label="รีเลย์ / สวิตช์">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="6"></rect><circle cx="8" cy="12" r="3"></circle></svg>
+              <span><strong>รีเลย์ / สวิตช์</strong><small>สถานะช่องและการควบคุม</small></span><b aria-hidden="true">↓</b>
+            </button>
+          </nav>
           <div class="farm-map-canvas">
-            <img src="images/farm-map/pixel-art-farm-master-v1.png" alt="ภาพแผนที่ฟาร์ม แสดงสระน้ำ แปลง A ถึง J และ E5 ขนาดย่อที่เว้นพื้นที่พักพนักงาน">
+            <img src="images/farm-map/pixel-art-farm-master-v1.png" alt="ผังฟาร์มล่าสุดจาก Booking แสดงสระน้ำ แปลง A B C D G H-I J และ E1–E5">
             <svg class="farm-map-overlay" viewBox="0 0 1024 1024" preserveAspectRatio="xMidYMid meet" aria-label="พื้นที่ที่เลือกได้บนแผนที่">
               ${zones.map(zoneMarkup).join("")}
             </svg>
@@ -179,17 +193,21 @@
 
         <aside class="farm-map-detail" aria-live="polite">
           ${selectedPanelHtml()}
-          <footer><span>ผังเจ้าของยืนยัน</span><b>${MAP_REVISION}</b></footer>
+          <footer><a href="https://kapcrop.co.th/booking" target="_blank" rel="noopener noreferrer">อ้างอิงผัง Booking · 6 ก.ย. 2569</a><span>ขอบเขตบนภาพ · ยังไม่ใช่ผลสำรวจ</span></footer>
         </aside>
       </div>
+      ${root.RelayPanel ? root.RelayPanel.cardHtml() : ""}
     </section>`;
   }
 
   function cardHtml() {
+    if (state.selection === "energy" && root.EnergyDashboard) return root.EnergyDashboard.cardHtml();
+    if (["health", "forecast"].includes(state.selection) && root.SensorTelemetry) return root.SensorTelemetry.monitorHtml(state.selection);
     if (state.selection === "pond" && root.SensorTelemetry) {
       return root.SensorTelemetry.cardHtml({
         backAction: "App.farmMapBack()",
-        backLabel: "← แผนที่ฟาร์ม"
+        backLabel: "← แผนที่ฟาร์ม",
+        separateMonitorPages: true
       });
     }
     return mapSurfaceHtml();

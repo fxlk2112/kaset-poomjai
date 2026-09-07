@@ -1,0 +1,12 @@
+{
+  "checked_at": "2026-09-07T11:31:57.839Z",
+  "result": "success",
+  "publisher_sha256": "a5bbfd57bfc9646e5a15ba4a8a6f08c4dd57d645aabd9babebcc31d9df445a1b",
+  "backup_verified": true,
+  "services": {
+    "sucha-owner-monitor.timer": "active",
+    "water-level-dashboard.service": "active",
+    "relay-observer.service": "active",
+    "sucha-relay-bench.service": "active"
+  }
+}

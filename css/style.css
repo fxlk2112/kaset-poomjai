@@ -3244,15 +3244,16 @@ html.modal-open, html.modal-open body {
 }
 .chip:active { transform: scale(.96); }
 
-/* ---- main water management entry ---- */
+/* ---- FLYTECH farm operations entry ---- */
 .home-water-entry {
   width: 100%;
+  min-height: 154px;
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto;
+  grid-template-columns: 124px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
+  gap: 18px;
   margin: 0 0 14px;
-  padding: 13px 15px;
+  padding: 18px;
   border: 1.5px solid #7dd3fc;
   border-radius: 15px;
   color: #0c4a6e;
@@ -3261,32 +3262,31 @@ html.modal-open, html.modal-open body {
   text-align: left;
   transition: transform .18s, border-color .18s, box-shadow .18s;
 }
-.home-water-entry-icon {
-  width: 48px;
-  height: 48px;
+.home-water-entry-logo {
+  width: 124px;
+  height: 114px;
   display: grid;
   place-items: center;
   border-radius: 14px;
-  color: #ffffff;
-  background: linear-gradient(145deg, #06b6d4, #0284c7);
-  box-shadow: 0 8px 18px rgba(2, 132, 199, .25);
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid rgba(14, 116, 144, .12);
 }
-.home-water-entry-icon .ic { width: 25px; height: 25px; }
+.home-water-entry-logo img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .home-water-entry-copy { min-width: 0; }
 .home-water-entry-copy strong {
   display: block;
   color: #075985;
-  font-size: 1rem;
+  font-size: 1.6rem;
   font-weight: 800;
+  letter-spacing: .035em;
 }
 .home-water-entry-copy small {
   display: block;
-  margin-top: 2px;
-  overflow: hidden;
+  margin-top: 5px;
   color: #477486;
-  font-size: .72rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: .85rem;
+  line-height: 1.5;
 }
 .home-water-entry-status {
   display: flex;
@@ -3325,9 +3325,11 @@ html[data-theme="dark"] .home-water-entry {
 html[data-theme="dark"] .home-water-entry-copy strong { color: #bae6fd; }
 html[data-theme="dark"] .home-water-entry-copy small { color: #91b8c7; }
 
-@media (max-width: 380px) {
-  .home-water-entry { grid-template-columns: 42px minmax(0, 1fr) auto; gap: 9px; padding: 11px 12px; }
-  .home-water-entry-icon { width: 42px; height: 42px; }
+@media (max-width: 480px) {
+  .home-water-entry { min-height: 136px; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 12px; padding: 16px 12px; }
+  .home-water-entry-logo { width: 96px; height: 90px; }
+  .home-water-entry-copy strong { font-size: 1.3rem; }
+  .home-water-entry-copy small { font-size: .76rem; }
   .home-water-entry-status b { display: none; }
 }
 
@@ -4708,7 +4710,7 @@ body.view-iot-digital-twin .view {
   background: currentColor;
   box-shadow: 0 0 12px currentColor;
 }
-.digital-live.stale { color: #f7c86a; }
+.digital-live.stale, .digital-live.warn { color: #f7c86a; }
 .digital-live.fault { color: #ff8d8d; }
 .digital-live.muted { color: #a9c4c1; }
 .digital-canary {
@@ -4734,6 +4736,47 @@ body.view-iot-digital-twin .view {
 .digital-canary.online b { color: #67f2b1; }
 .digital-canary.fault { border-color: rgba(255, 141, 141, .7); }
 .digital-canary.fault b { color: #ff8d8d; }
+.digital-access {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 158px 14px 0;
+  padding: 14px;
+  border: 1px solid rgba(150, 245, 244, .45);
+  border-radius: 12px;
+  background: #183f42;
+  color: #e1ffff;
+  font-size: .86rem;
+}
+.digital-access p { margin: 5px 0 0; line-height: 1.6; }
+.digital-access button, .digital-sensor-tools button, .digital-history-controls button {
+  padding: 9px 13px;
+  min-height: 44px;
+  border: 1px solid #71c9c9;
+  border-radius: 9px;
+  background: #205154;
+  color: #e1ffff;
+  font: inherit;
+  cursor: pointer;
+}
+.digital-access button:focus-visible, .digital-sensor-tools button:focus-visible, .digital-history-controls button:focus-visible { outline: 2px solid #e1ffff; outline-offset: 3px; }
+.digital-sensor-tools, .digital-history-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; font-size: .75rem; }
+.digital-sensor-tools { justify-content: space-between; }
+.digital-sensor-tools button:disabled, .digital-history-controls button:disabled { opacity: .65; cursor: wait; }
+.digital-history-controls button[aria-pressed="true"] { background: #d8ffff; color: #153c3e; }
+.sensor-monitor-page { padding: 18px 14px; }
+.sensor-monitor-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.sensor-monitor-nav button { min-height: 44px; padding: 9px 13px; border: 1px solid #71c9c9; border-radius: 10px; background: #16484b; color: #e1ffff; font: inherit; cursor: pointer; }
+.sensor-monitor-nav button[aria-pressed="true"] { background: #d8ffff; color: #153c3e; }
+.sensor-monitor-nav button:focus-visible { outline: 2px solid #e1ffff; outline-offset: 3px; }
+.sensor-monitor-heading { margin: 24px 0; }
+.sensor-monitor-heading h1 { font-size: clamp(1.35rem, 5vw, 2rem); margin: 8px 0; }
+.sensor-monitor-heading p { color: #bfdcda; line-height: 1.7; }
+.sensor-monitor-page .digital-health-panel { margin: 0; }
 
 .digital-hero {
   position: relative;
@@ -4750,10 +4793,10 @@ body.view-iot-digital-twin .view {
   object-position: center center;
 }
 .reservoir-level-image {
-  animation: reservoir-level-settle .72s cubic-bezier(.22, .74, .3, 1) both;
   transform-origin: center center;
 }
-.reservoir-level-image.is-stale { filter: saturate(.78) brightness(.9); }
+.digital-hero > .reservoir-blend-image { position: absolute; inset: 0; opacity: var(--water-blend, 0); transition: opacity .8s ease; pointer-events: none; }
+.reservoir-level-image.is-stale { filter: saturate(.9) brightness(.96); }
 .reservoir-level-image.is-unknown { filter: saturate(.48) brightness(.66); }
 @keyframes reservoir-level-settle {
   from { opacity: .46; transform: scale(1.012); }
@@ -4787,6 +4830,11 @@ body.view-iot-digital-twin .view {
   font-weight: 800;
 }
 .hero-water-state.is-stale { border-color: rgba(247, 200, 106, .62); }
+.hero-water-state > small { display: block; margin-top: 6px; font-size: .6rem; color: #b9d7d3; }
+.hero-capacity-track { height: 5px; margin-top: 8px; border-radius: 4px; background: #477674; overflow: hidden; }
+.hero-capacity-track > i { display: block; width: var(--water-capacity, 0%); height: 100%; border-radius: inherit; background: #54e5ef; transition: width .8s ease; }
+.hero-water-state.is-stale .hero-capacity-track > i { background: #f7c86a; }
+.hero-water-state.is-high-water .hero-capacity-track > i { background: #ff9c88; }
 .hero-water-state.is-stale > strong { color: #f7c86a; }
 .hero-water-state.is-unknown { border-color: rgba(255, 173, 94, .66); }
 .hero-water-state.is-unknown > strong { color: #ffbd7b; }
@@ -4865,6 +4913,7 @@ body.view-iot-digital-twin .view {
 
 @media (prefers-reduced-motion: reduce) {
   .reservoir-level-image { animation: none; }
+  .reservoir-blend-image, .hero-capacity-track > i { transition: none; }
   .hero-level-pin { transition: none; }
 }
 
@@ -5651,6 +5700,21 @@ body.view-iot-farm-map #app {
   box-shadow: 0 20px 44px rgba(0, 12, 14, .24);
 }
 .farm-map-canvas-card { overflow: hidden; }
+.farm-map-page-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; border-bottom: 1px solid var(--farm-line); }
+.farm-map-page-links button { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 68px; padding: 12px; border: 1px solid rgba(119, 224, 219, .5); border-radius: 13px; background: #104d50; color: #edffff; text-align: left; font: inherit; cursor: pointer; }
+.farm-map-page-links button:hover { background: #166366; border-color: var(--farm-cyan); }
+.farm-map-page-links button:focus-visible { outline: 3px solid var(--farm-cyan); outline-offset: 2px; }
+.farm-map-page-links svg { flex: 0 0 26px; width: 26px; height: 26px; fill: none; stroke: var(--farm-cyan); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.farm-map-page-links strong, .farm-map-page-links small { display: block; }
+.farm-map-page-links strong { font-size: clamp(.86rem, 1.7vw, 1rem); }
+.farm-map-page-links small { margin-top: 3px; color: #bde1df; font-size: .68rem; }
+.farm-map-page-links b { margin-left: auto; color: var(--farm-cyan); font-size: 1.5rem; }
+@media (max-width: 460px) {
+  .farm-map-page-links { gap: 8px; padding: 9px; }
+  .farm-map-page-links button { gap: 7px; padding: 10px 8px; }
+  .farm-map-page-links svg { flex-basis: 22px; width: 22px; height: 22px; }
+  .farm-map-page-links b { display: none; }
+}
 .farm-map-canvas {
   position: relative;
   width: 100%;
@@ -5802,3 +5866,59 @@ body.view-iot-farm-map #app {
   .farm-map-kpi-grid article { display: grid; }
   .farm-map-specs > div { align-items: flex-start; }
 }
+
+/* Map relay readback: controls remain locked until field commissioning. */
+.farm-map-page-links .farm-map-relay-link { grid-column: 1 / -1; min-height: 54px; }
+.farm-map-detail footer a { color: #87e3df; }
+.farm-relay-panel { margin: 0 20px 24px; padding: 24px; border: 1px solid var(--farm-line); border-radius: 20px; background: #093b3d; color: #edffff; scroll-margin-top: 16px; }
+.relay-panel-header, .relay-module header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.relay-panel-header h2 { margin: 4px 0 8px; font-size: 1.5rem; }
+.relay-panel-header p, .relay-footnote { color: #b4d4d2; font-size: .8rem; line-height: 1.65; }
+.relay-panel-header button { flex-shrink: 0; width: auto; max-width: 100%; margin-top: 0; padding-inline: 18px; }
+.relay-blocker { margin: 16px 0; padding: 14px 16px; border: 1px solid #967440; border-radius: 12px; background: #343c2e; color: #ffe2ae; }
+.relay-blocker p { margin: 5px 0 0; font-size: .85rem; line-height: 1.7; }
+.relay-access { margin: 12px 0 18px; color: #c8e7e4; }
+.relay-access p { font-size: .86rem; }
+.relay-access button { width: auto; padding: 12px 20px; }
+.relay-module-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.relay-module { overflow: hidden; min-width: 0; border: 1px solid #3e6969; border-radius: 14px; background: #073234; }
+.relay-module header { padding: 16px; background: #10484a; }
+.relay-module header span { color: #94c3c1; font-size: .63rem; letter-spacing: .08em; }
+.relay-module h3 { margin: 2px 0 0; font-size: 1.15rem; }
+.relay-module header b { font-size: .75rem; color: #c8e7e4; text-align: right; }
+.relay-channel { display: grid; grid-template-columns: minmax(0, 1fr) 65px 92px; gap: 8px; align-items: center; padding: 12px 14px; border-top: 1px solid #234e4f; }
+.relay-channel strong { font-size: .9rem; }
+.relay-channel small { display: block; color: #aac7c5; font-size: .68rem; margin-top: 3px; }
+.relay-reading { text-align: center; font-size: .72rem; padding: 5px 3px; border-radius: 6px; background: #1e4748; color: #bed6d4; }
+.relay-reading.is-on { background: #6e4a13; color: #ffdc95; }
+.relay-reading.is-off { background: #114f42; color: #8eebc2; }
+.relay-actions { display: flex; gap: 4px; }
+.relay-actions button { min-width: 44px; min-height: 40px; border: 1px solid #537274; border-radius: 7px; font: inherit; font-size: .75rem; background: #163b3d; color: #abc1c0; cursor: not-allowed; opacity: 1; }
+.relay-inputs { padding: 16px; border-top: 1px solid #3e6969; }
+.relay-inputs > strong { font-size: .8rem; color: #b7d5d3; }
+.relay-inputs > div { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
+.relay-inputs span { padding: 5px 1px; text-align: center; font-size: .68rem; color: #b6cecd; border-radius: 5px; background: #1c4547; }
+.relay-inputs span b { display: block; font-size: .56rem; margin-top: 4px; }
+.relay-inputs .is-on { background: #165a4a; color: #9cf0cd; }
+.relay-footnote { margin: 16px 0 0; }
+@media (max-width: 800px) {
+  .farm-relay-panel { margin: 0 12px 20px; padding: 16px 12px; }
+  .relay-module-grid { grid-template-columns: 1fr; }
+  .relay-panel-header { align-items: flex-start; flex-direction: column; gap: 4px; }
+}
+@media (max-width: 380px) {
+  .relay-channel { grid-template-columns: minmax(0, 1fr) 58px 92px; gap: 5px; padding: 11px 9px; }
+}
+
+/* Unloaded bench session controls. */
+.relay-channel { grid-template-columns: minmax(0, 1fr) 65px 118px; }
+.relay-actions button:first-child { min-width: 70px; }
+.relay-actions button:enabled { cursor: pointer; background: #087b72; color: white; border-color: #39d6ce; }
+.relay-actions button:enabled:hover { background: #09988c; }
+.relay-actions button:focus-visible { outline: 3px solid #64eeea; outline-offset: 2px; }
+.relay-bench-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 16px 0; }
+.relay-bench-tools > strong { flex-basis: 100%; color: #b9f3e1; }
+.relay-bench-tools button { width: auto; max-width: 100%; padding-inline: 16px; margin-top: 0; }
+.relay-bench-tools button:disabled { opacity: .55; cursor: not-allowed; }
+.relay-command-status { color: #b9f3e1; background: #124b4b; border-radius: 9px; padding: 12px; font-size: .85rem; }
+@media (max-width: 380px) { .relay-channel { grid-template-columns: minmax(0, 1fr) 55px 118px; } }

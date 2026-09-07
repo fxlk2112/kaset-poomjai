@@ -1,0 +1,56 @@
+{
+  "result": "PASS",
+  "browser_certificate_test": "EXACT_LEAF_SPKI_PIN",
+  "chain_verified_separately": true,
+  "owner_device_trust_installed": false,
+  "results": [
+    {
+      "transport": "LAN",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "result": "PASS",
+      "anonymous": true,
+      "api_mocked": false,
+      "external_requests_blocked": true,
+      "script_errors": 0
+    },
+    {
+      "transport": "LAN",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "result": "PASS",
+      "anonymous": true,
+      "api_mocked": false,
+      "external_requests_blocked": true,
+      "script_errors": 0
+    },
+    {
+      "transport": "CLOUD",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "result": "PASS",
+      "anonymous": true,
+      "api_mocked": false,
+      "external_requests_blocked": false,
+      "script_errors": 0
+    },
+    {
+      "transport": "CLOUD",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "result": "PASS",
+      "anonymous": true,
+      "api_mocked": false,
+      "external_requests_blocked": false,
+      "script_errors": 0
+    }
+  ]
+}
