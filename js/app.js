@@ -7,7 +7,7 @@
 
 /* ---------------- state & bootstrap ----------------
    (S ประกาศใน data.js — ให้ระบบบัญชี (auth.js) สลับ slot ข้อมูลรายบัญชีได้ก่อน render) */
-const APP_BUILD_VERSION = "20260907googleauth3";
+const APP_BUILD_VERSION = "20260907interior1";
 window.APP_BUILD_VERSION = APP_BUILD_VERSION;
 function ensureFreshAppBuild() {
   try {
@@ -64,7 +64,7 @@ const EDITABLE_TEXTS = [
   { key: "brandSub", label: "คำใต้แบรนด์", def: "ระบบจัดการฟาร์มอัจฉริยะ" },
   { key: "heroGreet", label: "คำทักทายหน้าแรก", def: "สวัสดีครับ" },
   { key: "titleTasks", label: "หัวข้อ: งานที่ต้องทำเร็วๆ นี้", def: "งานที่ต้องทำเร็วๆ นี้" },
-  { key: "titleProfit", label: "หัวข้อ: กำไร/ขาดทุนรายแปลง", def: "กำไร/ขาดทุนรายแปลง" },
+  { key: "titleProfit", label: "หัวข้อ: รายรับและต้นทุนรายแปลง", def: "รายรับและต้นทุนรายแปลง" },
   { key: "titleCal", label: "หัวข้อ: งานวันนี้", def: "งานวันนี้" },
   { key: "titleActivity", label: "หัวข้อ: กิจกรรมล่าสุด", def: "กิจกรรมล่าสุด" },
   { key: "titleCycles", label: "หัวข้อ: รอบปลูกที่กำลังดำเนินการ", def: "รอบปลูกที่กำลังดำเนินการ" },
@@ -229,11 +229,10 @@ function taskRowHtml(t, opts) {
   opts = opts || {};
   const done = t.status === "done";
   const st = taskStatusOf(t);
-  const dotCls = st === "done" ? "dot-green" : st === "failed" ? "dot-gray" : st === "overdue" ? "dot-red" : "dot-amber";
   const meta = [];
   /* แสดงวันที่เสมอ (เป็นไทย พร้อมไอคอนปฏิทิน) — รู้ทันทีว่างานนี้วันไหน */
   if (opts.showDate || opts.alwaysDate) {
-    meta.push(`<span class="td-date">${ic("calendar")} ${dateLabel(t.date)}</span>`);
+    meta.push(`<span class="td-date">${ic("calendar")} ${dateLabel(["done", "failed"].includes(t.status) ? taskDoneDate(t) : t.date)}</span>`);
   }
   /* แสดงแปลงเจ้าของงาน (ชื่อ + อีโมจิพืช) — ใช้ในหน้าแรก/ปฏิทิน รู้ทันทีว่างานนี้แปลงไหน ไม่ต้องเข้าไปดูรายละเอียด */
   if (opts.showPlot && t.plotId) {
@@ -270,17 +269,47 @@ function taskRowHtml(t, opts) {
           ${opts.cycleOptions.map(c => `<option value="${c.id}">${esc(c.plant)}</option>`).join("")}
         </select>` : "";
   return `
-    <div class="task-row ${done ? "done" : ""} ${st === "failed" ? "failed" : ""}" onclick="App.viewTask('${t.id}')" role="button" tabindex="0">
-      <button class="task-dot ${dotCls}" onclick="event.stopPropagation();App.toggleTask('${t.id}')" aria-label="สลับสถานะเสร็จ" title="${st === "done" ? "ยกเลิกเสร็จ" : (st === "failed" ? "บันทึกใหม่เป็นเสร็จ" : "ติ๊กเสร็จ")}"></button>
-      <div class="grow">
+    <div class="task-row task-row-actionable ${done ? "done" : ""} ${st === "failed" ? "failed" : ""}">
+      <button class="task-open grow" onclick="App.viewTask('${t.id}')">
         <div class="task-title">${esc(t.title)}</div>
-        ${meta.length ? `<div class="muted">${meta.join(" · ")}</div>` : ""}
-        ${assignSel}
+        ${meta.length ? `<div class="muted task-meta">${meta.join(" · ")}</div>` : ""}
+      </button>
+      ${assignSel}
+      <div class="task-row-actions">
+        ${st !== "done" && st !== "failed" ? `
+          <button class="btn btn-sm btn-outline task-finish" onclick="App.toggleTask('${t.id}')" aria-label="ทำเสร็จ: ${esc(t.title)}">${ic("check")} ทำเสร็จ</button>
+          <button class="btn btn-sm btn-ghost icon-action" onclick="App.rescheduleTask('${t.id}')" title="เลื่อนวัน" aria-label="เลื่อนวัน: ${esc(t.title)}">${ic("calendar")}</button>` : `
+          ${statusTag(st)}
+          <button class="btn btn-sm btn-ghost icon-action" onclick="App.editTask('${t.id}')" title="แก้ไขกิจกรรม" aria-label="แก้ไข: ${esc(t.title)}">${ic("pencil")}</button>`}
       </div>
-      ${opts.showDelete ? `<button class="btn btn-sm btn-danger-soft" onclick="event.stopPropagation();App.deleteTask('${t.id}')">${ic("trash")}</button>` : ""}
-      <span class="task-arrow">${ic("chevron")}</span>
     </div>`;
 }
+
+App.rescheduleTask = function (id) {
+  const task = S.tasks.find(t => t.id === id);
+  if (!task || task.status === "done" || task.status === "failed") return;
+  openModal(`<button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>เลื่อนวันทำงาน</h3><p class="modal-sub">${esc(task.title)}</p>
+    <form onsubmit="return App.saveTaskDate(event, '${id}')">
+      <div class="field"><label for="rescheduleDate">วันที่ใหม่</label><input id="rescheduleDate" type="date" required value="${task.date < todayISO() ? todayISO() : task.date}"></div>
+      <div class="modal-actions"><button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button><button class="btn btn-primary" type="submit">บันทึกวันที่</button></div>
+    </form>`);
+};
+App.saveTaskDate = function (event, id) {
+  event.preventDefault();
+  const task = S.tasks.find(t => t.id === id);
+  const date = document.getElementById("rescheduleDate").value;
+  if (!task || !date || task.status === "done" || task.status === "failed") return false;
+  task.date = date;
+  task.manualDate = true;
+  task.updatedAt = Date.now();
+  delete S.notifDismissed[id];
+  saveState(S);
+  closeModal();
+  rerender();
+  toast("เลื่อนวันทำงานแล้ว");
+  return false;
+};
 
 /* ปฏิทินงาน — ใช้ร่วมกันทั้งหน้าแรกและหน้าปฏิทิน */
 function calendarCellsHtml(compact) {
@@ -411,7 +440,7 @@ function render() {
   saveRoute();
   /* ปิดแอนิเมชันตอน re-render ในหน้าเดิม (กันกระพริบ) */
   v.classList.toggle("no-anim", !viewChanged);
-  v.innerHTML = (views[route.view] || renderHome)();
+  v.innerHTML = Auth.syncStatusHtml() + (views[route.view] || renderHome)();
   /* หลังวาดหน้า — ดึงสภาพอากาศของแปลง (หน้าแปลง + หน้าสภาพอากาศ) */
   if (route.view === "weather" || route.view === "plotDetail") renderPlotWeather();
   else clearRainRadar();
@@ -516,18 +545,15 @@ function renderHome() {
   const cycles = activeCycles(S);
   const today = todayISO();
   const tomorrow = addDaysISO(today, 1);
-  const tToday = tasksOn(S, today);
-  const tTomorrow = tasksOn(S, tomorrow);
-  /* งานที่ต้องทำเร็วๆ นี้: วันนี้ + พรุ่งนี้ — ถ้าพรุ่งนี้ไม่มีงาน ให้ดึงงานถัดไปที่จะถึงมาแทน */
-  const soon = tTomorrow.length ? [] : [...S.tasks]
+  const tToday = S.tasks.filter(t => (["done", "failed"].includes(t.status) ? taskDoneDate(t) : t.date) === today)
+    .sort((a, b) => Number(["done", "failed"].includes(a.status)) - Number(["done", "failed"].includes(b.status)));
+  const tTomorrow = tasksOn(S, tomorrow).filter(t => !["done", "failed"].includes(t.status));
+  const soon = [...S.tasks]
     .filter(t => taskStatusOf(t) === "planned" && t.date > tomorrow)
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 3);
-  const todays = [...tToday, ...tTomorrow, ...soon]
-    .sort((a, b) => a.date.localeCompare(b.date) || (a.status === "done" ? 1 : 0) - (b.status === "done" ? 1 : 0));
   const doneToday = tToday.filter(t => t.status === "done").length;
-  const todayPct = tToday.length ? Math.round(doneToday / tToday.length * 100) : 0;
-  const overdue = S.tasks.filter(t => taskStatusOf(t) === "overdue");
+  const overdue = S.tasks.filter(t => taskStatusOf(t) === "overdue").sort((a, b) => a.date.localeCompare(b.date));
   /* กิจกรรมล่าสุด: โชว์ประวัติงานที่ปิดงานแล้ว/ไม่สำเร็จ เพื่อไม่ซ้ำกับงานถัดไป */
   const tsOf = t => t.updatedAt || t.createdAt || new Date(t.date + "T12:00:00").getTime() || 0;
   const recent = [...S.tasks]
@@ -555,15 +581,6 @@ function renderHome() {
       <span class="home-shop-total">${fmtMoney(yr)}<small>${cnt} ใบ</small></span>
     </button>`;
   })();
-
-  /* ปุ่มลัดงานหลักบนหน้าแรก */
-  const quickActs = [
-    { action: "task", ico: "plus", label: "เพิ่มกิจกรรม" },
-    { action: "stock", ico: "box", label: "เพิ่มสินค้า" },
-    { action: "sale", ico: "dollar", label: "ขายสินค้า" },
-  ].map(a => `<button class="chip quick-chip" onclick="App.quickAction('${a.action}')">${ic(a.ico)} ${a.label}</button>`).join("");
-
-  const extra = "";
 
   const setupSteps = [
     { done: (S.plots || []).length > 0, label: "เพิ่มแปลง", action: "App.nav('plots')" },
@@ -595,20 +612,21 @@ function renderHome() {
         <span>${T("titleCal")}</span>
         <button class="btn btn-ghost btn-sm" onclick="App.nav('planner')">${ic("calendar")} ปฏิทินเต็ม</button>
       </div>
-      <div class="card today-card">
+      <div class="card today-card ${overdue.length ? "has-overdue" : ""}">
         <div class="today-head">
           <div>
             <div class="today-date">${thaiDateStr(new Date(today + "T12:00:00"))}</div>
-            <div class="muted">วันนี้ก่อน แล้วค่อยเปิดปฏิทินเต็ม</div>
+            <div class="muted">${overdue.length ? `มีงานเลยกำหนด ${overdue.length} งาน` : "ตารางงานประจำวัน"}</div>
           </div>
           <button class="btn btn-primary btn-sm" onclick="App.modalTask('${today}')">${ic("plus")} เพิ่ม</button>
         </div>
         <div class="today-stats">
           <div><b>${tToday.length}</b><span>งานวันนี้</span></div>
           <div><b>${doneToday}</b><span>เสร็จแล้ว</span></div>
-          <div><b>${overdue.length}</b><span>เลยกำหนด</span></div>
+          <button class="today-overdue" onclick="App.openPlannerFilter('overdue')"><b>${overdue.length}</b><span>เลยกำหนด</span></button>
         </div>
-        ${tToday.length === 0 ? `
+        ${overdue.length ? `<div class="task-group overdue-priority"><h3>งานเลยกำหนด</h3>${overdue.slice(0, 3).map(t => taskRowHtml(t, { showDate: true, showPlot: true })).join("")}${overdue.length > 3 ? `<button class="btn btn-ghost btn-block" onclick="App.openPlannerFilter('overdue')">ดูงานค้างทั้งหมด ${overdue.length} งาน</button>` : ""}</div>` : ""}
+        ${tToday.length === 0 && !overdue.length ? `
           <div class="empty compact-empty">
             <div class="e-ico">${ic("check")}</div>
             <div class="e-title">วันนี้ยังไม่มีงาน</div>
@@ -618,25 +636,18 @@ function renderHome() {
         ${tToday.length > 4 ? `<button class="btn btn-ghost btn-block mt-8" onclick="App.nav('planner')">ดูอีก ${tToday.length - 4} งานในปฏิทิน</button>` : ""}
       </div>
     </section>`;
-  const nextTasksCount = overdue.length + tTomorrow.length + soon.length;
+  const nextTasksCount = tTomorrow.length + soon.length;
 
   return `
-    <div class="hero">
+    <div class="home-heading">
       <div class="hero-row">
         <div>
           <div class="hero-greet" data-tkey="heroGreet">${T("heroGreet")}</div>
           <div class="hero-sub">${thaiDateStr(new Date())}</div>
         </div>
-        <span class="hero-ver">อัปเดตล่าสุด v${S.version}</span>
+        <span class="badge ${overdue.length ? "badge-red" : "badge-green"}">${overdue.length ? `ค้าง ${overdue.length} งาน` : `${doneToday}/${tToday.length} งานวันนี้เสร็จแล้ว`}</span>
       </div>
-      <div class="hero-progress">
-        <div class="hp-row">
-          <span>ความคืบหน้างานวันนี้</span>
-          <span class="hp-num">${tToday.length ? `${doneToday}/${tToday.length} เสร็จ` : "ไม่มีงาน"}</span>
-        </div>
-        <div class="hp-bar"><i style="width:${todayPct}%"></i></div>
-      </div>
-      <div class="hero-chips">${quickActs}</div>
+      <div class="home-actions"><button class="btn btn-primary" onclick="App.modalTask('${today}', {status:'done'})">${ic("check")} บันทึกงานที่ทำแล้ว</button><button class="btn btn-outline" onclick="App.modalTask('${today}')">${ic("calendar")} วางแผนงาน</button></div>
     </div>
 
     ${welcome}
@@ -645,7 +656,7 @@ function renderHome() {
     <div class="home-summary-head" data-tkey="titleKpi">${T("titleKpi")}</div>
     <div class="home-summary-strip" id="kpiRow">
       <button class="home-summary-item ${kpiClass}" onclick="App.nav('analytics')">
-        <span>${ic("dollar")}</span><b>${fmtMoney(ytd.net)}</b><small>กำไรสุทธิ พ.ศ. ${curBE}</small>
+        <span>${ic("dollar")}</span><b>${fmtMoney(ytd.net)}</b><small>ส่วนต่างรายรับ-ต้นทุน พ.ศ. ${curBE}</small>
       </button>
       <button class="home-summary-item" onclick="App.nav('plots')">
         <span>${ic("pin")}</span><b>${fmtNum(area)} ไร่</b><small>${S.plots.filter(p => p.status === "active").length} แปลง Active</small>
@@ -656,8 +667,6 @@ function renderHome() {
     </div>
 
     ${salesBox}
-
-    ${extra}
 
     <div class="home-flow" style="--flow-areas:'tasks profit' 'tasks activity'">
       ${homeOrder().filter(k => k !== "cal").map(k => {
@@ -674,13 +683,8 @@ function renderHome() {
               <div class="e-title">ไม่มีงานที่ต้องทำเร็วๆ นี้</div>
               <div class="muted">งานวันนี้แสดงอยู่ด้านบนแล้ว เพิ่มงานใหม่ได้ทันที</div>
             </div>` : ""}
-          ${overdue.length ? `
-            <div class="task-group"><h3>เลยกำหนด</h3>
-              ${overdue.slice(0, 3).map(t => taskRowHtml(t, { showDate: true, showPlot: true })).join("")}
-              ${overdue.length > 3 ? `<div class="muted" style="font-size:.72rem;padding:6px 2px">+${overdue.length - 3} รายการ — <a class="link" onclick="App.nav('planner')">ดูทั้งหมด</a></div>` : ""}
-            </div>` : ""}
           ${tTomorrow.length ? `<div class="task-group"><h3>พรุ่งนี้</h3>${tTomorrow.map(t => taskRowHtml(t, { showDate: t.date !== tomorrow, showPlot: true })).join("")}</div>` : ""}
-          ${soon.length ? `<div class="task-group"><h3>เร็วๆ นี้</h3>${soon.map(t => taskRowHtml(t, { showDate: true, showPlot: true })).join("")}</div>` : ""}
+          ${soon.length ? `<div class="task-group"><h3>กำหนดถัดไป</h3>${soon.map(t => taskRowHtml(t, { showDate: true, showPlot: true })).join("")}</div>` : ""}
         </div>
       </section>`;
         if (k === "profit") return `
@@ -707,24 +711,7 @@ function renderHome() {
         </div>
         <div class="card">
           ${recent.length === 0 ? `<div class="empty compact-empty"><div class="e-ico">${ic("check")}</div><div class="e-title">ยังไม่มีประวัติงานที่ทำเสร็จ</div><div class="muted">งานที่ยังต้องทำดูที่งานถัดไปด้านบน</div></div>` : ""}
-          ${recent.map(t => {
-            /* บอกว่าพึ่งทำอะไรกับงานนี้ */
-            let act = t.status === "failed" ? "ไม่สำเร็จ" : "ทำเสร็จ";
-            if (t.updatedAt && t.status !== "done" && t.status !== "failed") act = "แก้ไข";
-            const st = taskStatusOf(t);
-            const dotCls = st === "done" ? "dot-green" : st === "failed" ? "dot-gray" : st === "overdue" ? "dot-red" : "dot-amber";
-            return `
-            <div class="row-line" onclick="App.viewTask('${t.id}')" role="button" style="cursor:pointer">
-              <span class="task-ico ${esc(t.type)}">${ic(TYPE_ICONS[t.type] || "wrench")}</span>
-              <div class="grow">
-                <div class="bold" style="font-size:.84rem">${esc(t.title)}</div>
-                <div class="muted" style="font-size:.7rem">${act} · ${dateLabel(t.date)} ${typeTag(t)}</div>
-              </div>
-              <button class="task-dot ${dotCls}" onclick="event.stopPropagation();App.toggleTask('${t.id}')" aria-label="สลับสถานะเสร็จ" title="${st === "done" ? "ยกเลิกเสร็จ" : (st === "failed" ? "บันทึกใหม่เป็นเสร็จ" : "ติ๊กเสร็จ")}"></button>
-              <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();App.editTask('${t.id}')" aria-label="แก้ไขกิจกรรม" title="แก้ไขกิจกรรม">${ic("pencil")}</button>
-              ${statusTag(st)}
-            </div>`;
-          }).join("")}
+          ${recent.map(t => taskRowHtml(t, { showDate: true, showPlot: true })).join("")}
         </div>
       </section>`;
         return "";
@@ -746,7 +733,7 @@ function renderHome() {
           </div>
           <div style="text-align:right">
             <div class="bold ${fin.net >= 0 ? "price-trend-up" : "price-trend-down"}" style="font-size:.82rem">${fmtMoney(fin.net)}</div>
-            <div class="muted" style="font-size:.66rem">กำไร/ขาดทุน</div>
+            <div class="muted" style="font-size:.66rem">ส่วนต่างปัจจุบัน</div>
           </div>
           <span class="muted" style="font-size:1.05rem;margin-left:8px">›</span>
         </div>`;
@@ -849,15 +836,15 @@ function renderPlots() {
           <div class="plot-emoji">${cropEmoji(c.plant)}</div>
           <div class="grow">
             <div class="plot-name">${esc(c.plant)} <span class="badge badge-blue">รอบ ${c.round || "—"}</span></div>
-            <div class="muted">เริ่ม ${c.startDate} · อายุ ${ageDays(c.startDate)} วัน</div>
+            <div class="muted">เริ่ม ${dateLabel(c.startDate)} · อายุ ${ageDays(c.startDate)} วัน</div>
           </div>
           ${c.status === "active" ? `<span class="badge badge-green">กำลังปลูก</span>` : `<span class="badge badge-gray">ปิดรอบ</span>`}
         </div>
         <div class="meta-grid">
           <div class="meta-box"><div class="lb">ต้นทุนรวม</div><div class="vl">${fmtMoney(fin.cost)} บาท</div></div>
           <div class="meta-box"><div class="lb">รายรับรวม</div><div class="vl">${fmtMoney(fin.revenue)} บาท</div></div>
-          <div class="meta-box"><div class="lb">กำไร/ขาดทุน</div><div class="vl ${fin.net >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(fin.net)} บาท</div></div>
-          <div class="meta-box"><div class="lb">สถานะ</div><div class="vl" style="font-size:.78rem">${fin.revenue > 0 ? "มีผลผลิตแล้ว" : "รอผลผลิต"}</div></div>
+          <div class="meta-box"><div class="lb">${c.status === "active" ? "ส่วนต่างปัจจุบัน" : "กำไร/ขาดทุน"}</div><div class="vl ${fin.net >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(fin.net)} บาท</div></div>
+          <div class="meta-box"><div class="lb">สถานะ</div><div class="vl" style="font-size:.78rem">${c.status !== "active" ? "ปิดรอบแล้ว" : (fin.revenue > 0 ? "มีรายรับแล้ว" : "รอผลผลิต")}</div></div>
         </div>
         <div class="actions-row" style="margin-top:10px">
           <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();App.openShareLink('${c.plotId}', '${c.id}')">${ic("user")} แชร์พืชนี้</button>
@@ -882,28 +869,28 @@ function renderPlots() {
   const cntActive = allGroups.filter(g => g.cs.some(c => c.status === "active")).length;
   const cyclesTab = `
     <div class="row row-between">
-      <div class="bold" style="font-size:1.02rem" data-tkey="cyclesTitle">${T("cyclesTitle")} ${cycles.filter(c => c.status === "active").length} รอบ</div>
+      <div class="grow"><div class="bold" style="font-size:1.02rem" data-tkey="cyclesTitle">${T("cyclesTitle")}</div><div class="muted">กำลังปลูก ${cycles.filter(c => c.status === "active").length} รอบ · ทั้งหมด ${cycles.length} รอบ</div></div>
       <button class="btn btn-primary btn-sm" onclick="App.modalCycle()">${ic("plus")} เริ่มปลูก</button>
     </div>
     <div class="card cycle-filter">
       <input id="cycleFilterQ" type="text" placeholder="ค้นหาชื่อแปลงหรือพืชที่ปลูก..." value="${esc(cycleFilter.q)}" oninput="App.cycleFilterQ(this.value)">
       <div class="stock-tabs">
-        <button class="chip ${cycleFilter.status === "all" ? "chip-active" : ""}" onclick="App.cycleFilterStatus('all')">ทั้งหมด <span class="badge">${allGroups.length}</span></button>
-        <button class="chip ${cycleFilter.status === "active" ? "chip-active" : ""}" onclick="App.cycleFilterStatus('active')">กำลังปลูก <span class="badge">${cntActive}</span></button>
-        <button class="chip ${cycleFilter.status === "idle" ? "chip-active" : ""}" onclick="App.cycleFilterStatus('idle')">ว่าง <span class="badge">${allGroups.length - cntActive}</span></button>
+        <button class="chip ${cycleFilter.status === "all" ? "chip-active" : ""}" onclick="App.cycleFilterStatus('all')">ทุกแปลง <span class="badge">${allGroups.length} แปลง</span></button>
+        <button class="chip ${cycleFilter.status === "active" ? "chip-active" : ""}" onclick="App.cycleFilterStatus('active')">กำลังปลูก <span class="badge">${cntActive} แปลง</span></button>
+        <button class="chip ${cycleFilter.status === "idle" ? "chip-active" : ""}" onclick="App.cycleFilterStatus('idle')">พักแปลง <span class="badge">${allGroups.length - cntActive} แปลง</span></button>
         ${cycleQ ? `<button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="App.cycleFilterClear()">${ic("refresh")} ล้างตัวกรอง</button>` : ""}
       </div>
     </div>
     ${plotGroups.length === 0 ? `<div class="empty"><div class="e-ico">${ic("search")}</div><div class="e-title">ไม่พบแปลงที่ตรงกับตัวกรอง</div><div class="muted">ลองเปลี่ยนคำค้นหรือสถานะ</div><button class="btn btn-ghost btn-block mt-8" onclick="App.cycleFilterClear()">${ic("refresh")} ล้างตัวกรอง</button></div>` : ""}
     ${plotGroups.map(({ p, cs }) => {
-      const isCollapsed = collapsedCycles[p.id];
+      const isCollapsed = collapsedCycles[p.id] === undefined ? cs.length === 0 : collapsedCycles[p.id];
       const act = cs.filter(c => c.status === "active").length;
       return `
       <div class="card plot-cycle-group">
         <div class="plot-cycle-head" onclick="App.togglePlotCycles('${p.id}')" role="button" tabindex="0" aria-expanded="${!isCollapsed}">
           <div class="plot-emoji">${cropEmoji(p.crop)}</div>
           <div class="grow">
-            <div class="plot-name">${esc(p.name)} ${p.status === "active" ? `<span class="badge badge-green">Active</span>` : `<span class="badge badge-gray">ว่าง</span>`}</div>
+            <div class="plot-name">${esc(p.name)} ${p.status !== "active" ? `<span class="badge badge-gray">ปิดใช้</span>` : act ? `<span class="badge badge-green">กำลังปลูก</span>` : `<span class="badge badge-gray">พักแปลง</span>`}</div>
             <div class="muted">${cs.length} รอบทั้งหมด · ${act} รอบกำลังปลูก</div>
           </div>
           <span class="plot-cycle-chevron">${isCollapsed ? "▸" : "▾"}</span>
@@ -3449,6 +3436,7 @@ App.toggleTask = function (id) {
   toast(`ยกเลิก: ${t.title}`);
   /* ถ้ากำลังเปิดหน้าต่างรายละเอียดงานนี้อยู่ → อัปเดต modal ทันที (ไม่ต้องปิด-เปิดใหม่) */
   const root = document.getElementById("modalRoot");
+  if (!root.firstElementChild) App._modalReturnFocus = document.activeElement;
   if (root && root.innerHTML.trim() !== "" && root.querySelector(".td-list")) {
     App.viewTask(id);
   }
@@ -3508,7 +3496,7 @@ App.modalTaskComplete = function (id, returnToDetail, resultIntent) {
       <textarea id="tdone_note" rows="3" placeholder="เช่น พบเพลี้ยเล็กน้อย ฉีดตามอัตราแล้ว / ดินยังชื้นดี">${esc(t.doneNote || "")}</textarea>
     </div>
     <div class="form-row-2">
-      <div class="field"><label>วันที่ทำจริง *</label><input id="tdone_date" type="date" value="${esc(doneDate)}" required></div>
+      <div class="field"><label>วันที่ทำจริง *</label><input id="tdone_date" type="date" value="${esc(doneDate)}" max="${todayISO()}" required></div>
       <div class="field"><label>เวลาที่ทำจริง</label><input id="tdone_time" type="time" value="${esc(doneTime)}"></div>
     </div>
     ${recommendWeather ? `
@@ -3535,6 +3523,14 @@ App.finishTask = async function (id, allowNoPhoto) {
     toast(`งาน${TYPE_LABELS[t.type] || "นี้"}แนะนำให้แนบรูปหลังทำ หรือกดทำเสร็จโดยไม่แนบรูป`);
     return;
   }
+  const doneDateInput = document.getElementById("tdone_date");
+  const doneTimeInput = document.getElementById("tdone_time");
+  const doneDate = (doneDateInput?.value || "").slice(0, 10);
+  const doneTime = (doneTimeInput?.value || currentTimeHHMM()).slice(0, 5);
+  if (!doneDate || doneDate > todayISO() || !doneDateInput.checkValidity()) {
+    if (doneDateInput) setModalFieldError(doneDateInput, "กรุณาเลือกวันที่ทำจริง ไม่เกินวันนี้");
+    return;
+  }
   taskFinishSaving = true;
   t.status = "done";
   if (t.type === "water" && taskDoneWaterSessions.length) {
@@ -3542,15 +3538,6 @@ App.finishTask = async function (id, allowNoPhoto) {
   }
   t.donePhotos = taskDonePhotos.slice();
   t.doneNote = (document.getElementById("tdone_note")?.value || "").trim();
-  const doneDateInput = document.getElementById("tdone_date");
-  const doneTimeInput = document.getElementById("tdone_time");
-  const doneDate = (doneDateInput?.value || todayISO()).slice(0, 10);
-  const doneTime = (doneTimeInput?.value || currentTimeHHMM()).slice(0, 5);
-  if (!doneDate) {
-    taskFinishSaving = false;
-    if (doneDateInput) setModalFieldError(doneDateInput, "กรุณาเลือกวันที่ทำจริง");
-    return;
-  }
   t.doneDate = doneDate;
   t.doneTime = doneTime;
   const weatherCheck = document.getElementById("tdone_weather");
@@ -3582,16 +3569,15 @@ App.failTask = async function (id) {
   if (taskFinishSaving) { toast("กำลังบันทึกผลอยู่..."); return; }
   const t = S.tasks.find(x => x.id === id);
   if (!t) return;
-  taskFinishSaving = true;
   const doneDateInput = document.getElementById("tdone_date");
   const doneTimeInput = document.getElementById("tdone_time");
-  const doneDate = (doneDateInput?.value || todayISO()).slice(0, 10);
+  const doneDate = (doneDateInput?.value || "").slice(0, 10);
   const doneTime = (doneTimeInput?.value || currentTimeHHMM()).slice(0, 5);
-  if (!doneDate) {
-    taskFinishSaving = false;
-    if (doneDateInput) setModalFieldError(doneDateInput, "กรุณาเลือกวันที่บันทึกผล");
+  if (!doneDate || doneDate > todayISO() || !doneDateInput.checkValidity()) {
+    if (doneDateInput) setModalFieldError(doneDateInput, "กรุณาเลือกวันที่บันทึกผล ไม่เกินวันนี้");
     return;
   }
+  taskFinishSaving = true;
   t.status = "failed";
   if (t.type === "water") {
     const rows = taskDoneWaterSessions.length ? taskDoneWaterSessions : doneWaterSessionsForTask(t);
@@ -3746,7 +3732,7 @@ function renderPlanner() {
         ${selTasks.map(t => taskRowHtml(t, { showDate: true, showNote: true, showDelete: true, showPlot: true })).join("")}
       </div>
     </details>
-    <div class="muted" style="font-size:.72rem;text-align:center">${ic("refresh")} เมื่อบันทึกงานที่ใช้วัสดุ (เช่น ใส่ปุ๋ย) ระบบจะตัดสต็อกและบันทึกต้นทุนเข้าสู่รอบปลูกทันที</div>`;
+    `;
 }
 App.plannerFilter = function (key) {
   plannerFilter = key || "today";
@@ -3821,6 +3807,8 @@ function renderAnalytics() {
   const years = analyticsYears(S);
   /* ---- แท็บฟาร์ม (แปลง) — ตัวเลขจากงานในแปลงเท่านั้น ---- */
   const ytd = ytdFinance(S, yr);
+  const cycleGroups = cycleStageFinance(S, yr);
+  const marginLabel = ytd.revenue > 0 ? `Margin ${ytd.margin.toFixed(1)}%` : "ยังคำนวณอัตรากำไรไม่ได้";
   const months = monthlySeries(S, yr);
   const crops = cropMargins(S, yr);
   const costs = costBreakdown(S, yr);
@@ -3830,7 +3818,7 @@ function renderAnalytics() {
   const chemRows = plotChemUse(S, yr);
   const overdueTasks = S.tasks.filter(t => taskStatusOf(t) === "overdue").sort((a, b) => a.date.localeCompare(b.date));
   const weekEnd = addDaysISO(todayISO(), 6);
-  const weekTasks = S.tasks.filter(t => t.status !== "done" && t.date >= todayISO() && t.date <= weekEnd);
+  const weekTasks = S.tasks.filter(t => !["done", "failed"].includes(t.status) && t.date >= todayISO() && t.date <= weekEnd);
   const outStock = (S.stock || []).filter(x => (Number(x.qty) || 0) + (Number(x.openQty) || 0) <= 0);
   const lowStock = (S.stock || [])
     .map(x => ({ ...x, avail: (Number(x.qty) || 0) + (Number(x.openQty) || 0) }))
@@ -3840,9 +3828,9 @@ function renderAnalytics() {
   const weakPlot = [...plotRows].reverse().find(p => p.net < 0) || null;
   const bestCrop = [...crops].filter(c => c.revenue > 0).sort((a, b) => b.margin - a.margin)[0] || null;
   const insightItems = [
-    overdueTasks.length ? { icon: "alert", tone: "red", title: `${fmtNum(overdueTasks.length)} งานเลยกำหนด`, sub: "ควรเคลียร์ก่อนเริ่มงานใหม่", action: "App.nav('planner')" } : { icon: "check", tone: "green", title: "ไม่มีงานเลยกำหนด", sub: "ตารางงานสะอาดดี", action: "App.nav('planner')" },
+    overdueTasks.length ? { icon: "alert", tone: "red", title: `${fmtNum(overdueTasks.length)} งานเลยกำหนด`, sub: "งานที่ยังรอทำ", action: "App.openPlannerFilter('overdue')" } : { icon: "check", tone: "green", title: "ไม่มีงานเลยกำหนด", sub: "ตารางงานสะอาดดี", action: "App.nav('planner')" },
     outStock.length ? { icon: "box", tone: "red", title: `${fmtNum(outStock.length)} รายการสต็อกหมด`, sub: outStock.slice(0, 2).map(x => x.name).join(" · "), action: "App.nav('stock')" } : { icon: "box", tone: "green", title: "ไม่มีสต็อกหมด", sub: lowStock.length ? `${fmtNum(lowStock.length)} รายการใกล้หมด` : "จำนวนคงเหลือยังดูดี", action: "App.nav('stock')" },
-    weakPlot ? { icon: "chart", tone: "amber", title: `แปลงขาดทุน: ${weakPlot.name}`, sub: `${fmtMoney(weakPlot.net)} บาท ในพ.ศ. ${beYr}`, action: `App.openPlot('${weakPlot.plotId}')` } : { icon: "chart", tone: "green", title: bestPlot ? `แปลงเด่น: ${bestPlot.name}` : "ยังไม่มีข้อมูลกำไรแปลง", sub: bestPlot ? `กำไร ${fmtMoney(bestPlot.net)} บาท` : "บันทึกงาน/ขายเพื่อเริ่มวิเคราะห์", action: bestPlot ? `App.openPlot('${bestPlot.plotId}')` : "App.nav('planner')" },
+    weakPlot ? { icon: "chart", tone: "amber", title: `ต้นทุนยังเกินรายรับ: ${weakPlot.name}`, sub: `ส่วนต่าง ${fmtMoney(weakPlot.net)} บาท ในพ.ศ. ${beYr}`, action: `App.openPlot('${weakPlot.plotId}')` } : { icon: "chart", tone: "green", title: bestPlot ? `แปลงเด่น: ${bestPlot.name}` : "ยังไม่มีข้อมูลรายรับและต้นทุน", sub: bestPlot ? `ส่วนต่าง ${fmtMoney(bestPlot.net)} บาท` : "ยังไม่มีรายการในปีนี้", action: bestPlot ? `App.openPlot('${bestPlot.plotId}')` : "App.nav('planner')" },
     bestCrop ? { icon: "leaf", tone: "blue", title: `พืชมาร์จินดี: ${bestCrop.crop}`, sub: `Margin ${fmtNum(bestCrop.margin)}%`, action: "App.analyticsTab('farm')" } : { icon: "leaf", tone: "blue", title: "รอข้อมูลพืช", sub: "เมื่อมีรายได้และต้นทุนจะจัดอันดับให้", action: "App.nav('plots')" }
   ];
   const analyticsBrief = `
@@ -3854,7 +3842,7 @@ function renderAnalytics() {
         <b>${fmtNum(outStock.length)}</b><span>สต็อกหมด</span><small>${lowStock.length ? `${fmtNum(lowStock.length)} ใกล้หมด` : "คงเหลือปกติ"}</small>
       </button>
       <button class="analytics-brief-card" onclick="App.analyticsTab('farm')">
-        <b>${fmtMoney(ytd.net)}</b><span>กำไรฟาร์ม</span><small>Margin ${ytd.margin.toFixed(1)}%</small>
+        <b>${fmtMoney(ytd.net)}</b><span>ส่วนต่างรายรับ-ต้นทุน</span><small>${marginLabel}</small>
       </button>
       <button class="analytics-brief-card" onclick="App.analyticsTab('shop')">
         <b>${fmtMoney(salesProfitYTD(S, yr))}</b><span>กำไรร้าน</span><small>${salesYearCount(S, yr)} ใบเสร็จ</small>
@@ -3872,16 +3860,21 @@ function renderAnalytics() {
     <div class="kpi-row">
       <div class="kpi green"><div class="kpi-icon">${ic("dollar")}</div><div class="kpi-label">รายได้</div><div class="kpi-value">${fmtMoney(ytd.revenue)}</div><div class="kpi-sub">บาท</div></div>
       <div class="kpi amber"><div class="kpi-icon">${ic("box")}</div><div class="kpi-label">ต้นทุน</div><div class="kpi-value">${fmtMoney(ytd.cost)}</div><div class="kpi-sub">บาท</div></div>
-      <div class="kpi blue ${ytd.net >= 0 ? "pos" : "neg"}"><div class="kpi-icon">${ic("chart")}</div><div class="kpi-label">กำไรสุทธิ</div><div class="kpi-value">${fmtMoney(ytd.net)}</div><div class="kpi-sub">Margin ${ytd.margin.toFixed(1)}%</div></div>
+      <div class="kpi blue ${ytd.net >= 0 ? "pos" : "neg"}"><div class="kpi-icon">${ic("chart")}</div><div class="kpi-label">ส่วนต่างรายรับ-ต้นทุน</div><div class="kpi-value">${fmtMoney(ytd.net)}</div><div class="kpi-sub">${marginLabel}</div></div>
     </div>
 
-    <div class="section-title">สรุปผลประกอบการรายปี (กำไรรายเดือน)</div>
+    <section class="cycle-stage-finance">
+      <div class="section-title">ต้นทุนและรายรับตามสถานะรอบปลูก</div>
+      ${cycleGroups.map(group => `<div class="cycle-stage-row"><div><b>${group.label}</b><small>${group.key === "unassigned" ? "รายการที่ไม่ผูกรอบ" : `${group.count} รอบที่มีรายการปีนี้`}${group.key === "active" ? " · ผลยังไม่สิ้นสุด" : ""}</small></div><div><span>ต้นทุน</span><b>${fmtMoney(group.cost)} บาท</b></div><div><span>รายรับ</span><b>${fmtMoney(group.revenue)} บาท</b></div><div><span>${group.key === "closed" ? "กำไร/ขาดทุน" : "ส่วนต่างปัจจุบัน"}</span><b class="${group.net < 0 ? "price-trend-down" : "price-trend-up"}">${fmtMoney(group.net)} บาท</b></div></div>`).join("")}
+    </section>
+
+    <div class="section-title">ส่วนต่างรายรับ-ต้นทุนรายเดือน</div>
     <div class="card">
       <div class="chart-wrap" id="chartYear"></div>
-      <div class="muted mt-8" style="font-size:.72rem">เทียบเทรนด์กำไรเดือนต่อเดือน · เขียว = กำไร แดง = ขาดทุน</div>
+      <div class="muted mt-8" style="font-size:.72rem">รวมรายการที่ทำเสร็จแล้ว ทั้งรอบที่กำลังปลูกและรอบที่ปิดแล้ว</div>
     </div>
 
-    <div class="section-title">กำไรรายแปลง (พ.ศ. ${beYr}) — ใครกำไร ใครขาดทุน</div>
+    <div class="section-title">ส่วนต่างรายรับ-ต้นทุนรายแปลง (พ.ศ. ${beYr})</div>
     <div class="card">
       <div class="chart-wrap" id="chartPlot"></div>
       <div class="legend-list">
@@ -3890,7 +3883,7 @@ function renderAnalytics() {
           return `<div class="li"><span class="sw" style="background:${isProfit ? "var(--green)" : "var(--red)"}"></span><span>${cropEmoji(p.crop)} ${esc(p.name)}${p.crop ? ` <span class="muted" style="font-size:.68rem">· ${esc(p.crop)}</span>` : ""}</span><span class="val">${fmtMoney(p.net)} บาท</span></div>`;
         }).join("")}
       </div>
-      <div class="muted mt-8" style="font-size:.72rem">${ic("info")} กำไร = รายได้ − ต้นทุน (เฉพาะงานที่เสร็จแล้วพ.ศ. ${beYr}) · เขียว = กำไร แดง = ขาดทุน · เรียงจากกำไรมากสุด</div>
+      <div class="muted mt-8" style="font-size:.72rem">${ic("info")} รายได้ − ต้นทุนของงานที่เสร็จแล้วในพ.ศ. ${beYr} · รอบที่กำลังปลูกยังไม่ใช่ผลกำไรสุดท้าย</div>
     </div>
 
     <div class="section-title">วิเคราะห์กำไรตามพืช (Margin %)</div>
@@ -3898,9 +3891,9 @@ function renderAnalytics() {
       <div class="chart-wrap" id="chartCrop"></div>
       <div class="legend-list">
         ${crops.map(c => {
-          const margin = c.revenue > 0 ? ((c.revenue - c.cost) / c.revenue * 100).toFixed(0) : 0;
+          const margin = c.revenue > 0 ? ((c.revenue - c.cost) / c.revenue * 100).toFixed(0) + "%" : "ยังคำนวณไม่ได้";
           const note = c.revenue === 0 ? " (ยังไม่มีรายได้)" : "";
-          return `<div class="li"><span class="sw" style="background:var(--green)"></span><span>${cropEmoji(c.crop)} ${esc(c.crop)}${note}</span><span class="val">${margin}%</span></div>`;
+          return `<div class="li"><span class="sw" style="background:var(--green)"></span><span>${cropEmoji(c.crop)} ${esc(c.crop)}${note}</span><span class="val">${margin}</span></div>`;
         }).join("")}
       </div>
     </div>
@@ -6097,6 +6090,22 @@ function openModal(html) {
     modalEl.appendChild(actions);
   }
   if (modalEl) {
+    modalEl.setAttribute("role", "dialog");
+    modalEl.setAttribute("aria-modal", "true");
+    const heading = modalEl.querySelector("h3");
+    if (heading) { heading.id = "activeModalTitle"; modalEl.setAttribute("aria-labelledby", heading.id); }
+    modalEl.querySelectorAll(".field").forEach(field => {
+      const label = field.querySelector("label");
+      const input = field.querySelector("input[id], select[id], textarea[id]");
+      if (label && input && !label.htmlFor) label.htmlFor = input.id;
+    });
+    modalEl.addEventListener("keydown", event => {
+      if (event.key !== "Tab") return;
+      const controls = [...modalEl.querySelectorAll('button, input, select, textarea, a[href], [tabindex="0"]')].filter(el => !el.disabled && el.getClientRects().length);
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    });
     modalEl.querySelectorAll(".modal-x").forEach(btn => {
       if (!btn.getAttribute("aria-label")) btn.setAttribute("aria-label", "ปิดหน้าต่าง");
       if (!btn.getAttribute("title")) btn.setAttribute("title", "ปิดหน้าต่าง");
@@ -6117,6 +6126,8 @@ function openModal(html) {
   /* ซ่อนปุ่มลัด (FAB) ระหว่างเปิด modal — กันกด/เลื่อนตรงมุมขวาล่างไปโดนพื้นหลัง */
   const fd = document.getElementById("fabDock");
   if (fd) fd.style.visibility = "hidden";
+  const firstControl = modalEl && modalEl.querySelector(".modal-x, input, button");
+  if (firstControl) firstControl.focus({ preventScroll: true });
 }
 function closeModal() {
   document.getElementById("modalRoot").innerHTML = "";
@@ -6125,6 +6136,11 @@ function closeModal() {
   unlockBodyScroll();
   const fd = document.getElementById("fabDock");
   if (fd) fd.style.visibility = "";
+  if (App._modalReturnFocus && App._modalReturnFocus.isConnected) App._modalReturnFocus.focus({ preventScroll: true });
+  if (typeof Auth !== "undefined") {
+    Auth.formEditing = false;
+    if (Auth.syncState === "incoming") setTimeout(() => Auth.saveNow(), 0);
+  }
 }
 function confirmModal(title, text, onOk) {
   openModal(`
@@ -6376,6 +6392,10 @@ App.pickPlaybook = function (key) {
   App._ppKey = null; /* บังคับวาดใหม่ */
   App.planPreviewRefresh();
 };
+App.openPlannerFilter = function (key) {
+  plannerFilter = key || "today";
+  App.nav("planner");
+};
 App.planPreviewDatesRefresh = function () {
   const start = (document.getElementById("f_start") || {}).value || "";
   const validStart = /^\d{4}-\d{2}-\d{2}$/.test(start);
@@ -6456,7 +6476,7 @@ function syncCycleAutoTasks(cycleId, plotId, oldStart, newStart) {
       changed = true;
     }
     if (delta && /^\d{4}-\d{2}-\d{2}$/.test(t.date || "")) {
-      const relDay = playbookDayFromNote(t.note);
+      const relDay = t.manualDate ? null : playbookDayFromNote(t.note);
       t.date = relDay == null ? addDaysISO(t.date, delta) : addDaysISO(newStart, relDay);
       shifted++;
       changed = true;
@@ -7741,11 +7761,33 @@ App.taskTypeChange = function () {
   const sel = document.getElementById("t_type");
   const box = document.getElementById("waterBox");
   if (!sel || !box) return;
+  if (App._taskFormType !== sel.value) {
+    App._taskCostDrafts[App._taskFormType] = { items: taskCostItems, enabled: document.getElementById("t_usecost").checked };
+    const draft = App._taskCostDrafts[sel.value];
+    taskCostItems = draft ? draft.items : [{ category: defaultCostCat(sel.value), stockId: "", name: "", qty: "", unit: "", unitCost: "", totalCost: 0 }];
+    document.getElementById("t_usecost").checked = draft ? draft.enabled : ["spray", "fertilize", "expense"].includes(sel.value);
+    document.getElementById("t_useharvest").checked = sel.value === "harvest";
+    App._taskFormType = sel.value;
+    App.taskToggleCost();
+    App.taskToggleHarvest();
+  }
+  const harvestOption = document.getElementById("taskHarvestOption");
+  if (harvestOption) harvestOption.hidden = sel.value !== "harvest" && !document.getElementById("t_useharvest").checked;
   const isWater = sel.value === "water";
   const plotId = (document.getElementById("t_plot") || {}).value || "";
   if (isWater && waterSessionsLookUntouched(taskWaterSessions)) taskWaterSessions = defaultWaterSessionsForPlot(plotId);
   box.style.display = isWater ? "" : "none";
   if (isWater) App.waterSessionsRender();
+};
+App.taskModeChange = function (status) {
+  document.getElementById("t_status").value = status;
+  document.querySelectorAll("[data-task-mode]").forEach(button => {
+    button.setAttribute("aria-pressed", String(button.dataset.taskMode === status));
+  });
+  const label = document.querySelector('label[for="t_date"]');
+  if (label) label.textContent = status === "planned" ? "กำหนดทำงาน *" : "วันที่ทำจริง *";
+  const submit = document.getElementById("taskSubmitButton");
+  if (submit && !taskEditingId) submit.textContent = status === "planned" ? "บันทึกแผนงาน" : "บันทึกงานที่ทำแล้ว";
 };
 App.modalTask = function (date, preset) {
   preset = preset || {};
@@ -7755,9 +7797,11 @@ App.modalTask = function (date, preset) {
   const type = editing ? editing.type : (preset.type || "work");
   const title = editing ? editing.title : (preset.title || "");
   const d = editing ? editing.date : (date || todayISO());
-  const status = editing ? (["done", "failed"].includes(editing.status) ? editing.status : "planned") : "planned";
-  const hasCost = editing ? (editing.cost > 0 || !!editing.stockId) : false;
-  const hasHarvest = editing ? editing.revenue > 0 : false;
+  const status = editing ? (["done", "failed"].includes(editing.status) ? editing.status : "planned") : (preset.status === "done" ? "done" : "planned");
+  const hasCost = editing ? (editing.cost > 0 || !!editing.stockId || (editing.costItems || []).length > 0) : ["spray", "fertilize", "expense"].includes(type);
+  const hasHarvest = editing ? (editing.revenue > 0 || editing.harvestQty > 0 || !!editing.finishCycle) : type === "harvest";
+  App._taskFormType = type;
+  App._taskCostDrafts = {};
   const stockItem = editing && editing.stockId ? stockById(S, editing.stockId) : null;
   const unitPrice = editing ? (stockItem ? stockItem.avgCost.toFixed(2) : (editing.qty ? (editing.cost / editing.qty).toFixed(2) : "")) : "";
   taskFormPhotos = taskPhotos(editing).slice();
@@ -7765,25 +7809,28 @@ App.modalTask = function (date, preset) {
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${editing ? "แก้ไขกิจกรรม" : (preset.title ? esc(preset.title) : "เพิ่มกิจกรรมใหม่")}</h3>
-    <div class="modal-sub">${editing ? "ปรับข้อมูลกิจกรรม" : (preset.title ? "ทางลัดบันทึกข้อมูลได้รวดเร็วด้วยมือเดียว" : "วางแผนและบันทึกกิจกรรมรายวัน")}</div>
-    <form onsubmit="return App.submitTask(event, '${editing ? editing.id : ""}')">
+    <div class="modal-sub">${editing ? esc(title) : "กิจกรรมในฟาร์ม"}</div>
+    <form class="task-form" onsubmit="return App.submitTask(event, '${editing ? editing.id : ""}')">
+      ${!editing ? `<div class="task-mode" role="group" aria-label="รูปแบบการบันทึก">
+        <button type="button" data-task-mode="planned" aria-pressed="${status === "planned"}" onclick="App.taskModeChange('planned')">${ic("calendar")} วางแผนงาน</button>
+        <button type="button" data-task-mode="done" aria-pressed="${status === "done"}" onclick="App.taskModeChange('done')">${ic("check")} ทำแล้ว</button>
+      </div>` : ""}
+      <div class="field"><label for="t_type">ประเภทกิจกรรม</label><select id="t_type" onchange="App.taskTypeChange()">
+        ${Object.keys(TYPE_LABELS).map(k => `<option value="${k}" ${k === type ? "selected" : ""}>${TYPE_LABELS[k]}</option>`).join("")}
+      </select></div>
       <div class="form-row-2">
-        <div class="field"><label>วันที่ *</label><input id="t_date" type="date" value="${d}" required></div>
-        <div class="field"><label>สถานะ</label><select id="t_status">
+        <div class="field"><label for="t_date">${status === "planned" ? "กำหนดทำงาน" : "วันที่ทำจริง"} *</label><input id="t_date" type="date" value="${d}" required></div>
+        <div class="field" ${!editing ? "hidden" : ""}><label for="t_status">สถานะ</label><select id="t_status" onchange="App.taskModeChange(this.value)">
           <option value="planned" ${status === "planned" ? "selected" : ""}>วางแผนไว้</option>
           <option value="done" ${status === "done" ? "selected" : ""}>เสร็จสิ้น</option>
           <option value="failed" ${status === "failed" ? "selected" : ""}>ไม่สำเร็จ</option>
         </select></div>
       </div>
-      <div class="field"><label>ชื่องาน *</label><input id="t_title" value="${esc(title)}" placeholder="เช่น ใส่ปุ๋ยครั้งที่ 2" required></div>
+      <div class="field"><label for="t_title">ชื่องาน *</label><input id="t_title" value="${esc(title)}" placeholder="เช่น ใส่ปุ๋ยครั้งที่ 2" required></div>
       <div class="form-row-2">
         <div class="field"><label>แปลง</label><select id="t_plot" onchange="App.taskPlotChange()"></select></div>
         <div class="field"><label>พืช / รอบ</label><select id="t_cycle" disabled></select></div>
       </div>
-      <div class="hint" style="margin-top:-6px">เลือกแปลง/รอบ เพื่อให้ต้นทุนเข้าถูกที่</div>
-      <div class="field"><label>ประเภทกิจกรรม</label><select id="t_type" onchange="App.taskTypeChange()">
-        ${Object.keys(TYPE_LABELS).map(k => `<option value="${k}" ${k === type ? "selected" : ""}>${TYPE_LABELS[k]}</option>`).join("")}
-      </select></div>
 
       <div id="waterBox" class="nested-fields water-box" style="display:${type === "water" ? "" : "none"}">
         <div class="water-box-title">${ic("droplet")} รอบรดน้ำ</div>
@@ -7798,7 +7845,7 @@ App.modalTask = function (date, preset) {
         <div class="usage-total">รวมต้นทุน <strong id="costSum">0 บาท</strong></div>
       </div>
 
-      <label class="option-box"><input type="checkbox" id="t_useharvest" onchange="App.taskToggleHarvest()" ${hasHarvest ? "checked" : ""}><span>${ic("box")} บันทึกการเก็บเกี่ยว</span></label>
+      <label class="option-box" id="taskHarvestOption" ${type !== "harvest" && !hasHarvest ? "hidden" : ""}><input type="checkbox" id="t_useharvest" onchange="App.taskToggleHarvest()" ${hasHarvest ? "checked" : ""}><span>${ic("box")} บันทึกการเก็บเกี่ยว</span></label>
       <div id="harvestBox" class="nested-fields" style="display:${hasHarvest ? "" : "none"}">
         <div class="form-row-2">
           <div class="field"><label>ปริมาณ (กก.)</label><input id="t_hqty" type="number" min="0" step="0.01" value="${editing && editing.harvestQty ? editing.harvestQty : ""}" oninput="App.taskCalcHarvest()"></div>
@@ -7810,7 +7857,6 @@ App.modalTask = function (date, preset) {
 
       <div class="field"><label>สิ่งที่ต้องทำ / รายละเอียดเพิ่มเติม</label>
         <textarea id="t_note" rows="3" placeholder="เช่น ใช้ปุ๋ยสูตร 46-0-0 อัตรา 20 กก./ไร่ รดน้ำตามหลังทันที">${editing ? esc(editing.note || "") : ""}</textarea>
-        <div class="hint">เขียนขั้นตอนหรือสิ่งที่ต้องทำ — จะแสดงเมื่อกดดูรายละเอียดกิจกรรม</div>
       </div>
       <div class="task-photo-panel">
         <div class="task-photo-head">
@@ -7821,7 +7867,7 @@ App.modalTask = function (date, preset) {
       </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
-        <button type="submit" class="btn btn-primary">${editing ? "บันทึกการแก้ไข" : "บันทึกกิจกรรม"}</button>
+        <button type="submit" class="btn btn-primary" id="taskSubmitButton">${editing ? "บันทึกการแก้ไข" : (status === "planned" ? "บันทึกแผนงาน" : "บันทึกงานที่ทำแล้ว")}</button>
       </div>
     </form>`);
   // ตั้งค่ารายการค่าใช้จ่ายเริ่มต้น (จากงานเดิม หรือ 1 รายการว่าง)
@@ -7861,9 +7907,8 @@ App.modalTask = function (date, preset) {
     }
     if (!selPlotId && preset.plotId) {
       selPlotId = preset.plotId;
-      const first = S.cycles.find(c => c.plotId === preset.plotId && c.status === "active");
-      if (first) selCycleId = first.id; // ทางลัดจากปุ่มของแปลง -> เลือกรอบที่กำลังดำเนินการให้อัตโนมัติ
-      else selCycleId = "__none__"; // แปลงนี้ยังไม่มีการปลูกรอบไหน -> เลือก "ยังไม่ปลูกอะไร" ให้อัตโนมัติ
+      const active = S.cycles.filter(c => c.plotId === preset.plotId && c.status === "active");
+      selCycleId = active.length === 1 ? active[0].id : (active.length ? "" : "__none__");
     }
     const plots = S.plots.slice();
     if (selPlotId && !plots.some(p => p.id === selPlotId)) {
@@ -7905,6 +7950,8 @@ App.taskPlotChange = function () {
     cycles.map(c => `<option value="${c.id}">${esc(c.plant)}</option>`).join("") +
     '<option value="__none__">ยังไม่ปลูกอะไร (ต้นทุนเข้ารวมแปลงนี้)</option>';
   cycSel.disabled = false;
+  if (cycles.length === 1) cycSel.value = cycles[0].id;
+  else if (!cycles.length) cycSel.value = "__none__";
   if ((document.getElementById("t_type") || {}).value === "water") {
     if (!taskEditingId && waterSessionsLookUntouched(taskWaterSessions)) taskWaterSessions = defaultWaterSessionsForPlot(pid);
     App.waterSessionsRender();
@@ -7937,7 +7984,7 @@ App.submitTask = function (e, editId) {
     }
   }
   /* รวบรวมรายการค่าใช้จ่าย: เฉพาะรายการที่มีข้อมูล (ชื่อ/จำนวน/สต็อก/ราคา) */
-  const costItems = taskCostItems
+  const costItems = (useCost ? taskCostItems : [])
     .map(it => ({
       category: it.category || "other",
       stockId: it.stockId || null,
@@ -7972,6 +8019,14 @@ App.submitTask = function (e, editId) {
   const tRevenue = useHarvest ? Math.round(hqty * hprice) || 0 : 0;
   const tType = document.getElementById("t_type").value;
   const existing = editId ? S.tasks.find(x => x.id === editId) : null;
+  if (document.getElementById("t_status").value !== "planned" && document.getElementById("t_date").value > todayISO()) {
+    setModalFieldError(document.getElementById("t_date"), "วันที่ทำจริงต้องไม่เกินวันนี้");
+    return false;
+  }
+  if ((totalCost > 0 || tRevenue > 0) && tPlot && !tCycleRaw) {
+    setModalFieldError(document.getElementById("t_cycle"), "เลือกรอบปลูก หรือเลือกต้นทุนรวมของแปลง");
+    return false;
+  }
   /* กันข้อมูลหาย: ถ้ามีต้นทุนหรือรายได้แต่ยังไม่เลือกแปลง -> บล็อกไม่ให้บันทึก
      (งานที่ไม่มีแปลง ต้นทุน/รายได้จะไม่เข้ารอบหรือแปลงไหนเลย) */
   if ((totalCost > 0 || tRevenue > 0) && !tPlot) {
@@ -7982,6 +8037,7 @@ App.submitTask = function (e, editId) {
     title,
     type: tType,
     date: document.getElementById("t_date").value,
+    manualDate: existing ? !!existing.manualDate || existing.date !== document.getElementById("t_date").value : false,
     status: document.getElementById("t_status").value,
     cycleId: tCycle,
     plotId: tPlot,
@@ -8020,7 +8076,7 @@ App.submitTask = function (e, editId) {
   const doneFlowReturnToDetail = !!taskEditReturnToDetail;
   /* เขียนสรุปการคำนวณ (เช่น ฉีดยา 4 ไร่ × 100 ซีซี/ไร่ = 0.4 ขวด) ลงในบันทึกอัตโนมัติ */
   const calcLines = [];
-  taskCostItems.forEach((it, idx) => {
+  (useCost ? taskCostItems : []).forEach((it, idx) => {
     if (it.stockId && (Number(it.calcArea) || 0) > 0 && (Number(it.calcRate) || 0) > 0) {
       const r = computeStockUsage(idx);
       if (r && r.summary && !calcLines.includes(r.summary)) calcLines.push(r.summary);
@@ -8034,7 +8090,7 @@ App.submitTask = function (e, editId) {
   /* บันทึกงาน (ใหม่ หรือแก้ไข) — คืนค่าและปิด modal */
   const commit = (restocked) => {
     // ถ้าติ๊ก "จบการปลูกรอบนี้" -> ปิดรอบทันที
-    if (data.finishCycle && data.cycleId) {
+    if (data.finishCycle && data.cycleId && data.status === "done") {
       const c = cycleById(S, data.cycleId);
       if (c) c.status = "done";
     }
@@ -8055,8 +8111,6 @@ App.submitTask = function (e, editId) {
     if (data.cycleId) {
       const c = cycleById(S, data.cycleId);
       if (c) data.plotId = c.plotId;
-    } else {
-      data.plotId = existing.plotId;
     }
     const oldUsed = (existing.stockLog && existing.stockLog.length) ? true : false;
     const newUsed = data.costItems.some(it => it.stockId && it.qty > 0) || (data.stockId && data.qty > 0);
@@ -8329,7 +8383,7 @@ function drawCharts() {
         value: p.net
       })));
     }
-    const cropBars = cropMargins(S, yr).map(c => ({
+    const cropBars = cropMargins(S, yr).filter(c => c.revenue > 0).map(c => ({
       label: c.crop.split(" ")[0],
       value: c.margin,
       color: "#16a34a"

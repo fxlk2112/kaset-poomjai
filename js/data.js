@@ -836,6 +836,23 @@ function plotFinance(s, plotId) {
 function cycleFinance(s, cycleId) {
   return taskFinance(s, t => t.cycleId === cycleId);
 }
+function cycleStageFinance(s, year) {
+  const groups = [
+    { key: "active", label: "กำลังปลูก / รอเก็บเกี่ยว", count: 0, cost: 0, revenue: 0 },
+    { key: "closed", label: "ปิดรอบแล้ว", count: 0, cost: 0, revenue: 0 },
+    { key: "unassigned", label: "ต้นทุนส่วนกลาง / ไม่ผูกรอบ", count: 0, cost: 0, revenue: 0 }
+  ];
+  const cycles = new Map((s.cycles || []).map(c => [c.id, c]));
+  const counted = new Set();
+  doneTasks(s).filter(t => String(t.date).startsWith(String(year))).forEach(t => {
+    const cycle = cycles.get(t.cycleId);
+    const group = groups[cycle ? (cycle.status === "active" ? 0 : 1) : 2];
+    group.cost += Number(t.cost) || 0;
+    group.revenue += Number(t.revenue) || 0;
+    if (cycle && !counted.has(cycle.id)) { group.count++; counted.add(cycle.id); }
+  });
+  return groups.map(g => ({ ...g, net: g.revenue - g.cost }));
+}
 /* กำไรสุทธิของปี (YTD) — คำนวณจากงานจริง (year เป็น CE เช่น 2026; ไม่ระบุ = ปีปัจจุบัน) */
 function ytdFinance(s, year) {
   const yr = String(year || todayISO().slice(0, 4));

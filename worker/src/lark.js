@@ -997,11 +997,18 @@ async function doSave(env, p) {
   const u = await authUser(env, p.token);
   const data = typeof p.data === "string" ? p.data : JSON.stringify(p.data || {});
   if (data.length > 900000) throw new Error("ข้อมูลใหญ่เกิน (~0.9MB) — ติดต่อผู้ดูแล");
-  const ts = Number(p.updated_at) || Date.now();
-  await env.DB.prepare(
-    "INSERT INTO user_data (user_id, data, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT(user_id) DO UPDATE SET data = ?2, updated_at = ?3"
-  ).bind(u.user_id, data, ts).run();
-  return { updated_at: ts };
+  const expected = p.base_updated_at == null ? null : Number(p.base_updated_at);
+  if (expected !== null && (!Number.isSafeInteger(expected) || expected < 0)) throw new Error("รุ่นข้อมูลไม่ถูกต้อง กรุณาโหลดใหม่");
+  // Check and write in one statement so concurrent devices cannot pass the same revision.
+  const row = await env.DB.prepare(
+    `INSERT INTO user_data (user_id, data, updated_at) VALUES (?1, ?2, ?3)
+     ON CONFLICT(user_id) DO UPDATE SET data = excluded.data,
+       updated_at = MAX(user_data.updated_at + 1, excluded.updated_at)
+     WHERE ?4 IS NULL OR user_data.updated_at = ?4
+     RETURNING updated_at`
+  ).bind(u.user_id, data, Date.now(), expected).first();
+  if (!row) return { conflict: true };
+  return { updated_at: row.updated_at };
 }
 
 async function doLoad(env, p) {

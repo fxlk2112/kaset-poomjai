@@ -64,16 +64,32 @@ try {
 } catch (e) {}
 
 function authCall(action, extra) {
+  const controller = ["load", "save"].includes(action) ? new AbortController() : null;
+  const timeout = controller ? setTimeout(() => controller.abort(), 20000) : null;
   return fetch(AUTH_API, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    ...(controller ? { signal: controller.signal } : {}),
     body: JSON.stringify(Object.assign({ action }, extra || {}))
-  }).then(r => r.json()).catch(() => ({ ok: false, error: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจอินเทอร์เน็ต" }));
+  }).then(r => r.json()).catch(() => ({ ok: false, error: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจอินเทอร์เน็ต" }))
+    .finally(() => { if (timeout !== null) clearTimeout(timeout); });
 }
 
 function setSession(s) {
   const oldEmail = Auth.session && Auth.session.email;
+  const identityChanged = oldEmail !== (s && s.email) || (Auth.session && Auth.session.token) !== (s && s.token);
   Auth.session = s;
+  if (identityChanged) {
+    Auth._syncEpoch = (Auth._syncEpoch || 0) + 1;
+    clearTimeout(Auth.timer);
+    Auth._syncPromise = null;
+    Auth._conflict = null;
+    Auth.syncing = false;
+    Auth.syncState = null;
+    Auth.syncMessage = null;
+    Auth.formEditing = false;
+    Auth._editingForm = null;
+  }
   const newEmail = s && s.email;
   if (oldEmail !== newEmail) {
     App._stockShares = { outgoing: [], incoming: [] };
@@ -121,10 +137,12 @@ Auth.loadGoogleScript = function () {
 };
 function cloudTs() {
   const scoped = accountScopedKey(CLOUD_TS_KEY);
-  return Number(localStorage.getItem(scoped) || localStorage.getItem(CLOUD_TS_KEY)) || 0;
+  const legacy = localStorage.getItem(OWNER_KEY) === (Auth.session && Auth.session.email)
+    ? localStorage.getItem(CLOUD_TS_KEY) : 0;
+  return Number(localStorage.getItem(scoped) || legacy) || 0;
 }
 function setCloudTs(ts) {
-  const value = String(Number(ts) || Date.now());
+  const value = String(Number(ts) || 0);
   localStorage.setItem(accountScopedKey(CLOUD_TS_KEY), value);
   localStorage.setItem(CLOUD_TS_KEY, value);
 }
@@ -173,19 +191,21 @@ function loadSlotIntoS(email) {
 let SEED_SNAPSHOT = null;
 function blankState() {
   if (!SEED_SNAPSHOT) {
-    const backup = localStorage.getItem(STORAGE_KEY);
-    localStorage.removeItem(STORAGE_KEY);
-    SEED_SNAPSHOT = loadState();
-    if (backup !== null) localStorage.setItem(STORAGE_KEY, backup);
+    SEED_SNAPSHOT = seed();
+    ensureDefaults(SEED_SNAPSHOT);
   }
   return JSON.parse(JSON.stringify(SEED_SNAPSHOT));
 }
 
-function resetSTo(newState) {
+function normalizedAccountState(newState) {
   /* ฐาน = seed ครบทุกฟิลด์ แล้วทับด้วยข้อมูลของบัญชี — กันฟิลด์ขาด (slot เก่า/คลาวด์คนละเวอร์ชัน) */
   const merged = Object.assign(blankState(), newState || {});
   try { ensureTaskIds(merged); ensureDefaults(merged); } catch (e) {}
   merged.version = 54;
+  return merged;
+}
+function resetSTo(newState) {
+  const merged = normalizedAccountState(newState);
   Object.keys(S).forEach(k => { delete S[k]; });
   Object.assign(S, merged);
 }
@@ -215,83 +235,149 @@ Auth.switchAccount = function () {
 };
 
 /* ---------- sync ---------- */
+Auth.setSyncStatus = function (state, message) {
+  Auth.syncState = state;
+  Auth.syncMessage = message;
+  const el = document.getElementById("syncStatus");
+  if (el) {
+    el.dataset.state = state;
+    const label = el.querySelector("span");
+    if (label) label.textContent = message;
+    el.title = message;
+  }
+};
+Auth.syncStatusHtml = function () {
+  if (!Auth.session) return "";
+  const state = Auth.syncState || (localDirty() ? "pending" : "checking");
+  const message = Auth.syncMessage || (localDirty() ? "บันทึกในเครื่องแล้ว · รอซิงก์" : "กำลังตรวจข้อมูลล่าสุด");
+  return `<button id="syncStatus" class="sync-status" data-state="${state}" onclick="App.authSyncNow()" title="${esc(message)}"><i aria-hidden="true"></i><span role="status" aria-live="polite">${esc(message)}</span>${ic("refresh")}</button>`;
+};
+Auth.canApplyCloud = function () {
+  const active = document.activeElement;
+  const editing = Auth.formEditing && (!Auth._editingForm || Auth._editingForm.isConnected);
+  return !document.querySelector("#modalRoot .modal") && !editing &&
+    !(active && active.matches("input, textarea, select, [contenteditable='true']"));
+};
+Auth.retrySync = function () {
+  clearTimeout(Auth.timer);
+  Auth._retryDelay = Math.min((Auth._retryDelay || 2500) * 2, 30000);
+  Auth.timer = setTimeout(() => Auth.saveNow(), Auth._retryDelay);
+};
 Auth.queueSave = function () {
-  if (!Auth.session || Auth.suppress) return;
+  if (!Auth.session || Auth.suppress || Auth._silentLocalSave) return;
+  Auth.formEditing = false;
+  Auth.setSyncStatus("pending", "บันทึกในเครื่องแล้ว · รอซิงก์");
   clearTimeout(Auth.timer);
   Auth.timer = setTimeout(() => Auth.saveNow(), 2500);
 };
 
-Auth.saveNow = async function () {
-  if (!Auth.session || Auth.syncing) return;
+Auth.saveNow = function (options) {
+  if (!Auth.session || Auth.shareMode) return Promise.resolve({ ok: false });
+  if (Auth._syncPromise) return Auth._syncPromise;
+  const session = Auth.session;
+  const epoch = Auth._syncEpoch || 0;
+  const current = () => Auth.session && Auth.session.token === session.token && (Auth._syncEpoch || 0) === epoch;
   Auth.syncing = true;
-  try {
-    const ts = Date.now();
-    const r = await authCall("save", { token: Auth.session.token, data: JSON.stringify(S), updated_at: ts });
-    if (r.ok) {
-      setCloudTs(ts);
-      setLocalDirty(false);
+  const work = async () => {
+    if (navigator.onLine === false) {
+      Auth.setSyncStatus("offline", localDirty() ? "ออฟไลน์ · บันทึกในเครื่องแล้ว รอส่ง" : "ออฟไลน์ · ใช้ข้อมูลในเครื่อง");
+      return { ok: false, offline: true };
     }
-  } catch (e) { /* ออฟไลน์ — รอบันทึกครั้งถัดไป */ }
-  Auth.syncing = false;
+    Auth.setSyncStatus("checking", "กำลังซิงก์ข้อมูล");
+    const loaded = await authCall("load", { token: session.token });
+    if (!current()) return { ok: false };
+    if (!loaded.ok) throw new Error(loaded.error || "เชื่อมต่อไม่ได้");
+    const remote = loaded.data || {};
+    const revision = Number(remote.updated_at) || 0;
+    const snapshot = JSON.stringify(S);
+    const remoteMatches = remote.data && JSON.stringify(normalizedAccountState(remote.data)) === snapshot;
+    const changed = revision !== cloudTs();
+    if (remoteMatches) {
+      setCloudTs(revision);
+      setLocalDirty(false);
+      Auth._conflict = null;
+    } else if (remote.data && (changed || !localDirty())) {
+      if (localDirty() && !(options && options.replaceRevision === revision)) {
+        Auth._conflict = remote;
+        Auth.setSyncStatus("conflict", "ข้อมูลเปลี่ยนทั้งสองเครื่อง · ตรวจสอบก่อนซิงก์");
+        return { ok: false, conflict: true };
+      }
+      if (!localDirty()) {
+        if (!Auth.canApplyCloud()) {
+          Auth.setSyncStatus("incoming", "มีข้อมูลใหม่ · รอกรอกข้อมูลให้เสร็จ");
+          return { ok: false, deferred: true };
+        }
+        applyCloudState(remote.data, revision);
+      }
+    }
+    if (!remote.data && !revision && localHasData()) setLocalDirty(true);
+    if (localDirty()) {
+      const savedSnapshot = JSON.stringify(S);
+      const savedLocal = localStorage.getItem(slotKey(session.email));
+      const result = await authCall("save", {
+        token: session.token, data: savedSnapshot, base_updated_at: revision, updated_at: Date.now()
+      });
+      if (!current()) return { ok: false };
+      if (!result.ok) throw new Error(result.error || "ส่งข้อมูลไม่สำเร็จ");
+      if (result.data && result.data.conflict) {
+        Auth.setSyncStatus("conflict", "อีกเครื่องมีข้อมูลใหม่ · กดตรวจสอบก่อนซิงก์");
+        Auth.retrySync();
+        return { ok: false, conflict: true };
+      }
+      setCloudTs(result.data.updated_at);
+      Auth._conflict = null;
+      // A completed request only acknowledges its own snapshot, not edits made while it was in flight.
+      const changedDuringSave = JSON.stringify(S) !== savedSnapshot || localStorage.getItem(slotKey(session.email)) !== savedLocal;
+      setLocalDirty(changedDuringSave);
+      if (changedDuringSave) {
+        Auth.queueSave();
+        return { ok: false, pending: true };
+      }
+    } else if (!remote.data) {
+      setCloudTs(revision);
+    }
+    Auth._retryDelay = 2500;
+    Auth.setSyncStatus("synced", "ซิงก์แล้ว · " + new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }));
+    return { ok: true };
+  };
+  const promise = work().catch(error => {
+    if (!current()) return { ok: false };
+    const message = String(error.message || "ส่งข้อมูลไม่สำเร็จ");
+    if (message.includes("เซสชัน")) {
+      Auth.setSyncStatus("error", "เซสชันหมดอายุ · เข้าสู่ระบบใหม่เพื่อซิงก์");
+    } else {
+      Auth.setSyncStatus("error", localDirty() ? "บันทึกในเครื่องแล้ว · ส่งไม่สำเร็จ กำลังรอลองใหม่" : "ตรวจข้อมูลคลาวด์ไม่สำเร็จ · กำลังรอลองใหม่");
+      Auth.retrySync();
+    }
+    return { ok: false, error: message };
+  }).finally(() => {
+    if (current()) { Auth.syncing = false; Auth._syncPromise = null; }
+  });
+  Auth._syncPromise = promise;
+  return promise;
 };
 
 function applyCloudState(cloudData, updatedAt) {
   Auth.suppress = true;
-  resetSTo(cloudData);
-  saveState(S);
-  if (updatedAt) setCloudTs(updatedAt); /* กันถามซ้ำทันทีหลังโหลด */
-  setLocalDirty(false);
-  location.reload();
+  try {
+    resetSTo(cloudData);
+    saveState(S);
+    setCloudTs(updatedAt);
+    setLocalDirty(false);
+    Auth._conflict = null;
+  } finally { Auth.suppress = false; }
+  if (typeof render === "function") render();
 }
 
 /* ---------- boot: เช็กคลาวด์ตอนเปิดเว็บ (มีเซสชันค้าง) ---------- */
 Auth.bootCheck = async function () {
   if (!Auth.session) { Auth.showGate(); return; }
-  try {
-    const r = await authCall("load", { token: Auth.session.token });
-    if (!r.ok) {
-      if (String(r.error || "").indexOf("เซสชัน") >= 0) {
-        setSession(null);
-        Auth.showGate();
-        toast("เซสชันหมดอายุ กรุณาล็อกอินใหม่");
-      } else {
-        toast(String(r.error || "เชื่อมต่อไม่ได้") + " — ใช้ข้อมูลในเครื่องชั่วคราว");
-      }
-      return;
-    }
-    const { data, updated_at } = r.data || {};
-    if (!data || !cloudHasContent(data)) {
-      /* คลาวด์ยังว่าง — ถ้าเครื่องนี้มีข้อมูล อัปขึ้นให้เลย (ถ้าไม่มีก็ผ่าน ห้ามวนลูป) */
-      if (localHasData()) await Auth.saveNow();
-      else setCloudTs(Math.max(cloudTs(), updated_at || 0));
-      return;
-    }
-    const seenTs = cloudTs();
-    const hasUnsyncedLocal = localDirty();
-    if (!localHasData()) {
-      /* เครื่องใหม่/ข้อมูลว่าง — ดึงจากคลาวด์เงียบ ๆ (พร้อม mark timestamp กันถามซ้ำ) */
-      applyCloudState(data, updated_at);
-      return;
-    }
-    if (updated_at > seenTs + 1000 && !Auth._askedThisLoad) {
-      if (!hasUnsyncedLocal) {
-        applyCloudState(data, updated_at);
-        return;
-      }
-      Auth._askedThisLoad = true;
-      Auth.askMerge(data, updated_at);
-      return;
-    }
-    if (hasUnsyncedLocal) {
-      await Auth.saveNow();
-      return;
-    }
-    setCloudTs(Math.max(seenTs, updated_at));
-  } catch (e) { /* ออฟไลน์ — ใช้ข้อมูลเครื่องต่อ */ }
+  await Auth.saveNow();
 };
 
 /* ข้อมูลต่างกันทั้งสองฝั่งและเครื่องนี้มีข้อมูลยังไม่ขึ้นคลาวด์ — ถามว่าจะเอาฝั่งไหน */
 Auth.askMerge = function (cloudData, updatedAt) {
+  Auth._conflict = { data: cloudData, updated_at: updatedAt };
   const accountLabel = maskEmailForDisplay(Auth.session && Auth.session.email);
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
@@ -304,17 +390,35 @@ Auth.askMerge = function (cloudData, updatedAt) {
     </div>`);
 };
 Auth.choosePull = function () {
+  const session = Auth.session;
+  const revision = Auth._conflict && Auth._conflict.updated_at;
   closeModal();
   App.confirm("ยืนยันดึงข้อมูลจากคลาวด์?", "ข้อมูลปัจจุบันในเครื่องนี้จะถูกแทนที่ทั้งหมด", () => {
-    authCall("load", { token: Auth.session.token }).then(r => {
-      if (r.ok && r.data.data) { setCloudTs(r.data.updated_at); applyCloudState(r.data.data, r.data.updated_at); }
+    authCall("load", { token: session.token }).then(r => {
+      if (Auth.session !== session) return;
+      if (!r.ok) { toast("ดึงข้อมูลไม่สำเร็จ ข้อมูลในเครื่องยังอยู่"); return; }
+      if (r.data.updated_at !== revision) { toast("คลาวด์มีข้อมูลใหม่อีกครั้ง กรุณาตรวจสอบ"); Auth.askMerge(r.data.data, r.data.updated_at); return; }
+      if (r.data.data) { applyCloudState(r.data.data, r.data.updated_at); Auth.setSyncStatus("synced", "ซิงก์ข้อมูลล่าสุดแล้ว"); }
     });
   });
 };
 Auth.choosePush = function () {
+  const revision = Auth._conflict && Auth._conflict.updated_at;
   closeModal();
-  Auth.saveNow().then(() => toast("ส่งข้อมูลเครื่องนี้ขึ้นคลาวด์แล้ว"));
+  Auth.saveNow({ replaceRevision: revision }).then(r => toast(r.ok ? "ส่งข้อมูลเครื่องนี้ขึ้นคลาวด์แล้ว" : "ยังไม่ซิงก์สำเร็จ ตรวจสถานะด้านบน"));
 };
+
+window.addEventListener("online", () => Auth.saveNow());
+window.addEventListener("offline", () => Auth.setSyncStatus("offline", localDirty() ? "ออฟไลน์ · บันทึกในเครื่องแล้ว รอส่ง" : "ออฟไลน์ · ใช้ข้อมูลในเครื่อง"));
+window.addEventListener("focus", () => { if (!Auth.landingMode) Auth.saveNow(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden && !Auth.landingMode) Auth.saveNow(); });
+document.addEventListener("input", e => {
+  const form = e.target.closest && e.target.closest("#view form, #modalRoot");
+  if (form) { Auth.formEditing = true; Auth._editingForm = form; }
+});
+setInterval(() => {
+  if (!document.hidden && !Auth.landingMode && navigator.onLine !== false) Auth.saveNow();
+}, 30000);
 
 /* ---------- core: สมัคร / ล็อกอิน (ใช้ร่วม gate และหน้าตั้งค่า) ---------- */
 async function coreLogin(email, pw) {
@@ -537,7 +641,7 @@ Auth.gateSubmit = async function () {
 
 /* ---------- ออกจากระบบ / ซิงก์ปุ่มในหน้าตั้งค่า ---------- */
 App.authLogout = function () {
-  App.confirm("ออกจากระบบ?", "ข้อมูลของบัญชีนี้ถูกเก็บไว้ทั้งในเครื่องและบนคลาวด์ ล็อกอินกลับมาใช้ได้อีก", () => {
+  App.confirm("ออกจากระบบ?", localDirty() ? "มีข้อมูลที่ยังไม่ได้ส่งขึ้นคลาวด์ ข้อมูลยังอยู่ในเครื่องนี้และจะส่งต่อเมื่อเข้าสู่ระบบอีกครั้ง" : "ข้อมูลยังอยู่ในเครื่องนี้ เข้าสู่ระบบกลับมาใช้งานได้อีก", () => {
     if (Auth.session) authCall("logout", { token: Auth.session.token });
     setSession(null);
     /* เคลียร์ข้อมูลบัญชีนี้ออกจากหน่วยความจำ — บัญชีถัดไปต้องไม่เห็นข้อมูลซ้อน */
@@ -551,10 +655,12 @@ App.authLogout = function () {
 
 App.authSyncNow = async function () {
   if (!Auth.session) return;
-  toast("กำลังซิงก์...");
-  Auth.syncing = false;
-  await Auth.saveNow();
-  toast("ซิงก์ขึ้นคลาวด์แล้ว ✓");
+  const result = await Auth.saveNow();
+  if (result.conflict && Auth._conflict) {
+    Auth.askMerge(Auth._conflict.data, Auth._conflict.updated_at);
+  } else {
+    toast(result.ok ? "ซิงก์ข้อมูลล่าสุดแล้ว" : (Auth.syncMessage || "ยังไม่ซิงก์สำเร็จ"));
+  }
 };
 
 /* ---------- ซิงก์ระบบน้ำ (ตารางอัตโนมัติ) ขึ้นเซิร์ฟเวอร์ — cron ใช้ตัดสินใจให้น้ำ ---------- */
@@ -581,8 +687,9 @@ Auth.waterSync = async function () {
 /* ---------- แอดมิน: ตรวจสิทธิ์ + ดูข้อมูลทุกบัญชี ---------- */
 Auth.refreshAdmin = async function () {
   if (!Auth.session) return;
-  const r = await authCall("me", { token: Auth.session.token });
-  if (r.ok) {
+  const session = Auth.session;
+  const r = await authCall("me", { token: session.token });
+  if (r.ok && Auth.session === session) {
     const isAdmin = !!r.data.admin;
     if (Auth.session.admin !== isAdmin) {
       Auth.session.admin = isAdmin;
