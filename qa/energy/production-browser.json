@@ -1,0 +1,12 @@
+{
+  "result": "PASS",
+  "checked_at": "2026-09-07T11:33:23.858Z",
+  "real_production_assets": true,
+  "api_mocked": false,
+  "session": "ANONYMOUS_ISOLATED",
+  "viewport": "390x844",
+  "energy_navigation": true,
+  "no_overflow": true,
+  "script_errors": 0,
+  "physical_meter_readings_verified": false
+}

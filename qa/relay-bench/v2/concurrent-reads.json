@@ -1,0 +1,26 @@
+{
+  "result": "CONCURRENT_READ_PASS",
+  "probes": [
+    {
+      "probe": 0,
+      "passed": true,
+      "writes": 0
+    },
+    {
+      "probe": 1,
+      "passed": true,
+      "writes": 0
+    },
+    {
+      "probe": 2,
+      "passed": true,
+      "writes": 0
+    },
+    {
+      "probe": 3,
+      "passed": true,
+      "writes": 0
+    }
+  ],
+  "checked_at": "2026-09-06T14:48:47.271Z"
+}

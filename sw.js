@@ -18,6 +18,7 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;
   const u = new URL(req.url);
   if (u.origin !== self.location.origin) return; // ภายนอก: ใช้เน็ตปกติ
+  if (u.pathname === "/api" || u.pathname.startsWith("/api/") || u.pathname.startsWith("/photo/")) return;
   e.respondWith(
     fetch(req)
       .then(res => {

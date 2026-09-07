@@ -1,0 +1,29 @@
+{
+  "result": "PASS",
+  "checked_at": "2026-09-07T11:40:12.318Z",
+  "production": true,
+  "anonymous": true,
+  "api_mocked": false,
+  "results": [
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "result": "PASS",
+      "exact_heading": true,
+      "overflow": false,
+      "script_errors": 0
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "result": "PASS",
+      "exact_heading": true,
+      "overflow": false,
+      "script_errors": 0
+    }
+  ]
+}

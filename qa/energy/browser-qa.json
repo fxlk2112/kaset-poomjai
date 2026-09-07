@@ -1,0 +1,49 @@
+{
+  "result": "PASS",
+  "evidence": "ISOLATED_SYNTHETIC_API; no real owner session or meter readings",
+  "live_assets": false,
+  "results": [
+    {
+      "viewport": "phone",
+      "result": "PASS",
+      "overflow": false,
+      "script_errors": 0,
+      "states": [
+        "signed-out",
+        "login-return",
+        "awaiting-fixture",
+        "measured-fixture",
+        "stale-fixture",
+        "back-to-relays"
+      ]
+    },
+    {
+      "viewport": "tablet",
+      "result": "PASS",
+      "overflow": false,
+      "script_errors": 0,
+      "states": [
+        "signed-out",
+        "login-return",
+        "awaiting-fixture",
+        "measured-fixture",
+        "stale-fixture",
+        "back-to-relays"
+      ]
+    },
+    {
+      "viewport": "desktop",
+      "result": "PASS",
+      "overflow": false,
+      "script_errors": 0,
+      "states": [
+        "signed-out",
+        "login-return",
+        "awaiting-fixture",
+        "measured-fixture",
+        "stale-fixture",
+        "back-to-relays"
+      ]
+    }
+  ]
+}

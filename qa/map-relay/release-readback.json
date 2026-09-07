@@ -1,0 +1,39 @@
+{
+  "checked_at": "2026-09-06T09:31:40.123Z",
+  "result": "PASS",
+  "build": {
+    "app": "FARMULTIMATE",
+    "release_id": "owner-main-40721b5-22acffe",
+    "integration_commit": "40721b5bfa71670ea97aba0d247e5616277c018a",
+    "release_commit": "22acffe08bc24333bddf7867d4c13cd78721bab1",
+    "safety": "DATA_ONLY / SAFE_OFF",
+    "output_control_allowed": false
+  },
+  "release": {
+    "result": "DEPLOYED",
+    "version": "6098e543-bcc4-4b74-ae48-03a2fc8d9916",
+    "previous": "86e7be2a-f3f0-4fdd-9913-c776af61638c",
+    "backend_before": "87ab09f5-1da5-43b3-81c1-30c5a858b11f",
+    "release_commit": "22acffe08bc24333bddf7867d4c13cd78721bab1"
+  },
+  "asset_hash_matches": 9,
+  "real_cloud_relay_readback": {
+    "observed_at": "2026-09-06T09:30:53.812Z",
+    "status": "GOOD",
+    "modules": 2,
+    "relay_a_channels": 8,
+    "relay_b_channels": 8,
+    "relay_a_status": "GOOD",
+    "relay_b_status": "GOOD",
+    "output_enabled": 0,
+    "pi5_status": "GOOD",
+    "pi_zero_status": "GOOD"
+  },
+  "missing_session": 401,
+  "invalid_session": 403,
+  "forecast_models": 10,
+  "backend_unchanged": true,
+  "output_control_allowed": false,
+  "actual_hardware_command_test": "NOT_RUN",
+  "owner_private_browser_session": "NOT_VERIFIED"
+}
