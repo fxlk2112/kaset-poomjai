@@ -1,0 +1,19 @@
+[Unit]
+Description=Cache public forecast for FARMULTIMATE LAN
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=sucha-farm-lan
+Group=sucha-farm-lan
+ExecStart=/usr/bin/python3 /opt/sucha-farm-lan/app/cache_weather.py
+StateDirectory=sucha-owner-weather
+StateDirectoryMode=0750
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_INET AF_INET6
+UMask=0027
+TimeoutStartSec=25

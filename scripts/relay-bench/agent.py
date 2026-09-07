@@ -133,8 +133,9 @@ class Driver:
             raise BenchFault("OFF_UNVERIFIED")
 
 class Journal:
-    def __init__(self, path):
-        self.db = sqlite3.connect(path)
+    def __init__(self, path, threaded=False):
+        # The dual-transport coordinator serializes every access with one lock.
+        self.db = sqlite3.connect(path, check_same_thread=not threaded)
         self.db.execute("PRAGMA synchronous=FULL")
         self.db.execute("CREATE TABLE IF NOT EXISTS commands(id TEXT PRIMARY KEY,status TEXT NOT NULL,updated_at REAL NOT NULL)")
         self.db.commit()

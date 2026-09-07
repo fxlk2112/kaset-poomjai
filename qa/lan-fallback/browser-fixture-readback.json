@@ -1,0 +1,32 @@
+{
+  "result": "PASS",
+  "api_fixtures": true,
+  "real_owner_login": false,
+  "external_network_blocked": true,
+  "results": [
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "result": "PASS",
+      "cloud_requests": 0,
+      "overflow": false,
+      "script_errors": 0,
+      "fixture_login": true,
+      "local_map_weather_health": true
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "result": "PASS",
+      "cloud_requests": 0,
+      "overflow": false,
+      "script_errors": 0,
+      "fixture_login": true,
+      "local_map_weather_health": true
+    }
+  ]
+}

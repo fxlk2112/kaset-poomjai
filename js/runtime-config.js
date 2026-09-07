@@ -40,6 +40,7 @@
     try { url = new URL(String(href || "")); }
     catch (error) { url = new URL("http://localhost/"); }
     const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    const lan = localConfig.lanMode === true && url.protocol === "https:";
     const deployed = !local && (url.protocol === "https:" || url.protocol === "http:");
     const cloudStaging = Boolean(
       deployed &&
@@ -51,10 +52,10 @@
       local &&
       url.searchParams.get("api") === "owner-canary"
     );
-    const ownerCanary = localOwnerCanary || cloudStaging;
+    const ownerCanary = localOwnerCanary || cloudStaging || lan;
     const realSensorStaging = Boolean(
       ownerCanary &&
-      (cloudStaging || (local && url.searchParams.get("sensorData") === "real"))
+      (lan || cloudStaging || (local && url.searchParams.get("sensorData") === "real"))
     );
     const apiUrl = localOwnerCanary
       ? OWNER_CANARY_API
@@ -63,16 +64,17 @@
         : LEGACY_API;
     return Object.freeze({
       apiUrl,
-      apiMode: localOwnerCanary ? "owner-canary" : deployed ? "same-origin" : "local-public",
+      apiMode: lan ? "lan" : localOwnerCanary ? "owner-canary" : deployed ? "same-origin" : "local-public",
+      isLan: lan,
       isSameOriginApi: Boolean(deployed && apiUrl),
       isOwnerCanary: ownerCanary,
       isRealSensorStaging: realSensorStaging,
       isCloudStaging: cloudStaging,
-      storageNamespace: ownerCanary ? "owner-canary" : "",
+      storageNamespace: lan ? "farm-lan" : ownerCanary ? "owner-canary" : "",
       isLocalHost: local,
       hasLocalPiHealth: Boolean(local && LOCAL_PI_HEALTH_API),
-      hasCloudPiHealth: cloudStaging,
-      weatherModelsApiUrl: cloudStaging ? `${url.origin}/api/monitor/weather` : "",
+      hasCloudPiHealth: cloudStaging || lan,
+      weatherModelsApiUrl: cloudStaging || lan ? `${url.origin}/api/monitor/weather` : "",
       piHealthApiUrl: local ? LOCAL_PI_HEALTH_API : "",
       hasLocalWaterBalance: Boolean(local && LOCAL_WATER_BALANCE_PI5_API),
       waterBalanceApiUrl: local ? LOCAL_WATER_BALANCE_PI5_API : "",

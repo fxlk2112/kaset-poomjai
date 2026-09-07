@@ -10,7 +10,7 @@ const integrationCommit = git("rev-parse", "origin/develop");
 const releaseCommit = git("rev-parse", "HEAD");
 execFileSync("git", ["merge-base", "--is-ancestor", integrationCommit, "HEAD"], { cwd: root });
 const releaseId = `owner-main-${integrationCommit.slice(0, 7)}-${releaseCommit.slice(0, 7)}`;
-const fixed = new Set(["index.html", "sw.js", "manifest.json", "logo.jpg", "data/weather-models.json"]);
+const fixed = new Set(["index.html", "sw.js", "manifest.json", "logo.jpg", "data/weather-models.json", "lan-setup.html", "lan-setup.mobileconfig", "lan-ca.cer"]);
 const files = git("ls-files", "-z").split("\0").filter(file => file && (
   fixed.has(file) || /^(css|icons|images)\/.*\.(css|png|jpe?g|webp|svg|ico|gif|avif)$/i.test(file) || /^js\/(?!tests\/).*\.js$/.test(file)
 ));

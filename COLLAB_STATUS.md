@@ -1,6 +1,13 @@
 # FARMULTIMATE Collaboration Status
 
-## Active task: OWNER-MAP-HEADING-001
+## Active task: OWNER-LAN-001
+
+- Owner SUCHA; branch `pick/lan-fallback-v1`; source `858d4ce`, freshly fetched develop ancestor verified. Pick explicitly requested all four LAN fallback sections: offline site, independent LAN login, one Pi controller for LAN/Cloud, visible transport and saved forecast.
+- Writable lock: new `scripts/lan/`, LAN coordinator beside existing relay agent, scoped service drop-in, LAN runtime/UI/build hooks, Worker transport arbitration, forecast caching, tests/docs/QA and status. Commerce and field commissioning remain excluded. The explicit LAN request supersedes the earlier collaboration-only LAN restriction for this task.
+- Runtime scope: dedicated LAN HTTPS service on Pi 5, same-owner offline password verifier in protected local storage, existing Pi writer extended through a permission-restricted local socket, no-load five-second pulses only, no router/WAN/Windows-firewall change. Existing relay driver identity/mode checks and bus serialization stay in place.
+- Acceptance: WAN-independent static files/login/telemetry/control; exclusive controller ownership and stale-command rejection across takeover/reconnect/restart; local and cloud state indication; saved forecast timestamp; meaningful fault/auth/concurrency tests and actual Pi readbacks. Prepare rollback and preserve existing data/services. Status `IN_PROGRESS`.
+
+## Previous task: OWNER-MAP-HEADING-001
 
 - Owner SUCHA; branch `pick/map-heading-v1`; source `936195ee0c4544c6e1987ab8d01801aff95ae991` with freshly fetched `origin/develop` verified as ancestor. Existing work preserved.
 - Pick requested changing the map overview heading from `ภาพรวมระบบชลประทาน` to `ภาพรวมระบบการจัดการ` on the current owner website. This follows the authorized owner-site UI work.

@@ -43,13 +43,14 @@
     }
     try {
       const response = await fetch(FarmUltimateRuntime.apiUrl + "/relay-bench/" + action, {
-        method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", signal: AbortSignal.timeout(10000), body: JSON.stringify({ token, ...extra })
+        method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", signal: AbortSignal.timeout(10000), body: JSON.stringify({ token, ...extra, ...(FarmUltimateRuntime.isLan ? {control_epoch:bench.data?.control_epoch,issued_at:Date.now()} : {}) })
       });
       const result = await response.json();
       if (syncBench() !== token || epoch !== generation) return;
       if (!response.ok || !result.ok) {
         if (perChannel && bench.pending[key]?.id === extra.id) delete bench.pending[key];
         const messages = { OWNER_LOGIN_REQUIRED: "เข้าสู่ระบบด้วยบัญชีเจ้าของ", AUTH_DENIED: "เข้าสู่ระบบด้วยบัญชีเจ้าของอีกครั้ง", BENCH_DISABLED: "โหมดทดสอบยังไม่พร้อม", NO_LOAD_AND_READY_REQUIRED: "รอ Pi 5 พร้อมและทุกช่องปิดก่อนเริ่ม", NOT_READY_OR_BUSY: "ช่องนี้ยังทำงานหรือรอ Pi ยืนยัน กรุณารอสถานะล่าสุด" };
+        Object.assign(messages,{LOCAL_CONTROL_ACTIVE:"กำลังควบคุมผ่าน LAN กรุณาจบโหมด LAN ก่อนใช้ Cloud",CLOUD_CONTROL_ACTIVE:"Cloud มีรอบทดสอบอยู่ กรุณาจบโหมด Cloud ก่อน",LOCAL_SESSION_REQUIRED:"กรุณาเริ่มโหมดทดสอบ LAN ใหม่",COMMAND_EXPIRED:"คำสั่งหมดอายุ กรุณาอ่านสถานะแล้วกดใหม่"});
         throw new Error(messages[result.error] || "ยังยืนยันคำสั่งไม่ได้ กรุณาอ่านสถานะใหม่");
       }
       if (result.data && result.data.server_now >= bench.serverNow) {
@@ -82,14 +83,15 @@
     syncBench();
     const d = bench.data;
     const fresh = d && Date.now() - Date.parse(d.snapshot?.observed_at) < 12000 && d.connected === true;
-    const active = fresh && d.session_active === true && d.armed_until > Date.now();
+    const transportAllowed = root.FarmUltimateRuntime?.isLan || d?.control_source !== "LAN";
+    const active = fresh && transportAllowed && d.session_active === true && d.armed_until > Date.now();
     const pending = module && bench.pending[keyOf(module, channel)];
     const command = pending || d?.commands?.find(c => c.module === module && c.channel === channel);
     const value = d?.snapshot?.modules?.find(m => m.id === module)?.relay_status?.[channel - 1];
     const blocked = command && busyStatus(command.status);
     return { active: !!active, fresh: !!fresh, command, pending: !!pending,
       canPulse: !!(active && d.ready === true && d.protocol_version === 2 && !blocked && !bench.busy && (!module || value === false)),
-      canOff: !!(account && !bench.busy && (value === true || (blocked && command.action === "PULSE"))) };
+      canOff: !!(account && transportAllowed && !bench.busy && (value === true || (blocked && command.action === "PULSE"))) };
   }
   function viewModel(payload, now = Date.now()) {
     const safe = payload && payload.output_control_allowed === false;
@@ -131,6 +133,7 @@
     return `<section id="farm-relay-panel" class="farm-relay-panel" tabindex="-1" aria-labelledby="relay-panel-title">
       <header class="relay-panel-header"><div><span class="farm-map-eyebrow">RELAY & SWITCHES</span><h2 id="relay-panel-title">รีเลย์ / สวิตช์</h2><p>สถานะจาก Pi 5 · อ่านล่าสุด ${model.observedAt}</p></div><button type="button" class="farm-map-secondary" onclick="RelayPanel.request('read')" ${bench.reading ? "disabled" : ""}>${bench.reading ? "กำลังอ่าน…" : "อ่านสถานะใหม่"}</button></header>
       <div class="relay-blocker" id="relay-control-blocker"><strong>ทดสอบรีเลย์จริง · ไม่มีโหลดต่ออยู่</strong><p>เปิดหลายช่องพร้อมกันได้ แต่ละช่องปิดเองหลัง 5 วินาที ปุ่มปิดทำงานเฉพาะช่อง โหมดทดสอบใช้ได้ครั้งละ 15 นาที ห้ามต่อปั๊ม วาล์ว หรือโหลดขณะใช้โหมดนี้</p></div>
+      ${!root.FarmUltimateRuntime?.isLan && bench.data?.control_source === "LAN" ? `<p class="relay-command-status">กำลังควบคุมผ่าน LAN ภายในฟาร์ม · จบโหมด LAN ก่อนรับคำสั่ง Cloud</p>` : ""}
       ${signedIn ? `<div class="relay-bench-tools"><strong>${control.active ? "โหมดทดสอบพร้อมใช้งาน" : control.fresh ? "Pi 5 เชื่อมต่อแล้ว" : "รอเชื่อมต่อ Pi 5"}</strong>
         ${!control.active ? `<button type="button" class="farm-map-primary" onclick="RelayPanel.request('arm',{no_load_confirmed:true})" ${!control.fresh || !bench.data?.ready || bench.busy ? "disabled" : ""}>เริ่มทดสอบ · ยืนยันไม่มีโหลด</button>` : `<button type="button" class="farm-map-secondary" onclick="RelayPanel.request('disarm')" ${bench.busy ? "disabled" : ""}>จบการทดสอบ</button>`}
         <button type="button" class="farm-map-secondary" onclick="RelayPanel.request('off')" ${bench.busy ? "disabled" : ""}>ปิดทุกช่อง</button><button type="button" class="farm-map-secondary" onclick="RelayPanel.request('read')">อ่านสถานะทดสอบ</button></div>` : ""}

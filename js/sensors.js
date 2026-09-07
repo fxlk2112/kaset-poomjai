@@ -1058,6 +1058,7 @@
         <b class="${statusClass}">${safeText(statusLabel)}</b>
       </header>
       ${errorMessage}
+      ${root.FarmUltimateRuntime?.isLan ? `<div class="digital-weather-message cached">ข้อมูลล่าสุดที่ Pi 5 เก็บไว้ · ออกพยากรณ์ ${safeText(issuedAt)}</div>` : ""}
       ${expired ? `<div class="digital-weather-message cached">ชุดพยากรณ์นี้พ้นช่วงเวลาแล้ว รอชุดใหม่ก่อนแสดงแนวโน้มฝน</div>` : ""}
       ${hasData && !expired ? `<div class="digital-weather-model-kpis">
         <article><span>ฝน 24 ชม. · ค่ากลาง</span><strong>${numberLabel(rain.median, 1)} <b>มม.</b></strong><small>ช่วง ${numberLabel(rain.min, 1)}–${numberLabel(rain.max, 1)} มม.</small></article>

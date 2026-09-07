@@ -20,7 +20,8 @@ export function projectBenchSnapshot(p, now = Date.now()) {
   const fault = ["NONE", "READBACK_FAILED", "IDENTITY_MISMATCH", "MODE_MISMATCH", "UNEXPECTED_ON", "WRITE_FAILED", "OFF_UNVERIFIED", "JOURNAL_FAILED", "LOCAL_DISABLED"].includes(p?.fault) ? p.fault : "READBACK_FAILED";
   const observed = Date.parse(readings.observed_at);
   const ready = readings.status === "GOOD" && observed <= now + 2000 && now - observed < 12000 && readings.modules.length === 2 && modes && fault === "NONE" && readings.modules.every(m => [...m.relay_status, ...m.digital_inputs].every(v => typeof v === "boolean"));
-  return { protocol_version: p?.protocol_version === 2 ? 2 : 1, mode: "NO_LOAD_BENCH", observed_at: readings.observed_at, modules: readings.modules, mode_verified: modes, fault, ready };
+  const control_source = p?.control_source === "LAN" ? "LAN" : "CLOUD";
+  return { protocol_version: p?.protocol_version === 2 ? 2 : 1, mode: "NO_LOAD_BENCH", observed_at: readings.observed_at, modules: readings.modules, mode_verified: modes, fault, control_source, ready: ready && control_source === "CLOUD" };
 }
 const stmt = (db, sql, ...args) => db.prepare(sql).bind(...args);
 async function stateFor(db, user) {
@@ -38,7 +39,7 @@ async function publicState(db, user, now, supplied) {
   const fresh = now - s.heartbeat_at < 12000 && observed <= now + 2000 && now - observed < 12000;
   const compatible = p.protocol_version === 2;
   return { mode: "NO_LOAD_BENCH", protocol_version: 2, field_control_allowed: false, session_active: s.armed_until > now, armed_until: s.armed_until,
-    ready: fresh && compatible && p.ready === true && s.seen_stop_seq === s.stop_seq, connected: fresh, stopping: s.seen_stop_seq !== s.stop_seq,
+    control_source: p.control_source || "CLOUD", ready: fresh && compatible && p.ready === true && s.seen_stop_seq === s.stop_seq, connected: fresh, stopping: s.seen_stop_seq !== s.stop_seq,
     snapshot: fresh ? p : { mode: "NO_LOAD_BENCH", observed_at: p.observed_at || null, modules: [], ready: false, fault: "READBACK_FAILED" },
     commands: rows.results, last_command: rows.results[0] || null, pulse_seconds: 5, session_minutes: 15, server_now: now };
 }
@@ -68,6 +69,10 @@ export async function handleRelayBench(request, env) {
     }
     if (!owner) return reply({ ok: false, error: "AUTH_DENIED" }, 403);
     const user = owner.user_id;
+    if (!["poll", "read"].includes(action)) {
+      const localOwner = await stmt(db, "SELECT snapshot FROM relay_bench_state WHERE user_id=?1", user).first();
+      if (localOwner && JSON.parse(localOwner.snapshot).control_source === "LAN") return reply({ ok: false, error: "LOCAL_CONTROL_ACTIVE" }, 409);
+    }
     if (action === "pulse" || (action === "off" && (p.module !== undefined || p.channel !== undefined))) {
       const kind = action === "pulse" ? "PULSE" : "OFF";
       if (!UUID.test(p.id) || !validChannel(p) || (kind === "PULSE" && p.pulse_seconds !== 5) || (p.cancel_id !== undefined && !UUID.test(p.cancel_id))) return reply({ ok: false, error: "INVALID_PULSE" }, 400);
@@ -90,6 +95,7 @@ export async function handleRelayBench(request, env) {
           SELECT ?1,user_id,?3,?4,'PULSE',?5,?6,stop_seq,'QUEUED',?5 FROM relay_bench_state
           WHERE user_id=?2 AND armed_until>?5+6000 AND heartbeat_at>?5-12000 AND seen_stop_seq=stop_seq
           AND json_extract(snapshot,'$.ready')=1 AND json_extract(snapshot,'$.protocol_version')=2
+          AND COALESCE(json_extract(snapshot,'$.control_source'),'CLOUD')='CLOUD'
           AND NOT EXISTS(SELECT 1 FROM relay_bench_commands WHERE user_id=?2 AND module=?3 AND channel=?4 AND status IN ${ACTIVE})
           AND (SELECT COUNT(*) FROM relay_bench_commands WHERE user_id=?2 AND action='PULSE' AND created_at>?5-60000)<120`, p.id, user, p.module, p.channel, now, now + COMMAND_MS).run();
         if (!inserted.meta.changes) return reply({ ok: false, error: "NOT_READY_OR_BUSY" }, 409);
@@ -104,7 +110,7 @@ export async function handleRelayBench(request, env) {
         await cancel(db, user, now, true);
         await stmt(db, "UPDATE relay_bench_state SET instance_id=?2,seen_stop_seq=-1 WHERE user_id=?1", user, p.instance_id).run();
         s = await stateFor(db, user);
-      } else if (s.armed_until && (s.armed_until <= now || snapshot.fault !== "NONE" || snapshot.protocol_version !== 2)) {
+      } else if (s.armed_until && (s.armed_until <= now || snapshot.fault !== "NONE" || snapshot.protocol_version !== 2 || snapshot.control_source === "LAN")) {
         await cancel(db, user, now, true); s = await stateFor(db, user);
       }
       const seen = p.seen_stop_seq === s.stop_seq ? p.seen_stop_seq : -1;
