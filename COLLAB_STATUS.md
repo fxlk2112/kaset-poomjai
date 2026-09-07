@@ -5,7 +5,8 @@
 - Owner SUCHA; branch `pick/map-heading-v1`; source `936195ee0c4544c6e1987ab8d01801aff95ae991` with freshly fetched `origin/develop` verified as ancestor. Existing work preserved.
 - Pick requested changing the map overview heading from `ภาพรวมระบบชลประทาน` to `ภาพรวมระบบการจัดการ` on the current owner website. This follows the authorized owner-site UI work.
 - Writable lock: only the heading in `js/farm-map.js`, this status and `qa/map-heading/` evidence. No API, data, device, relay-control, styling or Commerce changes.
-- Acceptance: exact new heading on the deployed map; existing checks, responsive browser readback, diff/secret review and release verification. Status: `IN_PROGRESS`.
+- Acceptance: exact new heading on the deployed map; existing checks, responsive browser readback, diff/secret review and release verification. Status: `DEPLOYED / VERIFIED`.
+- Release `8f7f41d32f212ed5b0d3a61a4cce594ed1c15119`, frontend version `5558d5ae-76cc-4813-9e91-47768b9aab0f`; rollback frontend `8b6fe6bb-7fc7-4e36-8b0a-1a3d674cf597`. 124 checks and nine relay messages pass. Actual anonymous production phone/desktop screenshots verify the exact heading, no overflow and no script errors; build/map/service-worker hashes match. Evidence: `qa/map-heading/`. Next: owner refreshes the map page.
 
 ## Previous task: OWNER-ENERGY-001
 
