@@ -1,6 +1,13 @@
 # FARMULTIMATE Collaboration Status
 
-## Active task: OWNER-ENERGY-001
+## Active task: OWNER-MAP-HEADING-001
+
+- Owner SUCHA; branch `pick/map-heading-v1`; source `936195ee0c4544c6e1987ab8d01801aff95ae991` with freshly fetched `origin/develop` verified as ancestor. Existing work preserved.
+- Pick requested changing the map overview heading from `ภาพรวมระบบชลประทาน` to `ภาพรวมระบบการจัดการ` on the current owner website. This follows the authorized owner-site UI work.
+- Writable lock: only the heading in `js/farm-map.js`, this status and `qa/map-heading/` evidence. No API, data, device, relay-control, styling or Commerce changes.
+- Acceptance: exact new heading on the deployed map; existing checks, responsive browser readback, diff/secret review and release verification. Status: `IN_PROGRESS`.
+
+## Previous task: OWNER-ENERGY-001
 
 - Owner SUCHA; branch `pick/energy-dashboard-v1`; source `9e821b456b028150c1e8aa05eb8d578e775cd0c4`, with freshly fetched `origin/develop@40721b5` as ancestor. Existing worktree clean and preserved.
 - Pick requested an electricity dashboard and production publication on 2026-09-07. Supplied listing identifies Acrel ADL400N-CT/D16; actual nameplate, CT variant and installation remain unverified.

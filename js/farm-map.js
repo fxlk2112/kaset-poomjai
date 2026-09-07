@@ -153,7 +153,7 @@
         <img src="images/digital-twin/fus-logo-white-v1.png" alt="FARMULTIMATE SOLUTIONS">
         <div>
           <span>FARM OPERATIONS · MASTER MAP</span>
-          <h1>ภาพรวมระบบชลประทาน</h1>
+          <h1>ภาพรวมระบบการจัดการ</h1>
         </div>
         <div class="farm-map-safety"><b>NO LOAD TEST</b><strong>FIELD SAFE_OFF</strong></div>
       </header>
