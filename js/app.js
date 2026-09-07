@@ -7,7 +7,7 @@
 
 /* ---------------- state & bootstrap ----------------
    (S ประกาศใน data.js — ให้ระบบบัญชี (auth.js) สลับ slot ข้อมูลรายบัญชีได้ก่อน render) */
-const APP_BUILD_VERSION = "20260905cycleauto";
+const APP_BUILD_VERSION = "20260907autosync";
 window.APP_BUILD_VERSION = APP_BUILD_VERSION;
 function ensureFreshAppBuild() {
   try {

@@ -11,6 +11,7 @@
 const AUTH_API = "https://farmbackup.carfork123.workers.dev";
 const SESSION_KEY = "farmult-session-v1";   /* {token, email, name} */
 const CLOUD_TS_KEY = "farmult-cloud-ts-v1"; /* updated_at ล่าสุดของข้อมูลบนคลาวด์ที่เคยเห็น */
+const LOCAL_DIRTY_KEY = "farmult-local-dirty-v1"; /* เครื่องนี้มีข้อมูลที่ยังไม่ได้ส่งขึ้นคลาวด์ */
 const OWNER_KEY = "farmult-data-owner";     /* บัญชีเจ้าของข้อมูลที่กำลังเปิดใช้ในเครื่องนี้ */
 
 function maskEmailForDisplay(email) {
@@ -36,6 +37,7 @@ const Auth = {
   suppress: false,
   timer: null,
   _askedThisLoad: false,
+  _silentLocalSave: false,
 };
 try { Auth.session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) {}
 
@@ -74,8 +76,26 @@ function setSession(s) {
   if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s));
   else localStorage.removeItem(SESSION_KEY);
 }
-function cloudTs() { return Number(localStorage.getItem(CLOUD_TS_KEY)) || 0; }
-function setCloudTs(ts) { localStorage.setItem(CLOUD_TS_KEY, String(Number(ts) || Date.now())); }
+function accountScopedKey(base, email) {
+  return base + "::" + String(email || (Auth.session && Auth.session.email) || "").toLowerCase();
+}
+function cloudTs() {
+  const scoped = accountScopedKey(CLOUD_TS_KEY);
+  return Number(localStorage.getItem(scoped) || localStorage.getItem(CLOUD_TS_KEY)) || 0;
+}
+function setCloudTs(ts) {
+  const value = String(Number(ts) || Date.now());
+  localStorage.setItem(accountScopedKey(CLOUD_TS_KEY), value);
+  localStorage.setItem(CLOUD_TS_KEY, value);
+}
+function localDirty() {
+  return localStorage.getItem(accountScopedKey(LOCAL_DIRTY_KEY)) === "1";
+}
+function setLocalDirty(dirty) {
+  const key = accountScopedKey(LOCAL_DIRTY_KEY);
+  if (dirty) localStorage.setItem(key, "1");
+  else localStorage.removeItem(key);
+}
 function localHasData() {
   return (S.plots && S.plots.length) || (S.cycles && S.cycles.length) ||
          (S.tasks && S.tasks.length) || (S.stock && S.stock.length) ||
@@ -137,16 +157,21 @@ Auth.switchAccount = function () {
   const owner = localStorage.getItem(OWNER_KEY);
   if (owner === email) return; /* บัญชีเดิม — S ถูกต้องอยู่แล้ว */
   const cached = loadSlotIntoS(email);
+  let carriedLocalData = false;
   if (cached) {
     resetSTo(cached);
   } else if (!owner && localHasData()) {
     /* เครื่องยังไม่มีเจ้าของ + มีข้อมูลเดิมก่อนมีระบบบัญชี → ให้บัญชีนี้รับไป (bootCheck จะอัปขึ้นคลาวด์) */
+    carriedLocalData = true;
   } else {
     resetSTo(blankState());
   }
   localStorage.setItem(OWNER_KEY, email);
   localStorage.removeItem(STORAGE_KEY); /* ปิด key รวม — กันบัญชีอื่นเห็นข้อมูลนี้ */
+  Auth._silentLocalSave = !carriedLocalData;
   saveState(S); /* เขียนลง slot ของบัญชีนี้ */
+  Auth._silentLocalSave = false;
+  if (carriedLocalData) setLocalDirty(true);
 };
 
 /* ---------- sync ---------- */
@@ -162,7 +187,10 @@ Auth.saveNow = async function () {
   try {
     const ts = Date.now();
     const r = await authCall("save", { token: Auth.session.token, data: JSON.stringify(S), updated_at: ts });
-    if (r.ok) setCloudTs(ts);
+    if (r.ok) {
+      setCloudTs(ts);
+      setLocalDirty(false);
+    }
   } catch (e) { /* ออฟไลน์ — รอบันทึกครั้งถัดไป */ }
   Auth.syncing = false;
 };
@@ -172,6 +200,7 @@ function applyCloudState(cloudData, updatedAt) {
   resetSTo(cloudData);
   saveState(S);
   if (updatedAt) setCloudTs(updatedAt); /* กันถามซ้ำทันทีหลังโหลด */
+  setLocalDirty(false);
   location.reload();
 }
 
@@ -198,21 +227,30 @@ Auth.bootCheck = async function () {
       return;
     }
     const seenTs = cloudTs();
+    const hasUnsyncedLocal = localDirty();
     if (!localHasData()) {
       /* เครื่องใหม่/ข้อมูลว่าง — ดึงจากคลาวด์เงียบ ๆ (พร้อม mark timestamp กันถามซ้ำ) */
       applyCloudState(data, updated_at);
       return;
     }
     if (updated_at > seenTs + 1000 && !Auth._askedThisLoad) {
+      if (!hasUnsyncedLocal) {
+        applyCloudState(data, updated_at);
+        return;
+      }
       Auth._askedThisLoad = true;
       Auth.askMerge(data, updated_at);
+      return;
+    }
+    if (hasUnsyncedLocal) {
+      await Auth.saveNow();
       return;
     }
     setCloudTs(Math.max(seenTs, updated_at));
   } catch (e) { /* ออฟไลน์ — ใช้ข้อมูลเครื่องต่อ */ }
 };
 
-/* ข้อมูลต่างกันทั้งสองฝั่ง — ถามว่าจะเอาฝั่งไหน */
+/* ข้อมูลต่างกันทั้งสองฝั่งและเครื่องนี้มีข้อมูลยังไม่ขึ้นคลาวด์ — ถามว่าจะเอาฝั่งไหน */
 Auth.askMerge = function (cloudData, updatedAt) {
   const accountLabel = maskEmailForDisplay(Auth.session && Auth.session.email);
   openModal(`
@@ -616,6 +654,7 @@ Auth.cardHtml = function () {
         try { toast("⚠️ พื้นที่จัดเก็บเต็ม! ข้อมูลล่าสุดอาจไม่ถูกบันทึก — ไปที่ ตั้งค่า เพื่อสำรอง/จัดการพื้นที่"); } catch (e2) {}
       }, 0);
     }
+    if (Auth.session && !Auth.suppress && !Auth._silentLocalSave) setLocalDirty(true);
     Auth.queueSave();
   };
 })();
