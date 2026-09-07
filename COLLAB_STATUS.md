@@ -1,10 +1,13 @@
 # FARMULTIMATE Collaboration Status
 
-## Active task: OWNER-POND-VISUAL-002
+## Delivered task: OWNER-POND-VISUAL-002
 
 - Owner SUCHA; branch `pick/pond-visual-v2`; source `0d610e2`, freshly fetched develop ancestor verified. Pick requested the 33% water illustration reaching the first foreground pier and more visible, gradual level changes.
 - Writable lock: reservoir presentation in `js/sensors.js`, matching CSS and existing visual-contract tests, status and `qa/pond-visual/`. Reuse existing artwork with continuous interpolation. Display anchors are illustrative, not sensor calibration or surveyed geometry; depth, volume, capacity, freshness and control/API logic are unchanged.
-- Acceptance: 32.8–33% reaches the foreground pier base, small percentage changes affect the image, truthful readings and fault/stale handling, responsive screenshots, existing checks and scoped Cloud/LAN static release. No controller restart, output action, credential/config change or Commerce edit. Status `IN_PROGRESS`.
+- Delivered: 32.8–33% reaches the foreground pier base; artwork and marker interpolate continuously rather than waiting for a 25% image step. A compact bar shows the original capacity and the image is labelled illustrative. Stale warning and unknown/fault behavior are retained. No sensor calculation, calibration, controller, API or Commerce change.
+- Validation: 126/126 checks, nine relay envelopes, monotonic visual mapping and unchanged readings, screenshots at 390/840/1280 widths using explicit fixture readings 1.445 m / 262.7 m3 / 32.8%. Additional level previews cover 0–100%; these are visual fixtures, not a new physical sensor measurement.
+- Cloud and LAN asset release `fba867ea0af77d8046ab654cded326c496d0ec83`; frontend Worker `c4b9e05a-3f7d-4a27-bea3-0ea8228cf8d2`, rollback `248fbc15-6d16-4c5a-9b1a-6940ac3b9359`. Backend remains `87ab09f5-1da5-43b3-81c1-30c5a858b11f`. Build, sensor JS, CSS and the foreground-pier image hashes independently match both deployed origins; LAN TLS and main API health pass.
+- LAN retains the previous immutable release. Only its web workers received a graceful HUP after switching the asset symlink because the gateway resolves its asset root at worker startup; the controller was not restarted and no output command was issued. Evidence: `qa/pond-visual/`. Status `DEPLOYED / VERIFIED`; next action: owner refreshes the pond page.
 
 ## Delivered task: OWNER-LAN-001 — owner device setup pending
 
