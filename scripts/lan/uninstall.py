@@ -13,7 +13,7 @@ def main():
     backup=Path('/var/lib/sucha-farm-lan-install')
     state=json.loads((backup/'state.json').read_text())
     if hashlib.sha256((backup/'agent.py').read_bytes()).hexdigest()!=state['agent_sha']: raise RuntimeError()
-    run('systemctl','disable','--now','sucha-farm-lan.service','sucha-lan-weather.timer')
+    run('systemctl','disable','--now','sucha-farm-lan.service','sucha-lan-weather.timer','sucha-lan-alias.service')
     run('systemctl','stop','sucha-relay-bench.service','sucha-lan-weather.service')
     shutil.copy2(backup/'agent.py','/opt/sucha-relay-bench/agent.py')
     drop=Path('/etc/systemd/system/sucha-relay-bench.service.d/70-farm-lan.conf')

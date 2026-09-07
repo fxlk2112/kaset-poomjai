@@ -22,13 +22,6 @@ export default {
       response.headers.set("X-Content-Type-Options", "nosniff");
       return response;
     }
-    const asset = await env.ASSETS.fetch(request);
-    if (asset.ok && ["/lan-setup.mobileconfig", "/lan-ca.cer"].includes(url.pathname)) {
-      const response = new Response(asset.body, asset);
-      response.headers.set("Content-Type", url.pathname.endsWith(".mobileconfig") ? "application/x-apple-aspen-config" : "application/pkix-cert");
-      response.headers.set("X-Content-Type-Options", "nosniff");
-      return response;
-    }
-    return asset;
+    return env.ASSETS.fetch(request);
   }
 };

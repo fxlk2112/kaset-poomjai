@@ -189,7 +189,8 @@ def create_app(config):
     @app.get('/<path:filename>')
     def assets(filename='index.html'):
         if filename not in allowed or not (asset_root/filename).is_file(): return error('NOT_FOUND',404)
-        return send_from_directory(asset_root,filename)
+        mime={'lan-setup.mobileconfig':'application/x-apple-aspen-config','lan-ca.cer':'application/pkix-cert'}.get(filename)
+        return send_from_directory(asset_root,filename,mimetype=mime)
     return app
 
 def production_app():

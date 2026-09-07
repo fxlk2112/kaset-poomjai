@@ -14,7 +14,7 @@ BASE=Path('/opt/sucha-farm-lan')
 BACKUP=Path('/var/lib/sucha-farm-lan-install')
 DROP=Path('/etc/systemd/system/sucha-relay-bench.service.d/70-farm-lan.conf')
 MARKER='# FARMULTIMATE_LAN_OWNER_001'
-UNITS=('sucha-farm-lan.service','sucha-lan-weather.service','sucha-lan-weather.timer')
+UNITS=('sucha-farm-lan.service','sucha-lan-weather.service','sucha-lan-weather.timer','sucha-lan-alias.service')
 
 def run(*args):
     return subprocess.check_output(args,stderr=subprocess.PIPE,text=True).strip()
@@ -31,6 +31,7 @@ def main():
     for path in ('config.json','owner.json','tls/server.key','tls/server.crt'):
         if not Path('/etc/sucha-farm-lan',path).is_file(): raise RuntimeError('PROVISION_FIRST')
     if run('ss','-Hlnt','sport = :8443'): raise RuntimeError('PORT_IN_USE')
+    if not Path('/usr/bin/avahi-publish-address').is_file(): raise RuntimeError('PROVISION_FIRST')
     cfg=json.loads(Path('/etc/sucha-farm-lan/config.json').read_text())
     avahi=Path('/etc/avahi/hosts');old=avahi.read_text()
     if any('farmultimate.local' in line.split('#')[0] for line in old.splitlines()): raise RuntimeError('MDNS_NAME_EXISTS')
@@ -50,7 +51,7 @@ def main():
     shutil.copy2(agent,BACKUP/'agent.py')
     (BACKUP/'state.json').write_text(json.dumps({'release':release,'agent_sha':args.expected_agent_sha}))
     shutil.copytree(source/'.lan-dist',destination)
-    for file in ('app.py','cache_weather.py','gunicorn.conf.py','provision.py','uninstall.py'):
+    for file in ('app.py','cache_weather.py','gunicorn.conf.py','provision.py','uninstall.py','publish_alias.py'):
         shutil.copy2(source/'scripts/lan'/file,BASE/'app'/file)
         (BASE/'app'/file).chmod(0o644)
     # Existing agent service performs all-off on shutdown; the new process also verifies all-off.
@@ -61,11 +62,9 @@ def main():
     shutil.copy2(source/'scripts/lan/dual-transport.conf',DROP)
     for unit in UNITS: shutil.copy2(source/'scripts/lan'/unit,Path('/etc/systemd/system',unit))
     current.symlink_to(destination,target_is_directory=True)
-    avahi.write_text(old.rstrip()+'\n'+cfg['bind'].rsplit(':',1)[0]+' farmultimate.local '+MARKER+'\n')
-    run('systemctl','reload','avahi-daemon.service')
     run('systemctl','daemon-reload')
     run('systemctl','start','sucha-relay-bench.service')
-    run('systemctl','enable','--now','sucha-farm-lan.service','sucha-lan-weather.timer')
+    run('systemctl','enable','--now','sucha-farm-lan.service','sucha-lan-weather.timer','sucha-lan-alias.service')
     run('systemctl','start','sucha-lan-weather.service')
     for unit in ('sucha-relay-bench.service','sucha-farm-lan.service','sucha-lan-weather.timer'):
         if run('systemctl','is-active',unit)!='active': raise RuntimeError('SERVICE_NOT_ACTIVE')

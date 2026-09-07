@@ -55,7 +55,7 @@ await writeFile(path.join(output, "build.json"), JSON.stringify({
   release_commit: releaseCommit, safety: "IRRIGATION_SAFE_OFF / NO_LOAD_BENCH",
   output_control_allowed: false, field_output_control_allowed: false, no_load_bench_available: true
 }, null, 2) + "\n");
-await writeFile(path.join(output, "_headers"), "/*\n  X-Content-Type-Options: nosniff\n  X-Robots-Tag: noindex, nofollow, noarchive\n/index.html\n  Cache-Control: no-cache\n/sw.js\n  Cache-Control: no-cache\n/build.json\n  Cache-Control: no-store\n/js/deployment-config.js\n  Cache-Control: no-cache\n");
+await writeFile(path.join(output, "_headers"), "/*\n  X-Content-Type-Options: nosniff\n  X-Robots-Tag: noindex, nofollow, noarchive\n/index.html\n  Cache-Control: no-cache\n/sw.js\n  Cache-Control: no-cache\n/build.json\n  Cache-Control: no-store\n/js/deployment-config.js\n  Cache-Control: no-cache\n/lan-setup.mobileconfig\n  Content-Type: application/x-apple-aspen-config\n  Cache-Control: no-cache\n/lan-ca.cer\n  Content-Type: application/pkix-cert\n  Cache-Control: no-cache\n");
 await writeFile(path.join(output, "robots.txt"), "User-agent: *\nDisallow: /\n");
 // Legacy Pages 404 redirect rules are not valid Workers redirects. Private source
 // paths never enter this allowlisted package in the first place.

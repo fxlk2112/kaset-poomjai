@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
-config=json.loads(Path('/etc/sucha-farm-lan/config.json').read_text())
-bind=config['bind']
+_farm_config=json.loads(Path('/etc/sucha-farm-lan/config.json').read_text())
+bind=_farm_config['bind']
 workers=1
 threads=8
 worker_class='gthread'
