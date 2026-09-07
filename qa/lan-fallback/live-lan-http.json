@@ -1,6 +1,6 @@
 {
   "result": "PASS",
-  "release_commit": "e2530f81bf1ea957f898ab333cd0f5d720e54b77",
+  "release_commit": "538f106c98ad7aa448df0476c4d998e314ae3e8b",
   "transport": "LAN",
   "tls_chain_and_hostname": true,
   "mdns_resolves_on_windows": true,
