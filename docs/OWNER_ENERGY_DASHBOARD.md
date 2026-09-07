@@ -32,7 +32,9 @@ The existing `/api/monitor/publish` credential and `/api/monitor/read` owner-ses
 - Isolated Chrome at 390×844, 840×1180 and 1280×900: four map buttons, separate page, login return, missing data, measured fixture, stale fixture, back to relay panel; no overflow or script errors.
 - `qa/energy/*-measured-fixture.png` has a visible QA banner; all authenticated browser QA is synthetic. No owner session was extracted or fabricated on production.
 - `qa/energy/pi-preflight.json`: current real Pi no-energy state, two health sources and two relay observation modules preserved; candidate snapshot size below the existing 512 KB cap.
-- Live asset hashes, actual cloud snapshot and publisher readback are recorded separately after publication. Physical meter-to-browser readings remain unverified until field setup.
+- Live release `e6c0dcd3f8111a1e8ed6eb611597462f80e6eb45`, frontend version `8b6fe6bb-7fc7-4e36-8b0a-1a3d674cf597`: nine assets hash-match; missing/invalid sessions return 401/403. Actual cloud snapshot reports `INGEST_NOT_READY`, zero energy sources, both Pi health sources GOOD and two relay observation modules; public forecast retains ten models. API backend remains `87ab09f5-1da5-43b3-81c1-30c5a858b11f`.
+- Actual production mobile navigation passes without any API interception in an anonymous isolated Chrome context, with no overflow or script errors. `production-phone-signed-out.png` is real live UI. A real signed-in owner browser and physical meter-to-browser readings remain unverified until field setup.
+- The isolated publisher file was updated with a verified previous-file backup; source SHA256 `a5bbfd57bfc9646e5a15ba4a8a6f08c4dd57d645aabd9babebcc31d9df445a1b`. Publisher timer, water dashboard, relay observer and relay bench service remain active. No source service/configuration or database schema changes.
 
 ## Rollback
 
