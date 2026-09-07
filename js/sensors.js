@@ -7,7 +7,9 @@
   const REQUEST_TIMEOUT_MS = 15000;
   const WEATHER_REFRESH_MS = 30 * 60 * 1000;
   const WEATHER_MODELS_REFRESH_MS = 5 * 60 * 1000;
-  const RESERVOIR_VISUAL_LEVELS = Object.freeze([0, 10, 25, 50, 75, 100, 120]);
+  // Owner-requested illustration anchors: 33% reaches the foreground pier base.
+  // These only select artwork; telemetry and sensor calibration are unchanged.
+  const RESERVOIR_VISUAL_ANCHORS = Object.freeze([[0, 0], [3, 10], [10, 25], [20, 50], [33, 75], [100, 100], [120, 120]]);
   let autoRefreshTimer = null;
   let localPreviewLoading = false;
   let localPreviewLoadedAt = 0;
@@ -497,18 +499,23 @@
     }
 
     const clamped = Math.max(0, Math.min(120, capacity));
-    let band = RESERVOIR_VISUAL_LEVELS[0];
-    RESERVOIR_VISUAL_LEVELS.forEach(level => {
-      if (Math.abs(level - clamped) < Math.abs(band - clamped)) band = level;
-    });
-    const padded = String(band).padStart(3, "0");
+    const upperIndex = RESERVOIR_VISUAL_ANCHORS.findIndex(([percent]) => percent >= clamped);
+    const upper = RESERVOIR_VISUAL_ANCHORS[upperIndex];
+    const lower = RESERVOIR_VISUAL_ANCHORS[Math.max(0, upperIndex - 1)];
+    const blend = upper[0] === lower[0] ? 0 : (clamped - lower[0]) / (upper[0] - lower[0]);
+    const visualLevel = lower[1] + (upper[1] - lower[1]) * blend;
+    const asset = level => "images/digital-twin/reservoir-level-" + String(level).padStart(3, "0") + "-v1.png";
+    const band = blend === 1 ? upper[1] : lower[1];
     return {
       known: true,
       capacity: clamped,
       band,
-      pinTop: 62 - band * .28,
-      image: "images/digital-twin/reservoir-level-" + padded + "-v1.png",
-      className: (normalizedStatus === "STALE" ? "is-stale" : "is-live") + (band === 120 ? " is-high-water" : ""),
+      visualLevel,
+      pinTop: 62 - visualLevel * .28,
+      image: asset(band),
+      nextImage: blend > 0 && blend < 1 ? asset(upper[1]) : null,
+      blend: blend === 1 ? 0 : blend,
+      className: (normalizedStatus === "STALE" ? "is-stale" : "is-live") + (clamped > 100 ? " is-high-water" : ""),
       label: numberLabel(clamped, 1) + "% ตามเซนเซอร์"
     };
   }
@@ -1126,9 +1133,10 @@
       ${canaryNote}
       ${accessNote}
 
-      <div class="digital-hero ${reservoirVisual.known ? "has-water-level" : "is-unknown"}" style="--water-pin-top:${reservoirVisual.pinTop}%" data-water-band="${reservoirVisual.band === null ? "unknown" : reservoirVisual.band}">
+      <div class="digital-hero ${reservoirVisual.known ? "has-water-level" : "is-unknown"}" style="--water-pin-top:${reservoirVisual.pinTop}%;--water-blend:${reservoirVisual.blend || 0};--water-capacity:${reservoirVisual.known ? Math.min(100, reservoirVisual.capacity) : 0}%" data-water-band="${reservoirVisual.band === null ? "unknown" : reservoirVisual.band}">
         <img class="reservoir-level-image ${reservoirVisual.className}" src="${reservoirVisual.image}" alt="${reservoirVisual.known ? "ภาพกราฟิกสามมิติของแหล่งเก็บน้ำที่แสดงความจุ " + numberLabel(reservoirVisual.capacity, 1) + " เปอร์เซ็นต์" : "ภาพกราฟิกแหล่งเก็บน้ำ ขณะนี้ยังไม่มีค่าระดับที่เชื่อถือได้"}">
-        <div class="hero-water-state ${reservoirVisual.className}" aria-label="${safeText(reservoirVisual.label)}"><span>ระดับในภาพ</span><strong>${safeText(reservoirVisual.label)}</strong></div>
+        ${reservoirVisual.nextImage ? `<img class="reservoir-level-image reservoir-blend-image ${reservoirVisual.className}" src="${reservoirVisual.nextImage}" alt="" aria-hidden="true">` : ""}
+        <div class="hero-water-state ${reservoirVisual.className}" aria-label="${safeText(reservoirVisual.label)}"><span>ความจุในสระ</span><strong>${safeText(reservoirVisual.label)}</strong>${reservoirVisual.known ? `<div class="hero-capacity-track" aria-hidden="true"><i></i></div>` : ""}<small>ภาพประกอบระดับน้ำ</small></div>
         <div class="hero-level-pin" aria-label="ระดับน้ำ ${level} เมตร"><span></span><b>${level} m</b></div>
         <div class="hero-reading">
           <span>ระดับน้ำ</span>

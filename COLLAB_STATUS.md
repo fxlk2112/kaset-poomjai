@@ -1,5 +1,11 @@
 # FARMULTIMATE Collaboration Status
 
+## Active task: OWNER-POND-VISUAL-002
+
+- Owner SUCHA; branch `pick/pond-visual-v2`; source `0d610e2`, freshly fetched develop ancestor verified. Pick requested the 33% water illustration reaching the first foreground pier and more visible, gradual level changes.
+- Writable lock: reservoir presentation in `js/sensors.js`, matching CSS and existing visual-contract tests, status and `qa/pond-visual/`. Reuse existing artwork with continuous interpolation. Display anchors are illustrative, not sensor calibration or surveyed geometry; depth, volume, capacity, freshness and control/API logic are unchanged.
+- Acceptance: 32.8–33% reaches the foreground pier base, small percentage changes affect the image, truthful readings and fault/stale handling, responsive screenshots, existing checks and scoped Cloud/LAN static release. No controller restart, output action, credential/config change or Commerce edit. Status `IN_PROGRESS`.
+
 ## Delivered task: OWNER-LAN-001 — owner device setup pending
 
 - Owner SUCHA; branch `pick/lan-fallback-v1`; source `858d4ce`, freshly fetched develop ancestor verified. Pick explicitly requested all four LAN fallback sections: offline site, independent LAN login, one Pi controller for LAN/Cloud, visible transport and saved forecast.

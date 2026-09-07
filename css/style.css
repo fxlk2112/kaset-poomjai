@@ -4793,10 +4793,10 @@ body.view-iot-digital-twin .view {
   object-position: center center;
 }
 .reservoir-level-image {
-  animation: reservoir-level-settle .72s cubic-bezier(.22, .74, .3, 1) both;
   transform-origin: center center;
 }
-.reservoir-level-image.is-stale { filter: saturate(.78) brightness(.9); }
+.digital-hero > .reservoir-blend-image { position: absolute; inset: 0; opacity: var(--water-blend, 0); transition: opacity .8s ease; pointer-events: none; }
+.reservoir-level-image.is-stale { filter: saturate(.9) brightness(.96); }
 .reservoir-level-image.is-unknown { filter: saturate(.48) brightness(.66); }
 @keyframes reservoir-level-settle {
   from { opacity: .46; transform: scale(1.012); }
@@ -4830,6 +4830,11 @@ body.view-iot-digital-twin .view {
   font-weight: 800;
 }
 .hero-water-state.is-stale { border-color: rgba(247, 200, 106, .62); }
+.hero-water-state > small { display: block; margin-top: 6px; font-size: .6rem; color: #b9d7d3; }
+.hero-capacity-track { height: 5px; margin-top: 8px; border-radius: 4px; background: #477674; overflow: hidden; }
+.hero-capacity-track > i { display: block; width: var(--water-capacity, 0%); height: 100%; border-radius: inherit; background: #54e5ef; transition: width .8s ease; }
+.hero-water-state.is-stale .hero-capacity-track > i { background: #f7c86a; }
+.hero-water-state.is-high-water .hero-capacity-track > i { background: #ff9c88; }
 .hero-water-state.is-stale > strong { color: #f7c86a; }
 .hero-water-state.is-unknown { border-color: rgba(255, 173, 94, .66); }
 .hero-water-state.is-unknown > strong { color: #ffbd7b; }
@@ -4908,6 +4913,7 @@ body.view-iot-digital-twin .view {
 
 @media (prefers-reduced-motion: reduce) {
   .reservoir-level-image { animation: none; }
+  .reservoir-blend-image, .hero-capacity-track > i { transition: none; }
   .hero-level-pin { transition: none; }
 }
 
