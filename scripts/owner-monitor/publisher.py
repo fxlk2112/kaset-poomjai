@@ -15,6 +15,50 @@ DEFAULT_DATABASE = "/var/lib/sucha-water-dashboard/water-level.sqlite3"
 ENDPOINT = "https://flytech-farmultimate-owner-staging.pongnarin-pa.workers.dev/api/monitor/publish"
 METRICS = "observed_at,quality,temp_c,load1,load5,load15,uptime_s,cpu_count"
 DEFAULT_RELAY_SNAPSHOT = "/var/lib/sucha-relay-observer/latest.json"
+ENERGY_FIELDS = ("observed_at,quality,stale_after_s,ct_ratio_verified,direction_verified,"
+    "display_comparison_verified,voltage_l1_v,voltage_l2_v,voltage_l3_v,"
+    "current_l1_a,current_l2_a,current_l3_a,active_power_total_kw,"
+    "import_energy_total_kwh,power_factor_total,frequency_hz,output_control_allowed,modbus_write_allowed")
+
+def energy_snapshot(db, now):
+    """Read optional commissioned ingestion only; never create tables or poll a bus."""
+    out = {"generated_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
+        "status": "UNAVAILABLE", "sources": [], "output_control_allowed": False,
+        "modbus_write_allowed": False}
+    try:
+        if not db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='energy_samples'").fetchone():
+            out["status"] = "INGEST_NOT_READY"
+            return out
+        identifiers = db.execute("SELECT source_id FROM energy_samples GROUP BY source_id ORDER BY MAX(observed_epoch) DESC LIMIT 4").fetchall()
+        if len(identifiers) > 3:
+            return out
+        def project(row):
+            if row is None:
+                return None
+            data = dict(row)
+            data.pop("observed_epoch", None)
+            for k in ("ct_ratio_verified", "direction_verified", "display_comparison_verified"):
+                data[k] = data[k] == 1
+            for k in ("output_control_allowed", "modbus_write_allowed"):
+                if data[k] != 0:
+                    raise ValueError("Energy row is not data-only")
+                data[k] = False
+            return data
+        for identity in identifiers:
+            source = identity[0]
+            current = db.execute("SELECT " + ENERGY_FIELDS + ",circuit_role,meter_model,register_map_id FROM energy_samples WHERE source_id=? ORDER BY observed_epoch DESC LIMIT 1", (source,)).fetchone()
+            meta = dict(current)
+            latest = project({k: meta[k] for k in ENERGY_FIELDS.split(",")})
+            # Last real sample of each 15-minute bucket, keeping fault/gap evidence.
+            rows = db.execute("SELECT " + ENERGY_FIELDS + ",MAX(observed_epoch) AS observed_epoch FROM energy_samples WHERE source_id=? AND observed_epoch>=? GROUP BY CAST(observed_epoch/900 AS INTEGER) ORDER BY observed_epoch", (source, now-86400)).fetchall()
+            out["sources"].append({"id": source, "circuit_role": meta["circuit_role"],
+                "meter_model": meta["meter_model"], "register_map_id": meta["register_map_id"],
+                "current": latest, "history": [project(r) for r in rows][-100:]})
+        out["status"] = "AVAILABLE" if out["sources"] else "NO_METER_DATA"
+        return out
+    except (sqlite3.Error, KeyError, TypeError, ValueError):
+        out["sources"] = []
+        return out
 
 def relay_snapshot(path=DEFAULT_RELAY_SNAPSHOT):
     """Project the existing observer file; never poll or write hardware here."""
@@ -60,6 +104,7 @@ def health_snapshot(database=DEFAULT_DATABASE, now=None, relay_path=DEFAULT_RELA
             # Keep the final real sample in each 15-minute interval; do not average faults away.
             rows = db.execute("SELECT " + METRICS + ",MAX(observed_epoch) AS observed_epoch FROM pi_health_samples WHERE source_id=? AND observed_epoch>=? GROUP BY CAST(observed_epoch/900 AS INTEGER) ORDER BY observed_epoch", (source, now-7*86400)).fetchall()
             out["history"][source] = [dict(row) for row in rows][-700:]
+        out["energy"] = energy_snapshot(db, now)
     out["relays"] = relay_snapshot(relay_path)
     return out
 

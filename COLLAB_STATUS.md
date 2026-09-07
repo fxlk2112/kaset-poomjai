@@ -1,6 +1,15 @@
 # FARMULTIMATE Collaboration Status
 
-## Active task: OWNER-RELAY-BENCH-001
+## Active task: OWNER-ENERGY-001
+
+- Owner SUCHA; branch `pick/energy-dashboard-v1`; source `9e821b456b028150c1e8aa05eb8d578e775cd0c4`, with freshly fetched `origin/develop@40721b5` as ancestor. Existing worktree clean and preserved.
+- Pick requested an electricity dashboard and production publication on 2026-09-07. Supplied listing identifies Acrel ADL400N-CT/D16; actual nameplate, CT variant and installation remain unverified.
+- Writable lock: new energy UI/CSS/contracts/tests, energy-only hooks in map/App/auth/index, existing read-only monitor projection/publisher, related QA/docs and this status. Commerce belongs to Folk. Relay control, device readers, schema, wiring, meter settings and field control stay unchanged.
+- Acceptance: separate energy page from the map; responsive kW/kWh/three-phase voltage/current/PF/Hz and 24-hour history; owner-authenticated data; explicit missing/stale/fault states; no invented measurements; contract/publisher/UI regression checks, secret review, publication and independent readback.
+- Live Pi read-only preflight: `energy_samples` table absent. Prepared local ADL400N reader/ingest candidates were never commissioned; do not install or enable those as part of dashboard publication. Extend outbound monitor snapshots to report readiness and project future verified samples only. Energy remains `DATA_ONLY / SAFE_OFF`.
+- Status: `READY_TO_PUBLISH`. 124 JavaScript/Worker tests, six Python monitor tests and nine relay messages pass. Chrome phone/tablet/desktop missing/measured/stale fixture views, login return and map/relay navigation pass with no overflow or script errors. Real Pi candidate read keeps two health sources/two relay modules and reports no energy ingestion; snapshot 280145 bytes. Wrangler dry-run passes. Physical meter readings remain unverified.
+
+## Previous task: OWNER-RELAY-BENCH-001
 
 - Current owner correction: reduce button latency and allow multiple unloaded channels to operate independently. Extend this same task to protocol v2: per-channel PULSE/OFF commands and uniqueness, five-second hardware timers unchanged, immediate pending UI, faster Pi polling with persistent HTTPS, related schema migration/tests/QA, a shared transport lock and scoped observer-launch drop-in, and publication to the already approved owner-main target. The read-only observer source/config remain unchanged. Source checkpoint `d42c264`. No loads or field-control commissioning.
 - Owner SUCHA; branch `pick/relay-bench-v1`; source `origin/develop@40721b5` plus deployed checkpoint `2d2050f` (PRs #5–#9 dependencies).

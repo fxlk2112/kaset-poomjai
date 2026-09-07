@@ -1,3 +1,4 @@
+import { projectEnergy } from "./energy-contract.js";
 export const SOURCES = ["PI5_CONTROLLER_01", "PI_ZERO_GATEWAY_01"];
 const safety = { output_control_allowed: false, safety: { mode: "DATA_ONLY", control_contract: "SAFE_OFF" } };
 const number = v => v === null || v === undefined || v === "" ? null : typeof v === "number" && Number.isFinite(v) ? v : null;
@@ -37,7 +38,7 @@ export function projectRelays(p, now = Date.now()) {
 }
 export function projectHealth(p, now = Date.now()) {
   safe(p);
-  const out = { ...safety, generated_at: date(p.generated_at), sources: {}, history: {}, relays: projectRelays(p.relays, now) };
+  const out = { ...safety, generated_at: date(p.generated_at), sources: {}, history: {}, relays: projectRelays(p.relays, now), energy: projectEnergy(p.energy, now) };
   for (const id of SOURCES) {
     const source = p.sources?.[id];
     const current = source?.current ? metrics(source.current) : null;

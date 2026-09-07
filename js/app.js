@@ -389,6 +389,7 @@ function render() {
   if (route.view === "weather" || route.view === "plotDetail") renderPlotWeather();
   /* หน้าระบบน้ำ Phase 1: อ่าน telemetry จริงเท่านั้น; ไม่มีคำสั่งเอาต์พุต */
   if (route.view === "iot") {
+    if (typeof EnergyDashboard !== "undefined" && FarmMapDashboard.state.selection === "energy") EnergyDashboard.refresh(false);
     if (typeof SensorTelemetry !== "undefined") {
       SensorTelemetry.mountChart();
       SensorTelemetry.refresh(false);

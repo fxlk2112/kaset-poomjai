@@ -303,7 +303,7 @@ async function coreRegister(email, pw, name) {
 /* ปุ่มในหน้าตั้งค่า (การ์ด au_*) */
 App.openSensorLogin = function () {
   const panel = typeof FarmMapDashboard !== "undefined" && FarmMapDashboard.state.selection;
-  Auth._sensorLoginPanel = ["health", "relays"].includes(panel) ? panel : "pond";
+  Auth._sensorLoginPanel = ["health", "relays", "energy"].includes(panel) ? panel : "pond";
   Auth._sensorLoginReturn = true;
   App.nav("settings");
   document.getElementById("au_email")?.focus();

@@ -30,7 +30,7 @@
   }
 
   function normalizeSelection(id) {
-    return [DEFAULT_SELECTION, "health", "forecast", "relays"].includes(id) || zoneById(id) ? id : DEFAULT_SELECTION;
+    return [DEFAULT_SELECTION, "health", "forecast", "relays", "energy"].includes(id) || zoneById(id) ? id : DEFAULT_SELECTION;
   }
 
   function select(id) {
@@ -42,7 +42,7 @@
   }
 
   function isMapSurface() {
-    return !["pond", "health", "forecast"].includes(state.selection);
+    return !["pond", "health", "forecast", "energy"].includes(state.selection);
   }
 
   function sensorSummary() {
@@ -169,6 +169,10 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"></rect><path d="M1 12h6l3-5 4 10 3-5h6"></path></svg>
               <span><strong>สุขภาพระบบ</strong><small>Pi 5 และ Pi Zero</small></span><b aria-hidden="true">›</b>
             </button>
+            <button type="button" onclick="App.farmMapSelect('energy')" aria-label="พลังงานไฟฟ้า">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-8 12h6l-1 8 9-13h-7z"></path></svg>
+              <span><strong>พลังงานไฟฟ้า</strong><small>Acrel · มิเตอร์ 3 เฟส</small></span><b aria-hidden="true">›</b>
+            </button>
             <button class="farm-map-relay-link" type="button" onclick="App.farmMapRelays()" aria-label="รีเลย์ / สวิตช์">
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="6"></rect><circle cx="8" cy="12" r="3"></circle></svg>
               <span><strong>รีเลย์ / สวิตช์</strong><small>สถานะช่องและการควบคุม</small></span><b aria-hidden="true">↓</b>
@@ -197,6 +201,7 @@
   }
 
   function cardHtml() {
+    if (state.selection === "energy" && root.EnergyDashboard) return root.EnergyDashboard.cardHtml();
     if (["health", "forecast"].includes(state.selection) && root.SensorTelemetry) return root.SensorTelemetry.monitorHtml(state.selection);
     if (state.selection === "pond" && root.SensorTelemetry) {
       return root.SensorTelemetry.cardHtml({
