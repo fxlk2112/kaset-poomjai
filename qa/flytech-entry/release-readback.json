@@ -1,0 +1,16 @@
+{
+  "checked_at": "2026-09-06T08:15:32.139Z",
+  "result": "PASS",
+  "release": {
+    "result": "DEPLOYED",
+    "version": "86e7be2a-f3f0-4fdd-9913-c776af61638c",
+    "previous": "0cf534c7-1323-4819-b957-e5ab7c238834",
+    "backend_before": "87ab09f5-1da5-43b3-81c1-30c5a858b11f",
+    "release_commit": "36fe596719979622a664a0f739963731eea266cd"
+  },
+  "build_match": true,
+  "asset_hash_matches": 4,
+  "backend_unchanged": true,
+  "public_forecast_models": 10,
+  "output_control_allowed": false
+}

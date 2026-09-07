@@ -1,0 +1,107 @@
+{
+  "checked_at": "2026-09-06T10:33:31.928Z",
+  "mode": "REAL_NO_LOAD_BENCH",
+  "results": [
+    {
+      "module": "RELAY_A",
+      "channel": 1,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "module": "RELAY_A",
+      "channel": 2,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "module": "RELAY_A",
+      "channel": 3,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "module": "RELAY_A",
+      "channel": 4,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "module": "RELAY_A",
+      "channel": 5,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "module": "RELAY_A",
+      "channel": 6,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "module": "RELAY_A",
+      "channel": 7,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "module": "RELAY_A",
+      "channel": 8,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "module": "RELAY_B",
+      "channel": 1,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "module": "RELAY_B",
+      "channel": 2,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "module": "RELAY_B",
+      "channel": 3,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "module": "RELAY_B",
+      "channel": 4,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "module": "RELAY_B",
+      "channel": 5,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "module": "RELAY_B",
+      "channel": 6,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "module": "RELAY_B",
+      "channel": 7,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "module": "RELAY_B",
+      "channel": 8,
+      "on_readback": true,
+      "hardware_auto_off_readback": true
+    },
+    {
+      "result": "BENCH_SELF_TEST_PASS",
+      "channels": 16,
+      "early_off_readback": true
+    }
+  ]
+}

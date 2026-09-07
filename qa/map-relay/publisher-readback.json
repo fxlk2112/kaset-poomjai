@@ -1,0 +1,13 @@
+{
+  "checked_at": "2026-09-06T09:31:23.536Z",
+  "result": "PI_READONLY_PUBLISHER_UPDATED",
+  "files_verified": true,
+  "service_result": "success",
+  "services": {
+    "relay-observer.service": "active",
+    "sucha-owner-monitor.timer": "active",
+    "water-level-dashboard.service": "active",
+    "farmultimate-telemetry-forwarder.service": "active"
+  },
+  "output_control_allowed": false
+}

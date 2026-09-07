@@ -71,6 +71,8 @@
       storageNamespace: ownerCanary ? "owner-canary" : "",
       isLocalHost: local,
       hasLocalPiHealth: Boolean(local && LOCAL_PI_HEALTH_API),
+      hasCloudPiHealth: cloudStaging,
+      weatherModelsApiUrl: cloudStaging ? `${url.origin}/api/monitor/weather` : "",
       piHealthApiUrl: local ? LOCAL_PI_HEALTH_API : "",
       hasLocalWaterBalance: Boolean(local && LOCAL_WATER_BALANCE_PI5_API),
       waterBalanceApiUrl: local ? LOCAL_WATER_BALANCE_PI5_API : "",

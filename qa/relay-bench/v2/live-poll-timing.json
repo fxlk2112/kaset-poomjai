@@ -1,0 +1,33 @@
+{
+  "samples": [
+    {
+      "cloud_ms": 591,
+      "cycle_ms": 1734,
+      "commands": 0
+    },
+    {
+      "cloud_ms": 280,
+      "cycle_ms": 515,
+      "commands": 0
+    },
+    {
+      "cloud_ms": 280,
+      "cycle_ms": 515,
+      "commands": 0
+    },
+    {
+      "cloud_ms": 271,
+      "cycle_ms": 515,
+      "commands": 0
+    },
+    {
+      "cloud_ms": 273,
+      "cycle_ms": 967,
+      "commands": 0
+    }
+  ],
+  "faults_since_start": [],
+  "cloud_poll_median_ms": 280,
+  "note": "Real Pi cloud polling; not owner click to contact latency",
+  "checked_at": "2026-09-06T14:49:52.685Z"
+}

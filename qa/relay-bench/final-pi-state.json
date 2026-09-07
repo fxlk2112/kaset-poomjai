@@ -1,0 +1,37 @@
+{
+  "preflight": {
+    "result": "PREFLIGHT_PASS",
+    "modules": 2,
+    "channels": 16,
+    "writes": 0
+  },
+  "units": [
+    {
+      "name": "sucha-relay-bench.service",
+      "active": "active",
+      "enabled": "enabled"
+    },
+    {
+      "name": "relay-observer.service",
+      "active": "active",
+      "enabled": "enabled"
+    },
+    {
+      "name": "water-level-dashboard.service",
+      "active": "active",
+      "enabled": "enabled"
+    },
+    {
+      "name": "sucha-owner-monitor.timer",
+      "active": "active",
+      "enabled": "enabled"
+    },
+    {
+      "name": "farmultimate-telemetry-forwarder.service",
+      "active": "active",
+      "enabled": "enabled"
+    }
+  ],
+  "prepared_agent_sha256": "67eb4618dffe55198efbb62b4459364d3dbd27c5001be4cef4bc98e154d4f1e4",
+  "checked_at": "2026-09-06T14:06:38.872Z"
+}

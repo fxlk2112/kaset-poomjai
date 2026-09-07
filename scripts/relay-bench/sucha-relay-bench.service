@@ -1,0 +1,32 @@
+[Unit]
+Description=FARMULTIMATE no-load relay bench sole writer
+After=network-online.target relay-observer.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sucha-relay-bench
+Group=sucha-relay-bench
+SupplementaryGroups=sucha-relay-observer
+LoadCredential=farmultimate_device_token:/etc/sucha-irrigation/farmultimate-device-token.secret
+ExecStart=/usr/bin/python3 /opt/sucha-relay-bench/agent.py
+StateDirectory=sucha-relay-bench
+StateDirectoryMode=0700
+ReadWritePaths=/var/lib/sucha-relay-bus
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=25
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
