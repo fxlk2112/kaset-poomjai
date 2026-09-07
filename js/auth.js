@@ -1,7 +1,7 @@
 /* ============================================================
    FARMULTIMATE SOLUTIONS — บัญชีผู้ใช้ + ซิงก์ข้อมูลขึ้นคลาวด์ (Cloudflare D1)
    - บังคับล็อกอินก่อนใช้งาน (auth gate ครอบทั้งเว็บ)
-   - ล็อกอินด้วยอีเมล+รหัสผ่าน (แฮช PBKDF2 ฝั่ง Worker)
+   - ล็อกอินด้วยอีเมล+รหัสผ่าน หรือ Google (ตรวจ ID token ฝั่ง Worker)
    - แต่ละบัญชีมีข้อมูลของตัวเอง (แปลง/รอบ/งาน/สต็อก/ใบเสร็จ)
    - เก็บซ้อนใน localStorage ด้วยเสมอ → ล็อกอินค้างไว้แล้วออฟไลน์ใช้ได้ต่อ
    - บันทึกทุกครั้ง = เด้งขึ้นคลาวด์อัตโนมัติ (หน่วง 2.5 วินาทีรวบรวมก่อน)
@@ -13,6 +13,7 @@ const SESSION_KEY = "farmult-session-v1";   /* {token, email, name} */
 const CLOUD_TS_KEY = "farmult-cloud-ts-v1"; /* updated_at ล่าสุดของข้อมูลบนคลาวด์ที่เคยเห็น */
 const LOCAL_DIRTY_KEY = "farmult-local-dirty-v1"; /* เครื่องนี้มีข้อมูลที่ยังไม่ได้ส่งขึ้นคลาวด์ */
 const OWNER_KEY = "farmult-data-owner";     /* บัญชีเจ้าของข้อมูลที่กำลังเปิดใช้ในเครื่องนี้ */
+const GOOGLE_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
 
 function maskEmailForDisplay(email) {
   const raw = String(email || "").trim();
@@ -28,21 +29,30 @@ function shareTokenFromUrl() {
   try { return String(new URL(location.href).searchParams.get("share") || "").trim(); }
   catch (e) { return ""; }
 }
+function landingPreviewFromUrl() {
+  try { return new URL(location.href).searchParams.get("landing") === "1"; }
+  catch (e) { return false; }
+}
 
 /* โหลดเซสชันค้างไว้จากเครื่องนี้ */
 const Auth = {
   session: null,
   shareMode: shareTokenFromUrl(),
+  landingMode: landingPreviewFromUrl(),
   syncing: false,
   suppress: false,
   timer: null,
   _askedThisLoad: false,
   _silentLocalSave: false,
+  _googleConfig: null,
+  _googleScript: null,
+  _googleInitializedClient: "",
+  _googleRenderedMode: "",
 };
 try { Auth.session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) {}
 
 /* ล็อกทันทีตั้งแต่ไฟล์นี้โหลด (ก่อน app.js render) — เครื่องที่ไม่มีเซสชันจะเห็นแต่หน้าล็อกอิน */
-document.documentElement.classList.toggle("auth-locked", !(Auth.session || Auth.shareMode));
+document.documentElement.classList.toggle("auth-locked", Auth.landingMode || !(Auth.session || Auth.shareMode));
 
 /* กันข้อความที่ผู้ใช้เคยแก้ไว้แล้วเพี้ยน (ตัวอักษรที่แสดงไม่ได้) — ลบทิ้งให้ใช้ค่าเริ่มต้น */
 try {
@@ -79,6 +89,36 @@ function setSession(s) {
 function accountScopedKey(base, email) {
   return base + "::" + String(email || (Auth.session && Auth.session.email) || "").toLowerCase();
 }
+Auth.googleStatus = function (msg) {
+  const el = document.getElementById("ag_google_status");
+  if (el) el.textContent = msg || "";
+};
+function googleFriendlyError(msg) {
+  const text = String(msg || "");
+  if (/ไม่รู้จัก action|unknown action/i.test(text)) return "ต้องอัปเดตเซิร์ฟเวอร์ก่อน ปุ่ม Google ถึงจะใช้งานได้";
+  if (/GOOGLE_CLIENT_ID|client id/i.test(text)) return "ต้องตั้งค่า Google Client ID ในเซิร์ฟเวอร์ก่อน";
+  return text || "Google Sign-In ยังไม่พร้อมใช้งาน";
+}
+Auth.googleConfig = async function () {
+  if (Auth._googleConfig) return Auth._googleConfig;
+  const r = await authCall("google_config");
+  Auth._googleConfig = r.ok ? (r.data || {}) : { client_id: "", error: googleFriendlyError(r.error || "โหลด Google ไม่สำเร็จ") };
+  return Auth._googleConfig;
+};
+Auth.loadGoogleScript = function () {
+  if (window.google && google.accounts && google.accounts.id) return Promise.resolve();
+  if (Auth._googleScript) return Auth._googleScript;
+  Auth._googleScript = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = GOOGLE_SCRIPT_SRC;
+    s.async = true;
+    s.defer = true;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("โหลด Google Sign-In ไม่สำเร็จ"));
+    document.head.appendChild(s);
+  });
+  return Auth._googleScript;
+};
 function cloudTs() {
   const scoped = accountScopedKey(CLOUD_TS_KEY);
   return Number(localStorage.getItem(scoped) || localStorage.getItem(CLOUD_TS_KEY)) || 0;
@@ -305,6 +345,90 @@ async function coreRegister(email, pw, name) {
   await Auth.saveNow();
   return true;
 }
+async function finishGoogleLogin(data) {
+  setSession({ token: data.token, email: data.email, name: data.name, provider: "google" });
+  Auth.switchAccount();
+  render();
+  Auth.hideGate();
+  Auth._askedThisLoad = false;
+  if (data.created) {
+    toast("สมัครด้วย Google สำเร็จ — ข้อมูลเครื่องนี้จะถูกส่งขึ้นคลาวด์");
+    await Auth.saveNow();
+  } else {
+    toast("เข้าสู่ระบบด้วย Google สำเร็จ");
+    await Auth.bootCheck();
+  }
+  Auth.refreshAdmin();
+  return true;
+}
+
+Auth.handleGoogleCredential = async function (res) {
+  const credential = res && res.credential;
+  if (!credential) {
+    Auth.googleStatus("ไม่ได้รับข้อมูลจาก Google");
+    return;
+  }
+  Auth.gateMsg("");
+  Auth.googleStatus("กำลังตรวจบัญชี Google...");
+  toast("กำลังเข้าสู่ระบบด้วย Google...");
+  const r = await authCall("google_login", { credential });
+  if (!r.ok) {
+    const msg = googleFriendlyError(r.error || "เข้าสู่ระบบด้วย Google ไม่สำเร็จ");
+    Auth.googleStatus(msg);
+    toast(msg);
+    return;
+  }
+  Auth.googleStatus("");
+  await finishGoogleLogin(r.data || {});
+};
+
+Auth.renderGoogleButton = async function (force) {
+  const box = document.getElementById("ag_google_btn");
+  if (!box) return;
+  const mode = Auth._gateMode || "login";
+  if (!force && Auth._googleRenderedMode === mode && box.childNodes.length) return;
+  const fallback = document.getElementById("ag_google_fallback");
+  try {
+    const cfg = await Auth.googleConfig();
+    if (!cfg.client_id) {
+      box.innerHTML = "";
+      if (fallback) fallback.hidden = false;
+      Auth.googleStatus((cfg.error || "ต้องตั้งค่า Google Client ID ในเซิร์ฟเวอร์ก่อน") + " — ใช้อีเมลกับรหัสผ่านไปก่อนได้");
+      return;
+    }
+    if (fallback) fallback.hidden = true;
+    Auth.googleStatus("");
+    await Auth.loadGoogleScript();
+    if (Auth._googleInitializedClient !== cfg.client_id) {
+      google.accounts.id.initialize({
+        client_id: cfg.client_id,
+        callback: Auth.handleGoogleCredential,
+        ux_mode: "popup",
+        auto_select: false
+      });
+      Auth._googleInitializedClient = cfg.client_id;
+    }
+    box.innerHTML = "";
+    google.accounts.id.renderButton(box, {
+      type: "standard",
+      theme: "outline",
+      size: "large",
+      text: mode === "register" ? "signup_with" : "signin_with",
+      shape: "rectangular",
+      logo_alignment: "left",
+      locale: "th",
+      width: Math.min(360, box.clientWidth || 360)
+    });
+    Auth._googleRenderedMode = mode;
+  } catch (e) {
+    box.innerHTML = "";
+    if (fallback) fallback.hidden = false;
+    Auth.googleStatus(String(e.message || e || "โหลด Google ไม่สำเร็จ"));
+  }
+};
+Auth.googleUnavailable = function () {
+  Auth.googleStatus("ยังไม่ได้ตั้งค่า GOOGLE_CLIENT_ID ใน Worker — ใช้อีเมลกับรหัสผ่านไปก่อนได้");
+};
 
 /* ปุ่มในหน้าตั้งค่า (การ์ด au_*) */
 App.authLogin = async function () {
@@ -326,13 +450,31 @@ App.authRegister = async function () {
 Auth.gateEl = null;
 
 Auth.showGate = function () {
-  if (Auth.shareMode) return;
+  if (Auth.shareMode && !Auth.landingMode) return;
   if (!Auth.gateEl) Auth.gateEl = document.getElementById("authGate");
-  if (Auth.gateEl) Auth.gateEl.style.display = "flex";
+  if (Auth.gateEl) Auth.gateEl.style.display = "block";
 };
 Auth.hideGate = function () {
   if (!Auth.gateEl) Auth.gateEl = document.getElementById("authGate");
-  if (Auth.gateEl) Auth.gateEl.style.display = "none";
+  if (Auth.gateEl) {
+    Auth.gateEl.classList.remove("show-auth");
+    Auth.gateEl.style.display = "none";
+  }
+};
+Auth.openGateForm = function (mode) {
+  Auth.showGate();
+  if (!Auth.gateEl) Auth.gateEl = document.getElementById("authGate");
+  if (Auth.gateEl) Auth.gateEl.classList.add("show-auth");
+  Auth.gateMode(mode || "login");
+  setTimeout(() => Auth.renderGoogleButton(true), 60);
+  setTimeout(() => {
+    const first = document.getElementById("g_email");
+    if (first) first.focus();
+  }, 40);
+};
+Auth.closeGateForm = function () {
+  if (!Auth.gateEl) Auth.gateEl = document.getElementById("authGate");
+  if (Auth.gateEl) Auth.gateEl.classList.remove("show-auth");
 };
 
 Auth.gateMsg = function (msg) {
@@ -349,6 +491,8 @@ Auth.gateMode = function (mode) {
   if (extra) extra.style.display = mode === "register" ? "" : "none";
   if (submit) submit.textContent = (mode === "register" ? "สมัครบัญชีใหม่" : "ล็อกอิน");
   Auth.gateMsg("");
+  Auth.googleStatus("");
+  setTimeout(() => Auth.renderGoogleButton(true), 20);
 };
 
 Auth.gateSubmit = async function () {
@@ -670,7 +814,10 @@ App.resetData = function () {
 
 /* เริ่มระบบ: ไม่มีเซสชัน = โชว์ประตูทันที (static gate — ปลอดภัยแม้ไฟล์อื่นโหลดไม่ครบ)
    มีเซสชัน = สลับเข้า slot ของบัญชีนั้นก่อน render (auth.js โหลดก่อน app.js) แล้วค่อยตรวจคลาวด์ */
-if (Auth.shareMode) {
+if (Auth.landingMode) {
+  document.documentElement.classList.add("auth-locked");
+  Auth.showGate();
+} else if (Auth.shareMode) {
   document.documentElement.classList.remove("auth-locked");
   Auth.hideGate();
 } else if (Auth.session) {
