@@ -21,6 +21,7 @@ __pycache__/
 
 # Generated Cloudflare Worker static-assets staging directory
 .cloudflare-staging-dist/
+.lan-dist/
 
 # Local secrets and credentials
 .env

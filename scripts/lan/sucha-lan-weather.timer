@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh the locally saved forecast
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

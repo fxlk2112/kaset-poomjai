@@ -1,0 +1,14 @@
+{
+  "two_channels_during_cloud_outage": "ON_VERIFIED",
+  "independent_off": "PASS",
+  "hardware_five_second_auto_off": "PASS",
+  "forecast_cache_retained_on_fetch_failure": "PASS",
+  "reconnect_no_replay_all_off": "PASS",
+  "restart_all_off_no_replay": "PASS",
+  "result": "PASS",
+  "hardware_scope": "NO_LOAD_FIVE_SECOND_BENCH_ONLY",
+  "wan_test": "COORDINATOR_CLOUD_TRANSPORT_SIMULATION",
+  "real_wan_disconnected": false,
+  "final_all_off": true,
+  "final_disarmed": true
+}

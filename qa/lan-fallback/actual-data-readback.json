@@ -1,0 +1,13 @@
+{
+  "result": "PASS",
+  "fixture_auth_only": true,
+  "real_owner_password_used": false,
+  "actual_pi_database_read_only": true,
+  "pi_health": {
+    "PI5_CONTROLLER_01": "GOOD",
+    "PI_ZERO_GATEWAY_01": "GOOD"
+  },
+  "water_status": "GOOD",
+  "water_history_rows": 400,
+  "energy_status": "INGEST_NOT_READY"
+}

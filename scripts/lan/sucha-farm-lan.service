@@ -1,0 +1,31 @@
+[Unit]
+Description=FARMULTIMATE authenticated LAN HTTPS fallback
+After=network-online.target sucha-relay-bench.service water-level-dashboard.service
+Wants=network-online.target
+
+[Service]
+User=sucha-farm-lan
+Group=sucha-farm-lan
+SupplementaryGroups=sucha-relay-bench sucha-dashboard sucha-relay-observer
+WorkingDirectory=/opt/sucha-farm-lan/app
+ExecStart=/opt/sucha-farm-lan/venv/bin/gunicorn -c gunicorn.conf.py app:production_app()
+Restart=on-failure
+RestartSec=5
+StateDirectory=sucha-farm-lan
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/sucha-water-dashboard
+ReadOnlyPaths=/var/lib/sucha-water-dashboard/water-level.sqlite3
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,22 @@
+{
+  "result": "PASS",
+  "release_commit": "8f7f41d32f212ed5b0d3a61a4cce594ed1c15119",
+  "frontend_version": "5558d5ae-76cc-4813-9e91-47768b9aab0f",
+  "checks": [
+    {
+      "file": "build.json",
+      "http": 200,
+      "hash_match": true
+    },
+    {
+      "file": "js/farm-map.js",
+      "http": 200,
+      "hash_match": true
+    },
+    {
+      "file": "sw.js",
+      "http": 200,
+      "hash_match": true
+    }
+  ]
+}
