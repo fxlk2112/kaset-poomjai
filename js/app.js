@@ -7,25 +7,16 @@
 
 /* ---------------- state & bootstrap ----------------
    (S ประกาศใน data.js — ให้ระบบบัญชี (auth.js) สลับ slot ข้อมูลรายบัญชีได้ก่อน render) */
-const APP_BUILD_VERSION = "20260907interior1";
+const APP_BUILD_VERSION = "20260908triallayout1";
 window.APP_BUILD_VERSION = APP_BUILD_VERSION;
 function ensureFreshAppBuild() {
   try {
     const key = "farmult-app-build-v1";
     if (localStorage.getItem(key) === APP_BUILD_VERSION) return;
     localStorage.setItem(key, APP_BUILD_VERSION);
-    const jobs = [];
-    if (window.caches) jobs.push(caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))));
-    if (typeof navigator !== "undefined" && navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(rs => Promise.all(rs.map(r => r.unregister()))));
-    Promise.allSettled(jobs).then(() => {
-      try {
-        const u = new URL(location.href);
-        if (u.searchParams.get("build") !== APP_BUILD_VERSION) {
-          u.searchParams.set("build", APP_BUILD_VERSION);
-          location.replace(u.toString());
-        }
-      } catch (e) {}
-    });
+    const u = new URL(location.href);
+    u.searchParams.set("build", APP_BUILD_VERSION);
+    history.replaceState(null, "", u.toString());
   } catch (e) {}
 }
 ensureFreshAppBuild();
@@ -40,6 +31,15 @@ function saveRoute() {
     if (route.trialId) o.trialId = route.trialId;
     if (route.trialMetricId) o.trialMetricId = route.trialMetricId;
     if (route.trialTreatmentId) o.trialTreatmentId = route.trialTreatmentId;
+    if (route.trialSection) o.trialSection = route.trialSection;
+    if (route.trialDate) o.trialDate = route.trialDate;
+    if (route.trialRangeStart) o.trialRangeStart = route.trialRangeStart;
+    if (route.trialRangeEnd) o.trialRangeEnd = route.trialRangeEnd;
+    if (route.trialSnapshotDate) o.trialSnapshotDate = route.trialSnapshotDate;
+    if (route.trialBaselineDate) o.trialBaselineDate = route.trialBaselineDate;
+    if (route.trialHistoryMetric) o.trialHistoryMetric = route.trialHistoryMetric;
+    if (route.trialHiddenTreatments) o.trialHiddenTreatments = route.trialHiddenTreatments;
+    if (route.trialPhotosOnly) o.trialPhotosOnly = true;
     sessionStorage.setItem(ROUTE_STORE, JSON.stringify(o));
   } catch (e) {}
 }
@@ -49,11 +49,13 @@ let plotDetailTab = "overview"; // แยกหน้ารายละเอี
 let cycleDetailTab = "overview"; // แยกหน้ารายละเอียดรอบปลูกให้อ่านง่ายขึ้น
 let plotFilter = { q: "", status: "all" }; // ตัวกรองหน้าแปลง: q=ค้นหา, status=all|growing|idle|inactive
 let plannerFilter = "today"; // มุมมองกิจกรรม: today|week|overdue|failed|done
+let plannerCalendarOpen = false;
 let collapsedCycles = {}; // หน้ารอบการปลูก: แปลงที่กดย่อไว้ (plotId -> true) กันหน้ายาวเกิน
 let cycleFilter = { q: "", status: "all" }; // ตัวกรองหน้ารอบการปลูก: q=ค้นหา (ชื่อแปลง/พืช), status=all|active|idle
 let trialObsPhotos = [];
 let trialPhotoUploading = false;
 let trialWizardIndex = 0;
+let trialChartObserver = null;
 let cal = { y: new Date().getFullYear(), m: new Date().getMonth(), sel: todayISO() };
 
 /* ---------------- โหมดแก้ไขเว็บ: คำที่แก้ไขได้ ----------------
@@ -246,17 +248,18 @@ function taskRowHtml(t, opts) {
     const unit = t.unit || (st && st.unit) || "";
     const extra = (t.costItems || []).filter(i => i.stockId && i.stockId !== t.stockId).length;
     const qtyTxt = fmtNum(t.qty) + (unit ? " " + unit : "");
-    meta.push(`<span class="task-use">ใช้ ${st ? esc(st.name) + " " : ""}${qtyTxt}${extra ? ` <span class="task-use-more">+${extra} รายการ</span>` : ""}</span>`);
+    const useLabel = hasTaskStockUse(t) ? "เบิกแล้ว" : (t.status === "failed" ? "ยกเลิกจอง" : "จอง");
+    meta.push(`<span class="task-use">${useLabel} ${st ? esc(st.name) + " " : ""}${qtyTxt}${extra ? ` <span class="task-use-more">+${extra} รายการ</span>` : ""}</span>`);
   } else if (t.qty) {
     /* งานเก็บเกี่ยว (ข้อมูลเก่า): ปริมาณเป็น กก. */
     meta.push(t.type === "harvest" ? `เก็บได้ ${fmtNum(t.qty)} กก.` : "จำนวน " + fmtNum(t.qty));
   }
   if (t.harvestQty) meta.push(`เก็บได้ ${fmtNum(t.harvestQty)} กก.`);
   /* เงิน: รายได้ = เขียว, ต้นทุน = แดง — แยกเห็นชัดว่าเข้า/ออก (ต้นทุนนับจาก costItems หลายรายการด้วย) */
-  if (t.revenue) meta.push(`<span class="task-money in">${ic("dollar")} รายได้ ${fmtMoney(t.revenue)} บาท</span>`);
+  if (t.revenue) meta.push(`<span class="task-money in">${ic("dollar")} ${done ? "รายได้" : "คาดการณ์รายได้"} ${fmtMoney(t.revenue)} บาท</span>`);
   const itemsCost = (t.costItems && t.costItems.length) ? t.costItems.reduce((a, ci) => a + (ci.totalCost || (Number(ci.qty || 0) * Number(ci.unitCost || 0)) || 0), 0) : 0;
   const costShow = itemsCost > 0 ? itemsCost : Number(t.cost || 0);
-  if (costShow > 0) meta.push(`<span class="task-money out">${ic("dollar")} ต้นทุน ${fmtMoney(costShow)} บาท</span>`);
+  if (costShow > 0) meta.push(`<span class="task-money out">${ic("dollar")} ${done ? "ต้นทุน" : "งบประมาณ"} ${fmtMoney(costShow)} บาท</span>`);
   const photoCount = taskAllPhotos(t).length;
   if (photoCount) meta.push(`<span class="task-photo-pill">${ic("camera")} รูป ${fmtNum(photoCount)}</span>`);
   if (opts.showNote && t.note) meta.push(esc(t.note));
@@ -283,6 +286,10 @@ function taskRowHtml(t, opts) {
           <button class="btn btn-sm btn-ghost icon-action" onclick="App.editTask('${t.id}')" title="แก้ไขกิจกรรม" aria-label="แก้ไข: ${esc(t.title)}">${ic("pencil")}</button>`}
       </div>
     </div>`;
+}
+function cycleDurationLabel(c) {
+  if (c.status === "active") return `อายุ ${ageDays(c.startDate)} วัน`;
+  return c.endDate ? `ปิด ${dateLabel(c.endDate)} · ${Math.max(0, daysBetween(c.startDate, c.endDate))} วัน` : "ปิดรอบแล้ว";
 }
 
 App.rescheduleTask = function (id) {
@@ -410,8 +417,8 @@ function render() {
   };
   const navKey = VIEW_GROUP[route.view] || route.view;
   if (fd) {
-    const inTrialDetail = route.view === "plots" && route.tab === "trials" && !!route.trialId;
-    fd.style.display = navKey === "more" || inTrialDetail ? "none" : "";
+    const inTrialWorkspace = route.view === "plots" && route.tab === "trials";
+    fd.style.display = navKey === "more" || inTrialWorkspace ? "none" : "";
     fd.classList.remove("open");
   }
   if (!keys.includes(navKey)) {
@@ -421,7 +428,7 @@ function render() {
   // bottom nav
   const nav = document.getElementById("bottomNav");
   nav.innerHTML = visibleNav().map(n =>
-    `<button class="nav-item ${navKey === n.key ? "active" : ""}" onclick="App.nav('${n.key}')">
+    `<button class="nav-item ${navKey === n.key ? "active" : ""}" ${navKey === n.key ? 'aria-current="page"' : ""} onclick="App.nav('${n.key}')">
        <span class="nav-ico">${ic(n.ico)}</span><span>${n.label}</span>
      </button>`
   ).join("");
@@ -441,6 +448,10 @@ function render() {
   /* ปิดแอนิเมชันตอน re-render ในหน้าเดิม (กันกระพริบ) */
   v.classList.toggle("no-anim", !viewChanged);
   v.innerHTML = Auth.syncStatusHtml() + (views[route.view] || renderHome)();
+  v.dataset.view = route.view;
+  v.querySelectorAll('.tabs button, .quick-filter, .planner-filter, .chip').forEach(btn => {
+    btn.setAttribute('aria-pressed', String(btn.classList.contains('active')));
+  });
   /* หลังวาดหน้า — ดึงสภาพอากาศของแปลง (หน้าแปลง + หน้าสภาพอากาศ) */
   if (route.view === "weather" || route.view === "plotDetail") renderPlotWeather();
   else clearRainRadar();
@@ -566,7 +577,7 @@ function renderHome() {
   const curYr = todayISO().slice(0, 4);
   const plotProfits = S.plots.filter(p => p.status === "active").map(p => ({
     p,
-    fin: taskFinance(S, t => t.plotId === p.id && t.date.startsWith(curYr))
+    fin: taskFinance(S, t => t.plotId === p.id && taskRecordDate(t).startsWith(curYr))
   }));
   /* รายได้ขายยา/สินค้า — แยกจากกำไร/ขาดทุนของแปลง ไม่ปนกัน (โชว์แค่ตัวเลขสรุป ไม่ขึ้นรายการใบเสร็จให้ยาว) */
   const salesBox = (() => {
@@ -800,14 +811,14 @@ function renderPlots() {
       const statusBadge = status === "growing" ? `<span class="badge badge-green">กำลังปลูก</span>` : (status === "idle" ? `<span class="badge badge-amber">พักแปลง</span>` : `<span class="badge badge-gray">ปิดใช้</span>`);
       return `
       <div class="card plot-card">
-        <div class="plot-top clickable" onclick="App.openPlot('${p.id}')">
+        <button class="plot-top card-open" onclick="App.openPlot('${p.id}')">
           <div class="plot-emoji">${cropEmoji(p.crop)}</div>
           <div class="grow">
             <div class="plot-name">${esc(p.name)} ${statusBadge}</div>
             <div class="muted" style="font-size:.72rem">${c ? `${esc(c.plant)} · อายุ ${ageDays(c.startDate)} วัน` : "ยังไม่มีรอบปลูกที่เปิดอยู่"}</div>
           </div>
           <span class="muted" style="font-size:1.1rem">›</span>
-        </div>
+        </button>
         <div class="meta-grid">
           <div class="meta-box"><div class="lb">ขนาดพื้นที่</div><div class="vl">${fmtNum(p.sizeRai)} ไร่</div></div>
           <div class="meta-box"><div class="lb">พิกัด GPS</div><div class="vl" style="font-size:.72rem"><a class="gps-link" href="${mapLink(p.lat, p.lng)}" target="_blank" rel="noopener">${ic("map")} ${p.lat}, ${p.lng}</a></div></div>
@@ -831,12 +842,12 @@ function renderPlots() {
     const fin = cycleFinance(S, c.id);
     const n = S.tasks.filter(t => t.cycleId === c.id).length;
     return `
-      <div class="card cycle-card" onclick="App.openCycle('${c.id}')" role="button" tabindex="0" title="กดดูงาน/กิจกรรมของรอบนี้">
+      <article class="card cycle-card">
         <div class="row">
           <div class="plot-emoji">${cropEmoji(c.plant)}</div>
           <div class="grow">
-            <div class="plot-name">${esc(c.plant)} <span class="badge badge-blue">รอบ ${c.round || "—"}</span></div>
-            <div class="muted">เริ่ม ${dateLabel(c.startDate)} · อายุ ${ageDays(c.startDate)} วัน</div>
+            <button class="plot-name card-open" onclick="App.openCycle('${c.id}')">${esc(c.plant)} <span class="badge badge-blue">รอบ ${c.round || "—"}</span></button>
+            <div class="muted">เริ่ม ${dateLabel(c.startDate)} · ${cycleDurationLabel(c)}</div>
           </div>
           ${c.status === "active" ? `<span class="badge badge-green">กำลังปลูก</span>` : `<span class="badge badge-gray">ปิดรอบ</span>`}
         </div>
@@ -851,8 +862,8 @@ function renderPlots() {
           <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();App.modalCycle('${c.plotId}', '${c.id}')">${ic("pencil")} แก้ไขรอบ</button>
           ${c.status === "active" ? `<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : `<button class="btn btn-sm btn-outline" onclick="event.stopPropagation();App.reopenCycle('${c.id}')">${ic("refresh")} เปิดรอบอีกครั้ง</button>`}
         </div>
-        <div class="cycle-open-hint">${ic("chevron")} ดู ${n} กิจกรรมของรอบนี้</div>
-      </div>`;
+        <button class="cycle-open-hint card-open" onclick="App.openCycle('${c.id}')">${ic("chevron")} ดู ${n} กิจกรรมของรอบนี้</button>
+      </article>`;
   };
   /* กลุ่มแปลง: เรียงตามชื่อแปลง (พจนานุกรมไทย) แล้วกรองตามคำค้น/สถานะ */
   const allGroups = [...S.plots]
@@ -966,6 +977,7 @@ App.cycleFilterClear = function () { cycleFilter = { q: "", status: "all" }; rer
 function trialById(s, id) { return (s.trials || []).find(t => t.id === id); }
 function trialTreatment(tr, id) { return (tr.treatments || []).find(t => t.id === id); }
 function trialUnit(tr, id) { return (tr.units || []).find(u => u.id === id); }
+function trialReplications(tr) { return Number(tr?.replications || tr?.reps) || new Set((tr?.units || []).map(u => u.block)).size || 1; }
 const TRIAL_COLORS = ["#16a34a", "#2563eb", "#f59e0b", "#8b5cf6", "#e11d48", "#06b6d4", "#84cc16", "#f97316"];
 const DEFAULT_TRIAL_METRICS = [
   { name: "ผลผลิต", unit: "กก." },
@@ -973,9 +985,9 @@ const DEFAULT_TRIAL_METRICS = [
   { name: "คะแนนโรค", unit: "0-5" }
 ];
 const TRIAL_TYPES = {
-  screening: { label: "Screening Trial", hint: "คัดสูตรเบื้องต้น ใช้ดูแนวโน้มก่อนทดลองเต็ม" },
-  rcbd: { label: "RCBD ทดลองจริง", hint: "มีซ้ำ/บล็อก ใช้วิเคราะห์เชิงสถิติได้มากขึ้น" },
-  demo: { label: "Demo / แปลงโชว์", hint: "เก็บภาพและผลหน้างานเพื่อสื่อสารกับลูกค้า" }
+  screening: { label: "คัดสูตรเบื้องต้น", hint: "คัดสูตรเบื้องต้น ใช้ดูแนวโน้มก่อนทดลองเต็ม" },
+  rcbd: { label: "บล็อกสุ่ม (RCBD)", hint: "มีซ้ำ/บล็อก ใช้วิเคราะห์เชิงสถิติได้มากขึ้น" },
+  demo: { label: "แปลงสาธิต", hint: "เก็บภาพและผลหน้างานเพื่อสื่อสารกับลูกค้า" }
 };
 function trialType(tr) { return TRIAL_TYPES[tr.trialType] ? tr.trialType : "screening"; }
 function trialTypeLabel(tr) { return TRIAL_TYPES[trialType(tr)].label; }
@@ -1006,11 +1018,35 @@ function trialChemicalTotal(rate, area) {
   return `${fmtNum(Math.round(r.amount * area * 100) / 100)} ${esc(r.unit)}`;
 }
 function trialTreatmentRecipe(t) {
-  const parts = [];
-  if (t.activeName || t.activeRate) parts.push(`${esc(t.activeName || "สารหลัก")} ${trialRateText(t.activeRate)}`);
-  if (t.mixName || t.mixRate) parts.push(`${esc(t.mixName || "สารผสม")} ${trialRateText(t.mixRate)}`);
+  const parts = trialIngredients(t).map(item => `${esc(item.name || "รายการไม่ระบุชื่อ")} ${trialRateText(item.rate)}`);
   return parts.length ? parts.join(" + ") : esc(t.desc || "");
 }
+function trialIngredients(t) {
+  const rows = Array.isArray(t.ingredients) ? t.ingredients : [
+    { name: t.activeName, rate: t.activeRate },
+    { name: t.mixName, rate: t.mixRate }
+  ];
+  return rows.filter(Boolean).map(item => ({ name: String(item.name || "").trim(), rate: String(item.rate || "").trim() })).filter(item => item.name || item.rate);
+}
+function trialIngredientRowHtml(item = {}) {
+  return `<div class="trial-ingredient-row" data-trt-ingredient>
+    <label class="field">ยา / ผลิตภัณฑ์<input data-ingredient-name value="${esc(item.name || '')}"></label>
+    <label class="field">อัตราใช้ / ไร่<input data-ingredient-rate value="${esc(item.rate || '')}" placeholder="ปริมาณและหน่วย"></label>
+    <button type="button" class="btn btn-icon btn-danger-soft" title="ลบรายการ" aria-label="ลบรายการยา / ผลิตภัณฑ์" onclick="App.removeTrialIngredient(this)">${ic('trash')}</button>
+  </div>`;
+}
+App.addTrialIngredient = function (btn) {
+  const list = btn.closest('[data-trt-row]').querySelector('[data-trt-ingredients]');
+  list.insertAdjacentHTML('beforeend', trialIngredientRowHtml());
+  list.lastElementChild.querySelector('[data-ingredient-name]').focus();
+};
+App.removeTrialIngredient = function (btn) {
+  const row = btn.closest('[data-trt-ingredient]');
+  const editor = row.closest('[data-trt-row]');
+  const next = row.nextElementSibling || row.previousElementSibling;
+  row.remove();
+  (next?.querySelector('[data-ingredient-name]') || editor.querySelector('[data-add-ingredient]')).focus();
+};
 function trialTaskForTreatment(tr, treatmentId) {
   return (S.tasks || [])
     .filter(t => t.trialId === tr.id && t.trialTreatmentId === treatmentId)
@@ -1024,6 +1060,7 @@ function trialMetrics(tr) {
     ? tr.metrics
     : [{ id: "legacy_metric", name: tr.metric || "ผลผลิต", unit: tr.metricUnit || "กก." }];
   return rows.map((m, i) => ({
+    ...m,
     id: m.id || ("metric_" + i),
     name: (m.name || (i === 0 ? tr.metric : "") || "ตัวชี้วัด").trim(),
     unit: (m.unit || (i === 0 ? tr.metricUnit : "") || "หน่วย").trim()
@@ -1042,7 +1079,7 @@ function trialUnitLabel(tr, metricId) { return trialMetricById(tr, metricId || t
 function trialObsMetricId(tr, obs) {
   if (obs && obs.metricId && trialMetrics(tr).some(m => m.id === obs.metricId)) return obs.metricId;
   const byName = trialMetrics(tr).find(m => m.name === (obs && obs.metric));
-  return byName ? byName.id : trialActiveMetricId(tr);
+  return byName ? byName.id : trialMetrics(tr)[0].id;
 }
 function trialLayoutMode(tr) { return (tr.layoutMode || (tr.design === "MANUAL" ? "manual" : "random")) === "manual" ? "manual" : "random"; }
 function trialPlotName(tr) {
@@ -1055,7 +1092,7 @@ function trialTreatmentColor(tr, treatmentId) {
 }
 function trialEffectiveStatus(tr) {
   if ((tr.status || "active") === "done") return "done";
-  return trialAnalysis(tr).complete ? "ready" : "active";
+  return "active";
 }
 function trialTreatmentsFromText(text, old) {
   const oldByCode = Object.fromEntries((old || []).map(t => [String(t.code || "").trim().toUpperCase(), t]));
@@ -1078,53 +1115,40 @@ function trialMetricRowsHtml(metrics, startIndex) {
   const rows = (metrics && metrics.length ? metrics : DEFAULT_TRIAL_METRICS.map(x => ({ id: uid(), ...x }))).slice();
   const offset = Number(startIndex) || 0;
   return rows.map((m, i) => `
-    <div class="trial-metric-row" data-trm-row>
+    <div class="trial-metric-row" data-trm-row data-trm-id="${esc(m.id || '')}">
       <div class="field trm-name" style="margin:0"><label>ตัวชี้วัด *</label><input data-trm-name value="${esc(m.name || "")}" placeholder="${esc(DEFAULT_TRIAL_METRICS[(offset + i) % DEFAULT_TRIAL_METRICS.length].name)}"></div>
       <div class="field trm-unit" style="margin:0"><label>หน่วย</label><input data-trm-unit value="${esc(m.unit || "")}" placeholder="${esc(DEFAULT_TRIAL_METRICS[(offset + i) % DEFAULT_TRIAL_METRICS.length].unit)}"></div>
       <button type="button" class="btn btn-sm btn-danger-soft trial-metric-remove" onclick="App.removeTrialMetricRow(this)" title="ลบตัวชี้วัด">${ic("trash")}</button>
     </div>`).join("");
 }
 function trialMetricsFromForm(old) {
-  const oldByName = Object.fromEntries((old || []).map(m => [String(m.name || "").trim(), m]));
   return Array.from(document.querySelectorAll("[data-trm-row]")).map((row, i) => {
     const name = (row.querySelector("[data-trm-name]")?.value || "").trim();
     const unit = (row.querySelector("[data-trm-unit]")?.value || "").trim() || "หน่วย";
     if (!name) return null;
-    const prev = oldByName[name] || (old || [])[i];
-    return { id: prev ? prev.id : uid(), name, unit };
+    const prev = (old || []).find(m => m.id === row.dataset.trmId);
+    return { ...prev, id: prev ? prev.id : (row.dataset.trmId || uid()), name, unit };
   }).filter(Boolean);
 }
 function trialTreatmentRowsHtml(treatments, startIndex) {
-  const rows = (treatments && treatments.length ? treatments : trialTreatmentsFromText(trialTreatmentsText())).slice();
+  const rows = treatments?.length ? treatments : trialTreatmentsFromText(trialTreatmentsText());
   const offset = Number(startIndex) || 0;
-  return rows.map((t, i) => `
-    <div class="trial-treatment-row" data-trt-row>
-      <div class="trial-treatment-color" style="--tr-color:${TRIAL_COLORS[(offset + i) % TRIAL_COLORS.length]}"></div>
-      <div class="field trt-code" style="margin:0"><label>รหัส</label><input data-trt-code value="${esc(t.code || ("T" + (offset + i + 1)))}" placeholder="T${offset + i + 1}"></div>
-      <div class="field trt-name" style="margin:0"><label>ชื่อสูตร *</label><input data-trt-name value="${esc(t.name || "")}" placeholder="${offset + i === 0 ? "สูตรเดิม" : "สูตรทดลอง"}"></div>
-      <div class="field trt-active" style="margin:0"><label>สารหลัก</label><input data-trt-active value="${esc(t.activeName || "")}" placeholder="เช่น สารกำจัดวัชพืช X"></div>
-      <div class="field trt-active-rate" style="margin:0"><label>อัตรา/ไร่</label><input data-trt-active-rate value="${esc(t.activeRate || "")}" placeholder="250 cc/ไร่"></div>
-      <div class="field trt-mix" style="margin:0"><label>สารผสม</label><input data-trt-mix value="${esc(t.mixName || "")}" placeholder="เช่น Loyant 2.5% EC"></div>
-      <div class="field trt-mix-rate" style="margin:0"><label>อัตราผสม</label><input data-trt-mix-rate value="${esc(t.mixRate || "")}" placeholder="160 cc/ไร่"></div>
-      <div class="field trt-timing" style="margin:0"><label>ช่วงพ่น</label><input data-trt-timing value="${esc(t.timing || "")}" placeholder="ข้าว 10-15 วัน / หญ้า 2-3 ใบ"></div>
-      <div class="field trt-desc" style="margin:0"><label>หมายเหตุสูตร</label><input data-trt-desc value="${esc(t.desc || "")}" placeholder="เช่น สูตรคุม / สูตรทดลอง"></div>
-      <button type="button" class="btn btn-sm btn-danger-soft trial-treatment-remove" onclick="App.removeTrialTreatmentRow(this)" title="ลบทรีตเมนต์">${ic("trash")}</button>
-    </div>`).join("");
+  return rows.map((t,i) => '<div class="trial-treatment-row trial-treatment-editor" data-trt-row data-trt-id="'+esc(t.id || '')+'"><div class="trial-treatment-basic"><div class="field"><label>รหัส</label><input data-trt-code value="'+esc(t.code || 'T'+(offset+i+1))+'"></div><div class="field"><label>ชื่อสูตร / วิธี *</label><input data-trt-name value="'+esc(t.name || '')+'"></div><button type="button" class="btn btn-icon btn-danger-soft" title="ลบสูตร / วิธี" aria-label="ลบสูตร '+esc(t.code || '')+'" onclick="App.removeTrialTreatmentRow(this)">'+ic("trash")+'</button></div>' +
+    '<details class="trial-disclosure"><summary>รายการที่ใช้ในสูตร</summary><div data-trt-ingredients>'+trialIngredients(t).map(trialIngredientRowHtml).join('')+'</div><button type="button" class="btn btn-sm btn-outline trial-ingredient-add" data-add-ingredient onclick="App.addTrialIngredient(this)">'+ic('plus')+' เพิ่มรายการ</button><div class="field"><label>ช่วงเวลาใช้</label><input data-trt-timing value="'+esc(t.timing || '')+'"></div><div class="field"><label>หมายเหตุสูตร</label><input data-trt-desc value="'+esc(t.desc || '')+'"></div></details></div>').join('');
 }
 function trialTreatmentsFromForm(old) {
-  const oldByCode = Object.fromEntries((old || []).map(t => [String(t.code || "").trim().toUpperCase(), t]));
   return Array.from(document.querySelectorAll("[data-trt-row]")).map((row, i) => {
     const code = (row.querySelector("[data-trt-code]")?.value || ("T" + (i + 1))).trim().toUpperCase();
     const name = (row.querySelector("[data-trt-name]")?.value || "").trim();
     const desc = (row.querySelector("[data-trt-desc]")?.value || "").trim();
-    const activeName = (row.querySelector("[data-trt-active]")?.value || "").trim();
-    const activeRate = (row.querySelector("[data-trt-active-rate]")?.value || "").trim();
-    const mixName = (row.querySelector("[data-trt-mix]")?.value || "").trim();
-    const mixRate = (row.querySelector("[data-trt-mix-rate]")?.value || "").trim();
+    const ingredients = Array.from(row.querySelectorAll('[data-trt-ingredient]')).map(item => ({
+      name: item.querySelector('[data-ingredient-name]').value.trim(),
+      rate: item.querySelector('[data-ingredient-rate]').value.trim()
+    })).filter(item => item.name || item.rate);
     const timing = (row.querySelector("[data-trt-timing]")?.value || "").trim();
     if (!name) return null;
-    const prev = oldByCode[code] || (old || [])[i];
-    return { id: prev ? prev.id : uid(), code: code || ("T" + (i + 1)), name, desc, activeName, activeRate, mixName, mixRate, timing, photos: prev ? (prev.photos || []) : [] };
+    const prev = (old || []).find(t => t.id === row.dataset.trtId);
+    return { ...prev, id: prev ? prev.id : (row.dataset.trtId || uid()), code: code || ("T" + (i + 1)), name, desc, ingredients, activeName: "", activeRate: "", mixName: "", mixRate: "", timing, photos: prev ? (prev.photos || []) : [] };
   }).filter(Boolean);
 }
 function shuffleCopy(arr) {
@@ -1151,8 +1175,8 @@ function makeTrialUnitsForMode(treatments, reps, mode) {
 function trialObsForMetric(tr, metric) {
   const m = metric || trialActiveMetricId(tr);
   return (tr.observations || []).filter(o => {
-    const hasValue = o.value !== "" && o.value !== null && o.value !== undefined && Number.isFinite(Number(o.value));
-    return trialObsMetricId(tr, o) === m && hasValue;
+    const hasValue = o.value !== null && o.value !== undefined && String(o.value).trim() !== '' && Number.isFinite(Number(o.value));
+    return (o.metricId ? o.metricId === m : trialObsMetricId(tr, o) === m) && hasValue;
   });
 }
 function trialLatestValues(tr, metric) {
@@ -1161,7 +1185,7 @@ function trialLatestValues(tr, metric) {
     const u = trialUnit(tr, o.unitId);
     if (!u) return;
     const prev = latest[u.id];
-    if (!prev || String(o.date || "") >= String(prev.date || "")) latest[u.id] = o;
+    if (!prev || String(o.date || "") > String(prev.date || "") || (o.date === prev.date && (o.updatedAt || o.createdAt || 0) >= (prev.updatedAt || prev.createdAt || 0))) latest[u.id] = o;
   });
   return Object.values(latest).map(o => {
     const u = trialUnit(tr, o.unitId);
@@ -1249,6 +1273,13 @@ function trialQuickNavHtml() {
     `<button type="button" onclick="App.scrollTrialSection('${id}')">${esc(label)}</button>`).join("")}</div>`;
 }
 function trialMeanChartItems(tr) {
+  if (route.trialSection === 'compare') {
+    const values = trialComparableDayValues(tr, trialActiveMetricId(tr), trialSnapshotDate(tr));
+    return trialVisibleTreatments(tr).map(t => {
+      const vals = (tr.units || []).filter(u => u.treatmentId === t.id && values.has(u.id)).map(u => Number(values.get(u.id).value));
+      return vals.length ? { label: esc(t.code), value: Math.round(mean(vals) * 100) / 100, color: trialTreatmentColor(tr, t.id) } : null;
+    }).filter(Boolean);
+  }
   const a = trialAnalysis(tr);
   return a.rows.filter(r => r.n).map(r => ({
     label: r.treatment.code,
@@ -1296,7 +1327,7 @@ function trialEvidenceText(tr, a) {
 function trialPhotosHtml(photos) {
   const list = (photos || []).filter(Boolean);
   if (!list.length) return "";
-  return `<div class="task-photo-strip trial-obs-strip">${list.slice(0, 4).map(p => `<button class="task-photo-thumb readonly" onclick="App.viewTrialObsPhoto(${esc(JSON.stringify(p))})" title="ดูรูปใหญ่"><img src="${esc(taskPhotoUrl(p))}" alt="รูปค่าวัด" loading="lazy" onerror="this.closest('.task-photo-thumb').remove()"></button>`).join("")}</div>`;
+  return `<div class="task-photo-strip trial-obs-strip">${list.map(p => `<button class="task-photo-thumb readonly" onclick="App.viewTrialObsPhoto(${esc(JSON.stringify(p))})" title="ดูรูปใหญ่"><img src="${esc(taskPhotoUrl(p))}" alt="รูปค่าวัด" loading="lazy" onerror="this.closest('.task-photo-thumb').remove()"></button>`).join("")}</div>`;
 }
 function trialMetricFilterHtml(tr) {
   const active = trialActiveMetricId(tr);
@@ -1320,13 +1351,13 @@ function trialTreatmentFilterHtml(tr) {
 function trialTreatmentPhotosHtml(tr) {
   return `<div class="card trial-treatment-photo-card">
     <div class="row row-between">
-      <div><div class="bold">รูปสรุปทรีตเมนต์</div><div class="muted">เก็บรูปเด่นของแต่ละสูตรไว้เทียบกันเร็ว ๆ</div></div>
+      <div><div class="muted">รูปประจำสูตร / วิธี</div></div>
     </div>
     <div class="trial-treatment-photo-grid">
       ${(tr.treatments || []).map(t => {
         const photos = (t.photos || []).filter(Boolean);
         return `<div class="trial-treatment-photo-box" style="--tr-color:${trialTreatmentColor(tr, t.id)}">
-          <div class="trial-treatment-photo-title"><span><i></i><b>${esc(t.code)}</b> ${esc(t.name)}</span><button class="btn btn-sm btn-outline" onclick="App.pickTrialTreatmentPhotos('${tr.id}', '${t.id}')">${ic("camera")}</button></div>
+          <div class="trial-treatment-photo-title"><span><i></i><b>${esc(t.code)}</b> ${esc(t.name)}</span><button class="btn btn-sm btn-outline" aria-label="เพิ่มรูป ${esc(t.code)}" title="เพิ่มรูป ${esc(t.code)}" onclick="App.pickTrialTreatmentPhotos('${tr.id}', '${t.id}')">${ic("camera")}</button></div>
           ${photos.length ? `<div class="task-photo-strip trial-obs-strip">${photos.slice(0, 5).map((p, i) => `
             <div class="task-photo-thumb">
               <img src="${esc(taskPhotoUrl(p))}" alt="รูปสรุปทรีตเมนต์" loading="lazy" onclick="App.viewTrialTreatmentPhoto('${tr.id}', '${t.id}', ${i})" onerror="this.closest('.task-photo-thumb').remove()">
@@ -1338,12 +1369,6 @@ function trialTreatmentPhotosHtml(tr) {
   </div>`;
 }
 function trialPlanHtml(tr) {
-  const optionalMissing = [
-    ["เป้าหมาย", tr.objective],
-    ["วิธีพ่น/ใส่", tr.sprayMethod],
-    ["น้ำ/พาหะ", tr.waterRate],
-    ["ผสมต่อครั้ง", tr.mixVolume]
-  ].filter(([, value]) => !trialCleanText(value)).map(([label]) => label);
   const timedTreatments = (tr.treatments || []).filter(t => trialCleanText(t.timing));
   return `<div class="trial-plan-grid">
     <div class="card trial-plan-card">
@@ -1354,19 +1379,18 @@ function trialPlanHtml(tr) {
       ${trialPlanKvHtml("วิธีพ่น/ใส่", tr.sprayMethod)}
       ${trialPlanKvHtml("น้ำ/พาหะ", tr.waterRate)}
       ${trialPlanKvHtml("ผสมต่อครั้ง", tr.mixVolume)}
-      ${optionalMissing.length ? `<div class="trial-empty-note">${ic("info")} ยังไม่ได้ใส่ ${esc(optionalMissing.join(", "))}</div>` : ""}
     </div>
-    <div class="card trial-plan-card">
+    ${timedTreatments.length ? `<div class="card trial-plan-card">
       <div class="trial-plan-head">${ic("clock")} ช่วงเวลาพ่นโดยประมาณ</div>
       ${timedTreatments.length ? timedTreatments.map(t => `
         <div class="trial-timing-row" style="--tr-color:${trialTreatmentColor(tr, t.id)}">
           <b>${esc(t.code)}</b><span>${esc(t.timing)}</span>
         </div>`).join("") : `<div class="muted">ยังไม่ได้ใส่ช่วงพ่นของแต่ละสูตร</div>`}
-    </div>
+    </div>` : ""}
   </div>
   <div class="card trial-program-card">
     <div class="row row-between">
-      <div><div class="bold">โปรแกรมการทดลอง</div><div class="muted">สูตรพ่น/อัตราต่อไร่จากแต่ละทรีตเมนต์</div></div>
+      <div><div class="bold">สูตร / วิธีที่เปรียบเทียบ</div></div>
       <span class="badge badge-blue">${fmtNum((tr.treatments || []).length)} สูตร</span>
     </div>
     <div class="trial-program-grid">
@@ -1378,13 +1402,13 @@ function trialPlanHtml(tr) {
           <div class="trial-program-code">${esc(t.code)}</div>
           <b>${esc(t.name)}</b>
         </div>
-        <span class="${recipe ? "" : "trial-program-incomplete"}">${recipe ? recipe : `${ic("alert")} ยังไม่ได้ใส่รายละเอียดสูตร`}</span>
+        ${recipe ? `<span>${recipe}</span>` : ""}
         ${t.desc ? `<small>${esc(t.desc)}</small>` : ""}
         <div class="trial-program-actions">
           <div class="trial-program-main">
             ${linkedTask
               ? `<button class="btn btn-sm btn-primary" onclick="App.viewTask('${linkedTask.id}')">${ic("eye")} เปิดกิจกรรม</button><small class="trial-linked-task">สร้างไว้แล้ว · ${esc(dateLabel(linkedTask.date))}</small>`
-              : `<button class="btn btn-sm btn-outline" onclick="App.createTaskFromTrialTreatment('${tr.id}', '${t.id}')">${ic("plus")} สร้างกิจกรรม</button>`}
+              : ""}
           </div>
           <button class="btn btn-sm btn-danger-soft btn-icon trial-program-delete" onclick="App.deleteTrialTreatment('${tr.id}', '${t.id}')" title="ลบสูตรนี้" aria-label="ลบสูตร ${esc(t.code)}">${ic("trash")}</button>
         </div>
@@ -1400,15 +1424,16 @@ function trialMixTableHtml(tr) {
       <button class="btn btn-sm btn-outline" onclick="App.modalTrialAreas('${tr.id}')">${ic("pencil")} แก้พื้นที่</button>
     </div>
     <div class="trial-mix-table">
-      <div class="trial-mix-head"><span>สูตร</span><span>พื้นที่</span><span>สารหลัก</span><span>สารผสม</span></div>
+      <div class="trial-mix-head"><span>สูตร</span><span>พื้นที่</span><span>ยา / ผลิตภัณฑ์</span><span>ปริมาณรวม</span></div>
       ${(tr.treatments || []).map(t => {
         const area = trialTreatmentArea(tr, t.id);
-        return `<div class="trial-mix-row" style="--tr-color:${trialTreatmentColor(tr, t.id)}">
+        const items = trialIngredients(t);
+        return (items.length ? items : [{}]).map(item => `<div class="trial-mix-row" style="--tr-color:${trialTreatmentColor(tr, t.id)}">
           <span><b>${esc(t.code)}</b> ${esc(t.name)}</span>
           <span>${area ? fmtNum(area) + " ไร่" : "ยังไม่ใส่"}</span>
-          <span>${t.activeName ? esc(t.activeName) + " " : ""}${trialChemicalTotal(t.activeRate, area) || trialRateText(t.activeRate)}</span>
-          <span>${t.mixName || t.mixRate ? `${t.mixName ? esc(t.mixName) + " " : ""}${trialChemicalTotal(t.mixRate, area) || trialRateText(t.mixRate)}` : "-"}</span>
-        </div>`;
+          <span>${esc(item.name || "—")}</span>
+          <span>${trialChemicalTotal(item.rate, area) || "—"}<small class="trial-ingredient-rate">${item.rate ? trialRateText(item.rate) : ""}</small></span>
+        </div>`).join('');
       }).join("")}
     </div>
     <div class="muted mt-8" style="font-size:.72rem">${ic("info")} ถ้าใส่พื้นที่แปลงย่อย ระบบจะคูณอัตรา/ไร่ให้เป็นปริมาณสารที่ต้องใช้ต่อสูตร</div>
@@ -1433,28 +1458,28 @@ function trialAreaHtml(tr) {
     </div>
   </div>`;
 }
-function trialTimelineHtml(tr) {
-  const metricId = trialActiveMetricId(tr);
+function trialTimelineHtml(tr, history = false) {
+  const metricId = history ? route.trialHistoryMetric || 'all' : trialActiveMetricId(tr);
   const treatmentId = trialActiveTreatmentId(tr);
-  const rows = trialObsForMetric(tr, metricId)
+  const rows = (metricId === 'all' ? (tr.observations || []) : trialObsForMetric(tr, metricId))
     .map(o => {
       const u = trialUnit(tr, o.unitId);
       const t = u ? trialTreatment(tr, u.treatmentId) : null;
       return { obs: o, unit: u, treatment: t };
     })
-    .filter(x => x.unit && (!treatmentId || x.unit.treatmentId === treatmentId))
-    .sort((a, b) => String(a.obs.date || "").localeCompare(String(b.obs.date || "")) || a.unit.block - b.unit.block || a.unit.order - b.unit.order);
+    .filter(x => (!history || (trialDateInRange(x.obs.date) && (!route.trialPhotosOnly || (x.obs.photos || []).some(Boolean)))) && (!treatmentId || x.unit?.treatmentId === treatmentId))
+    .sort((a, b) => String(b.obs.date || "").localeCompare(String(a.obs.date || "")) || (a.unit?.block || 0) - (b.unit?.block || 0));
   return `<div class="card trial-timeline">
-    ${rows.length ? rows.map(x => `<div class="trial-time-row" style="--tr-color:${trialTreatmentColor(tr, x.unit.treatmentId)}">
+    ${rows.length ? rows.map(x => `<div class="trial-time-row" style="--tr-color:${trialTreatmentColor(tr, x.unit?.treatmentId)}">
       <div class="trial-time-date">${esc(dateLabel(x.obs.date || todayISO()))}</div>
       <div class="grow">
         <div class="bold"><span class="trial-code-pill">${esc(x.treatment ? x.treatment.code : "?")}</span> ${esc(x.treatment ? x.treatment.name : "ไม่พบทรีตเมนต์")}</div>
-        <div class="muted">ซ้ำ ${fmtNum(x.unit.block)} · ลำดับ ${fmtNum(x.unit.order)} · ${esc(x.obs.metric || trialMetric(tr, metricId))}: <b>${fmtNum(x.obs.value)} ${esc(x.obs.unit || trialUnitLabel(tr, metricId))}</b></div>
+        <div class="muted">${x.unit ? `ซ้ำ ${fmtNum(x.unit.block)} · ลำดับ ${fmtNum(x.unit.order)}` : 'ไม่พบแปลงย่อยเดิม'} · ${esc(x.obs.metric || trialMetric(tr, trialObsMetricId(tr,x.obs)))}: <b>${esc(x.obs.value ?? '—')} ${esc(x.obs.unit || trialUnitLabel(tr, trialObsMetricId(tr,x.obs)))}</b></div>
         ${x.obs.note ? `<div class="td-note-body mt-4">${esc(x.obs.note)}</div>` : ""}
         ${trialPhotosHtml(x.obs.photos)}
       </div>
-      <button class="btn btn-sm btn-outline" onclick="App.modalTrialObs('${tr.id}', '${x.unit.id}', '${x.obs.id}')">${ic("pencil")}</button>
-      <button class="btn btn-sm btn-danger-soft" onclick="App.deleteTrialObs('${tr.id}', '${x.obs.id}')">${ic("trash")}</button>
+      <button class="btn btn-sm btn-outline" ${x.unit ? '' : 'disabled'} aria-label="แก้ไขค่าวัด ${esc(x.treatment?.code || '')} ${esc(x.obs.date)} ซ้ำ ${x.unit?.block || ''}" title="แก้ไขค่าวัด" onclick="App.modalTrialObs('${tr.id}', '${x.unit?.id || ''}', '${x.obs.id}')">${ic("pencil")}</button>
+      <button class="btn btn-sm btn-danger-soft" aria-label="ลบค่าวัด ${esc(x.treatment?.code || '')} ${esc(x.obs.date)} ซ้ำ ${x.unit?.block || ''}" title="ลบค่าวัด" onclick="App.deleteTrialObs('${tr.id}', '${x.obs.id}')">${ic("trash")}</button>
     </div>`).join("") : `<div class="empty compact-empty"><div class="e-ico">${ic("search")}</div><div class="e-title">ยังไม่มีข้อมูลตามตัวกรองนี้</div><div class="muted">เลือกทรีตเมนต์/ตัวชี้วัดอื่น หรือบันทึกค่าวัดเพิ่ม</div></div>`}
   </div>`;
 }
@@ -1527,105 +1552,311 @@ function trialLayoutHtml(tr) {
       }).join("")}
     </div>`;
 }
+let trialListFilter = { status: "active", q: "" };
+function trialMeasurementDate(tr) {
+  if (route.trialSection !== "compare") return route.trialDate || todayISO();
+  const dates = [...new Set(trialObsForMetric(tr).map(o => o.date).filter(Boolean))].sort().reverse();
+  return route.trialDate || dates[0] || todayISO();
+}
+function trialDayValues(tr, metricId, date) {
+  const latest = new Map();
+  trialObsForMetric(tr, metricId).filter(o => o.date === date).forEach(o => {
+    if (!trialUnit(tr, o.unitId)) return;
+    const prev = latest.get(o.unitId);
+    if (!prev || (o.updatedAt || o.createdAt || 0) >= (prev.updatedAt || prev.createdAt || 0)) latest.set(o.unitId, o);
+  });
+  return latest;
+}
+function trialCoverage(tr) {
+  const total = (tr.units || []).length * trialMetrics(tr).length;
+  const done = trialMetrics(tr).reduce((n, m) => n + trialLatestValues(tr, m.id).length, 0);
+  return { total, done };
+}
+function trialComparableDayValues(tr, metricId, date) {
+  const unit = trialUnitLabel(tr,metricId);
+  return new Map([...trialDayValues(tr,metricId,date)].filter(([,obs]) => !obs.unit || obs.unit === unit));
+}
+function trialWorkspaceFilters(tr, date) {
+  return '<div class="trial-filter-bar"><div class="trial-work-filters"><div class="field"><label for="trial_work_metric">ตัวชี้วัด</label><select id="trial_work_metric" onchange="App.setTrialMetric(this.value)">' +
+    trialMetrics(tr).map(m => '<option value="' + m.id + '" ' + (m.id === trialActiveMetricId(tr) ? 'selected' : '') + '>' + esc(m.name) + ' (' + esc(m.unit) + ')</option>').join('') +
+    '</select></div>' + (route.trialSection === 'compare' ? '</div>' + trialRangeControls() : '<div class="field"><label for="trial_work_date">วันที่บันทึก</label><input id="trial_work_date" type="date" max="' + todayISO() + '" value="' + esc(date) + '" onchange="App.setTrialDate(this.value)"></div></div>') + '</div>';
+}
+function trialRecordPanel(tr, date) {
+  const values = trialDayValues(tr, trialActiveMetricId(tr), date);
+  const units = (tr.units || []).slice().sort((a,b) => a.block-b.block || a.order-b.order);
+  const left = units.length - values.size;
+  const shown = route.trialMissingOnly ? units.filter(u => !values.has(u.id)) : units;
+  return '<section class="trial-work-section"><div class="trial-section-head"><div><h2>ค่าวัดรายแปลง</h2><p>' + esc(dateLabel(date)) + ' · วัดแล้ว ' + values.size + '/' + units.length + ' แปลง</p></div>' +
+    '<button class="btn btn-primary" onclick="App.modalTrialBatch(\'' + tr.id + '\')">' + ic("plus") + ' กรอกหลายแปลง</button></div>' +
+    '<div class="trial-record-tools"><label class="trial-check"><input type="checkbox" ' + (route.trialMissingOnly ? 'checked' : '') + ' onchange="App.trialMissingOnly(this.checked)"> ยังไม่วัด (' + left + ')</label></div>' +
+    '<div class="trial-record-grid">' + shown.map(u => {
+      const t = trialTreatment(tr, u.treatmentId) || {};
+      const obs = values.get(u.id);
+      return '<article class="trial-record-item" style="--tr-color:' + trialTreatmentColor(tr, u.treatmentId) + '"><div><span class="trial-record-code">' + esc(t.code || '?') + '</span><b>' + esc(t.name || '') + '</b></div><p>' + esc(u.label || 'ซ้ำ ' + u.block + ' · แปลง ' + u.order) + (u.areaRai ? ' · ' + fmtNum(u.areaRai) + ' ไร่' : '') + '</p><div class="trial-record-bottom"><strong>' + (obs ? fmtNum(obs.value) + ' <small>' + esc(obs.unit || trialUnitLabel(tr)) + '</small>' : '<small class="muted">ยังไม่วัด</small>') + '</strong><button class="btn ' + (obs ? 'btn-ghost' : 'btn-outline') + '" aria-label="' + (obs ? 'แก้ไข' : 'บันทึก') + ' ' + esc(t.code) + ' ซ้ำ ' + u.block + '" onclick="App.modalTrialObs(\'' + tr.id + '\',\'' + u.id + '\',\'' + (obs ? obs.id : '') + '\')">' + ic(obs ? 'pencil' : 'plus') + (obs ? ' แก้ไข' : ' บันทึก') + '</button></div></article>';
+    }).join('') + '</div>' + (!shown.length ? '<div class="trial-empty-state">' + ic("check") + '<b>ไม่มีแปลงที่รอบันทึกในตัวกรองนี้</b></div>' : '') +
+    '</section><details class="trial-disclosure"><summary>ประวัติค่าวัด (' + trialObsForMetric(tr).length + ')</summary>' + trialTreatmentFilterHtml(tr) + trialTimelineHtml(tr) + '</details>';
+}
+function trialValidDate(date) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(date || '') && Number.isFinite(Date.parse(date+'T12:00:00Z')) &&
+    new Date(date+'T12:00:00Z').toISOString().slice(0,10) === date;
+}
+function trialDateInRange(date) {
+  return (!route.trialRangeStart || date >= route.trialRangeStart) && (!route.trialRangeEnd || date <= route.trialRangeEnd);
+}
+function trialVisibleTreatments(tr) {
+  const all = tr.treatments || [];
+  const visible = all.filter(t => !(route.trialHiddenTreatments || []).includes(t.id));
+  return visible.length ? visible : all;
+}
+function trialComparisonData(tr, metricId = trialActiveMetricId(tr)) {
+  const metric = trialMetricById(tr, metricId);
+  const byDay = new Map();
+  let excluded = 0, duplicates = 0;
+  // Resolve a unit/day once, then validate its latest value. Repeated dates are not independent replications.
+  for (const obs of tr.observations || []) {
+    if (obs.metricId ? obs.metricId !== metricId : trialObsMetricId(tr,obs) !== metricId) continue;
+    if (!trialDateInRange(obs.date)) continue;
+    if (!trialValidDate(obs.date) || obs.date > todayISO() || !trialUnit(tr,obs.unitId) ||
+        !trialTreatment(tr,trialUnit(tr,obs.unitId).treatmentId)) { excluded++; continue; }
+    if (!byDay.has(obs.date)) byDay.set(obs.date,new Map());
+    const day = byDay.get(obs.date), prev = day.get(obs.unitId);
+    if (prev) duplicates++;
+    if (!prev || (obs.updatedAt || obs.createdAt || 0) >= (prev.updatedAt || prev.createdAt || 0)) day.set(obs.unitId,obs);
+  }
+  const dates = [...byDay.keys()].sort();
+  for (const values of byDay.values()) {
+    for (const [id,obs] of values) {
+      if ((obs.unit && obs.unit !== metric.unit) || obs.value === null || obs.value === undefined ||
+          String(obs.value).trim() === '' || !Number.isFinite(Number(obs.value))) { values.delete(id); excluded++; }
+    }
+  }
+  const series = trialVisibleTreatments(tr).map(t => {
+    const units = (tr.units || []).filter(u => u.treatmentId === t.id);
+    return { treatment:t, label:t.code, color:trialTreatmentColor(tr,t.id), expected:units.length,
+      points:dates.map(date => {
+        const values = units.filter(u => byDay.get(date).has(u.id)).map(u => Number(byDay.get(date).get(u.id).value));
+        return { date, n:values.length, value:values.length ? mean(values) : null,
+          sd:values.length > 1 ? sd(values) : null, values };
+      }) };
+  });
+  return { metric, dates, series, byDay, excluded, duplicates,
+    count:series.reduce((sum,s)=>sum+s.points.reduce((n,p)=>n+p.n,0),0) };
+}
+function trialSnapshotDate(tr, data = trialComparisonData(tr)) {
+  return data.dates.includes(route.trialSnapshotDate) ? route.trialSnapshotDate :
+    data.dates.includes(route.trialDate) ? route.trialDate : data.dates[data.dates.length-1] || '';
+}
+function trialPairedChange(tr, treatmentId, first, last, data) {
+  const a = data.byDay.get(first) || new Map(), b = data.byDay.get(last) || new Map();
+  const units = (tr.units || []).filter(u => u.treatmentId === treatmentId && a.has(u.id) && b.has(u.id));
+  const before = units.map(u => Number(a.get(u.id).value)), after = units.map(u => Number(b.get(u.id).value));
+  return { n:units.length, before:mean(before), after:mean(after), change:mean(after)-mean(before) };
+}
+function trialRangeControls() {
+  return '<form class="trial-range-form" onsubmit="return App.applyTrialRange(event)"><div class="field"><label for="trial_range_start">ตั้งแต่วันที่</label><input id="trial_range_start" name="start" type="date" max="'+todayISO()+'" value="'+esc(route.trialRangeStart || '')+'"></div><div class="field"><label for="trial_range_end">ถึงวันที่</label><input id="trial_range_end" name="end" type="date" max="'+todayISO()+'" value="'+esc(route.trialRangeEnd || '')+'"></div><button class="btn btn-outline" type="submit">ดูช่วงนี้</button><button type="button" class="btn btn-ghost" onclick="App.clearTrialRange()">ตลอดการทดลอง</button></form>';
+}
+function trialComparisonTable(data) {
+  return '<div class="trial-comparison-table-wrap trial-matrix-scroll" tabindex="0" role="region" aria-label="ตารางเปรียบเทียบทุกวันที่วัด"><table class="trial-comparison-table trial-matrix"><caption>ค่าเฉลี่ย ('+esc(data.metric.unit)+') · n = จำนวนแปลงที่วัด / แปลงทั้งหมด</caption><thead><tr><th scope="col">วันที่วัด</th>'+data.series.map(s=>'<th scope="col"><span class="trial-dot" style="background:'+s.color+'"></span>'+esc(s.label)+'<small>'+esc(s.treatment.name)+'</small></th>').join('')+'</tr></thead><tbody>'+
+    data.dates.map((d,i)=>'<tr><th scope="row">'+esc(dateLabel(d))+'</th>'+data.series.map(s=>{
+      const p=s.points[i];
+      return '<td>'+(p.n ? '<b>'+fmtNum(p.value.toFixed(2))+'</b>' : '<span class="muted">ยังไม่วัด</span>')+'<small>n='+p.n+'/'+s.expected+'</small></td>';
+    }).join('')+'</tr>').join('')+'</tbody></table></div>';
+}
+function trialComparePanel(tr) {
+  const data=trialComparisonData(tr), date=trialSnapshotDate(tr,data);
+  const rows=data.series.map(s=>({...s,point:s.points.find(p=>p.date===date)}));
+  const first=data.dates.includes(route.trialBaselineDate) ? route.trialBaselineDate : data.dates[0];
+  const missing=rows.reduce((n,s)=>n+s.expected-(s.point?.n || 0),0);
+  const options=selected=>data.dates.map(d=>'<option value="'+d+'" '+(selected===d ? 'selected' : '')+'>'+esc(dateLabel(d))+'</option>').join('');
+  return '<section class="trial-work-section trial-results"><div class="trial-section-head"><div><h2>ผลตลอดการทดลอง</h2><p>'+esc(trialMetric(tr))+' ('+esc(trialUnitLabel(tr))+') · '+(data.dates.length ? esc(dateLabel(data.dates[0]))+' ถึง '+esc(dateLabel(data.dates[data.dates.length-1])) : 'ยังไม่มีวันที่วัด')+'</p></div><div class="trial-export-actions"><button class="btn btn-outline" onclick="App.exportTrialSummaryCsv(\''+tr.id+'\')" '+(!data.dates.length ? 'disabled' : '')+'>'+ic('download')+' สรุป CSV</button><button class="btn btn-ghost" onclick="App.exportTrialCsv(\''+tr.id+'\')">'+ic('download')+' ข้อมูลดิบทั้งหมด</button></div></div>'+
+    '<div class="trial-results-meta"><div><b>'+data.dates.length+'</b><span>วันที่เก็บข้อมูล</span></div><div><b>'+data.count+'</b><span>ค่าวัดที่ใช้เปรียบเทียบ</span></div><div><b>'+data.series.length+'</b><span>สูตรที่แสดง</span></div></div>'+
+    '<fieldset class="trial-series-picker"><legend>สูตร / วิธีที่เปรียบเทียบ</legend>'+(tr.treatments || []).map(t=>'<label><input type="checkbox" '+(data.series.some(s=>s.treatment.id===t.id) ? 'checked' : '')+' onchange="App.toggleTrialSeries(\''+t.id+'\',this.checked)"><span class="trial-dot" style="background:'+trialTreatmentColor(tr,t.id)+'"></span><b>'+esc(t.code)+'</b> '+esc(t.name)+'</label>').join('')+'</fieldset>'+
+    (data.excluded ? '<p class="trial-data-warning">ไม่นำค่าวัด '+data.excluded+' รายการมาคำนวณ เนื่องจากหน่วยไม่ตรงกัน ค่าหรือวันที่ไม่ถูกต้อง หรือไม่พบแปลงเดิม ตรวจได้ในประวัติ</p>' : '')+
+    (data.duplicates ? '<p class="trial-evidence-note">พบข้อมูลซ้ำแปลง/วัน '+data.duplicates+' รายการ ใช้รายการที่แก้ไขล่าสุดในการคำนวณ โดยเก็บข้อมูลเดิมทั้งหมดไว้</p>' : '')+
+    (data.count ? '<figure class="trial-trend-figure"><figcaption>แนวโน้มแต่ละสูตร <span>'+esc(data.metric.unit)+'</span></figcaption><div class="trial-series-chart" data-trial-series="'+tr.id+'"></div></figure><p class="trial-evidence-note">แต่ละจุดเป็นค่าเฉลี่ยของแปลงที่วัดในวันนั้น ช่องว่างคือไม่มีค่าวัด ไม่ใช่ศูนย์</p>' :
+      '<div class="trial-empty-state">'+ic('chart')+'<b>ยังไม่มีค่าวัดที่เปรียบเทียบได้ในช่วงนี้</b><button class="btn btn-outline" onclick="App.clearTrialRange()">ดูตลอดการทดลอง</button><button class="btn btn-primary" onclick="App.setTrialSection(\'record\')">บันทึกผล</button></div>')+
+    '</section>'+
+    (data.dates.length ? '<section class="trial-work-section"><div class="trial-section-head"><h2>เปรียบเทียบทุกวันที่วัด</h2><span class="muted">'+data.dates.length+' วัน</span></div>'+trialComparisonTable(data)+'</section>'+
+    '<section class="trial-work-section"><div class="trial-section-head"><div><h2>รายละเอียดและการเปลี่ยนแปลง</h2><p>ค่าเฉลี่ยและการกระจายของแปลงในวันที่เลือก</p></div></div><div class="trial-snapshot-controls"><div class="field"><label for="trial_snapshot_date">วันที่ดูรายละเอียด</label><select id="trial_snapshot_date" onchange="App.setTrialSnapshotDate(this.value)">'+options(date)+'</select></div><div class="field"><label for="trial_baseline_date">เทียบการเปลี่ยนแปลงจาก</label><select id="trial_baseline_date" onchange="App.setTrialBaselineDate(this.value)">'+options(first)+'</select></div></div>'+
+    '<div class="trial-detail-split"><div class="trial-comparison-table-wrap" tabindex="0" role="region" aria-label="สถิติค่าวัด"><table class="trial-comparison-table trial-statistics"><caption>'+esc(dateLabel(date))+' · '+esc(data.metric.unit)+'</caption><thead><tr><th scope="col">สูตร / วิธี</th><th scope="col">วัดแล้ว</th><th scope="col">เฉลี่ย</th><th scope="col">SD</th><th scope="col">ต่ำสุด–สูงสุด</th></tr></thead><tbody>'+rows.map(s=>{
+      const p=s.point;
+      return '<tr><th scope="row"><span class="trial-dot" style="background:'+s.color+'"></span>'+esc(s.label)+'<small>'+esc(s.treatment.name)+'</small></th><td>'+p.n+'/'+s.expected+'</td><td>'+(p.n ? fmtNum(p.value.toFixed(2)) : '—')+'</td><td>'+(p.sd !== null ? fmtNum(p.sd.toFixed(2)) : '—')+'</td><td>'+(p.n ? fmtNum(Math.min(...p.values))+'–'+fmtNum(Math.max(...p.values)) : '—')+'</td></tr>';
+    }).join('')+'</tbody></table></div><div class="trial-snapshot-chart" data-trial-snapshot="'+tr.id+'"></div></div>'+
+    (missing ? '<p class="trial-data-warning">ยังขาดค่าวัด '+missing+' แปลงในวันที่ดูรายละเอียด</p>' : '')+
+    (first && first < date ? '<div class="trial-comparison-table-wrap" tabindex="0" role="region" aria-label="การเปลี่ยนแปลงแปลงเดิม"><table class="trial-comparison-table trial-statistics"><caption>การเปลี่ยนแปลง '+esc(dateLabel(first))+' → '+esc(dateLabel(date))+' · ใช้เฉพาะแปลงเดิมที่มีค่าวัดทั้งสองวัน</caption><thead><tr><th scope="col">สูตร / วิธี</th><th scope="col">แปลงที่จับคู่</th><th scope="col">ก่อน</th><th scope="col">หลัง</th><th scope="col">เปลี่ยนแปลง</th></tr></thead><tbody>'+data.series.map(s=>{
+      const p=trialPairedChange(tr,s.treatment.id,first,date,data);
+      return '<tr><th scope="row">'+esc(s.label)+'</th><td>'+p.n+'</td><td>'+(p.n ? fmtNum(p.before.toFixed(2)) : '—')+'</td><td>'+(p.n ? fmtNum(p.after.toFixed(2)) : '—')+'</td><td>'+(p.n ? (p.change>0 ? '+' : '')+fmtNum(p.change.toFixed(2)) : '—')+'</td></tr>';
+    }).join('')+'</tbody></table></div>' : '<p class="trial-evidence-note">เลือกวันเริ่มเปรียบเทียบก่อนวันที่ดูรายละเอียดเพื่อดูการเปลี่ยนแปลง</p>')+
+    '<p class="trial-evidence-note">SD แสดงการกระจายระหว่างแปลงในวันเดียวกัน ค่าสูงหรือต่ำไม่ใช่ข้อสรุปว่าสูตรใดดีกว่า ข้อมูลนี้ยังไม่ทดสอบนัยสำคัญทางสถิติ</p></section>' : '')+
+    '<section class="trial-work-section"><div class="trial-section-head"><h2>รูปประจำสูตร / วิธี</h2><button class="btn btn-ghost" onclick="App.setTrialSection(\'history\')">'+ic('camera')+' ประวัติและรูปค่าวัด</button></div>'+trialTreatmentPhotosHtml(tr)+'</section>';
+}
+function trialHistoryPanel(tr) {
+  return '<section class="trial-work-section"><div class="trial-section-head"><h2>ประวัติและรูปค่าวัด</h2><button class="btn btn-outline" onclick="App.exportTrialCsv(\''+tr.id+'\')">'+ic('download')+' ข้อมูลดิบทั้งหมด</button></div><div class="field"><label for="trial_history_metric">ตัวชี้วัดในประวัติ</label><select id="trial_history_metric" onchange="App.setTrialHistoryMetric(this.value)"><option value="all">ทุกตัวชี้วัด</option>'+trialMetrics(tr).map(m=>'<option value="'+esc(m.id)+'" '+(route.trialHistoryMetric===m.id ? 'selected' : '')+'>'+esc(m.name)+' ('+esc(m.unit)+')</option>').join('')+'</select></div>'+trialRangeControls()+trialTreatmentFilterHtml(tr)+'<label class="trial-check"><input type="checkbox" '+(route.trialPhotosOnly ? 'checked' : '')+' onchange="App.setTrialPhotosOnly(this.checked)"> เฉพาะรายการที่มีรูป</label>'+trialTimelineHtml(tr,true)+'</section>';
+}
+App.applyTrialRange = function(e) {
+  e.preventDefault();
+  const start=e.target.elements.start.value, end=e.target.elements.end.value;
+  if ((start && (!trialValidDate(start) || start>todayISO())) || (end && (!trialValidDate(end) || end>todayISO())) || (start && end && start>end)) { toast('ตรวจช่วงวันที่: วันเริ่มต้องไม่เกินวันสิ้นสุดและวันนี้'); return false; }
+  route.trialRangeStart=start; route.trialRangeEnd=end; route.trialSnapshotDate=''; route.trialBaselineDate='';
+  render(); return false;
+};
+App.clearTrialRange = function() { route.trialRangeStart='';route.trialRangeEnd='';route.trialSnapshotDate='';route.trialBaselineDate='';render(); };
+App.toggleTrialSeries = function(id,on) {
+  const tr=trialById(S,route.trialId); if(!tr || !trialTreatment(tr,id)) return;
+  if (!on && trialVisibleTreatments(tr).length<=1) { toast('เลือกอย่างน้อย 1 สูตร'); render(); return; }
+  route.trialHiddenTreatments=on ? (route.trialHiddenTreatments || []).filter(x=>x!==id) : [...(route.trialHiddenTreatments || []),id];
+  render();
+};
+App.setTrialSnapshotDate = function(date) { route.trialSnapshotDate=date;render(); };
+App.setTrialBaselineDate = function(date) { route.trialBaselineDate=date;render(); };
+App.setTrialHistoryMetric = function(id) { route.trialHistoryMetric=id;render(); };
+App.setTrialPhotosOnly = function(on) { route.trialPhotosOnly=!!on;render(); };
+function trialSummaryCsv(tr) {
+  const data=trialComparisonData(tr);
+  const rows=[['งานทดลอง','ตัวชี้วัด','หน่วย','วันที่','สูตร','ชื่อสูตร','แปลงที่วัด','แปลงทั้งหมด','เฉลี่ย','SD','ต่ำสุด','สูงสุด']];
+  data.series.forEach(s=>s.points.forEach(p=>rows.push([tr.name,data.metric.name,data.metric.unit,p.date,s.label,s.treatment.name,p.n,s.expected,p.value ?? '',p.sd ?? '',p.n ? Math.min(...p.values) : '',p.n ? Math.max(...p.values) : ''])));
+  return '\uFEFF'+rows.map(row=>row.map(value=>'"'+String(value ?? '').replace(/^[=+\-@]/,"'$&").replace(/"/g,'""')+'"').join(',')).join('\r\n');
+}
+App.exportTrialSummaryCsv = function(id) {
+  const tr=trialById(S,id);if(!tr)return;
+  const url=URL.createObjectURL(new Blob([trialSummaryCsv(tr)],{type:'text/csv;charset=utf-8'}));
+  const a=document.createElement('a');a.href=url;a.download='trial-summary-'+id+'-'+todayISO()+'.csv';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function trialPlanPanel(tr) {
+  const status = tr.status === 'done';
+  const hasMix = (tr.treatments || []).some(t => trialIngredients(t).some(item => item.rate));
+  return '<section class="trial-work-section"><div class="trial-section-head"><h2>แผนทดลอง</h2><button class="btn btn-outline" onclick="App.modalTrial(\'\',\'' + tr.id + '\')">' + ic("pencil") + ' แก้ไขแผน</button></div>' +
+    trialPlanHtml(tr) + '</section><section class="trial-work-section"><div class="trial-section-head"><div><h2>ผังและพื้นที่</h2><p>' + (tr.units || []).length + ' แปลงย่อย · ' + (trialLayoutMode(tr) === 'manual' ? 'จัดผังเอง' : 'สุ่มในแต่ละซ้ำ') + '</p></div><div class="row"><button class="btn btn-outline" onclick="App.modalTrialLayout(\'' + tr.id + '\')">' + ic("map") + ' จัดผัง</button><button class="btn btn-ghost" onclick="App.modalTrialAreas(\'' + tr.id + '\')">' + ic("pencil") + ' พื้นที่</button></div></div>' +
+    trialLayoutHtml(tr) + '</section>' +
+    (hasMix ? '<details class="trial-disclosure"><summary>ปริมาณสารตามพื้นที่</summary>' + trialMixTableHtml(tr) + '</details>' : '') +
+    (tr.note ? '<section class="trial-work-section"><h2>หมายเหตุ</h2><p class="td-note-body">' + esc(tr.note) + '</p></section>' : '') +
+    '<details class="trial-disclosure trial-management"><summary>' + ic("settings") + ' จัดการงานทดลอง</summary><div class="trial-management-actions">' +
+    '<button class="btn btn-outline" onclick="App.setTrialStatus(\'' + tr.id + '\',\'' + (status ? 'active' : 'done') + '\')">' + ic(status ? 'refresh' : 'check') + (status ? ' เปิดทดลองต่อ' : ' ปิดงานทดลอง') + '</button>' +
+    '<button class="btn btn-ghost" ' + ((tr.observations || []).length ? 'disabled title="มีค่าวัดแล้ว จึงไม่สามารถสุ่มผังใหม่"' : '') + ' onclick="App.randomizeTrial(\'' + tr.id + '\')">' + ic("refresh") + ' สุ่มผังใหม่</button>' +
+    '<button class="btn btn-danger-soft" onclick="App.deleteTrial(\'' + tr.id + '\')">' + ic("trash") + ' ลบงานทดลอง</button></div></details>';
+}
 function renderTrialDetail(tr) {
-  const status = trialEffectiveStatus(tr);
-  const progress = trialMeasureProgress(tr);
-  const photoCount = (tr.treatments || []).reduce((n, t) => n + ((t.photos || []).filter(Boolean).length), 0);
-  return `
-    <div class="trial-detail">
-      <div class="row" style="margin-bottom:10px">
-        <button class="btn btn-sm btn-ghost" onclick="App.closeTrial()">${ic("chevron")} กลับไปงานทดลองทั้งหมด</button>
-      </div>
-      <div class="card trial-hero">
-        <div class="row row-between">
-          <div class="grow">
-            <div class="plot-name">${ic("search")} ${esc(tr.name)} ${trialStatusBadge(tr)}</div>
-            <div class="muted">${esc(trialPlotName(tr))} · ${esc(trialTypeLabel(tr))} · ${trialLayoutMode(tr) === "manual" ? "จัดผังเอง" : "สุ่มอัตโนมัติ"} · ${fmtNum((tr.treatments || []).length)} ทรีตเมนต์</div>
-          </div>
-        </div>
-        <div class="trial-progress-card mt-8">
-          <div class="trial-progress-head">
-            <span>${ic("chart")} ความคืบหน้าค่าวัด</span>
-            <b>${fmtNum(progress.done)}/${fmtNum(progress.total)} แปลงย่อย</b>
-          </div>
-          <div class="hp-bar"><i style="width:${progress.pct}%"></i></div>
-          <div class="muted">${progress.total ? `ครบ ${fmtNum(progress.pct)}% ของตัวชี้วัด "${esc(trialMetric(tr))}"` : "ยังไม่มีผังแปลงย่อย"}</div>
-        </div>
-        ${trialHeroMetaHtml(tr, photoCount)}
-        ${tr.note ? `<div class="td-note-body mt-8">${esc(tr.note)}</div>` : ""}
-        <div class="trial-manage-grid mt-8">
-          <button class="btn btn-primary" onclick="App.modalTrialObs('${tr.id}')">${ic("plus")} บันทึกค่าวัด</button>
-          <button class="btn btn-outline" onclick="App.modalTrialAreas('${tr.id}')">${ic("map")} จัดผัง/พื้นที่</button>
-          <button class="btn btn-outline" onclick="App.scrollTrialSection('photos')">${ic("camera")} รูปเปรียบเทียบ</button>
-          <button class="btn btn-outline" onclick="App.modalTrial('', '${tr.id}')">${ic("pencil")} แก้ไขงานทดลอง</button>
-        </div>
-        <div class="trial-secondary-actions">
-          <button class="btn btn-sm btn-ghost" onclick="App.randomizeTrial('${tr.id}')">${ic("refresh")} สุ่มผังใหม่</button>
-          ${status === "done" ? `<button class="btn btn-sm btn-primary" onclick="App.setTrialStatus('${tr.id}', 'active')">${ic("refresh")} เปิดทดลองต่อ</button>` : `<button class="btn btn-sm btn-primary" onclick="App.setTrialStatus('${tr.id}', 'done')">${ic("check")} สรุปผลแล้ว</button>`}
-          <button class="btn btn-sm btn-danger-soft trial-danger-action" onclick="App.deleteTrial('${tr.id}')">${ic("trash")} ลบงานทดลอง</button>
-        </div>
-      </div>
-      ${trialQuickNavHtml()}
-      <div class="section-title trial-anchor" id="trialSec_plan">แผนทดลอง</div>
-      ${trialPlanHtml(tr)}
-      <div class="section-title trial-anchor" id="trialSec_areas">แปลงทดสอบ</div>
-      ${trialAreaHtml(tr)}
-      <div class="section-title trial-anchor" id="trialSec_mix">สูตรผสม</div>
-      ${trialMixTableHtml(tr)}
-      ${trialMetricFilterHtml(tr)}
-      ${trialTreatmentFilterHtml(tr)}
-      <div class="section-title trial-anchor" id="trialSec_layout">${trialLayoutMode(tr) === "manual" ? "ผังแปลงทดลอง" : "ผังสุ่มแปลงทดลอง"}</div>
-      ${trialLayoutHtml(tr)}
-      <div class="section-title trial-anchor" id="trialSec_analysis">วิเคราะห์ผลทดลอง</div>
-      ${trialAnalysisHtml(tr)}
-      <div class="section-title trial-anchor" id="trialSec_timeline">ไทม์ไลน์ค่าวัด</div>
-      ${trialTimelineHtml(tr)}
-      <div class="section-title trial-anchor" id="trialSec_photos">รูปเปรียบเทียบ</div>
-      ${trialTreatmentPhotosHtml(tr)}
-    </div>`;
+  const section = ['record','compare','history','plan'].includes(route.trialSection) ? route.trialSection : 'record';
+  const date = trialMeasurementDate(tr);
+  return '<div class="trial-workspace"><button class="btn btn-ghost trial-back" onclick="App.closeTrial()">' + ic("chevron") + ' งานทดลองทั้งหมด</button>' +
+    '<header class="trial-work-header"><div><div class="trial-work-eyebrow">' + esc(trialPlotName(tr)) + (tr.crop ? ' · ' + esc(tr.crop) : '') + '</div><h1>' + esc(tr.name) + '</h1><p>' + (tr.treatments || []).length + ' สูตร / วิธี · ' + (tr.units || []).length + ' แปลงย่อย' + (tr.startDate ? ' · เริ่ม ' + esc(dateLabel(tr.startDate)) : '') + '</p></div>' + trialStatusBadge(tr) + '</header>' +
+    '<div class="trial-work-tabs" role="tablist" aria-label="งานทดลอง">' +
+    [['compare','ภาพรวมผล','chart'],['record','บันทึกผล','pencil'],['history','ประวัติและรูป','clock'],['plan','แผนทดลอง','map']].map(([key,label,icon]) => '<button id="trialTab_' + key + '" role="tab" aria-selected="' + (section===key) + '" aria-controls="trialWorkPanel" tabindex="' + (section===key ? '0' : '-1') + '" onkeydown="App.trialTabKey(event,\'' + key + '\')" onclick="App.setTrialSection(\'' + key + '\')">' + ic(icon) + ' ' + label + '</button>').join('') +
+    '</div><div id="trialWorkPanel" role="tabpanel" aria-labelledby="trialTab_' + section + '">' +
+    (['compare','record'].includes(section) ? trialWorkspaceFilters(tr,date) : '') +
+    (section === 'compare' ? trialComparePanel(tr) : section === 'plan' ? trialPlanPanel(tr) + '<details class="trial-disclosure"><summary>รายละเอียดแปลงย่อยและพื้นที่</summary>' + trialAreaHtml(tr) + '</details>' : section === 'history' ? trialHistoryPanel(tr) : trialRecordPanel(tr,date)) + '</div></div>';
 }
 function renderTrialsTab() {
-  const trials = (S.trials || []).slice().sort((a, b) => String(b.startDate || "").localeCompare(String(a.startDate || "")));
   const selected = trialById(S, route.trialId);
   if (selected) return renderTrialDetail(selected);
-  return `
-    <div class="row row-between">
-      <div class="bold" style="font-size:1.02rem">แปลงทดลอง ${fmtNum(trials.length)} งาน</div>
-      <button class="btn btn-primary btn-sm" onclick="App.modalTrial()">${ic("plus")} สร้างงานทดลอง</button>
-    </div>
-    <div class="trial-intro">
-      <div>${ic("search")} ทดลองแบบสุ่ม มีทรีตเมนต์และซ้ำ เพื่อดูผลจริงจากแปลงของเรา</div>
-      <span>เหมาะกับปุ๋ย ยา เมล็ดพันธุ์ วิธีให้น้ำ หรือสูตรดูแลใหม่</span>
-    </div>
-    ${trials.length === 0 ? `<div class="card"><div class="empty"><div class="e-ico">${ic("search")}</div><div class="e-title">ยังไม่มีแปลงทดลอง</div><div class="muted">เริ่มจากเลือกแปลงจริง แล้วกำหนดทรีตเมนต์กับจำนวนซ้ำ</div><button class="btn btn-primary btn-block mt-8" onclick="App.modalTrial()">${ic("plus")} สร้างงานทดลองแรก</button></div></div>` : ""}
-    <div class="card-grid">
-      ${trials.map(tr => {
-        const p = plotById(S, tr.plotId);
-        const a = trialAnalysis(tr);
-        return `<div class="card trial-card">
-          <div class="plot-top clickable" onclick="App.openTrial('${tr.id}')">
-            <div class="plot-emoji">${ic("search")}</div>
-            <div class="grow">
-              <div class="plot-name">${esc(tr.name)} ${trialStatusBadge(tr)}</div>
-              <div class="muted">${esc(trialPlotName(tr))} · ${esc(trialTypeLabel(tr))} · ${fmtNum((tr.treatments || []).length)} ทรีตเมนต์</div>
-            </div>
-            <span class="muted" style="font-size:1.1rem">›</span>
-          </div>
-          <div class="meta-grid">
-            <div class="meta-box"><div class="lb">ตัวชี้วัด</div><div class="vl">${fmtNum(trialMetrics(tr).length)} ค่า</div></div>
-            <div class="meta-box"><div class="lb">ค่าวัด</div><div class="vl">${fmtNum((tr.observations || []).length)}</div></div>
-            <div class="meta-box"><div class="lb">ดีที่สุดตอนนี้</div><div class="vl">${a.best ? esc(a.best.treatment.code) : "—"}</div></div>
-            <div class="meta-box"><div class="lb">CV%</div><div class="vl">${a.cv ? fmtNum(a.cv.toFixed(1)) : "—"}</div></div>
-          </div>
-          <div class="actions-row">
-            <button class="btn btn-sm btn-ghost" onclick="App.openTrial('${tr.id}')">${ic("eye")} ดูผล</button>
-            <button class="btn btn-sm btn-primary" onclick="App.modalTrialObs('${tr.id}')">${ic("plus")} วัดผล</button>
-            <button class="btn btn-sm btn-outline" onclick="App.modalTrial('', '${tr.id}')">${ic("pencil")} แก้ไข</button>
-          </div>
-        </div>`;
-      }).join("")}
-    </div>`;
+  const all = (S.trials || []).slice().sort((a,b) => String(b.startDate || '').localeCompare(String(a.startDate || '')));
+  const q = trialListFilter.q.trim().toLowerCase();
+  const trials = all.filter(tr => (trialListFilter.status === 'all' || (tr.status === 'done' ? 'done' : 'active') === trialListFilter.status) && (!q || [tr.name,trialPlotName(tr),tr.crop].join(' ').toLowerCase().includes(q)));
+  return '<div class="trial-workspace"><div class="trial-section-head"><div><h1>งานทดลอง</h1><p>' + all.filter(tr=>tr.status !== 'done').length + ' งานกำลังดำเนินการ</p></div><button class="btn btn-primary" onclick="App.modalTrial()">' + ic("plus") + ' สร้างงานทดลอง</button></div>' +
+    (all.length ? '<div class="trial-list-tools"><div class="trial-list-status">' + [['active','กำลังทดลอง'],['done','ปิดแล้ว'],['all','ทั้งหมด']].map(([k,label]) => '<button class="quick-filter ' + (trialListFilter.status===k ? 'active' : '') + '" onclick="App.filterTrials(\'' + k + '\')">' + label + '</button>').join('') + '</div><input id="trialSearch" type="search" aria-label="ค้นหางานทดลอง" placeholder="ค้นหางานทดลองหรือแปลง" value="' + esc(trialListFilter.q) + '" oninput="App.searchTrials(this.value)"></div>' : '') +
+    '<div class="trial-list-grid">' + trials.map(tr => {
+      const progress=trialCoverage(tr);
+      const last=(tr.observations || []).map(o=>o.date).filter(Boolean).sort().pop();
+      return '<article class="card trial-list-card"><button class="card-open" onclick="App.openTrial(\'' + tr.id + '\')"><div class="trial-list-card-head">' + trialStatusBadge(tr) + '<span>' + esc(trialPlotName(tr)) + '</span></div><h2>' + esc(tr.name) + '</h2><p>' + (tr.treatments || []).length + ' สูตร / วิธี · ' + (tr.units || []).length + ' แปลงย่อย</p><div class="trial-list-progress"><span>จุดที่มีค่าวัด</span><b>' + progress.done + '/' + progress.total + '</b></div><progress value="' + progress.done + '" max="' + (progress.total || 1) + '" aria-label="จุดที่มีค่าวัด"></progress><p>' + (last ? 'วัดล่าสุด ' + esc(dateLabel(last)) : 'ยังไม่มีค่าวัด') + '</p></button><div class="trial-list-card-actions"><button class="btn btn-ghost" onclick="App.openTrial(\'' + tr.id + '\',\'compare\')">' + ic("chart") + ' ดูผล</button><button class="btn btn-primary" onclick="App.openTrial(\'' + tr.id + '\',\'record\')">' + ic("pencil") + ' บันทึกผล</button></div></article>';
+    }).join('') + '</div>' + (!trials.length ? '<div class="trial-empty-state">' + ic("search") + '<b>' + (all.length ? 'ไม่พบงานทดลองในตัวกรองนี้' : 'ยังไม่มีงานทดลอง') + '</b>' + (all.length ? '<button class="btn btn-ghost" onclick="App.clearTrialFilters()">ล้างตัวกรอง</button>' : '') + '</div>' : '') + '</div>';
 }
+App.setTrialSection = function(section) {
+  if (!['record','compare','history','plan'].includes(section)) return;
+  route.trialSection = section;
+  route.trialMissingOnly = false;
+  render();
+  document.getElementById('trialTab_' + section)?.focus({preventScroll:true});
+};
+App.trialTabKey = function(e,section) {
+  const keys=['compare','record','history','plan'];
+  let i=keys.indexOf(section);
+  if(e.key==='ArrowRight') i=(i+1)%keys.length;
+  else if(e.key==='ArrowLeft') i=(i+keys.length-1)%keys.length;
+  else if(e.key==='Home') i=0;
+  else if(e.key==='End') i=keys.length-1;
+  else return;
+  e.preventDefault(); App.setTrialSection(keys[i]);
+};
+App.setTrialDate = function(date) {
+  if (!trialValidDate(date) || date > todayISO()) { toast('เลือกวันที่ไม่เกินวันนี้'); render(); return; }
+  route.trialDate=date; render();
+};
+App.trialMissingOnly = function(on) { route.trialMissingOnly=!!on; render(); };
+App.filterTrials = function(status) { trialListFilter.status=status; render(); };
+App.clearTrialFilters = function() { trialListFilter={status:'all',q:''}; render(); };
+App.searchTrials = function(q) {
+  trialListFilter.q=q;
+  const pos=document.getElementById('trialSearch')?.selectionStart;
+  render();
+  const el=document.getElementById('trialSearch');
+  el?.focus();
+  if(pos != null) { try { el.setSelectionRange(pos,pos); } catch (_) {} }
+};
+function trialBatchChanges(tr, metricId, date, entries) {
+  const metric=trialMetrics(tr).find(m=>m.id===metricId);
+  if(!metric) throw new Error('ไม่พบตัวชี้วัด');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > todayISO() || !Number.isFinite(Date.parse(date+'T12:00:00Z')) || new Date(date+'T12:00:00Z').toISOString().slice(0,10) !== date) throw new Error('วันที่วัดไม่ถูกต้อง');
+  const existing=trialDayValues(tr,metricId,date);
+  const seen=new Set();
+  const changes=[];
+  for(const entry of entries) {
+    const raw=String(entry.value ?? '').trim();
+    if(!raw) continue;
+    if(!trialUnit(tr,entry.unitId) || seen.has(entry.unitId)) throw new Error('แปลงย่อยไม่ถูกต้องหรือซ้ำ');
+    seen.add(entry.unitId);
+    const value=Number(raw);
+    if(!Number.isFinite(value)) throw new Error('ค่าวัดต้องเป็นตัวเลข');
+    const prev=existing.get(entry.unitId);
+    // Updating a day's value keeps its photos, notes and identity.
+    if(prev && prev.unit && prev.unit !== metric.unit) throw new Error('หน่วยของค่าวัดเดิมไม่ตรงกับตัวชี้วัด กรุณาตรวจรายการเดิมก่อน');
+    if(prev && Number(prev.value)===value) continue;
+    changes.push({...prev,id:prev?.id || uid(),date,unitId:entry.unitId,metricId,metric:metric.name,value,unit:metric.unit,photos:prev?.photos || [],note:prev?.note || '',createdAt:prev?.createdAt || Date.now(),updatedAt:Date.now()});
+  }
+  return changes;
+}
+function applyTrialBatch(tr,changes) {
+  const observations=(tr.observations || []).slice();
+  for(const change of changes) {
+    const i=observations.findIndex(o=>o.id===change.id);
+    if(i<0) observations.push(change); else observations[i]=change;
+  }
+  tr.observations=observations; tr.updatedAt=Date.now();
+}
+App.modalTrialBatch = function(id) {
+  const tr=trialById(S,id); if(!tr) return;
+  const date=trialMeasurementDate(tr), metricId=trialActiveMetricId(tr);
+  const values=trialDayValues(tr,metricId,date);
+  openModal('<button class="modal-x" onclick="App.closeModal()">✕</button><h3>กรอกค่าวัดหลายแปลง</h3><p class="modal-sub">' + esc(tr.name) + ' · ' + esc(trialMetric(tr)) + ' (' + esc(trialUnitLabel(tr)) + ') · ' + esc(dateLabel(date)) + '</p><form class="trial-batch-form" onsubmit="return App.saveTrialBatch(event,\'' + tr.id + '\',\'' + metricId + '\',\'' + date + '\')"><div class="trial-batch-list">' +
+    (tr.units || []).slice().sort((a,b)=>a.block-b.block || a.order-b.order).map(u=>{
+      const t=trialTreatment(tr,u.treatmentId)||{}, obs=values.get(u.id);
+      return '<div class="trial-batch-row"><label for="trialBatch_'+u.id+'"><b>'+esc(t.code)+' '+esc(t.name)+'</b><span>'+esc(u.label || 'ซ้ำ '+u.block+' · แปลง '+u.order)+'</span></label><input id="trialBatch_'+u.id+'" data-trial-batch="'+u.id+'" type="number" step="any" inputmode="decimal" placeholder="ยังไม่วัด" value="'+(obs ? esc(obs.value) : '')+'"><span>'+esc(trialUnitLabel(tr))+'</span></div>';
+    }).join('') + '</div><p class="trial-evidence-note">ช่องว่างจะไม่บันทึกหรือเปลี่ยนค่าเดิม</p><div class="modal-actions"><button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button><button type="submit" class="btn btn-primary">'+ic("save")+' บันทึกค่าวัด</button></div></form>');
+};
+App.saveTrialBatch = function(e,id,metricId,date) {
+  e.preventDefault();
+  const tr=trialById(S,id); if(!tr) return false;
+  try {
+    const changes=trialBatchChanges(tr,metricId,date,Array.from(document.querySelectorAll('[data-trial-batch]')).map(el=>({unitId:el.dataset.trialBatch,value:el.value})));
+    if(!changes.length) { toast('ยังไม่มีค่าวัดใหม่หรือค่าที่เปลี่ยน'); return false; }
+    applyTrialBatch(tr,changes); saveState(S); closeModal(); render(); toast('บันทึกค่าวัดแล้ว '+changes.length+' แปลง');
+  } catch(err) { toast(err.message); }
+  return false;
+};
+function trialCsv(tr) {
+  const rows=[['งานทดลอง','วันที่','สูตร','ชื่อสูตร','แปลงย่อย','ซ้ำ','ตัวชี้วัด','ค่า','หน่วย','หมายเหตุ']];
+  (tr.observations || []).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))).forEach(o=>{
+    const u=trialUnit(tr,o.unitId), t=u && trialTreatment(tr,u.treatmentId);
+    rows.push([tr.name,o.date,t?.code || '',t?.name || '',u?.label || (u ? 'แปลง '+u.order : ''),u?.block || '',o.metric || trialMetric(tr,trialObsMetricId(tr,o)),o.value,o.unit || '',o.note || '']);
+  });
+  return '\uFEFF'+rows.map(row=>row.map(value=>'"'+String(value ?? '').replace(/^[=+\-@]/,"'$&").replace(/"/g,'""')+'"').join(',')).join('\r\n');
+}
+App.exportTrialCsv = function(id) {
+  const tr=trialById(S,id); if(!tr) return;
+  const url=URL.createObjectURL(new Blob([trialCsv(tr)],{type:'text/csv;charset=utf-8'}));
+  const a=document.createElement('a'); a.href=url; a.download='trial-'+id+'-'+todayISO()+'.csv'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
 function renderTrialPhotoPreview() {
   const el = document.getElementById("trialObsPhotos");
   if (!el) return;
@@ -1639,11 +1870,20 @@ function renderTrialPhotoPreview() {
       <button type="button" class="task-photo-remove" aria-label="ลบรูปนี้" onclick="event.stopPropagation();App.trialRemovePhoto(${i})">✕</button>
     </div>`).join("")}</div>`;
 }
-App.openTrial = function (id) {
+App.openTrial = function (id, section) {
   route.view = "plots";
   route.tab = "trials";
   route.trialId = id;
+  route.trialSection = section || ((trialById(S,id)?.observations || []).length ? 'compare' : 'record');
+  route.trialDate = '';
+  route.trialRangeStart = ''; route.trialRangeEnd = '';
+  route.trialHiddenTreatments = []; route.trialHistoryMetric = 'all'; route.trialPhotosOnly = false;
+  route.trialSnapshotDate = ''; route.trialBaselineDate = '';
+  route.trialMissingOnly = false;
+  route.trialMetricId = '';
+  route.trialTreatmentId = '';
   render();
+  window.scrollTo(0, 0);
 };
 App.closeTrial = function () {
   route.trialId = "";
@@ -1652,6 +1892,7 @@ App.closeTrial = function () {
   route.view = "plots";
   route.tab = "trials";
   render();
+  window.scrollTo(0, 0);
 };
 App.scrollTrialSection = function (id) {
   const el = document.getElementById(`trialSec_${id}`);
@@ -1659,6 +1900,8 @@ App.scrollTrialSection = function (id) {
 };
 App.setTrialMetric = function (metricId) {
   route.trialMetricId = metricId || "";
+  route.trialDate = '';
+  route.trialSnapshotDate = ''; route.trialBaselineDate = '';
   render();
 };
 App.setTrialTreatmentFilter = function (treatmentId) {
@@ -1671,6 +1914,7 @@ App.trialPlotSelectChanged = function () {
   const cropInput = document.getElementById("tr_crop");
   const p = sel && sel.value ? plotById(S, sel.value) : null;
   if (nameInput && p) nameInput.value = "";
+  if (nameInput) nameInput.closest('.field').hidden = !!p;
   if (cropInput && p && !cropInput.value.trim()) cropInput.value = plotCropName(S, p) || "";
 };
 App.addTrialTreatmentRow = function () {
@@ -1678,6 +1922,7 @@ App.addTrialTreatmentRow = function () {
   if (!list) return;
   const n = list.querySelectorAll("[data-trt-row]").length + 1;
   list.insertAdjacentHTML("beforeend", trialTreatmentRowsHtml([{ id: uid(), code: "T" + n, name: "", desc: "" }], n - 1));
+  labelFormFields(list);
   const input = list.querySelector("[data-trt-row]:last-child [data-trt-name]");
   if (input) input.focus();
 };
@@ -1696,6 +1941,7 @@ App.addTrialMetricRow = function () {
   if (!list) return;
   const n = list.querySelectorAll("[data-trm-row]").length;
   list.insertAdjacentHTML("beforeend", trialMetricRowsHtml([{ id: uid(), name: "", unit: "" }], n));
+  labelFormFields(list);
   const input = list.querySelector("[data-trm-row]:last-child [data-trm-name]");
   if (input) input.focus();
 };
@@ -1717,28 +1963,37 @@ App.trialObsMetricChanged = function (trialId) {
   const m = trialMetricById(tr, sel.value);
   unitInput.value = m.unit || "หน่วย";
 };
+function trialLayoutEditorHtml(tr) {
+  const blocks = [...new Set((tr.units || []).map(u => u.block))].sort((a,b)=>a-b);
+  return blocks.map(block => {
+    const units = (tr.units || []).filter(u=>u.block===block).slice().sort((a,b)=>a.order-b.order);
+    return `<section class="trial-layout-block" aria-labelledby="layoutBlock_${esc(block)}">
+      <header class="trial-layout-block-head"><h4 id="layoutBlock_${esc(block)}">บล็อก ${esc(block)}</h4><span>ซ้ำที่ ${esc(block)} · ${units.length} แปลงย่อย</span></header>
+      <div class="trial-layout-positions">${units.map(u=>`<div class="trial-layout-position" data-tu="${esc(u.id)}" style="--tr-color:${trialTreatmentColor(tr,u.treatmentId)}">
+        <label for="layoutTreatment_${esc(u.id)}"><span>ตำแหน่ง</span><b>${esc(u.order)}</b></label>
+        <div class="trial-layout-select"><i class="trial-dot" aria-hidden="true"></i><select id="layoutTreatment_${esc(u.id)}" data-tu-treatment aria-label="ทรีตเมนต์ บล็อก ${esc(block)} ตำแหน่ง ${esc(u.order)}" onchange="App.previewTrialLayoutTreatment(this,'${tr.id}')">
+          ${(tr.treatments || []).map(t=>`<option value="${esc(t.id)}" ${u.treatmentId===t.id ? 'selected' : ''}>${esc(t.code)} · ${esc(t.name)}</option>`).join('')}
+        </select></div>
+      </div>`).join('')}</div>
+    </section>`;
+  }).join('');
+}
+App.previewTrialLayoutTreatment = function(select,id) {
+  const tr=trialById(S,id);
+  if(tr) select.closest('[data-tu]')?.style.setProperty('--tr-color',trialTreatmentColor(tr,select.value));
+};
 App.modalTrialLayout = function (id) {
   const tr = trialById(S, id);
   if (!tr) return;
-  const units = (tr.units || []).slice().sort((a, b) => a.block - b.block || a.order - b.order);
+  const blocks = new Set((tr.units || []).map(u=>u.block)).size;
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${ic("map")} จัดผังทรีตเมนต์เอง</h3>
-    <div class="modal-sub">${esc(tr.name)} · ใช้เมื่อหน้างานวางตำแหน่งไว้แล้ว หรือแก้ผังจากการสุ่ม</div>
+    <div class="modal-sub">${esc(tr.name)}</div>
+    <div class="trial-layout-summary"><b>${blocks} บล็อก</b><span>${(tr.treatments || []).length} ทรีตเมนต์</span><span>${(tr.units || []).length} แปลงย่อย</span></div>
     ${(tr.observations || []).length ? `<div class="trial-missing">${ic("alert")} งานนี้มีค่าวัดแล้ว ถ้าเปลี่ยนทรีตเมนต์ของแปลงย่อย ผลวิเคราะห์จะอัปเดตตามผังใหม่ทันที</div>` : ""}
-    <form onsubmit="return App.saveTrialLayout(event, '${tr.id}')">
-      <div class="trial-layout-editor">
-        ${units.map(u => {
-          const cur = trialTreatment(tr, u.treatmentId);
-          return `<div class="trial-layout-edit-row" data-tu="${u.id}" style="--tr-color:${trialTreatmentColor(tr, u.treatmentId)}">
-            <b>บล็อก ${fmtNum(u.block)} · ลำดับ ${fmtNum(u.order)}</b>
-            <select data-tu-treatment>
-              ${(tr.treatments || []).map(t => `<option value="${t.id}" ${u.treatmentId === t.id ? "selected" : ""}>${esc(t.code)} · ${esc(t.name)}</option>`).join("")}
-            </select>
-            <span>${esc(cur ? cur.name : "")}</span>
-          </div>`;
-        }).join("")}
-      </div>
+    <form class="trial-layout-form" onsubmit="return App.saveTrialLayout(event, '${tr.id}')">
+      <div class="trial-layout-editor" role="region" aria-label="ผังแยกตามบล็อก" tabindex="0">${trialLayoutEditorHtml(tr)}</div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
         <button type="submit" class="btn btn-primary">${ic("save")} บันทึกผัง</button>
@@ -1821,6 +2076,7 @@ function trialWizardSetStep(index) {
   document.querySelectorAll("[data-trial-step]").forEach((btn, i) => {
     btn.classList.toggle("active", i === trialWizardIndex);
     btn.classList.toggle("done", i < trialWizardIndex);
+    btn.setAttribute('aria-current', i === trialWizardIndex ? 'step' : 'false');
   });
   const back = document.getElementById("trialWizardBack");
   const next = document.getElementById("trialWizardNext");
@@ -1830,6 +2086,7 @@ function trialWizardSetStep(index) {
   if (next) next.hidden = trialWizardIndex === max;
   if (submit) submit.hidden = trialWizardIndex !== max;
   if (count) count.textContent = `${trialWizardIndex + 1}/${panels.length}`;
+  App.updateTrialUnitCount();
 }
 function trialWizardFocus(input, message, step) {
   trialWizardSetStep(step);
@@ -1884,6 +2141,7 @@ function trialWizardValidateStep(step) {
   return true;
 }
 App.trialWizardStep = function (index) {
+  for(let i=0; i<index; i++) { if(!trialWizardValidateStep(i)) return; }
   trialWizardSetStep(index);
 };
 App.trialWizardNext = function () {
@@ -1895,97 +2153,40 @@ App.trialWizardPrev = function () {
 };
 App.modalTrial = function (plotId, id) {
   const tr = id ? trialById(S, id) : null;
-  const p = plotId ? plotById(S, plotId) : null;
-  const defaultPlot = tr ? tr.plotId : (plotId || ((S.plots || [])[0] || {}).id || "");
-  const externalPlotName = tr ? (tr.plotName || "") : "";
+  const defaultPlot = tr ? tr.plotId : (plotId || S.plots[0]?.id || '');
+  const p = plotById(S,defaultPlot);
   trialWizardIndex = 0;
-  openModal(`
-    <button class="modal-x" onclick="App.closeModal()">✕</button>
-    <h3>${ic("search")} ${tr ? "แก้ไขงานทดลอง" : "สร้างแปลงทดลอง"}</h3>
-    <div class="modal-sub">ตั้งข้อมูลงาน สูตรทดลอง แปลงย่อย และตัวชี้วัดแบบเป็นขั้นตอน</div>
-    <form onsubmit="return App.saveTrial(event, '${tr ? tr.id : ""}')">
-      <div class="trial-wizard">
-        <div class="trial-wizard-steps">
-          <button type="button" data-trial-step class="active" onclick="App.trialWizardStep(0)"><b>1</b><span>ข้อมูลงาน</span></button>
-          <button type="button" data-trial-step onclick="App.trialWizardStep(1)"><b>2</b><span>สูตร</span></button>
-          <button type="button" data-trial-step onclick="App.trialWizardStep(2)"><b>3</b><span>แปลง/วัดผล</span></button>
-          <button type="button" data-trial-step onclick="App.trialWizardStep(3)"><b>4</b><span>สรุป</span></button>
-        </div>
-        <div class="trial-wizard-count" id="trialWizardCount">1/4</div>
-      </div>
-
-      <div class="trial-wizard-step active" data-trial-panel="0">
-        <div class="field"><label>ชื่องานทดลอง *</label><input id="tr_name" value="${esc(tr ? tr.name : "")}" placeholder="เช่น ทดสอบสารกำจัดวัชพืช X ในนาข้าว"></div>
-        <div class="field"><label>วัตถุประสงค์</label><input id="tr_objective" value="${esc(tr ? tr.objective || "" : "")}" placeholder="เช่น คัดเลือกสูตรที่เหมาะสำหรับใช้งานจริง"></div>
-        <div class="field"><label>ชนิดงานทดลอง</label><select id="tr_type">
-          ${Object.keys(TRIAL_TYPES).map(k => `<option value="${k}" ${(!tr && k === "screening") || (tr && trialType(tr) === k) ? "selected" : ""}>${esc(TRIAL_TYPES[k].label)} — ${esc(TRIAL_TYPES[k].hint)}</option>`).join("")}
-        </select></div>
-        <div class="form-row-2">
-          <div class="field"><label>เลือกแปลงในระบบ</label><select id="tr_plot" onchange="App.trialPlotSelectChanged()">
-            <option value="">-- แปลงนอกระบบ / พิมพ์เอง --</option>
-            ${(S.plots || []).map(x => `<option value="${x.id}" ${defaultPlot === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}
-          </select></div>
-          <div class="field"><label>ชื่อแปลงนอกระบบ</label><input id="tr_plot_name" value="${esc(defaultPlot ? "" : externalPlotName)}" placeholder="เช่น แปลงลูกค้า A / แปลงเช่า"></div>
-        </div>
-        <div class="field"><label>พืช/เรื่องทดลอง</label><input id="tr_crop" value="${esc(tr ? tr.crop || "" : (p ? plotCropName(S, p) : ""))}" placeholder="เช่น ข้าว / พริก / แตงโม"></div>
-        <div class="form-row-2">
-          <div class="field"><label>วันที่เริ่ม</label><input id="tr_start" type="date" value="${esc(tr ? tr.startDate || todayISO() : todayISO())}"></div>
-          <div class="field"><label>วันที่คาดว่าจะจบ</label><input id="tr_end" type="date" value="${esc(tr ? tr.endDate || "" : "")}"></div>
-        </div>
-      </div>
-
-      <div class="trial-wizard-step" data-trial-panel="1">
-        <div class="trial-step-title"><b>สูตรและโปรแกรมทดลอง</b><span>ใส่รหัสสูตร สารหลัก สารผสม อัตรา และช่วงพ่น</span></div>
-        <div class="form-row-2">
-          <div class="field"><label>รูปแบบพ่น/ใส่</label><input id="tr_spray_method" value="${esc(tr ? tr.sprayMethod || "" : "")}" placeholder="เช่น โดรน T25 / คนพ่น / หว่าน"></div>
-          <div class="field"><label>น้ำหรือปริมาณพาหะ</label><input id="tr_water_rate" value="${esc(tr ? tr.waterRate || "" : "")}" placeholder="เช่น น้ำ 8 ลิตร/ไร่"></div>
-        </div>
-        <div class="field"><label>ปริมาตรผสมต่อครั้ง</label><input id="tr_mix_volume" value="${esc(tr ? tr.mixVolume || "" : "")}" placeholder="เช่น ผสมต่อครั้ง 15 ลิตร"></div>
-        <div class="field"><label>ทรีตเมนต์ *</label>
-          <div class="trial-treatment-list" id="trialTreatmentList">${trialTreatmentRowsHtml(tr ? tr.treatments : null)}</div>
-          <button type="button" class="btn btn-sm btn-outline trial-add-treatment" onclick="App.addTrialTreatmentRow()">${ic("plus")} เพิ่มทรีตเมนต์</button>
-        </div>
-      </div>
-
-      <div class="trial-wizard-step" data-trial-panel="2">
-        <div class="trial-step-title"><b>แปลงย่อยและตัวชี้วัด</b><span>กำหนดจำนวนซ้ำ วิธีจัดผัง และค่าที่จะวิเคราะห์</span></div>
-        <div class="form-row-2">
-          <div class="field"><label>จำนวนซ้ำ/ชุดแปลง *</label><input id="tr_rep" type="number" min="1" step="1" value="${esc(tr ? tr.replications || 1 : 1)}"></div>
-          <div class="field"><label>รูปแบบผัง</label><select id="tr_layout_mode">
-            <option value="random" ${!tr || trialLayoutMode(tr) === "random" ? "selected" : ""}>สุ่มอัตโนมัติในแต่ละบล็อก</option>
-            <option value="manual" ${tr && trialLayoutMode(tr) === "manual" ? "selected" : ""}>จัดผังเอง</option>
-          </select></div>
-        </div>
-        <div class="field"><label>ตัวชี้วัด *</label>
-          <div class="trial-metric-list" id="trialMetricList">${trialMetricRowsHtml(tr ? trialMetrics(tr) : null)}</div>
-          <button type="button" class="btn btn-sm btn-outline trial-add-treatment" onclick="App.addTrialMetricRow()">${ic("plus")} เพิ่มตัวชี้วัด</button>
-          <div class="hint">เพิ่มได้หลายค่า เช่น ผลผลิต, ความสูง, คะแนนโรค, จำนวนผล</div>
-        </div>
-      </div>
-
-      <div class="trial-wizard-step" data-trial-panel="3">
-        <div class="trial-step-title"><b>สถานะและหมายเหตุ</b><span>เก็บสมมติฐาน ข้อจำกัด หรือสิ่งที่ต้องระวังก่อนบันทึก</span></div>
-        <div class="form-row-2">
-          <div class="field"><label>สถานะ</label><select id="tr_status">
-            <option value="active" ${!tr || (tr.status || "active") === "active" ? "selected" : ""}>กำลังทดลอง</option>
-            <option value="done" ${tr && tr.status === "done" ? "selected" : ""}>สรุปผลแล้ว</option>
-          </select></div>
-          <div class="field"><label>คำอธิบายผัง</label><input value="RCBD / จัดผังเองตามหน้างาน" readonly></div>
-        </div>
-        <div class="field"><label>หมายเหตุ</label><textarea id="tr_note" rows="4" placeholder="สมมติฐาน วิธีวัด หรือข้อจำกัดของแปลง">${esc(tr ? tr.note || "" : "")}</textarea></div>
-        <div class="trial-save-note">${ic("info")} หลังบันทึกแล้วสามารถแก้พื้นที่แปลงย่อย จัดผังเอง และบันทึกรูป/ค่าวัดรายทรีตเมนต์ได้จากหน้ารายละเอียด</div>
-      </div>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-ghost" id="trialWizardBack" onclick="App.trialWizardPrev()">ย้อนกลับ</button>
-        <button type="button" class="btn btn-outline" onclick="App.closeModal()">ยกเลิก</button>
-        <button type="button" class="btn btn-primary" id="trialWizardNext" onclick="App.trialWizardNext()">ถัดไป</button>
-        <button type="submit" class="btn btn-primary" id="trialWizardSubmit" hidden>${ic("save")} ${tr ? "บันทึก" : "สร้างและสุ่มผัง"}</button>
-      </div>
-    </form>`);
+  openModal('<button class="modal-x" onclick="App.closeModal()">✕</button><h3>' + (tr ? 'แก้ไขงานทดลอง' : 'สร้างงานทดลอง') + '</h3>' +
+    '<form class="trial-setup-form" novalidate onsubmit="return App.saveTrial(event,\'' + (tr?.id || '') + '\')"><div class="trial-wizard"><div class="trial-wizard-steps">' +
+    ['ข้อมูลงาน','สูตร / วิธี','การวัดผล'].map((label,i)=>'<button type="button" data-trial-step onclick="App.trialWizardStep('+i+')"><b>'+(i+1)+'</b><span>'+label+'</span></button>').join('') +
+    '</div><div class="trial-wizard-count" id="trialWizardCount">1/3</div></div>' +
+    '<div class="trial-wizard-step active" data-trial-panel="0">' +
+    '<div class="field"><label>ชื่องานทดลอง *</label><input id="tr_name" value="'+esc(tr?.name || '')+'" placeholder="เช่น เปรียบเทียบปุ๋ยในข้าวโพด"></div>' +
+    '<div class="field"><label>แปลง *</label><select id="tr_plot" onchange="App.trialPlotSelectChanged()"><option value="">แปลงนอกระบบ</option>' +
+    (S.plots || []).map(x=>'<option value="'+x.id+'" '+(defaultPlot===x.id ? 'selected' : '')+'>'+esc(x.name)+'</option>').join('')+'</select></div>' +
+    '<div class="field" '+(defaultPlot ? 'hidden' : '')+'><label>ชื่อแปลงนอกระบบ *</label><input id="tr_plot_name" value="'+esc(tr?.plotName || '')+'"></div>' +
+    '<div class="form-row-2"><div class="field"><label>วันที่เริ่ม *</label><input id="tr_start" type="date" value="'+esc(tr?.startDate || todayISO())+'"></div><div class="field"><label>พืช / เรื่องทดลอง</label><input id="tr_crop" value="'+esc(tr?.crop || (p ? plotCropName(S,p) : '') || '')+'"></div></div>' +
+    '<div class="field"><label>เป้าหมาย</label><input id="tr_objective" value="'+esc(tr?.objective || '')+'" placeholder="เช่น ลดต้นทุนโดยผลผลิตไม่ลดลง"></div>' +
+    '<details class="trial-disclosure"><summary>รายละเอียดเพิ่มเติม</summary><div class="field"><label>รูปแบบการทดลอง</label><select id="tr_type">'+Object.keys(TRIAL_TYPES).map(k=>'<option value="'+k+'" '+((tr ? trialType(tr) : 'screening')===k ? 'selected' : '')+'>'+esc(TRIAL_TYPES[k].label)+'</option>').join('')+'</select></div>' +
+    '<div class="field"><label>วันที่คาดว่าจะจบ</label><input id="tr_end" type="date" value="'+esc(tr?.endDate || '')+'"></div></details></div>' +
+    '<div class="trial-wizard-step" data-trial-panel="1"><div class="trial-treatment-list" id="trialTreatmentList">'+trialTreatmentRowsHtml(tr?.treatments || [{id:uid(),code:'T1',name:'สูตรเดิม'},{id:uid(),code:'T2',name:'สูตรทดลอง'}])+'</div>' +
+    '<button type="button" class="btn btn-outline" onclick="App.addTrialTreatmentRow()">'+ic("plus")+' เพิ่มสูตร / วิธี</button>' +
+    '<details class="trial-disclosure"><summary>การพ่น / ใส่สาร</summary><div class="field"><label>รูปแบบพ่น / ใส่</label><input id="tr_spray_method" value="'+esc(tr?.sprayMethod || '')+'"></div><div class="form-row-2"><div class="field"><label>น้ำหรือปริมาณพาหะ</label><input id="tr_water_rate" value="'+esc(tr?.waterRate || '')+'"></div><div class="field"><label>ปริมาตรผสมต่อครั้ง</label><input id="tr_mix_volume" value="'+esc(tr?.mixVolume || '')+'"></div></div></details></div>' +
+    '<div class="trial-wizard-step" data-trial-panel="2"><div class="form-row-2"><div class="field"><label>จำนวนซ้ำต่อสูตร *</label><input id="tr_rep" type="number" min="1" max="100" step="1" value="'+esc(trialReplications(tr))+'" oninput="App.updateTrialUnitCount()"></div><div class="field"><label>การจัดผัง</label><select id="tr_layout_mode"><option value="random" '+(!tr || trialLayoutMode(tr)==='random' ? 'selected' : '')+'>สุ่มในแต่ละซ้ำ</option><option value="manual" '+(tr && trialLayoutMode(tr)==='manual' ? 'selected' : '')+'>จัดผังเอง</option></select></div></div><output id="trialUnitCount" class="trial-unit-count"></output>' +
+    '<div class="trial-metric-list" id="trialMetricList">'+trialMetricRowsHtml(tr ? trialMetrics(tr) : [{id:uid(),name:'ผลผลิต',unit:'กก.'}])+'</div><button type="button" class="btn btn-outline" onclick="App.addTrialMetricRow()">'+ic("plus")+' เพิ่มตัวชี้วัด</button>' +
+    '<details class="trial-disclosure"><summary>หมายเหตุและสถานะ</summary><div class="field"><label>หมายเหตุ</label><textarea id="tr_note" rows="3">'+esc(tr?.note || '')+'</textarea></div><div class="field"><label>สถานะ</label><select id="tr_status"><option value="active" '+(tr?.status!=='done' ? 'selected' : '')+'>กำลังทดลอง</option><option value="done" '+(tr?.status==='done' ? 'selected' : '')+'>ปิดแล้ว</option></select></div></details></div>' +
+    '<div class="modal-actions"><button type="button" class="btn btn-ghost" id="trialWizardBack" aria-label="ย้อนกลับ" title="ย้อนกลับ" onclick="App.trialWizardPrev()">'+ic("chevron")+'</button><button type="button" class="btn btn-outline" onclick="App.closeModal()">ยกเลิก</button><button type="button" class="btn btn-primary" id="trialWizardNext" onclick="App.trialWizardNext()">ถัดไป</button><button type="submit" class="btn btn-primary" id="trialWizardSubmit" hidden>'+ic("save")+' '+(tr ? 'บันทึกแผน' : 'สร้างงานทดลอง')+'</button></div></form>');
   trialWizardSetStep(0);
+};
+App.updateTrialUnitCount = function() {
+  const count=document.getElementById('trialUnitCount');
+  const n=trialTreatmentsFromForm([]).length;
+  const reps=Number(document.getElementById('tr_rep')?.value) || 0;
+  if(count) count.textContent=n+' สูตร / วิธี × '+reps+' ซ้ำ = '+(n*reps)+' แปลงย่อย';
 };
 App.saveTrial = function (e, id) {
   e.preventDefault();
+  for(let i=0; i<3; i++) { if(!trialWizardValidateStep(i)) return false; }
   const tr = id ? trialById(S, id) : null;
   const nameInput = document.getElementById("tr_name");
   const name = (nameInput?.value || "").trim();
@@ -1995,7 +2196,13 @@ App.saveTrial = function (e, id) {
   }
   const treatments = trialTreatmentsFromForm(tr && tr.treatments);
   const metrics = trialMetricsFromForm(tr && tr.metrics);
-  const reps = Math.max(1, Number(document.getElementById("tr_rep").value) || 1);
+  const reps = Number(document.getElementById("tr_rep").value);
+  if (!Number.isInteger(reps) || reps < 1 || reps > 100) { trialWizardFocus(document.getElementById('tr_rep'),'จำนวนซ้ำต้องเป็นจำนวนเต็ม 1–100',2); return false; }
+  if(new Set(treatments.map(t=>t.code)).size !== treatments.length) { toast('รหัสสูตรต้องไม่ซ้ำกัน'); trialWizardSetStep(1); return false; }
+  if(new Set(metrics.map(m=>m.name)).size !== metrics.length) { toast('ชื่อตัวชี้วัดต้องไม่ซ้ำกัน'); trialWizardSetStep(2); return false; }
+  const startDate=document.getElementById('tr_start').value;
+  const endDate=document.getElementById('tr_end').value;
+  if(!startDate || (endDate && endDate < startDate)) { trialWizardFocus(document.getElementById('tr_start'),'ตรวจวันที่เริ่มและวันที่คาดว่าจะจบ',0); return false; }
   if (treatments.length < 2) {
     const rows = document.querySelectorAll("[data-trt-row]");
     const input = Array.from(rows).find(row => !String(row.querySelector("[data-trt-name]")?.value || "").trim())?.querySelector("[data-trt-name]") || rows[0]?.querySelector("[data-trt-name]");
@@ -2015,9 +2222,15 @@ App.saveTrial = function (e, id) {
     trialWizardFocus(input, "เลือกแปลงในระบบ หรือพิมพ์ชื่อแปลงนอกระบบ", 0);
     return false;
   }
-  const codeSig = treatments.map(t => t.code).join("|");
-  const oldSig = tr ? (tr.treatments || []).map(t => t.code).join("|") : "";
-  const structureChanged = !tr || reps !== Number(tr.replications || 0) || codeSig !== oldSig || layoutMode !== trialLayoutMode(tr);
+  const codeSig = treatments.map(t => t.id).join("|");
+  const oldSig = tr ? (tr.treatments || []).map(t => t.id).join("|") : "";
+  const structureChanged = !tr || reps !== trialReplications(tr) || codeSig !== oldSig || layoutMode !== trialLayoutMode(tr);
+  if (tr && (tr.observations || []).some(o => !metrics.some(m => m.id === trialObsMetricId(tr,o)))) {
+    toast('ตัวชี้วัดที่มีค่าวัดแล้วไม่สามารถลบได้'); trialWizardSetStep(2); return false;
+  }
+  if (tr && metrics.some(m => (tr.observations || []).some(o => trialObsMetricId(tr,o) === m.id) && m.unit !== trialMetricById(tr,m.id).unit)) {
+    toast('ตัวชี้วัดที่มีข้อมูลแล้วเปลี่ยนหน่วยไม่ได้ กรุณาเพิ่มตัวชี้วัดใหม่'); trialWizardSetStep(2); return false;
+  }
   if (tr && (tr.observations || []).length && structureChanged) {
     toast("มีค่าวัดแล้ว — ยังไม่ให้เปลี่ยนจำนวนซ้ำ/ทรีตเมนต์/รูปแบบผัง เพื่อกันข้อมูลวิเคราะห์เพี้ยน");
     return false;
@@ -2052,13 +2265,17 @@ App.saveTrial = function (e, id) {
     const fresh = { id: uid(), ...data, units: makeTrialUnitsForMode(treatments, reps, layoutMode), observations: [], createdAt: Date.now(), updatedAt: Date.now() };
     S.trials.push(fresh);
     route.trialId = fresh.id;
+    route.trialSection = 'record';
+    route.trialDate = '';
+    route.trialMetricId = '';
+    route.trialTreatmentId = '';
   }
   saveState(S);
   closeModal();
   route.view = "plots";
   route.tab = "trials";
   render();
-  toast(tr ? "บันทึกงานทดลองแล้ว" : "สร้างแปลงทดลองและสุ่มผังแล้ว");
+  toast(tr ? "บันทึกงานทดลองแล้ว" : "สร้างงานทดลองแล้ว");
   return false;
 };
 App.createTaskFromTrialTreatment = function (trialId, treatmentId) {
@@ -2073,9 +2290,8 @@ App.createTaskFromTrialTreatment = function (trialId, treatmentId) {
   }
   const area = trialTreatmentArea(tr, t.id);
   const cycle = tr.plotId ? (S.cycles || []).find(c => c.plotId === tr.plotId && c.status === "active") : null;
-  const activeTotal = trialChemicalTotal(t.activeRate, area);
-  const mixTotal = trialChemicalTotal(t.mixRate, area);
-  const typeText = `${tr.sprayMethod || ""} ${t.name || ""} ${t.activeName || ""} ${t.mixName || ""}`;
+  const ingredients = trialIngredients(t);
+  const typeText = `${tr.sprayMethod || ""} ${t.name || ""} ${ingredients.map(item => item.name).join(' ')}`;
   const taskType = /ปุ๋ย|หว่าน|ใส่/.test(typeText) && !/ฉีด|พ่น|ยา|สารกำจัด/.test(typeText) ? "fertilize" : "spray";
   const lines = [
     `จากงานทดลอง: ${tr.name}`,
@@ -2085,8 +2301,10 @@ App.createTaskFromTrialTreatment = function (trialId, treatmentId) {
     tr.sprayMethod ? `วิธีพ่น/ใส่: ${tr.sprayMethod}` : "",
     tr.waterRate ? `น้ำ/พาหะ: ${tr.waterRate}` : "",
     tr.mixVolume ? `ผสมต่อครั้ง: ${tr.mixVolume}` : "",
-    t.activeName || t.activeRate ? `สารหลัก: ${t.activeName || "-"} ${t.activeRate || ""}${activeTotal ? ` = ${activeTotal}` : ""}` : "",
-    t.mixName || t.mixRate ? `สารผสม: ${t.mixName || "-"} ${t.mixRate || ""}${mixTotal ? ` = ${mixTotal}` : ""}` : "",
+    ...ingredients.map(item => {
+      const total = trialChemicalTotal(item.rate, area);
+      return `ยา / ผลิตภัณฑ์: ${item.name || "-"} ${item.rate}${total ? ` = ${total}` : ""}`;
+    }),
     t.timing ? `ช่วงพ่น: ${t.timing}` : "",
     t.desc ? `หมายเหตุสูตร: ${t.desc}` : ""
   ].filter(Boolean);
@@ -2216,7 +2434,7 @@ App.modalTrialObs = function (trialId, unitId, obsId) {
     <div class="modal-sub">${esc(tr.name)} · ${esc(trialMetric(tr))}</div>
     <form onsubmit="return App.saveTrialObs(event, '${tr.id}', '${obs ? obs.id : ""}')">
       <div class="form-row-2">
-        <div class="field"><label>วันที่วัด *</label><input id="tro_date" type="date" required value="${esc(obs ? obs.date || todayISO() : todayISO())}"></div>
+        <div class="field"><label>วันที่วัด *</label><input id="tro_date" type="date" required max="${todayISO()}" value="${esc(obs ? obs.date || todayISO() : trialMeasurementDate(tr))}"></div>
         <div class="field"><label>แปลงย่อย *</label><select id="tro_unit" required>
           ${units.map(u => {
             const t = trialTreatment(tr, u.treatmentId) || {};
@@ -2231,7 +2449,7 @@ App.modalTrialObs = function (trialId, unitId, obsId) {
         </select></div>
         <div class="field"><label>ค่า *</label><input id="tro_value" type="number" step="0.01" required value="${obs && obs.value !== undefined ? esc(obs.value) : ""}" placeholder="เช่น 0, 12.5"></div>
       </div>
-      <div class="field"><label>หน่วย</label><input id="tro_unitlabel" value="${esc(obs ? obs.unit || trialUnitLabel(tr, selectedMetricId) : trialUnitLabel(tr, selectedMetricId))}"></div>
+      <div class="field"><label>หน่วย</label><input id="tro_unitlabel" readonly value="${esc(obs ? obs.unit || trialUnitLabel(tr, selectedMetricId) : trialUnitLabel(tr, selectedMetricId))}"></div>
       <div class="field"><label>หมายเหตุ</label><textarea id="tro_note" rows="3" placeholder="เช่น โรคใบจุดเล็กน้อย / วัดจาก 10 ต้นสุ่ม">${esc(obs ? obs.note || "" : "")}</textarea></div>
       <div class="task-photo-panel">
         <div class="task-photo-head">
@@ -2258,12 +2476,16 @@ App.saveTrialObs = function (e, trialId, obsId) {
   const rawValue = document.getElementById("tro_value").value;
   const value = Number(rawValue);
   if (!unitId || rawValue === "" || !Number.isFinite(value)) return false;
+  const date = document.getElementById('tro_date').value;
+  try { trialBatchChanges(tr,metricId,date,[{unitId,value:rawValue}]); } catch(err) { toast(err.message); return false; }
+  const duplicate = trialDayValues(tr,metricId,date).get(unitId);
+  if(duplicate && duplicate.id !== obsId) { toast('มีค่าวัดของแปลงนี้ในวันเดียวกันแล้ว กรุณาแก้ไขรายการเดิม'); return false; }
   tr.observations = tr.observations || [];
   const old = obsId ? tr.observations.find(o => o.id === obsId) : null;
   const data = {
     id: old ? old.id : uid(),
     unitId,
-    date: document.getElementById("tro_date").value || todayISO(),
+    date,
     metricId,
     metric: metric.name || trialMetric(tr, metricId),
     value,
@@ -2281,6 +2503,7 @@ App.saveTrialObs = function (e, trialId, obsId) {
   route.view = "plots";
   route.tab = "trials";
   route.trialId = tr.id;
+  route.trialDate = date;
   render();
   toast(old ? "แก้ไขค่าวัดแล้ว · อัปเดตกราฟวิเคราะห์" : "บันทึกค่าวัดแล้ว · อัปเดตกราฟวิเคราะห์");
   return false;
@@ -2288,11 +2511,13 @@ App.saveTrialObs = function (e, trialId, obsId) {
 App.deleteTrialObs = function (trialId, obsId) {
   const tr = trialById(S, trialId);
   if (!tr) return;
+  App.confirm('ลบค่าวัดนี้?', 'ค่าวัดและรูปที่แนบกับรายการนี้จะถูกลบ', () => {
   tr.observations = (tr.observations || []).filter(o => o.id !== obsId);
   tr.updatedAt = Date.now();
   saveState(S);
   rerender();
   toast("ลบค่าวัดแล้ว");
+  });
 };
 App.trialPickPhotos = function () {
   const input = document.createElement("input");
@@ -2758,13 +2983,13 @@ async function fetchTaskWeatherSnapshot(p, target) {
     "&longitude=" + lng +
     "&current=temperature_2m,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m,wind_direction_10m" +
     "&hourly=" + forecastVars +
-    "&past_days=7&forecast_days=7&timezone=auto";
+    "&past_days=7&forecast_days=7&timezone=auto&wind_speed_unit=ms";
   const archiveUrl = "https://archive-api.open-meteo.com/v1/archive?latitude=" + lat +
     "&longitude=" + lng +
     "&start_date=" + encodeURIComponent(targetDate) +
     "&end_date=" + encodeURIComponent(targetDate) +
     "&hourly=" + hourlyVars +
-    "&timezone=auto";
+    "&timezone=auto&wind_speed_unit=ms";
   let source = isPastDate ? "Open-Meteo Historical" : "Open-Meteo Forecast";
   let om;
   try {
@@ -2823,6 +3048,7 @@ async function fetchTaskWeatherSnapshot(p, target) {
     rain: Number((h.rain && h.rain[idx]) ?? c.rain ?? 0),
     rainProb: h.precipitation_probability && h.precipitation_probability[idx] != null ? Number(h.precipitation_probability[idx]) : null,
     windSpeed: Number((h.wind_speed_10m && h.wind_speed_10m[idx]) ?? c.wind_speed_10m),
+    windUnit: "m/s",
     windDirection: Number((h.wind_direction_10m && h.wind_direction_10m[idx]) ?? c.wind_direction_10m),
     hourly
   };
@@ -2837,7 +3063,7 @@ function weatherSnapshotHtml(wx, compact) {
     `ชื้น ${weatherValue(wx.humidity, "%")}`,
     `ฝน ${weatherValue((Number(wx.rain) || Number(wx.precipitation) || 0), " มม.")}`,
     wx.rainProb != null ? `โอกาสฝน ${weatherValue(wx.rainProb, "%")}` : "",
-    `ลม ${weatherValue(wx.windSpeed, " m/s")}`
+    `ลม ${weatherValue(wx.windSpeed, " " + (wx.windUnit || "km/h"))}`
   ].filter(Boolean);
   return `
     <div class="task-weather-ref ${compact ? "compact" : ""}">
@@ -2850,7 +3076,7 @@ function weatherSnapshotHtml(wx, compact) {
           <b>${esc(h.hour || String(h.time || "").slice(11, 16))}</b>
           <span>${h.icon || "🌡️"} ${weatherValue(h.temperature, "°")}</span>
           <small>${h.rainProb != null ? `โอกาสฝน ${fmtNum(h.rainProb)}%` : `ฝนคาด ${weatherValue(h.precipitation, " มม.")}`}</small>
-          <small>ลม ${weatherValue(h.windSpeed, " m/s")}</small>
+          <small>ลม ${weatherValue(h.windSpeed, " " + (wx.windUnit || "km/h"))}</small>
         </div>`).join("")}
       </div>` : ""}
       <div class="task-weather-source">อ้างอิง ${esc(wx.source || "Open-Meteo")}${wx.plotName ? ` · ${esc(wx.plotName)}` : ""}${actualLabel ? ` · เวลาทำจริง ${esc(actualLabel)}` : (captured ? ` · ${esc(captured)}` : "")}${wx.capturedAt ? ` · บันทึก ${esc(new Date(wx.capturedAt).toLocaleString("th-TH"))}` : ""}</div>
@@ -2881,7 +3107,7 @@ function weatherAdvisoryHtml(p, c, d) {
   if (wind >= 10) {
     push("danger", "💨", `ลมแรง ${fmtNum(wind)} m/s — <b>งดฉีดพ่นตอนนี้</b> หยดลอยเสี่ยงฟุ้งกระเด็นถึงคน/แปลงข้างเคียง รอลมสงบก่อน`);
   } else if (wind >= 6) {
-    push("info", "💨", `ลมปานกลาง ${fmtNum(wind)} m/s — ฉีดพ่นได้ แต่ควรฉีด<b>เช้ามืดหรือเย็น</b> ช่วงลมสงบ และฉีดตามทิศลม`);
+    push("info", "💨", `ลม ${fmtNum(wind)} m/s — ตรวจลมที่แปลงและข้อกำหนดบนฉลากก่อนฉีดพ่น พยากรณ์เพียงอย่างเดียวไม่ยืนยันว่าฉีดพ่นได้อย่างปลอดภัย`);
   }
   /* 3) ฝนหนัก >= 30 มม. ใน 2 วัน -> เตรียมระบายน้ำ */
   for (let i = 1; i <= 2 && i < (d.time || []).length; i++) {
@@ -2923,7 +3149,7 @@ function renderPlotWeather() {
     "&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m" +
     "&hourly=temperature_2m,relative_humidity_2m,precipitation,precipitation_probability,weather_code,wind_speed_10m" +
     "&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,weather_code" +
-    "&forecast_days=7&timezone=auto";
+    "&forecast_days=7&timezone=auto&wind_speed_unit=ms";
   fetch(url)
     .then(r => { if (!r.ok) throw new Error("om status " + r.status); return r.json(); })
     .then(om => {
@@ -3060,27 +3286,27 @@ function renderPlotDetail() {
       const cf = cycleFinance(S, c.id);
       const n = tasks.filter(t => t.cycleId === c.id).length;
       return `
-      <div class="card cycle-card" onclick="App.openCycle('${c.id}')" role="button" tabindex="0" title="กดดูงาน/กิจกรรมของรอบนี้">
+      <article class="card cycle-card">
         <div class="row">
           <div class="plot-emoji">${cropEmoji(c.plant)}</div>
           <div class="grow">
-            <div class="plot-name">${esc(c.plant)} <span class="badge badge-blue">รอบ ${c.round || "—"}</span></div>
-            <div class="muted">เริ่ม ${c.startDate} · อายุ ${ageDays(c.startDate)} วัน</div>
+            <button class="plot-name card-open" onclick="App.openCycle('${c.id}')">${esc(c.plant)} <span class="badge badge-blue">รอบ ${c.round || "—"}</span></button>
+            <div class="muted">เริ่ม ${dateLabel(c.startDate)} · ${cycleDurationLabel(c)}</div>
           </div>
           ${c.status === "active" ? `<span class="badge badge-green">กำลังปลูก</span>` : `<span class="badge badge-gray">ปิดรอบ</span>`}
         </div>
         <div class="meta-grid">
           <div class="meta-box"><div class="lb">รายรับ</div><div class="vl">${fmtMoney(cf.revenue)} บาท</div></div>
           <div class="meta-box"><div class="lb">ต้นทุน</div><div class="vl">${fmtMoney(cf.cost)} บาท</div></div>
-          <div class="meta-box"><div class="lb">กำไร/ขาดทุน</div><div class="vl ${cf.net >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(cf.net)} บาท</div></div>
+          <div class="meta-box"><div class="lb">${c.status === "active" ? "ส่วนต่างปัจจุบัน" : "กำไร/ขาดทุน"}</div><div class="vl ${cf.net >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(cf.net)} บาท</div></div>
           <div class="meta-box"><div class="lb">สถานะ</div><div class="vl" style="font-size:.78rem">${cf.revenue > 0 ? "มีผลผลิตแล้ว" : "รอผลผลิต"}</div></div>
         </div>
         <div class="actions-row" style="margin-top:10px">
           <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();App.modalCycle('${c.plotId}', '${c.id}')">${ic("pencil")} แก้ไขรอบ</button>
           ${c.status === "active" ? `<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();App.completeCycle('${c.id}')">${ic("check")} ปิดรอบการปลูก</button>` : `<button class="btn btn-sm btn-outline" onclick="event.stopPropagation();App.reopenCycle('${c.id}')">${ic("refresh")} เปิดรอบอีกครั้ง</button>`}
         </div>
-        <div class="cycle-open-hint">${ic("chevron")} ดู ${n} กิจกรรมของรอบนี้</div>
-      </div>`;
+        <button class="cycle-open-hint card-open" onclick="App.openCycle('${c.id}')">${ic("chevron")} ดู ${n} กิจกรรมของรอบนี้</button>
+      </article>`;
     }).join("")}
     </div>`;
   const tasksHtml = `
@@ -3101,7 +3327,7 @@ function renderPlotDetail() {
     ${plotWeatherCard(p)}
     ${plotWaterZonesCard(p)}
     ${plotWaterCard(p)}
-    <div class="section-title">กำไร/ขาดทุนของแปลงนี้</div>
+    <div class="section-title">รายรับและต้นทุนของแปลงนี้</div>
     <div class="card" style="background:linear-gradient(135deg,var(--green-dark),var(--green-deep));color:#fff;border:none">
       <div class="row row-between">
         <div>
@@ -3349,13 +3575,13 @@ function renderCycleDetail() {
         <div class="plot-emoji">${cropEmoji(c.plant)}</div>
         <div class="grow">
           <div class="plot-name">${esc(c.plant)} <span class="badge badge-blue">รอบ ${c.round || "—"}</span> ${c.status === "active" ? `<span class="badge badge-green">กำลังปลูก</span>` : `<span class="badge badge-gray">ปิดรอบ</span>`}</div>
-          <div class="muted">${p ? esc(p.name) : "แปลงถูกลบ"} · เริ่ม ${c.startDate} · อายุ ${ageDays(c.startDate)} วัน</div>
+          <div class="muted">${p ? esc(p.name) : "แปลงถูกลบ"} · เริ่ม ${dateLabel(c.startDate)} · ${cycleDurationLabel(c)}</div>
         </div>
       </div>
       <div class="meta-grid">
         <div class="meta-box"><div class="lb">รายรับ</div><div class="vl">${fmtMoney(cf.revenue)} บาท</div></div>
         <div class="meta-box"><div class="lb">ต้นทุน</div><div class="vl">${fmtMoney(cf.cost)} บาท</div></div>
-        <div class="meta-box"><div class="lb">กำไร/ขาดทุน</div><div class="vl ${cf.net >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(cf.net)} บาท</div></div>
+        <div class="meta-box"><div class="lb">${c.status === "active" ? "ส่วนต่างปัจจุบัน" : "กำไร/ขาดทุน"}</div><div class="vl ${cf.net >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(cf.net)} บาท</div></div>
         <div class="meta-box"><div class="lb">สถานะ</div><div class="vl" style="font-size:.78rem">${cf.revenue > 0 ? "มีผลผลิตแล้ว" : "รอผลผลิต"}</div></div>
       </div>
       <div class="actions-row">
@@ -3397,7 +3623,7 @@ App.cycleDetailTab = function (tab) {
 App.completeCycle = function (id) {
   App.confirm("ปิดรอบการปลูก?", "รอบนี้จะถูกปิดและไม่สามารถเพิ่มกิจกรรมได้ — ถ้าปิดผิดสามารถกดเปิดรอบอีกครั้งได้ภายหลัง", () => {
     const c = cycleById(S, id);
-    if (c) c.status = "done";
+    if (c) { c.status = "done"; c.endDate = todayISO(); delete c.closedByTaskId; }
     saveState(S);
     rerender();
     toast("ปิดรอบการปลูกเรียบร้อย");
@@ -3408,6 +3634,8 @@ App.reopenCycle = function (id) {
   const c = cycleById(S, id);
   if (!c) return;
   c.status = "active";
+  delete c.endDate;
+  delete c.closedByTaskId;
   saveState(S);
   rerender();
   toast(`เปิดรอบ "${c.plant}" กลับมาแล้ว`);
@@ -3472,34 +3700,38 @@ App.modalTaskComplete = function (id, returnToDetail, resultIntent) {
   const alreadyDone = t.status === "done";
   const alreadyFailed = t.status === "failed";
   const failIntent = resultIntent === "failed" && !alreadyDone;
+  const failedResult = failIntent || alreadyFailed;
   const doneDate = (alreadyDone || alreadyFailed) ? taskDoneDate(t) : todayISO();
   const doneTime = (alreadyDone || alreadyFailed) ? taskDoneTime(t) : currentTimeHHMM();
   taskDoneWaterSessions = doneWaterSessionsForTask(t);
   if (failIntent && t.type === "water" && taskDoneWaterSessions.length) {
     taskDoneWaterSessions = taskDoneWaterSessions.map(w => ({ ...w, status: "failed" }));
   }
-  openModal(`
-    <button class="modal-x" onclick="App.closeModal()">✕</button>
-    <h3>${ic(failIntent || alreadyFailed ? "alert" : "check")} ${alreadyDone ? "แก้ผลหลังทำ" : (alreadyFailed ? "แก้ผลงานไม่สำเร็จ" : (failIntent ? "บันทึกงานไม่สำเร็จ" : "บันทึกผลการทำงาน"))}</h3>
-    <div class="modal-sub">${esc(t.title)}${p ? ` · ${esc(p.name)}` : ""}${alreadyDone ? " · งานนี้ทำเสร็จแล้ว" : (alreadyFailed ? " · งานนี้บันทึกว่าไม่สำเร็จ" : (failIntent ? " · เลือกรอบที่ไม่ได้ทำจริงได้" : ""))}</div>
+  const evidenceHtml = `
     <div class="task-photo-panel">
       <div class="task-photo-head">
-        <div><b>รูปหลังทำ</b><span>ถ่ายหลักฐานหลังตรวจแปลง ฉีดยา ใส่ปุ๋ย หรือเก็บเกี่ยว</span></div>
+        <div><b>${failedResult ? "รูปประกอบ (ไม่บังคับ)" : "รูปหลังทำ"}</b>${failedResult ? "" : "<span>ถ่ายหลักฐานหลังตรวจแปลง ฉีดยา ใส่ปุ๋ย หรือเก็บเกี่ยว</span>"}</div>
         <button type="button" class="btn btn-sm btn-outline" onclick="App.taskPickPhotos('done')">${ic("camera")} เพิ่มรูป</button>
       </div>
       <div id="taskDonePhotoPreview">${taskPhotoPreviewHtml(taskDonePhotos, "done")}</div>
     </div>
-    ${recommendPhoto ? `<div class="task-photo-reminder">${ic("camera")} งาน${esc(TYPE_LABELS[t.type] || "นี้")}แนะนำให้แนบรูปหลังทำไว้เป็นหลักฐาน</div>` : ""}
-    <div id="taskWaterResultMount">${taskDoneWaterSessionsHtml()}</div>
+    ${recommendPhoto && !failedResult ? `<div class="task-photo-reminder">${ic("camera")} งาน${esc(TYPE_LABELS[t.type] || "นี้")}แนะนำให้แนบรูปหลังทำไว้เป็นหลักฐาน</div>` : ""}
     <div class="field">
-      <label>หมายเหตุหลังทำ</label>
-      <textarea id="tdone_note" rows="3" placeholder="เช่น พบเพลี้ยเล็กน้อย ฉีดตามอัตราแล้ว / ดินยังชื้นดี">${esc(t.doneNote || "")}</textarea>
-    </div>
+      <label for="tdone_note">${failedResult ? "หมายเหตุ (ไม่บังคับ)" : "หมายเหตุหลังทำ"}</label>
+      <textarea id="tdone_note" rows="3" placeholder="${failedResult ? "เช่น ฝนตก หรือยังไม่ได้ทำ" : "เช่น พบเพลี้ยเล็กน้อย ฉีดตามอัตราแล้ว / ดินยังชื้นดี"}">${esc(t.doneNote || "")}</textarea>
+    </div>`;
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic(failedResult ? "alert" : "check")} ${alreadyDone ? "แก้ผลหลังทำ" : (alreadyFailed ? "แก้ผลงานไม่สำเร็จ" : (failIntent ? "บันทึกงานไม่สำเร็จ" : "บันทึกผลการทำงาน"))}</h3>
+    <div class="modal-sub">${esc(t.title)}${p ? ` · ${esc(p.name)}` : ""}${alreadyDone ? " · งานนี้ทำเสร็จแล้ว" : (alreadyFailed ? " · งานนี้บันทึกว่าไม่สำเร็จ" : "")}</div>
+    ${failedResult ? "" : evidenceHtml}
+    <div id="taskWaterResultMount">${taskDoneWaterSessionsHtml()}</div>
     <div class="form-row-2">
-      <div class="field"><label>วันที่ทำจริง *</label><input id="tdone_date" type="date" value="${esc(doneDate)}" max="${todayISO()}" required></div>
-      <div class="field"><label>เวลาที่ทำจริง</label><input id="tdone_time" type="time" value="${esc(doneTime)}"></div>
+      <div class="field"><label for="tdone_date">${failedResult ? "วันที่บันทึกผล" : "วันที่ทำจริง"} *</label><input id="tdone_date" type="date" value="${esc(doneDate)}" max="${todayISO()}" required></div>
+      <div class="field"><label for="tdone_time">${failedResult ? "เวลาที่บันทึกผล" : "เวลาที่ทำจริง"}</label><input id="tdone_time" type="time" value="${esc(doneTime)}"></div>
     </div>
-    ${recommendWeather ? `
+    ${failedResult ? `<details class="task-result-optional" ${taskDonePhotos.length || t.doneNote ? "open" : ""}><summary>รูปและหมายเหตุ (ไม่บังคับ)</summary>${evidenceHtml}</details>` : ""}
+    ${recommendWeather && !failedResult ? `
     <div class="task-weather-panel">
       <label class="option-box inline-option"><input type="checkbox" id="tdone_weather" ${weatherPlot ? "checked" : ""} ${weatherPlot ? "" : "disabled"}><span>${ic("droplet")} บันทึกสภาพอากาศตอนทำงาน</span></label>
       <div class="hint">${weatherPlot ? `ดึงจากพิกัดแปลง ${esc(weatherPlot.name)} ตามวันที่/เวลาที่ทำจริงด้านบน ถ้ากรอกย้อนหลัง ระบบจะใช้อากาศย้อนหลังรายชั่วโมง` : "งานนี้ยังไม่มีพิกัดแปลง จึงยังดึงสภาพอากาศอัตโนมัติไม่ได้"}</div>
@@ -3507,9 +3739,10 @@ App.modalTaskComplete = function (id, returnToDetail, resultIntent) {
     </div>` : ""}
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
-      <button type="button" class="btn btn-danger-soft" onclick="App.failTask('${id}')">${ic("alert")} ${alreadyFailed || failIntent ? "บันทึกไม่สำเร็จ" : "งานไม่สำเร็จ"}</button>
+      ${failedResult ? `<button type="button" class="btn btn-danger-soft" onclick="App.failTask('${id}')">${ic("save")} บันทึกไม่สำเร็จ</button>` : `
+      <button type="button" class="btn btn-danger-soft" onclick="App.failTask('${id}')">${ic("alert")} งานไม่สำเร็จ</button>
       <button type="button" class="btn btn-outline" onclick="App.finishTask('${id}', true)">${alreadyDone ? "บันทึกโดยไม่แนบรูป" : "ทำเสร็จโดยไม่แนบรูป"}</button>
-      <button type="button" class="btn btn-primary" onclick="App.finishTask('${id}', false)">${ic("check")} ${alreadyDone ? "บันทึกผลหลังทำ" : "บันทึกผล"}</button>
+      <button type="button" class="btn btn-primary" onclick="App.finishTask('${id}', false)">${ic("check")} ${alreadyDone ? "บันทึกผลหลังทำ" : "บันทึกผล"}</button>`}
     </div>`);
 };
 App.finishTask = async function (id, allowNoPhoto) {
@@ -3532,6 +3765,13 @@ App.finishTask = async function (id, allowNoPhoto) {
     return;
   }
   taskFinishSaving = true;
+  try {
+    if (!hasTaskStockUse(t)) applyStockUse(S, t);
+  } catch (e) {
+    taskFinishSaving = false;
+    toast(e.message);
+    return;
+  }
   t.status = "done";
   if (t.type === "water" && taskDoneWaterSessions.length) {
     t.wateringSessions = normalizeTaskWaterSessions(taskDoneWaterSessions.map(w => ({ ...w, status: w.status || "done" })));
@@ -3540,6 +3780,7 @@ App.finishTask = async function (id, allowNoPhoto) {
   t.doneNote = (document.getElementById("tdone_note")?.value || "").trim();
   t.doneDate = doneDate;
   t.doneTime = doneTime;
+  closeCycleForTask(S, t);
   const weatherCheck = document.getElementById("tdone_weather");
   const weatherPlot = taskWeatherPlot(t);
   if (weatherCheck && weatherCheck.checked && weatherPlot) {
@@ -3579,6 +3820,7 @@ App.failTask = async function (id) {
   }
   taskFinishSaving = true;
   t.status = "failed";
+  closeCycleForTask(S, t);
   if (t.type === "water") {
     const rows = taskDoneWaterSessions.length ? taskDoneWaterSessions : doneWaterSessionsForTask(t);
     const allDefaultDone = rows.length && rows.every(w => w.status === "done");
@@ -3686,7 +3928,7 @@ function renderPlanner() {
     if (mode === "done") return t.status === "done";
     return false;
   }).sort((a, b) => {
-    if (mode === "done") return b.date.localeCompare(a.date);
+    if (mode === "done") return taskRecordDate(b).localeCompare(taskRecordDate(a));
     if (mode === "overdue") return a.date.localeCompare(b.date);
     if (mode === "failed") return b.date.localeCompare(a.date);
     return a.date.localeCompare(b.date);
@@ -3719,7 +3961,7 @@ function renderPlanner() {
       ${plannerItems.length === 0 ? `<div class="empty compact-empty"><div class="e-ico">${ic(mode === "done" ? "check" : "calendar")}</div><div class="e-title">${mode === "overdue" ? "ไม่มีงานเลยกำหนด" : (mode === "failed" ? "ยังไม่มีงานไม่สำเร็จ" : (mode === "done" ? "ยังไม่มีงานที่เสร็จแล้ว" : "ไม่มีงานในช่วงนี้"))}</div><div class="muted">กดเพิ่มกิจกรรมเมื่อต้องวางแผนงานใหม่</div></div>` : ""}
       ${plannerItems.map(t => taskRowHtml(t, { showDate: true, showNote: true, showDelete: true, showPlot: true })).join("")}
     </div>
-    <details class="planner-calendar-panel">
+    <details class="planner-calendar-panel" ${plannerCalendarOpen ? "open" : ""} ontoggle="App.plannerCalendarToggle(this)">
       <summary>${ic("calendar")} ปฏิทินเต็ม <span>${sel ? dateLabel(sel) : "เลือกวันที่เพื่อดูงาน"}</span></summary>
       ${calCardHtml()}
       <div class="card">
@@ -3734,15 +3976,20 @@ function renderPlanner() {
     </details>
     `;
 }
+App.plannerCalendarToggle = function (panel) {
+  if (panel.isConnected) plannerCalendarOpen = panel.open;
+};
 App.plannerFilter = function (key) {
   plannerFilter = key || "today";
   rerender();
 };
 App.pickDay = function (d) {
   if (d) cal.sel = d;
+  if (route.view === "planner") plannerCalendarOpen = true;
   rerender();
 };
 App.calMove = function (dir) {
+  if (route.view === "planner") plannerCalendarOpen = true;
   cal.m = cal.m + dir;
   if (cal.m < 0) { cal.m = 11; cal.y--; }
   if (cal.m > 11) { cal.m = 0; cal.y++; }
@@ -3751,6 +3998,7 @@ App.calMove = function (dir) {
 };
 /* กระโดดกลับมาที่วันนี้ (ปฏิทินหลัก: หน้าแรก + หน้าปฏิทินงาน) */
 App.calToday = function () {
+  if (route.view === "planner") plannerCalendarOpen = true;
   const now = new Date();
   cal = { y: now.getFullYear(), m: now.getMonth(), sel: todayISO() };
   rerender();
@@ -3777,7 +4025,7 @@ function describeStockDiff(oldT, newData) {
 }
 App.deleteTask = function (id) {
   const t = S.tasks.find(x => x.id === id);
-  const usedStock = (t && t.stockLog && t.stockLog.length) || (t && t.costItems && t.costItems.some(i => i.stockId));
+  const usedStock = hasTaskStockUse(t);
   const doDelete = (restock) => {
     if (restock && t) restockTask(S, t);
     S.tasks = S.tasks.filter(x => x.id !== id);
@@ -3845,7 +4093,7 @@ function renderAnalytics() {
         <b>${fmtMoney(ytd.net)}</b><span>ส่วนต่างรายรับ-ต้นทุน</span><small>${marginLabel}</small>
       </button>
       <button class="analytics-brief-card" onclick="App.analyticsTab('shop')">
-        <b>${fmtMoney(salesProfitYTD(S, yr))}</b><span>กำไรร้าน</span><small>${salesYearCount(S, yr)} ใบเสร็จ</small>
+        <b>${salesProfitYTD(S, yr) === null ? "ไม่ครบ" : fmtMoney(salesProfitYTD(S, yr))}</b><span>กำไรร้าน</span><small>${salesProfitYTD(S, yr) === null ? "ใบเก่าไม่มีต้นทุน ณ วันขาย" : `${salesYearCount(S, yr)} ใบเสร็จ`}</small>
       </button>
     </div>
     <div class="analytics-insights">
@@ -3928,12 +4176,12 @@ function renderAnalytics() {
   const topStock = [...S.stock]
     .map(x => ({ name: x.name, unit: x.unit, val: ((Number(x.qty) || 0) + (Number(x.openQty) || 0)) * (Number(x.avgCost) || 0) }))
     .filter(x => x.val > 0).sort((a, b) => b.val - a.val).slice(0, 5);
-  const emptySale = (S.sales || []).length === 0;
+  const emptySale = saleCnt === 0;
   const shopHtml = `
     <div class="kpi-row">
       <div class="kpi blue"><div class="kpi-icon">${ic("dollar")}</div><div class="kpi-label">ยอดขาย (พ.ศ. ${beYr})</div><div class="kpi-value">${fmtMoney(saleYr)}</div><div class="kpi-sub">${saleCnt} ใบเสร็จ</div></div>
-      <div class="kpi amber"><div class="kpi-icon">${ic("box")}</div><div class="kpi-label">ต้นทุนขาย</div><div class="kpi-value">${fmtMoney(cogs)}</div><div class="kpi-sub">บาท (COGS)</div></div>
-      <div class="kpi green ${saleProfit >= 0 ? "pos" : "neg"}"><div class="kpi-icon">${ic("chart")}</div><div class="kpi-label">กำไรร้าน</div><div class="kpi-value">${fmtMoney(saleProfit)}</div><div class="kpi-sub">${saleYr > 0 ? `Margin ${(saleProfit / saleYr * 100).toFixed(1)}%` : "ยังไม่มีขาย"}</div></div>
+      <div class="kpi amber"><div class="kpi-icon">${ic("box")}</div><div class="kpi-label">ต้นทุนขาย</div><div class="kpi-value">${cogs === null ? "ไม่ครบ" : fmtMoney(cogs)}</div><div class="kpi-sub">${cogs === null ? "ใบเก่าไม่มีต้นทุน ณ วันขาย" : "บาท (COGS)"}</div></div>
+      <div class="kpi green ${saleProfit !== null && saleProfit >= 0 ? "pos" : "neg"}"><div class="kpi-icon">${ic("chart")}</div><div class="kpi-label">กำไรร้าน</div><div class="kpi-value">${saleProfit === null ? "ไม่ครบ" : fmtMoney(saleProfit)}</div><div class="kpi-sub">${saleProfit === null ? "ยังสรุปกำไรทั้งหมดไม่ได้" : saleYr > 0 ? `Margin ${(saleProfit / saleYr * 100).toFixed(1)}%` : "ยังไม่มีขาย"}</div></div>
     </div>
 
     <div class="section-title">ยอดขายรายเดือน (พ.ศ. ${beYr})</div>
@@ -4017,11 +4265,11 @@ function renderEquipment() {
   const years = d => Math.max(0, daysBetween(d, todayISO()) / 365.25);
   return `
     ${moreBackHeader(`${T("equipmentTitle")} (${S.equipment.length})`, "ค่าเสื่อม ซ่อมบำรุง และมูลค่าเครื่องจักร", `<button class="btn btn-primary btn-sm" onclick="App.modalEquipment()">＋ เพิ่มอุปกรณ์</button>`, "equipmentTitle")}
-    <div class="muted" style="font-size:.72rem;margin-bottom:10px">${ic("info")} ติดตามค่าเสื่อมราคาและประวัติการซ่อมบำรุงของเครื่องจักรทุกชิ้น</div>
+    ${S.equipment.length ? "" : `<div class="empty"><div class="e-ico">${ic("truck")}</div><div class="e-title">ยังไม่มีอุปกรณ์</div><button class="btn btn-outline" onclick="App.modalEquipment()">${ic("plus")} เพิ่มอุปกรณ์ชิ้นแรก</button></div>`}
     <div class="card-grid">
     ${S.equipment.map(e => {
       const yrs = years(e.purchaseDate);
-      const dep = e.cost / e.lifespan;
+      const dep = e.lifespan > 0 ? e.cost / e.lifespan : 0;
       const value = Math.max(0, e.cost - dep * yrs);
       return `
       <div class="card">
@@ -4029,18 +4277,18 @@ function renderEquipment() {
           <div class="plot-emoji">${ic("truck")}</div>
           <div class="grow">
             <div class="plot-name">${esc(e.name)} <span class="badge badge-blue">${esc(e.type)}</span></div>
-            <div class="muted">ซื้อเมื่อ ${e.purchaseDate} · อายุใช้งาน ${yrs.toFixed(1)} ปี / ${e.lifespan} ปี</div>
+            <div class="muted">ซื้อ ${dateLabel(e.purchaseDate)} · ใช้งาน ${yrs.toFixed(1)} ปี</div>
           </div>
         </div>
         <div class="meta-grid">
           <div class="meta-box"><div class="lb">ราคาซื้อ</div><div class="vl">${fmtMoney(e.cost)} บาท</div></div>
           <div class="meta-box"><div class="lb">ค่าเสื่อม/ปี</div><div class="vl">${fmtMoney(dep)} บาท</div></div>
-          <div class="meta-box"><div class="lb">มูลค่าปัจจุบัน</div><div class="vl price-trend-up">${fmtMoney(value)} บาท</div></div>
-          <div class="meta-box"><div class="lb">สถานะ</div><div class="vl">${value > 0 ? "ใช้งานได้" : "หมดอายุ"}</div></div>
+          <div class="meta-box"><div class="lb">มูลค่าตามบัญชี</div><div class="vl">${fmtMoney(Math.round(value * 100) / 100)} บาท</div></div>
+          <div class="meta-box"><div class="lb">ค่าซ่อมสะสม</div><div class="vl">${fmtMoney((e.maintenance || []).reduce((n, m) => n + Number(m.cost || 0), 0))} บาท</div></div>
         </div>
         <div class="actions-row">
-          <button class="btn btn-sm btn-ghost">${ic("wrench")} บันทึกซ่อมบำรุง</button>
-          <button class="btn btn-sm btn-danger-soft" onclick="App.deleteEquipment('${e.id}')">${ic("trash")}</button>
+          <button class="btn btn-sm btn-outline" onclick="App.equipmentMaintenance('${e.id}')">${ic("wrench")} ซ่อมบำรุง (${(e.maintenance || []).length})</button>
+          <button class="btn btn-sm btn-danger-soft icon-action" onclick="App.deleteEquipment('${e.id}')" title="ลบอุปกรณ์" aria-label="ลบ ${esc(e.name)}">${ic("trash")}</button>
         </div>
       </div>`;
     }).join("")}
@@ -4124,19 +4372,20 @@ function renderIoT() {
           <div class="plot-name">${esc(plotName(sys.plotId))}</div>
           <div class="muted" style="font-size:.74rem">${esc(sys.name)}${sys.pumpName ? " · ปั๊ม: " + esc(sys.pumpName) : ""}${sys.valveCount ? " · " + sys.valveCount + " วาล์ว" : ""}${src ? " · " + esc(src.name) : ""}</div>
         </div>
-        <button class="switch ${sys.state === "on" ? "on" : ""}" onclick="App.toggleWater('${sys.id}')" aria-label="สลับเปิดปิด"></button>
+        <button class="switch ${sys.state === "on" ? "on" : ""}" role="switch" aria-checked="${sys.state === "on"}" ${App._waterPending?.has(sys.id) ? 'disabled aria-busy="true"' : ""} onclick="App.toggleWater('${sys.id}')" aria-label="ส่งคำสั่งเปิดปิด ${esc(sys.name)}" title="ส่งคำสั่งเปิดปิดระบบน้ำ"></button>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
         ${sys.auto && sys.auto.enabled ? `<span class="badge badge-blue">${ic("clock")} อัตโนมัติ ทุก ${sys.auto.everyDays} วัน · ${sys.auto.time} · ${sys.auto.minutes} นาที</span>` : `<span class="badge badge-gray">ให้น้ำด้วยมือ</span>`}
         ${due ? `<span class="badge badge-amber">${ic("droplet")} ถึงรอบให้น้ำแล้ว</span>` : next ? `<span class="badge badge-green">ครั้งถัดไป ${dateLabel(next)}</span>` : ""}
       </div>
+      <div class="muted" style="margin-top:8px">${App._waterPending?.has(sys.id) ? "กำลังส่งคำสั่ง..." : `คำสั่งล่าสุด: ${sys.state === "on" ? "เปิด" : "ปิด"}`} · ไม่ใช่สถานะยืนยันจากอุปกรณ์</div>
       <div class="muted" data-wnote="${esc(sys.id)}" style="font-size:.7rem;color:var(--amber-text);margin-top:4px;min-height:0"></div>
       <div class="row row-between mt-8">
         <div class="muted" style="font-size:.72rem">ให้น้ำล่าสุด: ${sys.lastWatered ? dateLabel(sys.lastWatered) : "ยังไม่เคย"}</div>
         <div style="display:flex;gap:6px">
           <button class="btn btn-sm btn-primary" onclick="App.modalWaterNow('${sys.id}')">${ic("droplet")} ให้น้ำตอนนี้</button>
           <button class="btn btn-sm btn-outline" onclick="App.modalWaterSystem('${sys.id}')">${ic("pencil")} ตั้งค่า</button>
-          <button class="btn btn-sm btn-danger-soft" onclick="App.delWaterSystem('${sys.id}')">${ic("trash")}</button>
+          <button class="btn btn-sm btn-danger-soft icon-action" onclick="App.delWaterSystem('${sys.id}')" aria-label="ลบระบบน้ำ ${esc(sys.name)}" title="ลบระบบน้ำ">${ic("trash")}</button>
         </div>
       </div>
     </div>`;
@@ -4152,8 +4401,8 @@ function renderIoT() {
           <div class="muted" style="font-size:.74rem">${esc(src.type || "—")}${src.capacityM3 ? " · ความจุ " + fmtNum(src.capacityM3) + " ลบ.ม." : ""}</div>
         </div>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-sm btn-outline" onclick="App.modalWaterSource('${src.id}')">${ic("pencil")}</button>
-          <button class="btn btn-sm btn-danger-soft" onclick="App.delWaterSource('${src.id}')">${ic("trash")}</button>
+          <button class="btn btn-sm btn-outline icon-action" onclick="App.modalWaterSource('${src.id}')" aria-label="แก้ไข ${esc(src.name)}" title="แก้ไขแหล่งน้ำ">${ic("pencil")}</button>
+          <button class="btn btn-sm btn-danger-soft icon-action" onclick="App.delWaterSource('${src.id}')" aria-label="ลบ ${esc(src.name)}" title="ลบแหล่งน้ำ">${ic("trash")}</button>
         </div>
       </div>
       <div class="mt-8">
@@ -4172,20 +4421,12 @@ function renderIoT() {
         <div class="bold" style="font-size:.84rem">${esc(sysName(l.systemId))}</div>
         <div class="muted" style="font-size:.7rem">${dateLabel(l.date)} ${l.time || ""} · ${l.minutes || 0} นาที${l.m3 ? " · " + l.m3 + " ลบ.ม." : ""}${l.note ? " · " + esc(l.note) : ""}</div>
       </div>
-      <button class="btn btn-sm btn-danger-soft" onclick="App.delWaterLog('${l.id}')">${ic("trash")}</button>
+      <button class="btn btn-sm btn-danger-soft icon-action" onclick="App.delWaterLog('${l.id}')" aria-label="ลบบันทึกให้น้ำ ${dateLabel(l.date)}" title="ลบบันทึกให้น้ำ">${ic("trash")}</button>
     </div>`).join("");
 
   return `
     ${moreBackHeader(T("iotTitle"), "วาล์ว ตารางให้น้ำ และอุปกรณ์ IoT", `<button class="btn btn-outline btn-sm" onclick="App.modalWaterSystem()">${ic("plus")} เพิ่มระบบน้ำ</button>`, "iotTitle")}
-    <div class="card" style="background:linear-gradient(135deg,#1d4ed8,#172554);color:#fff;border:none">
-      <div class="row">
-        <span style="font-size:2rem;color:#fff">${ic("droplet")}</span>
-        <div class="grow">
-          <div class="bold" style="font-size:1rem">ระบบน้ำอัตโนมัติรายแปลง</div>
-          <div style="font-size:.76rem;opacity:.85">ตั้งตารางให้น้ำแยกแต่ละแปลง · บันทึกทุกครั้งที่ให้น้ำ · เห็นภาพรวมในหน้าเดียว</div>
-        </div>
-      </div>
-    </div>
+    <dl class="stock-balance water-summary"><div><dt>ระบบน้ำ</dt><dd>${W.systems.length}</dd></div><div><dt>ตารางอัตโนมัติ</dt><dd>${W.systems.filter(x => x.auto?.enabled).length}</dd></div><div><dt>แหล่งน้ำ</dt><dd>${W.sources.length}</dd></div></dl>
 
     <div class="row row-between iot-section-head">
       <div class="bold" style="font-size:1.02rem">${T("iotTitle")} (${W.systems.length})</div>
@@ -4226,16 +4467,26 @@ App.waterPullStatus = async function () {
 };
 
 /* สลับสวิตช์วาล์ว — สั่งเซิร์ฟเวอร์จริง (อุปกรณ์ ESP32 ดึงคำสั่งนี้ไปทำงาน) + จำลองในเว็บ */
-App.toggleWater = function (id) {
+App.toggleWater = async function (id) {
   const sys = (S.water.systems || []).find(x => x.id === id);
   if (!sys) return;
-  sys.state = sys.state === "on" ? "off" : "on";
-  saveState(S);
-  render();
-  toast(sys.state === "on" ? "สั่งเปิดวาล์ว → เซิร์ฟเวอร์" : "สั่งปิดวาล์ว → เซิร์ฟเวอร์");
-  if (typeof authCall === "function" && typeof Auth !== "undefined" && Auth.session) {
-    authCall("water_set", { token: Auth.session.token, systemId: id, cmd: sys.state, minutes: sys.auto && sys.auto.enabled ? sys.auto.minutes : 30 })
-      .then(r => { if (!r.ok) toast("⚠️ สั่งเซิร์ฟเวอร์ไม่สำเร็จ: " + (r.error || "") + " (กดซิงก์ระบบน้ำก่อน)"); });
+  if (!navigator.onLine || typeof Auth === "undefined" || !Auth.session) { toast("ต้องเชื่อมต่ออินเทอร์เน็ตและเข้าสู่ระบบก่อนสั่งน้ำ"); return; }
+  App._waterPending = App._waterPending || new Set();
+  if (App._waterPending.has(id)) return;
+  const token = Auth.session.token;
+  const next = sys.state === "on" ? "off" : "on";
+  App._waterPending.add(id); render();
+  try {
+    const r = await authCall("water_set", {token, systemId:id, cmd:next, minutes:sys.auto?.enabled ? sys.auto.minutes : 30});
+    if (Auth.session?.token !== token || !S.water.systems.includes(sys)) return;
+    if (!r.ok) throw new Error(r.error || "เซิร์ฟเวอร์ไม่รับคำสั่ง");
+    sys.state = next;
+    saveState(S);
+    toast("เซิร์ฟเวอร์รับคำสั่งแล้ว · รออุปกรณ์ดำเนินการ");
+  } catch (e) {
+    toast("ส่งคำสั่งไม่สำเร็จ: " + e.message);
+  } finally {
+    App._waterPending.delete(id); render();
   }
 };
 
@@ -5437,7 +5688,7 @@ App.clearAppCache = async function () {
    ล้มเหลว (ออฟไลน์/ยังไม่ล็อกอิน/R2 ยังไม่พร้อม) คืน null ให้ผู้เรียก fallback เก็บ base64 เดิม */
 App.uploadPhotoR2 = async function (file, maxSide) {
   try {
-    if (typeof Auth === "undefined" || !Auth.session) return null;
+    if (typeof Auth === "undefined" || !Auth.session || navigator.onLine === false) return null;
     const dataUrl = await downscaleImage(file, maxSide || 960, 0.8);
     const r = await authCall("photo_put", { token: Auth.session.token, data: dataUrl.split(",")[1], contentType: "image/jpeg" });
     if (!r || !r.ok || !r.data || !r.data.url) return null;
@@ -5489,7 +5740,7 @@ function renderSettings() {
         </div>
       </div>
       <div class="divider"></div>
-      <div class="row row-between"><span class="muted">ข้อมูลทั้งหมด</span><span class="small bold">บันทึกในเบราว์เซอร์ (LocalStorage)</span></div>
+      <div class="row row-between"><span class="muted">ข้อมูล</span><span class="small bold">บนเครื่องและคลาวด์ที่ซิงก์แล้ว</span></div>
       <div class="row row-between mt-8"><span class="muted">เวอร์ชัน</span><span class="small bold">v${S.version}</span></div>
     </div>
     ${typeof Auth !== "undefined" ? Auth.cardHtml() : ""}
@@ -5501,7 +5752,7 @@ function renderSettings() {
       </summary>
     <div class="section-title">${ic("save")} สำรองข้อมูล (Export / Import)</div>
     <div class="card">
-      <div class="muted" style="font-size:.76rem;margin-bottom:10px">ดาวน์โหลดข้อมูลทั้งหมด (งาน / สต็อก / แปลง / ค่าใช้จ่าย) เป็นไฟล์ .json เพื่อสำรอง หรือนำเข้าไฟล์สำรองกลับมาใช้งาน — ข้อมูลบันทึกในเบราว์เซอร์เท่านั้น</div>
+      <div class="muted" style="font-size:.76rem;margin-bottom:10px">ไฟล์สำรอง .json รวมงาน สต็อก แปลง และค่าใช้จ่ายจากข้อมูลบนเครื่องนี้</div>
       <button class="btn btn-primary btn-block" onclick="App.exportData()">${ic("download")} ดาวน์โหลดข้อมูล (.json)</button>
       <button class="btn btn-ghost btn-block mt-8" onclick="App.importData()">${ic("upload")} นำเข้าข้อมูล (.json)</button>
       <button class="btn btn-ghost btn-block mt-8" onclick="App.importMerge()">${ic("box")} ผสานข้อมูลจากไฟล์ (เพิ่มเข้าของเดิม)</button>
@@ -5588,7 +5839,7 @@ function renderSettings() {
     </div>
     <button class="btn btn-danger-soft btn-block mt-8" onclick="App.resetData()">${ic("refresh")} รีเซ็ตข้อมูลทั้งหมด</button>
     </details>
-    <div class="muted mt-8" style="font-size:.7rem;text-align:center">สภาพอากาศรายแปลงจาก Open-Meteo (ECMWF) — ฟรี ไม่ต้องใช้คีย์ · IoT จริงในเวอร์ชันถัดไป</div>`;
+    <div class="muted mt-8" style="font-size:.78rem;text-align:center">สภาพอากาศจาก Open-Meteo · ข้อมูลพยากรณ์ตามพิกัดแปลง</div>`;
 }
 /* เครื่องมือแก้ไข (ใช้ทั้งในหน้าตั้งค่า และ modal จากปุ่ม ✏️ แก้ไขหัวเว็บ) */
 function adminToolsHtml() {
@@ -6069,6 +6320,15 @@ function modalShouldLockBackdrop(modalEl) {
     ".lark-photo-conflict"
   ].join(","));
 }
+function labelFormFields(root) {
+  root.querySelectorAll('.field').forEach(field => {
+    const label = field.querySelector('label');
+    const input = field.querySelector('input:not([type="hidden"]), select, textarea');
+    if (!label || !input || label.contains(input)) return;
+    if (!input.id) input.id = 'field_' + uid();
+    label.htmlFor = input.id;
+  });
+}
 function openModal(html) {
   /* ปิดแผงแจ้งเตือนเมื่อเปิด modal (กดแถวงานในแผง → ดูรายละเอียด) */
   const np = document.getElementById("notifPanel");
@@ -6094,11 +6354,7 @@ function openModal(html) {
     modalEl.setAttribute("aria-modal", "true");
     const heading = modalEl.querySelector("h3");
     if (heading) { heading.id = "activeModalTitle"; modalEl.setAttribute("aria-labelledby", heading.id); }
-    modalEl.querySelectorAll(".field").forEach(field => {
-      const label = field.querySelector("label");
-      const input = field.querySelector("input[id], select[id], textarea[id]");
-      if (label && input && !label.htmlFor) label.htmlFor = input.id;
-    });
+    labelFormFields(modalEl);
     modalEl.addEventListener("keydown", event => {
       if (event.key !== "Tab") return;
       const controls = [...modalEl.querySelectorAll('button, input, select, textarea, a[href], [tabindex="0"]')].filter(el => !el.disabled && el.getClientRects().length);
@@ -6391,6 +6647,46 @@ App.pickPlaybook = function (key) {
   if (inp) inp.value = key;
   App._ppKey = null; /* บังคับวาดใหม่ */
   App.planPreviewRefresh();
+};
+App.equipmentMaintenance = function (id, editId) {
+  const e = S.equipment.find(x => x.id === id);
+  if (!e) return;
+  const m = (e.maintenance || []).find(x => x.id === editId) || {};
+  openModal(`<button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic("wrench")} ซ่อมบำรุง</h3><div class="modal-sub">${esc(e.name)}</div>
+    <form onsubmit="return App.saveEquipmentMaintenance(event,'${id}','${editId || ""}')">
+      <div class="form-row-2"><div class="field"><label>วันที่ซ่อม *</label><input id="em_date" type="date" value="${m.date || todayISO()}" max="${todayISO()}" required></div>
+      <div class="field"><label>ค่าใช้จ่าย (บาท) *</label><input id="em_cost" type="number" min="0" step="0.01" value="${m.cost ?? ""}" required></div></div>
+      <div class="field"><label>รายละเอียด *</label><textarea id="em_note" rows="3" required>${esc(m.note || "")}</textarea></div>
+      <div class="modal-actions"><button type="button" class="btn btn-ghost" onclick="App.closeModal()">ปิด</button><button type="submit" class="btn btn-primary">${ic("save")} ${editId ? "บันทึกการแก้ไข" : "บันทึกซ่อมบำรุง"}</button></div>
+    </form>
+    <h4>ประวัติซ่อมบำรุง</h4>
+    ${(e.maintenance || []).slice().sort((a,b) => b.date.localeCompare(a.date)).map(x => `<div class="row-line"><div class="grow"><b>${esc(x.note)}</b><div class="muted">${dateLabel(x.date)} · ${fmtMoney(x.cost)} บาท</div></div>
+      <button class="btn icon-action" title="แก้ไขรายการซ่อม" aria-label="แก้ไข ${esc(x.note)}" onclick="App.equipmentMaintenance('${id}','${x.id}')">${ic("pencil")}</button>
+      <button class="btn icon-action btn-danger-soft" title="ลบรายการซ่อม" aria-label="ลบ ${esc(x.note)}" onclick="App.deleteEquipmentMaintenance('${id}','${x.id}')">${ic("trash")}</button></div>`).join("") || '<div class="empty compact-empty">ยังไม่มีประวัติซ่อมบำรุง</div>'}`);
+};
+App.saveEquipmentMaintenance = function (event, id, editId) {
+  event.preventDefault();
+  const e = S.equipment.find(x => x.id === id);
+  if (!e) return false;
+  const date = document.getElementById("em_date").value;
+  const cost = Number(document.getElementById("em_cost").value);
+  const note = document.getElementById("em_note").value.trim();
+  if (!date || date > todayISO() || !Number.isFinite(cost) || cost < 0 || !note) { toast("ตรวจวันที่ ค่าใช้จ่าย และรายละเอียดให้ครบ"); return false; }
+  e.maintenance = e.maintenance || [];
+  const m = e.maintenance.find(x => x.id === editId);
+  const data = {date, cost, note, updatedAt: Date.now()};
+  if (m) Object.assign(m, data); else e.maintenance.push({id:uid(), ...data});
+  saveState(S); render(); App.equipmentMaintenance(id); toast("บันทึกซ่อมบำรุงแล้ว");
+  return false;
+};
+App.deleteEquipmentMaintenance = function (id, entryId) {
+  App.confirm("ลบรายการซ่อมบำรุง?", "", () => {
+    const e = S.equipment.find(x => x.id === id);
+    if (!e) return;
+    e.maintenance = (e.maintenance || []).filter(x => x.id !== entryId);
+    saveState(S); render(); App.equipmentMaintenance(id);
+  });
 };
 App.openPlannerFilter = function (key) {
   plannerFilter = key || "today";
@@ -6697,10 +6993,10 @@ App.modalDeduct = function (id) {
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>ตัดสต็อก — ${esc(item.name)}</h3>
-    <div class="modal-sub">คงเหลือ ${fmtNum(item.qty)} ${esc(item.unit)} · ต้นทุน ${fmtMoney(item.avgCost)} บาท/${esc(item.unit)}</div>
+    <div class="modal-sub">พร้อมตัด ${fmtNum(stockSealedAvailable(S, id))} ${esc(item.unit)} · จองไว้ ${fmtNum(stockReserved(S, id))} ${esc(item.unit)}</div>
     <form onsubmit="return App.submitDeduct(event, '${id}')">
-      <div class="field"><label>จำนวนที่ตัด * (${esc(item.unit)})</label><input id="d_qty" type="number" min="1" max="${item.qty}" required oninput="App.stockDeductLimit(this, '${id}')">
-        <div class="stock-limit" id="dLimit">${ic("info")} ตัดได้ไม่เกิน ${fmtNum(item.qty)} ${esc(item.unit)}</div>
+      <div class="field"><label>จำนวนที่ตัด * (${esc(item.unit)})</label><input id="d_qty" type="number" min="1" step="1" max="${stockSealedAvailable(S, id)}" required oninput="App.stockDeductLimit(this, '${id}')">
+        <div class="stock-limit" id="dLimit">${ic("info")} ตัดได้ไม่เกิน ${fmtNum(stockSealedAvailable(S, id))} ${esc(item.unit)}</div>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
@@ -6711,7 +7007,7 @@ App.modalDeduct = function (id) {
 App.stockDeductLimit = function (input, id) {
   const item = stockById(S, id);
   if (!input || !item) return true;
-  const max = Number(item.qty) || 0;
+  const max = stockSealedAvailable(S, id);
   const qty = Number(input.value) || 0;
   const over = qty > max;
   const msg = over ? `จำนวนเกิน — ตัดได้ไม่เกิน ${fmtNum(max)} ${item.unit}` : `ตัดได้ไม่เกิน ${fmtNum(max)} ${item.unit}`;
@@ -6735,7 +7031,7 @@ App.submitDeduct = function (e, id) {
     return false;
   }
   const qty = Number(input.value);
-  deductStock(S, id, qty);
+  try { deductStock(S, id, qty); } catch (err) { setModalFieldError(input, err.message); return false; }
   saveState(S);
   closeModal();
   render();
@@ -7045,7 +7341,7 @@ App.viewTask = function (id) {
   const costItems = (t.costItems && t.costItems.length ? t.costItems : [])
     .filter(it => it.name || it.stockId || it.qty > 0 || it.totalCost > 0);
   const costListHtml = costItems.length ? `
-    <div class="td-cost-title">${ic("dollar")} ค่าใช้จ่าย / ตัดสต็อก (${costItems.length} รายการ)</div>
+    <div class="td-cost-title">${ic("dollar")} ${t.status === "done" ? "ค่าใช้จ่ายและวัสดุ" : "งบประมาณและวัสดุ"} (${costItems.length} รายการ)</div>
     <div class="td-cost-list">
       ${costItems.map(it => {
         const si = it.stockId ? stockById(S, it.stockId) : null;
@@ -7125,6 +7421,7 @@ App.gotoCalendar = function (iso) {
   }
   closeModal();
   route.view = "planner";
+  plannerCalendarOpen = true;
   render();
 };
 /* แก้ไขงาน — โหลดค่าปัจจุบันใส่ฟอร์ม */
@@ -7143,8 +7440,8 @@ let taskDoneWaterSessions = []; // ผลรอบรดน้ำใน modal �
 function taskOriginalStockQty(stockId) {
   if (!taskEditingId || !stockId) return 0;
   const t = S.tasks.find(x => x.id === taskEditingId);
-  if (!t) return 0;
-  const rows = (t.costItems && t.costItems.length)
+  if (!hasTaskStockUse(t)) return 0;
+  const rows = t.stockLog?.length ? t.stockLog : (t.costItems && t.costItems.length)
     ? t.costItems
     : (t.stockId ? [{ stockId: t.stockId, qty: t.qty }] : []);
   return rndQty(rows
@@ -7154,7 +7451,7 @@ function taskOriginalStockQty(stockId) {
 function costEditableAvail(stockId, rowIndex) {
   const st = stockById(S, stockId);
   if (!st) return 0;
-  const actual = rndQty((Number(st.qty) || 0) + (Number(st.openQty) || 0));
+  const actual = stockAvailable(S, stockId, taskEditingId);
   const original = taskOriginalStockQty(stockId);
   const usedByOtherRows = taskCostItems.reduce((sum, row, idx) => {
     if (idx === rowIndex || !row || row.stockId !== stockId) return sum;
@@ -7182,7 +7479,7 @@ function stockPickItemsHtml(i) {
     const original = taskOriginalStockQty(x.id);
     const sub = original > 0
       ? `แก้ได้ ${fmtNum(avail)} ${esc(x.unit)} (รวมของเดิม ${fmtNum(original)})`
-      : (open > 0 ? `หลัก ${fmtNum(x.qty)} + เหลือเปิด ${fmtNum(open)} ${esc(x.unit)}` : `คงเหลือ ${fmtNum(x.qty)} ${esc(x.unit)}`);
+      : `พร้อมใช้ ${fmtNum(avail)} ${esc(x.unit)} · จอง ${fmtNum(stockReserved(S, x.id, taskEditingId))}`;
     return `<button type="button" class="stock-pick-item ${sel ? "selected" : ""} ${out ? "out" : ""}" onclick="App.costSet(${i}, 'stockId', '${x.id}')" ${sel ? `title="กดอีกครั้งเพื่อเอารายการนี้ออก"` : ""}>
       <span class="sp-name">${esc(x.name)}</span>${sel ? `<span class="sp-x">✕</span>` : (out ? `<span class="sp-out">ยาหมด</span>` : `<span class="sp-sub">${sub}</span>`)}
     </button>`;
@@ -7312,6 +7609,7 @@ App.costRender = function () {
       </div>
     </div>`;
   }).join("");
+  labelFormFields(list);
   App.costSum();
   taskCostItems.forEach((it, i) => {
     checkStockWarn(i, it, document.querySelector(`[data-ci="${i}"]`));
@@ -7740,7 +8038,7 @@ App.waterSessionRemove = function (i) {
 };
 App.waterSessionsRender = function () {
   const box = document.getElementById("waterSessionsMount");
-  if (box) box.innerHTML = waterSessionsHtml();
+  if (box) { box.innerHTML = waterSessionsHtml(); labelFormFields(box); }
 };
 App.waterFillZones = function (mode) {
   const plotId = (document.getElementById("t_plot") || {}).value || "";
@@ -7796,7 +8094,7 @@ App.modalTask = function (date, preset) {
   if (!editing) taskEditReturnToDetail = false;
   const type = editing ? editing.type : (preset.type || "work");
   const title = editing ? editing.title : (preset.title || "");
-  const d = editing ? editing.date : (date || todayISO());
+  const d = editing ? taskRecordDate(editing) : (date || todayISO());
   const status = editing ? (["done", "failed"].includes(editing.status) ? editing.status : "planned") : (preset.status === "done" ? "done" : "planned");
   const hasCost = editing ? (editing.cost > 0 || !!editing.stockId || (editing.costItems || []).length > 0) : ["spray", "fertilize", "expense"].includes(type);
   const hasHarvest = editing ? (editing.revenue > 0 || editing.harvestQty > 0 || !!editing.finishCycle) : type === "harvest";
@@ -7838,7 +8136,7 @@ App.modalTask = function (date, preset) {
         <div id="waterSessionsMount">${waterSessionsHtml()}</div>
       </div>
 
-      <label class="option-box"><input type="checkbox" id="t_usecost" onchange="App.taskToggleCost()" ${hasCost ? "checked" : ""}><span>${ic("dollar")} บันทึกค่าใช้จ่าย / ตัดสต็อก</span></label>
+      <label class="option-box"><input type="checkbox" id="t_usecost" onchange="App.taskToggleCost()" ${hasCost ? "checked" : ""}><span>${ic("dollar")} ค่าใช้จ่ายและวัสดุ</span></label>
       <div id="costBox" class="nested-fields" style="display:${hasCost ? "" : "none"}">
         <div id="costItemsList"></div>
         <button type="button" class="btn btn-sm btn-ghost" onclick="App.costAdd()">${ic("plus")} เพิ่มรายการ</button>
@@ -8005,7 +8303,7 @@ App.submitTask = function (e, editId) {
     const st = stockById(S, stockId);
     if (!st) continue;
     /* ปัดเป็น 4 ตำแหน่งกันเลขทศนิยมลอย — กรอก 40.02 พอดีกับของเหลือ จะได้ไม่โดนบล็อก */
-    const avail = rndQty((Number(st.qty) || 0) + (Number(st.openQty) || 0) + taskOriginalStockQty(stockId));
+    const avail = rndQty(stockAvailable(S, stockId, taskEditingId) + taskOriginalStockQty(stockId));
     if (rndQty(stockNeeds[stockId]) - avail > 1e-9) {
       toast(`"${st.name}" ใช้ได้ไม่เกิน ${fmtNum(avail)} ${st.unit} — กรอกจำนวนใหม่`);
       return false;
@@ -8036,8 +8334,8 @@ App.submitTask = function (e, editId) {
   const data = {
     title,
     type: tType,
-    date: document.getElementById("t_date").value,
-    manualDate: existing ? !!existing.manualDate || existing.date !== document.getElementById("t_date").value : false,
+    date: existing && document.getElementById("t_status").value !== "planned" ? existing.date : document.getElementById("t_date").value,
+    manualDate: existing ? !!existing.manualDate || (document.getElementById("t_status").value === "planned" && existing.date !== document.getElementById("t_date").value) : false,
     status: document.getElementById("t_status").value,
     cycleId: tCycle,
     plotId: tPlot,
@@ -8056,7 +8354,7 @@ App.submitTask = function (e, editId) {
     photos: taskFormPhotos.slice(),
     donePhotos: existing ? taskDonePhotosOf(existing).slice() : [],
     doneNote: existing ? (existing.doneNote || "") : "",
-    doneDate: existing ? (existing.doneDate || "") : "",
+    doneDate: document.getElementById("t_status").value !== "planned" ? document.getElementById("t_date").value : (existing?.doneDate || ""),
     doneTime: existing ? (existing.doneTime || "") : "",
     weatherSnapshot: existing ? (existing.weatherSnapshot || null) : null
   };
@@ -8090,10 +8388,8 @@ App.submitTask = function (e, editId) {
   /* บันทึกงาน (ใหม่ หรือแก้ไข) — คืนค่าและปิด modal */
   const commit = (restocked) => {
     // ถ้าติ๊ก "จบการปลูกรอบนี้" -> ปิดรอบทันที
-    if (data.finishCycle && data.cycleId && data.status === "done") {
-      const c = cycleById(S, data.cycleId);
-      if (c) c.status = "done";
-    }
+    const saved = S.tasks.find(t => t.id === savedTaskId);
+    if (saved) closeCycleForTask(S, saved);
     saveState(S);
     closeModal();
     render();
@@ -8112,16 +8408,23 @@ App.submitTask = function (e, editId) {
       const c = cycleById(S, data.cycleId);
       if (c) data.plotId = c.plotId;
     }
-    const oldUsed = (existing.stockLog && existing.stockLog.length) ? true : false;
+    const oldUsed = hasTaskStockUse(existing);
     const newUsed = data.costItems.some(it => it.stockId && it.qty > 0) || (data.stockId && data.qty > 0);
     /* กรณีแก้ไขงานที่เคยใช้สต็อก (หรือเพิ่มการใช้ใหม่) → ถามว่าของใช้จริงหรือยัง */
-    if (oldUsed || newUsed) {
+    const saveEdit = stockAction => {
+      try { updateTask(S, existing.id, data, stockAction); }
+      catch (e) { toast(e.message); return; }
+      delete S.notifDismissed[existing.id];
+      toast(data.status === "planned" && existing.stockState === "reserved" ? "บันทึกแผนแล้ว · จองสต็อกไว้ ยังไม่ตัดของ" : "บันทึกการแก้ไขแล้ว");
+      commit();
+    };
+    if (oldUsed) {
       const changed = JSON.stringify((existing.costItems || []).map(i => [i.stockId, i.qty]))
         !== JSON.stringify(data.costItems.map(i => [i.stockId, i.qty]));
       if (oldUsed && !newUsed) {
         // เคยใช้สต็อกแต่ตอนแก้ไขเอาออก → ถามว่าจะคืนไหม
         confirmChoice("ได้ใช้ของจากสต็อกแล้วหรือยัง?",
-          `งานนี้เคยเบิกของจากสต็อก ${existing.costItems.filter(i => i.stockId).length} รายการ ตอนนี้คุณนำรายการสต็อกออก — ถ้ายังไม่ได้ใช้จริง ระบบจะคืนของเข้าสต็อก`,
+          `งานนี้เคยเบิกของจากสต็อก ${taskStockItems(existing).length} รายการ ตอนนี้คุณนำรายการสต็อกออก — ถ้ายังไม่ได้ใช้จริง ระบบจะคืนของเข้าสต็อก`,
           [
             { label: "ยังไม่ได้ใช้ — คืนสต็อก", cls: "btn-primary", value: "restock" },
             { label: "ใช้แล้ว", cls: "btn-ghost", value: "keep" },
@@ -8129,14 +8432,7 @@ App.submitTask = function (e, editId) {
           ],
           v => {
             if (v === "cancel") return;
-            if (v === "restock") restockTask(S, existing);
-            Object.assign(existing, data);
-            existing.costItems = [];
-            existing.cost = 0; existing.stockId = null; existing.qty = 0; existing.stockLog = [];
-            existing.updatedAt = Date.now();
-            delete S.notifDismissed[existing.id]; // แก้ไขงาน → แจ้งเตือนใหม่
-            toast(v === "restock" ? "บันทึกแล้ว · คืนสต็อกแล้ว" : "บันทึกแล้ว (ไม่คืนสต็อก)");
-            commit();
+            saveEdit(v === "restock" ? "replace" : "keep");
           });
         return false;
       }
@@ -8144,38 +8440,26 @@ App.submitTask = function (e, editId) {
         // เปลี่ยนจำนวน/รายการสต็อก → ถามว่าจะคืนแล้วตัดใหม่ หรือถือว่าใช้ไปแล้ว
         const diff = describeStockDiff(existing, data);
         confirmChoice("ใช้ของจากสต็อกแล้วหรือยัง?",
-          `มีการแก้ไขการใช้สต็อก (${diff}) — ถ้ายังไม่ได้ใช้จริง ระบบจะคืนของเดิมแล้วเบิกใหม่ตามจำนวนที่แก้`,
+          `มีการแก้ไขการใช้สต็อก (${diff}) — ถ้ายังไม่ได้ใช้จริง จะคืนของเดิมและ${data.status === "done" ? "ตัดยอดใหม่" : "จองตามแผนใหม่"}`,
           [
-            { label: "ยังไม่ได้ใช้ — คืนแล้วเบิกใหม่", cls: "btn-primary", value: "restock" },
+            { label: "ยังไม่ได้ใช้ — ปรับยอดใหม่", cls: "btn-primary", value: "restock" },
             { label: "ใช้แล้ว (ไม่คืน)", cls: "btn-ghost", value: "keep" },
             { label: "ยกเลิก", cls: "btn-danger-soft", value: "cancel" }
           ],
           v => {
             if (v === "cancel") return;
-            if (v === "restock") restockTask(S, existing);
-            Object.assign(existing, data);
-            existing.updatedAt = Date.now();
-            delete S.notifDismissed[existing.id]; // แก้ไขงาน → แจ้งเตือนใหม่
-            if (v === "restock") {
-              applyStockUse(S, existing);
-              toast("บันทึกแล้ว · คืนของเดิมแล้วเบิกใหม่ตามจำนวนที่แก้");
-            } else {
-              toast("บันทึกแล้ว (ถือว่าใช้ของจริงแล้ว)");
-            }
-            commit();
+            saveEdit(v === "restock" ? "replace" : "keep");
           });
         return false;
       }
     }
-    Object.assign(existing, data);
-    existing.updatedAt = Date.now();
-    delete S.notifDismissed[existing.id]; // แก้ไขงาน → แจ้งเตือนใหม่
-    toast("บันทึกการแก้ไขแล้ว");
-    commit();
+    saveEdit(oldUsed ? "keep" : "replace");
   } else {
-    const created = addTask(S, data);
+    let created;
+    try { created = addTask(S, data); } catch (e) { toast(e.message); return false; }
     savedTaskId = created ? created.id : "";
-    const msg = data.revenue > 0 ? `บันทึกกิจกรรมแล้ว · รายรับ ${fmtMoney(data.revenue)} บาท`
+    const msg = data.status === "planned" ? "บันทึกแผนแล้ว · จองสต็อกไว้ ยังไม่ตัดของ"
+      : data.revenue > 0 ? `บันทึกกิจกรรมแล้ว · รายรับ ${fmtMoney(data.revenue)} บาท`
       : data.cost > 0 ? "บันทึกกิจกรรมแล้ว · ตัดสต็อก/บันทึกต้นทุนแล้ว"
       : "บันทึกกิจกรรมแล้ว";
     toast(msg);
@@ -8353,7 +8637,25 @@ App.tourEnd = function () {
 
 /* ---------------- charts wiring ---------------- */
 function drawCharts() {
+  if (trialChartObserver) { trialChartObserver.disconnect(); trialChartObserver=null; }
   if (route.view === "plots" && route.tab === "trials") {
+    if (typeof ResizeObserver !== 'undefined') {
+      trialChartObserver=new ResizeObserver(entries=>entries.forEach(({target:el})=>{
+        const tr=trialById(S,el.dataset.trialSeries);
+        if(tr && el.isConnected) { const data=trialComparisonData(tr); Charts.series(el,data.dates,data.series,{unit:data.metric.unit}); }
+      }));
+    }
+    document.querySelectorAll('[data-trial-series]').forEach(el => {
+      const tr=trialById(S,el.dataset.trialSeries);
+      if(tr) { const data=trialComparisonData(tr); Charts.series(el,data.dates,data.series,{unit:data.metric.unit}); }
+      trialChartObserver?.observe(el);
+    });
+    document.querySelectorAll('[data-trial-snapshot]').forEach(el => {
+      const tr=trialById(S,el.dataset.trialSnapshot);
+      if(tr) { const data=trialComparisonData(tr), date=trialSnapshotDate(tr,data);
+        Charts.bars(el,data.series.map(s=>({label:esc(s.label),value:s.points.find(p=>p.date===date)?.value,color:s.color})).filter(p=>p.value !== null && p.value !== undefined));
+      }
+    });
     document.querySelectorAll("[data-trial-mean]").forEach(el => {
       const tr = trialById(S, el.dataset.trialMean);
       const items = tr ? trialMeanChartItems(tr) : [];
@@ -8426,6 +8728,16 @@ try {
     if (saved.trialId) route.trialId = saved.trialId;
     if (saved.trialMetricId) route.trialMetricId = saved.trialMetricId;
     if (saved.trialTreatmentId) route.trialTreatmentId = saved.trialTreatmentId;
+    if (['record','compare','history','plan'].includes(saved.trialSection)) route.trialSection = saved.trialSection;
+    if (trialValidDate(saved.trialRangeStart) && saved.trialRangeStart <= todayISO()) route.trialRangeStart=saved.trialRangeStart;
+    if (trialValidDate(saved.trialRangeEnd) && saved.trialRangeEnd <= todayISO()) route.trialRangeEnd=saved.trialRangeEnd;
+    if (trialValidDate(saved.trialSnapshotDate)) route.trialSnapshotDate=saved.trialSnapshotDate;
+    if (trialValidDate(saved.trialBaselineDate)) route.trialBaselineDate=saved.trialBaselineDate;
+    if (typeof saved.trialHistoryMetric === 'string') route.trialHistoryMetric=saved.trialHistoryMetric;
+    if (Array.isArray(saved.trialHiddenTreatments)) route.trialHiddenTreatments=saved.trialHiddenTreatments.filter(id=>typeof id==='string');
+    route.trialPhotosOnly=saved.trialPhotosOnly===true;
+    if (route.trialRangeStart && route.trialRangeEnd && route.trialRangeStart > route.trialRangeEnd) { route.trialRangeStart=''; route.trialRangeEnd=''; }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(saved.trialDate || '') && saved.trialDate <= todayISO()) route.trialDate = saved.trialDate;
     if (saved.year) route.year = saved.year;
   }
 } catch (e) {}

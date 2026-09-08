@@ -566,6 +566,7 @@ function ensureDefaults(s) {
   s.notifDismissed = s.notifDismissed || {};
   /* ประวัติการขายสินค้า (ใบเสร็จรับเงิน) */
   s.sales = s.sales || [];
+  s.saleSequence = lastSaleNumber(s);
   /* แปลงทดลอง / งานวิจัยภาคสนาม */
   s.trials = Array.isArray(s.trials) ? s.trials : [];
   s.trials.forEach(tr => {
@@ -818,6 +819,10 @@ function totalStockValue(s) {
 function doneTasks(s) {
   return s.tasks.filter(t => t.status === "done");
 }
+function taskRecordDate(t) {
+  return String((t.status === "done" || t.status === "failed")
+    ? (t.doneDate || t.weatherSnapshot?.targetDate || t.date || "") : (t.date || "")).slice(0, 10);
+}
 
 /* คำนวณรายรับ/ต้นทุนจากงานตามเงื่อนไข */
 function taskFinance(s, filterFn) {
@@ -844,7 +849,7 @@ function cycleStageFinance(s, year) {
   ];
   const cycles = new Map((s.cycles || []).map(c => [c.id, c]));
   const counted = new Set();
-  doneTasks(s).filter(t => String(t.date).startsWith(String(year))).forEach(t => {
+  doneTasks(s).filter(t => taskRecordDate(t).startsWith(String(year))).forEach(t => {
     const cycle = cycles.get(t.cycleId);
     const group = groups[cycle ? (cycle.status === "active" ? 0 : 1) : 2];
     group.cost += Number(t.cost) || 0;
@@ -856,13 +861,13 @@ function cycleStageFinance(s, year) {
 /* กำไรสุทธิของปี (YTD) — คำนวณจากงานจริง (year เป็น CE เช่น 2026; ไม่ระบุ = ปีปัจจุบัน) */
 function ytdFinance(s, year) {
   const yr = String(year || todayISO().slice(0, 4));
-  const fin = taskFinance(s, t => t.date.startsWith(yr));
+  const fin = taskFinance(s, t => taskRecordDate(t).startsWith(yr));
   return { ...fin, margin: fin.revenue > 0 ? ((fin.revenue - fin.cost) / fin.revenue) * 100 : 0 };
 }
 /* ปีทั้งหมดที่มีข้อมูล (งาน + ขาย) + ปีปัจจุบัน — ใช้สร้างตัวเลือกปีในหน้าการวิเคราะห์ */
 function analyticsYears(s) {
   const set = new Set([Number(todayISO().slice(0, 4))]);
-  (s.tasks || []).forEach(t => { if (t.date && String(t.date).length >= 4) set.add(Number(String(t.date).slice(0, 4))); });
+  (s.tasks || []).forEach(t => { const d = taskRecordDate(t); if (d) set.add(Number(d.slice(0, 4))); });
   (s.sales || []).forEach(x => { if (x.date && String(x.date).length >= 4) set.add(Number(String(x.date).slice(0, 4))); });
   return [...set].sort((a, b) => a - b);
 }
@@ -871,7 +876,7 @@ function monthlySeries(s, year) {
   const arr = [];
   for (let m = 0; m < 12; m++) {
     const prefix = year + "-" + String(m + 1).padStart(2, "0");
-    const fin = taskFinance(s, t => t.date.startsWith(prefix));
+    const fin = taskFinance(s, t => taskRecordDate(t).startsWith(prefix));
     arr.push({ label: THAI_MONTHS_SHORT[m], revenue: fin.revenue, cost: fin.cost, value: fin.net });
   }
   return arr;
@@ -894,7 +899,7 @@ function cropMargins(s, year) {
   const map = {};
   const yr = year ? String(year) : "";
   doneTasks(s).forEach(t => {
-    if (yr && !t.date.startsWith(yr)) return;
+    if (yr && !taskRecordDate(t).startsWith(yr)) return;
     if (!t.plotId) return;
     const p = plotById(s, t.plotId);
     if (!p) return;
@@ -927,10 +932,16 @@ function costBreakdown(s, year) {
   const yr = year ? String(year) : "";
   doneTasks(s).forEach(t => {
     if (!t.cost) return;
-    if (yr && !t.date.startsWith(yr)) return;
-    const key = t.costCat && cmap[t.costCat] ? t.costCat : "other";
-    if (!map[key]) map[key] = { label: cmap[key].label, value: 0, color: cmap[key].color };
-    map[key].value += t.cost;
+    if (yr && !taskRecordDate(t).startsWith(yr)) return;
+    const add = (category, value) => {
+      const key = cmap[category] ? category : "other";
+      if (!map[key]) map[key] = { label: cmap[key].label, value: 0, color: cmap[key].color };
+      map[key].value += value;
+    };
+    const items = t.costItems || [];
+    const itemTotal = items.reduce((n, ci) => n + (Number(ci.totalCost) || 0), 0);
+    if (items.length && itemTotal === Number(t.cost)) items.forEach(ci => add(ci.category, Number(ci.totalCost) || 0));
+    else add(t.costCat, Number(t.cost) || 0);
   });
   return Object.values(map).sort((a, b) => b.value - a.value);
 }
@@ -939,7 +950,7 @@ function costBreakdown(s, year) {
 function plotYearProfits(s, year) {
   const rows = [];
   s.plots.forEach(p => {
-    const fin = taskFinance(s, t => t.plotId === p.id && t.date.startsWith(year));
+    const fin = taskFinance(s, t => t.plotId === p.id && taskRecordDate(t).startsWith(year));
     if (fin.revenue === 0 && fin.cost === 0) return; // ข้ามแปลงที่ยังไม่มีกิจกรรมปีนี้
     rows.push({
       plotId: p.id,
@@ -960,7 +971,7 @@ function plotYearProfits(s, year) {
 function plotChemUse(s, year) {
   const map = {};
   doneTasks(s).forEach(t => {
-    if (!t.plotId || !t.date.startsWith(year)) return;
+    if (!t.plotId || !taskRecordDate(t).startsWith(year)) return;
     const items = (t.costItems || []).filter(ci => ci.category === "chemical");
     const isChem = t.costCat === "chemical" || items.length > 0;
     if (!isChem) return;
@@ -993,6 +1004,79 @@ function plotChemUse(s, year) {
 }
 
 /* ---------- mutations ---------- */
+function taskStockItems(t) {
+  return (t.costItems?.length ? t.costItems : (t.stockId ? [{ stockId: t.stockId, qty: t.qty }] : []))
+    .filter(ci => ci.stockId && Number(ci.qty) > 0);
+}
+function hasTaskStockUse(t) {
+  if (!t) return false;
+  // Old versions withdrew stock as soon as a task was planned. Preserve that history.
+  return !!t.stockLog?.length || t.stockState === "consumed" || (!t.stockState && taskStockItems(t).length > 0);
+}
+function stockReserved(s, id, exceptTaskId) {
+  return rndQty((s.tasks || []).filter(t => t.id !== exceptTaskId && t.status === "planned" && t.stockState === "reserved")
+    .reduce((n, t) => n + taskStockItems(t).filter(ci => ci.stockId === id).reduce((a, ci) => a + Number(ci.qty), 0), 0));
+}
+function stockAvailable(s, id, exceptTaskId) {
+  const x = stockById(s, id);
+  return x ? rndQty(Math.max(0, Number(x.qty) + (Number(x.openQty) || 0) - stockReserved(s, id, exceptTaskId))) : 0;
+}
+function stockSealedAvailable(s, id) {
+  const x = stockById(s, id);
+  return x ? Math.max(0, Math.floor(Number(x.qty) - Math.ceil(Math.max(0, stockReserved(s, id) - (Number(x.openQty) || 0))))) : 0;
+}
+function validateTaskStock(s, t) {
+  const needs = new Map();
+  taskStockItems(t).forEach(ci => needs.set(ci.stockId, rndQty((needs.get(ci.stockId) || 0) + Number(ci.qty))));
+  needs.forEach((qty, id) => {
+    const x = stockById(s, id);
+    if (!x) throw new Error("ไม่พบสินค้าในสต็อก กรุณาเลือกรายการใหม่");
+    const avail = stockAvailable(s, id, t.id);
+    if (qty > avail) throw new Error(`${x.name} พร้อมใช้ ${avail} ${x.unit || ""} หลังหักยอดจอง`);
+  });
+}
+function prepareTaskStock(s, t) {
+  if (hasTaskStockUse(t)) return;
+  if (t.status !== "failed") validateTaskStock(s, t);
+  t.stockState = "reserved";
+  t.stockLog = [];
+  if (t.costItems?.length) {
+    t.costItems.forEach(ci => {
+      if (ci.totalCost == null) ci.totalCost = Math.round(Number(ci.qty) * (Number(ci.unitCost) || stockById(s, ci.stockId)?.avgCost || 0));
+    });
+    t.cost = t.costItems.reduce((n, ci) => n + (Number(ci.totalCost) || 0), 0);
+  }
+  if (t.status === "done") applyStockUse(s, t);
+}
+function closeCycleForTask(s, t) {
+  const c = cycleById(s, t.cycleId);
+  if (t.status !== "done" || t.type !== "harvest" || !t.finishCycle) {
+    if (c?.closedByTaskId === t.id) { c.status = "active"; delete c.endDate; delete c.closedByTaskId; }
+    return;
+  }
+  if (c && (c.status === "active" || c.closedByTaskId === t.id)) {
+    c.status = "done";
+    c.endDate = taskRecordDate(t);
+    c.closedByTaskId = t.id;
+  }
+}
+function updateTask(s, taskId, data, stockAction = "replace") {
+  const old = s.tasks.find(t => t.id === taskId);
+  if (!old) return null;
+  // Stage inventory changes so validation cannot leave a partially edited task or stock.
+  const next = JSON.parse(JSON.stringify(old));
+  const staged = { ...s, stock: s.stock.map(x => ({ ...x })), tasks: s.tasks.filter(t => t.id !== taskId) };
+  if (stockAction === "replace") {
+    if (hasTaskStockUse(next)) restockTask(staged, next);
+    next.stockState = "reserved";
+  }
+  Object.assign(next, JSON.parse(JSON.stringify(data)));
+  prepareTaskStock(staged, next);
+  staged.stock.forEach(x => Object.assign(stockById(s, x.id), x));
+  Object.assign(old, next, { updatedAt: Date.now() });
+  closeCycleForTask(s, old);
+  return old;
+}
 function addTask(s, t) {
   t.id = uid();
   t.status = t.status || "planned";
@@ -1011,8 +1095,11 @@ function addTask(s, t) {
     if (c) t.plotId = c.plotId;
   }
   if (!t.costCat && t.cost > 0) t.costCat = defaultCostCat(t.type);
-  applyStockUse(s, t);
+  t.stockState = "reserved";
+  t.stockLog = [];
+  prepareTaskStock(s, t);
   s.tasks.push(t);
+  closeCycleForTask(s, t);
   return t;
 }
 /* ตัดสต็อกอัตโนมัติเมื่อใช้ของ (รองรับหลายรายการ costItems)
@@ -1020,11 +1107,12 @@ function addTask(s, t) {
    เช่น ใช้ 3.5 ถุง, openQty=0 → เบิก 4 ถุงจากหลัก, ใช้ 3.5 → เศษ 0.5 เข้า openQty
    เก็บ log (stockLog) ไว้ในงาน เพื่อให้คืนสต็อกได้แม่นยำเมื่อแก้ไข/ลบงาน */
 function applyStockUse(s, t) {
+  if (hasTaskStockUse(t)) return;
+  validateTaskStock(s, t);
   if (t.costItems && t.costItems.length) {
     let total = 0;
     t.stockLog = [];
     t.costItems.forEach(ci => {
-      total += Number(ci.totalCost) || 0;
       if (ci.stockId && ci.qty > 0) {
         const item = stockById(s, ci.stockId);
         if (item) {
@@ -1038,7 +1126,7 @@ function applyStockUse(s, t) {
           // 2) เบิกจากสต็อกหลักเป็นหน่วยเต็ม (ปัดขึ้น)
           let openAdded = 0;
           if (need > 0) {
-            const withdraw = Math.ceil(need);
+            const withdraw = Math.min(Number(item.qty), Math.ceil(need));
             item.qty = Math.max(0, item.qty - withdraw);
             // เศษที่เบิกเกิน (เช่น 4-3.5=0.5) เก็บเป็นของที่เปิดใช้แล้ว
             openAdded = rndQty(Math.max(0, withdraw - need));
@@ -1051,9 +1139,10 @@ function applyStockUse(s, t) {
             openUsed: beforeOpen - (item.openQty - openAdded), // ใช้ openQty ไปเท่าไหร่
             openAdded                                    // เศษที่เพิ่มเข้า openQty
           });
-          if (!ci.totalCost) ci.totalCost = Math.round(ci.qty * item.avgCost);
+          if (ci.totalCost == null) ci.totalCost = Math.round(ci.qty * item.avgCost);
         }
       }
+      total += Number(ci.totalCost) || 0;
     });
     t.cost = Math.round(total);
     // สรุปยอดจากรายการแรก (เข้ากันได้กับโค้ดเดิมที่อ่าน t.stockId/t.qty)
@@ -1067,18 +1156,32 @@ function applyStockUse(s, t) {
   } else if (t.stockId && t.qty > 0) {
     const item = stockById(s, t.stockId);
     if (item) {
-      item.qty = Math.max(0, item.qty - t.qty);
+      const fromOpen = Math.min(Number(item.openQty) || 0, t.qty);
+      const withdraw = Math.min(Number(item.qty), Math.ceil(rndQty(t.qty - fromOpen)));
+      const added = rndQty(withdraw - (t.qty - fromOpen));
+      item.qty -= withdraw;
+      item.openQty = rndQty((Number(item.openQty) || 0) - fromOpen + added);
       if (!t.cost) t.cost = Math.round(t.qty * item.avgCost);
+      t.stockLog = [{ stockId: t.stockId, qty: t.qty, mainWithdrawn: withdraw, openUsed: fromOpen, openAdded: added }];
     }
-    t.stockLog = [{ stockId: t.stockId, qty: t.qty, mainWithdrawn: t.qty, openUsed: 0, openAdded: 0 }];
   } else {
     t.stockLog = [];
   }
+  t.stockState = t.stockLog.length ? "consumed" : "reserved";
 }
 function toggleTaskDone(s, taskId) {
   const t = s.tasks.find(x => x.id === taskId);
   if (!t) return;
-  t.status = t.status === "done" ? "planned" : "done";
+  if (t.status !== "done") {
+    if (!hasTaskStockUse(t)) applyStockUse(s, t);
+    t.status = "done";
+    t.doneDate = todayISO();
+    closeCycleForTask(s, t);
+  } else {
+    t.status = "planned";
+    const c = cycleById(s, t.cycleId);
+    if (c?.closedByTaskId === t.id) { c.status = "active"; delete c.endDate; delete c.closedByTaskId; }
+  }
   if (Array.isArray(t.wateringSessions) && t.wateringSessions.length) {
     t.wateringSessions.forEach(w => { w.status = t.status === "done" ? "done" : "planned"; });
   }
@@ -1096,25 +1199,43 @@ function receiveStock(s, id, qty, price) {
   if (qty <= 0) return;
   qty = Math.floor(qty); // ปัดเศษทิ้ง — หลักเก็บเต็มหน่วยเท่านั้น
   if (qty <= 0) return;
-  const totalCost = item.qty * item.avgCost + qty * price;
+  const held = (Number(item.qty) || 0) + (Number(item.openQty) || 0);
+  const totalCost = held * item.avgCost + qty * price;
   item.qty += qty;
-  item.avgCost = totalCost / item.qty;
+  item.avgCost = totalCost / (held + qty);
 }
 function deductStock(s, id, qty) {
   const item = stockById(s, id);
   if (!item) return;
-  item.qty = Math.max(0, item.qty - (Number(qty) || 0));
+  qty = Number(qty);
+  if (!Number.isInteger(qty) || qty <= 0 || qty > stockSealedAvailable(s, id)) throw new Error("จำนวนเกินสต็อกพร้อมใช้ หรือไม่ใช่จำนวนเต็ม");
+  item.qty -= qty;
 }
 /* ---------- การขายสินค้า (ใบเสร็จรับเงิน) ----------
    กฎการขาย: ขายจากสต็อกหลัก (หน่วยเต็ม) เท่านั้น — ไม่ยุ่งกับของที่เปิดใช้แล้ว (openQty) */
 /* สร้างรายการขายจากข้อมูลฟอร์ม — บังคับจำนวนเต็ม */
-function buildSaleItems(s, data) {
+function buildSaleItems(s, data, previousItems = []) {
+  const remaining = previousItems.map(it => ({ ...it, remaining: Number(it.qty) || 0 }));
   const items = (data.items || [])
     .filter(it => it.stockId && (Number(it.qty) || 0) > 0)
     .map(it => {
       const qty = Math.floor(Number(it.qty) || 0); // ขายจำนวนเต็มเท่านั้น
       const price = Number(it.price) || 0;
       const x = stockById(s, it.stockId);
+      let unpriced = qty, costTotal = 0, known = true;
+      // Preserve historical cost for retained units, including duplicate product lines.
+      remaining.filter(old => old.stockId === it.stockId).forEach(old => {
+        const used = Math.min(unpriced, old.remaining);
+        if (!used) return;
+        if (Number.isFinite(old.costTotal) && old.costTotal >= 0) costTotal += used * old.costTotal / old.qty;
+        else known = false;
+        old.remaining -= used;
+        unpriced -= used;
+      });
+      if (unpriced) {
+        if (x && Number.isFinite(Number(x.avgCost)) && Number(x.avgCost) >= 0 && x.avgCost != null) costTotal += unpriced * Number(x.avgCost);
+        else known = false;
+      }
       return {
         stockId: it.stockId,
         code: x ? (x.code || x.id) : "", // รหัสสินค้าเดิม ถ้าไม่มีใช้ id สต็อก — แสดงในใบส่งสินค้า
@@ -1124,6 +1245,7 @@ function buildSaleItems(s, data) {
         price,
         priceMode: ["sale", "member", "custom"].includes(it.priceMode) ? it.priceMode : "custom",
         total: Math.round(qty * price),
+        costTotal: known ? costTotal : null,
         fromOpen: 0,   // ขายไม่แตะของที่เปิดใช้แล้ว
         fromMain: qty  // เบิกจากหลักทั้งหมด
       };
@@ -1132,9 +1254,20 @@ function buildSaleItems(s, data) {
 }
 /* ตัดสต็อกหลักเป็นหน่วยเต็ม (ไม่ใช้ของที่เปิดใช้แล้ว) */
 function deductSaleItems(s, items) {
+  const needs = new Map();
+  items.forEach(it => needs.set(it.stockId, (needs.get(it.stockId) || 0) + Number(it.qty)));
+  needs.forEach((qty, id) => {
+    if (!stockById(s, id) || !Number.isInteger(qty) || qty <= 0 || qty > stockSealedAvailable(s, id)) {
+      throw new Error("สินค้าไม่พอขายหลังหักยอดจอง กรุณาตรวจจำนวนอีกครั้ง");
+    }
+  });
   items.forEach(it => {
     const x = stockById(s, it.stockId);
     if (!x) return;
+    const held = (Number(x.qty) || 0) + (Number(x.openQty) || 0);
+    const cost = Number.isFinite(it.costTotal) ? it.costTotal : Number(it.qty) * (Number(x.avgCost) || 0);
+    const left = held - Number(it.qty);
+    if (left > 0) x.avgCost = Math.max(0, (held * (Number(x.avgCost) || 0) - cost) / left);
     x.qty = Math.max(0, (Number(x.qty) || 0) - Math.floor(Number(it.qty) || 0));
   });
 }
@@ -1143,15 +1276,21 @@ function restockSaleItems(s, items) {
   items.forEach(it => {
     const x = stockById(s, it.stockId);
     if (!x) return;
-    x.qty = (Number(x.qty) || 0) + (Number(it.fromMain) || 0);
+    const qty = Number(it.fromMain ?? it.qty) || 0;
+    const held = (Number(x.qty) || 0) + (Number(x.openQty) || 0);
+    if (held + qty > 0 && Number.isFinite(it.costTotal)) x.avgCost = (held * (Number(x.avgCost) || 0) + it.costTotal) / (held + qty);
+    x.qty = (Number(x.qty) || 0) + qty;
   });
 }
 /* บันทึกการขายใหม่ + ตัดสต็อก */
+function lastSaleNumber(s) {
+  return (s.sales || []).reduce((max, sale) => Math.max(max, Number(sale.no) || 0), Number(s.saleSequence) || 0);
+}
 function addSale(s, data) {
   const items = buildSaleItems(s, data);
   const sale = {
     id: uid(),
-    no: (s.sales || []).length + 1, // เลขที่ใบเสร็จ (เรียงตามลำดับ)
+    no: lastSaleNumber(s) + 1,
     date: data.date || todayISO(),
     customer: String(data.customer || "").trim(),
     items,
@@ -1164,17 +1303,20 @@ function addSale(s, data) {
   deductSaleItems(s, items);
   s.sales = s.sales || [];
   s.sales.push(sale);
+  s.saleSequence = sale.no;
   return sale;
 }
 /* แก้ไขใบเสร็จที่มีอยู่ — คืนสต็อกเดิม แล้วตัดใหม่ตามรายการที่แก้ */
 function updateSale(s, saleId, data) {
   const sale = (s.sales || []).find(x => x.id === saleId);
-  if (!sale) return false;
+  if (!sale || sale.status === "void") throw new Error("ใบเสร็จนี้ไม่มีอยู่หรือยกเลิกแล้ว");
   /* 1) คืนสต็อกของรายการเดิม */
-  restockSaleItems(s, sale.items);
+  const staged = { ...s, stock: s.stock.map(x => ({ ...x })) };
+  restockSaleItems(staged, sale.items);
   /* 2) สร้างรายการใหม่ + ตัดสต็อกใหม่ */
-  const items = buildSaleItems(s, data);
-  deductSaleItems(s, items);
+  const items = buildSaleItems(staged, data, sale.items);
+  deductSaleItems(staged, items);
+  staged.stock.forEach(x => Object.assign(stockById(s, x.id), x));
   /* 3) อัปเดตใบเสร็จ (คงเลขที่เดิม) */
   sale.date = data.date || sale.date;
   sale.customer = String(data.customer || "").trim();
@@ -1183,7 +1325,7 @@ function updateSale(s, saleId, data) {
   sale.note = String(data.note || "").trim();
   sale.payMethod = data.payMethod === "transfer" ? "transfer" : "cash";
   sale.account = String(data.account || "").trim();
-  sale.createdAt = Date.now();
+  sale.updatedAt = Date.now();
   return sale;
 }
 /* ยอดรวมของใบเสร็จ (ก่อนหักส่วนลด) */
@@ -1196,47 +1338,51 @@ function saleGrandTotal(sale) {
 }
 /* ต้นทุนของสินค้าที่ขายในใบนี้ (ใช้คำนวณกำไร) */
 function saleCost(sale, s) {
-  return (sale.items || []).reduce((a, it) => {
-    const x = stockById(s, it.stockId);
-    return a + (Number(it.qty) || 0) * (x ? x.avgCost : 0);
-  }, 0);
+  const items = sale.items || [];
+  if (items.some(it => !Number.isFinite(it.costTotal) || it.costTotal < 0)) return null;
+  return items.reduce((sum, it) => sum + it.costTotal, 0);
 }
-/* ยกเลิกใบเสร็จ — คืนสต็อกที่ขายไปแล้วลบใบออก */
+function activeSales(s) { return (s.sales || []).filter(x => x.status !== "void"); }
+/* ยกเลิกใบเสร็จ: เก็บหลักฐานเดิมและคืนสต็อกเพียงครั้งเดียว */
 function voidSale(s, saleId) {
   const sale = (s.sales || []).find(x => x.id === saleId);
-  if (!sale) return false;
+  if (!sale || sale.status === "void") return false;
   restockSaleItems(s, sale.items);
-  s.sales = (s.sales || []).filter(x => x.id !== saleId);
+  sale.status = "void";
+  sale.voidedAt = Date.now();
+  s.saleSequence = Math.max(Number(s.saleSequence) || 0, Number(sale.no) || 0);
   return true;
 }
 /* รายรับจากการขายสินค้าของปี (year ไม่ระบุ = ปีปัจจุบัน) — แยกจากรายรับงานแปลง */
 function salesRevenue(s, year) {
   const yr = String(year || todayISO().slice(0, 4));
-  return (s.sales || []).filter(x => (x.date || "").startsWith(yr)).reduce((a, x) => a + saleGrandTotal(x), 0);
+  return activeSales(s).filter(x => (x.date || "").startsWith(yr)).reduce((a, x) => a + saleGrandTotal(x), 0);
 }
 /* ยอดขายวันนี้ (ใบเสร็จที่ออกวันนี้) */
 function salesToday(s) {
   const d = todayISO();
-  return (s.sales || []).filter(x => x.date === d).reduce((a, x) => a + saleGrandTotal(x), 0);
+  return activeSales(s).filter(x => x.date === d).reduce((a, x) => a + saleGrandTotal(x), 0);
 }
 /* ยอดขายเดือนนี้ */
 function salesMonth(s) {
   const ym = todayISO().slice(0, 7);
-  return (s.sales || []).filter(x => (x.date || "").startsWith(ym)).reduce((a, x) => a + saleGrandTotal(x), 0);
+  return activeSales(s).filter(x => (x.date || "").startsWith(ym)).reduce((a, x) => a + saleGrandTotal(x), 0);
 }
 /* จำนวนใบเสร็จของปี (year ไม่ระบุ = ปีปัจจุบัน) */
 function salesYearCount(s, year) {
   const yr = String(year || todayISO().slice(0, 4));
-  return (s.sales || []).filter(x => (x.date || "").startsWith(yr)).length;
+  return activeSales(s).filter(x => (x.date || "").startsWith(yr)).length;
 }
 /* ต้นทุนขายของปี (COGS — ราคาทุนของสินค้าที่ขายไป; year ไม่ระบุ = ปีปัจจุบัน) */
 function salesCostYTD(s, year) {
   const yr = String(year || todayISO().slice(0, 4));
-  return (s.sales || []).filter(x => (x.date || "").startsWith(yr)).reduce((a, x) => a + saleCost(x, s), 0);
+  const costs = activeSales(s).filter(x => (x.date || "").startsWith(yr)).map(x => saleCost(x, s));
+  return costs.includes(null) ? null : costs.reduce((a, cost) => a + cost, 0);
 }
 /* กำไรร้านของปี = ยอดขาย − ต้นทุนขาย (แยกจากกำไรแปลง; year ไม่ระบุ = ปีปัจจุบัน) */
 function salesProfitYTD(s, year) {
-  return salesRevenue(s, year) - salesCostYTD(s, year);
+  const cost = salesCostYTD(s, year);
+  return cost === null ? null : salesRevenue(s, year) - cost;
 }
 /* มูลค่าสต็อกคงเหลือ (เงินที่จมอยู่ในของคงคลัง) — แยกสต็อกหลัก / ของเหลือเปิดใช้ */
 function stockValue(s) {
@@ -1253,7 +1399,7 @@ function salesMonthlySeries(s, year) {
   const arr = [];
   for (let m = 0; m < 12; m++) {
     const prefix = year + "-" + String(m + 1).padStart(2, "0");
-    const total = (s.sales || []).filter(x => (x.date || "").startsWith(prefix)).reduce((a, x) => a + saleGrandTotal(x), 0);
+    const total = activeSales(s).filter(x => (x.date || "").startsWith(prefix)).reduce((a, x) => a + saleGrandTotal(x), 0);
     arr.push({ label: THAI_MONTHS_SHORT[m], value: total });
   }
   return arr;
@@ -1261,7 +1407,7 @@ function salesMonthlySeries(s, year) {
 /* สินค้าขายดีปีนี้ — รวมจำนวน/ยอดตามชื่อสินค้า เรียงตามยอดมากสุด */
 function topSaleItems(s, year, n) {
   const map = {};
-  (s.sales || []).forEach(sl => {
+  activeSales(s).forEach(sl => {
     if (!(sl.date || "").startsWith(year)) return;
     (sl.items || []).forEach(it => {
       const key = String(it.name || "").trim() || "ไม่ระบุ";
@@ -1275,7 +1421,7 @@ function topSaleItems(s, year, n) {
 /* ลูกค้าที่ซื้อเยอะที่สุดปีนี้ (ยอดรวม/จำนวนครั้ง) */
 function topCustomers(s, year, n) {
   const map = {};
-  (s.sales || []).forEach(sl => {
+  activeSales(s).forEach(sl => {
     if (!(sl.date || "").startsWith(year)) return;
     const name = String(sl.customer || "").trim();
     if (!name) return;
@@ -1288,7 +1434,7 @@ function topCustomers(s, year, n) {
 /* รายชื่อลูกค้าทั้งหมด (จากใบเสร็จ) — พร้อมยอดซื้อรวม/จำนวนครั้ง/ครั้งล่าสุด */
 function customerList(s) {
   const map = {};
-  (s.sales || []).forEach(sl => {
+  activeSales(s).forEach(sl => {
     const name = String(sl.customer || "").trim();
     if (!name) return;
     if (!map[name]) map[name] = { name, count: 0, total: 0, last: 0, lastDate: "" };
@@ -1302,7 +1448,8 @@ function customerList(s) {
 /* คืนสต็อกที่งานเบิกไป (ย้อนกลับ addTask) — ใช้ตอนแก้ไขลดจำนวน / ลบงานที่ยังไม่ได้ใช้ของ
    รองรับงานที่ไม่มี stockLog (ข้อมูลเก่า) โดยประมาณจาก costItems */
 function restockTask(s, t) {
-  const logs = t.stockLog && t.stockLog.length ? t.stockLog : (t.costItems || []).map(ci => ({
+  if (!hasTaskStockUse(t)) return;
+  const logs = t.stockLog && t.stockLog.length ? t.stockLog : taskStockItems(t).map(ci => ({
     stockId: ci.stockId,
     qty: Number(ci.qty) || 0,
     mainWithdrawn: Math.ceil(Number(ci.qty) || 0),
@@ -1314,12 +1461,12 @@ function restockTask(s, t) {
     const item = stockById(s, log.stockId);
     if (!item) return;
     item.openQty = Number(item.openQty) || 0;
-    // คืนหลักตามที่เบิกไป
-    item.qty += log.mainWithdrawn || 0;
-    // ย้อน openQty: เอาส่วนที่งานนี้เพิ่มเข้า (openAdded) ออก และคืนส่วนที่ใช้ไป (openUsed)
-    item.openQty = rndQty(Math.max(0, item.openQty - (log.openAdded || 0) + (log.openUsed || 0)));
+    const total = rndQty(Number(item.qty) + item.openQty + Number(log.qty || 0));
+    item.qty += Math.min(Number(log.mainWithdrawn) || 0, Math.floor(total - Number(item.qty)));
+    item.openQty = rndQty(total - item.qty);
   });
   t.stockLog = [];
+  t.stockState = "reserved";
 }
 
 /* Task status per date: done / planned / overdue */

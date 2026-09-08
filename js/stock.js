@@ -27,6 +27,14 @@ function stockActiveById(id) {
 function stockListValue(list) {
   return (list || []).reduce((a, x) => a + ((Number(x.qty) || 0) + (Number(x.openQty) || 0)) * (Number(x.avgCost) || 0), 0);
 }
+function stockBalanceHtml(x) {
+  const total = rndQty(Number(x.qty) + (Number(x.openQty) || 0));
+  return `<dl class="stock-balance">
+    <div><dt>คงเหลือจริง</dt><dd>${fmtNum(total)} <small>${esc(x.unit)}</small></dd></div>
+    ${stockIsSharedView() ? "" : `<div><dt>จองตามแผน</dt><dd>${fmtNum(stockReserved(S, x.id))}</dd></div>
+    <div><dt>พร้อมใช้</dt><dd>${fmtNum(stockAvailable(S, x.id))}</dd></div>`}
+  </dl>`;
+}
 function stockSourceLabel(email) {
   if (!email) return "สต็อกของฉัน";
   const src = (stockShareState().incoming || []).find(x => String(x.email || "").toLowerCase() === String(email).toLowerCase());
@@ -103,17 +111,17 @@ function stockListHtml() {
       return `
       <div class="card stock-card stock-card-${stockDensity} ${out ? "stock-card-out" : ""} ${hasPhoto ? "has-photo" : "missing-photo"}">
         <div class="row">
-          <div class="stock-thumb" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${stockThumbHtml(x)}</div>
+          <button class="stock-thumb" onclick="App.stockDetail('${x.id}')" aria-label="รูป ${esc(x.name)}" title="ดูรายละเอียดสินค้า">${stockThumbHtml(x)}</button>
           <div class="grow">
-            <div class="plot-name" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${esc(x.name)} ${out ? `<span class="stock-out-badge">${ic("alert")} ยาหมด</span>` : `<span class="stock-detail-hint">${ic("info")}</span>`} ${hasPhoto ? "" : `<span class="stock-photo-missing">${ic("image")} ไม่มีรูป</span>`} ${x.category ? `<span class="stock-cat">${esc(x.category)}</span>` : ""} ${x.size ? `<span class="stock-size">${esc(x.size)}</span>` : ""}</div>
+            <button class="plot-name card-open" onclick="App.stockDetail('${x.id}')" title="ดูรายละเอียดสินค้า">${esc(x.name)} ${out ? `<span class="stock-out-badge">${ic("alert")} ของหมด</span>` : `<span class="stock-detail-hint">${ic("info")}</span>`} ${hasPhoto ? "" : `<span class="stock-photo-missing">${ic("image")} ไม่มีรูป</span>`} ${x.category ? `<span class="stock-cat">${esc(x.category)}</span>` : ""} ${x.size ? `<span class="stock-size">${esc(x.size)}</span>` : ""}</button>
             ${x.code ? `<div class="muted stock-meta-line">รหัส: <b>${esc(x.code)}</b></div>` : ""}
             ${x.generic ? `<div class="muted stock-meta-line stock-meta-secondary">ชื่อสามัญ: ${esc(x.generic)}</div>` : ""}
             ${x.supplier ? `<div class="muted stock-meta-line stock-meta-secondary">บริษัทจำหน่าย: ${esc(x.supplier)}</div>` : ""}
             ${stockPriceSummaryHtml(x)}
-            ${out ? `<div class="stock-out">${ic("alert")} ยาหมด — ไม่มีของในสต็อก</div>` : (open > 0 ? `<div class="stock-open">${ic("unlock")} เหลือจากการเปิดใช้ ${fmtNum(open)} ${esc(x.unit)} — ใช้ได้ก่อน</div>` : `<div class="stock-sealed">${ic("lock")} ยังไม่เปิดใช้</div>`)}
+            ${out ? `<div class="stock-out">${ic("alert")} ไม่มีของในสต็อก</div>` : (open > 0 ? `<div class="stock-open">${ic("unlock")} เปิดใช้แล้ว ${fmtNum(open)} ${esc(x.unit)}</div>` : `<div class="stock-sealed">${ic("lock")} ยังไม่เปิดใช้</div>`)}
           </div>
-          <div class="stock-qty ${out ? "out" : ""}">${out ? "0" : fmtNum(x.qty)} <small>${esc(x.unit)}</small></div>
         </div>
+        ${stockBalanceHtml(x)}
         <div class="mt-8">
           <div class="muted stock-value">มูลค่ารวม <span class="bold">${fmtMoney((x.qty + open) * x.avgCost)} บาท</span>${open > 0 ? ` <span class="muted">(รวมของเปิดใช้แล้ว)</span>` : ""}</div>
           <div class="stock-actions">
@@ -139,7 +147,7 @@ function stockFilterOptionsHtml() {
   const rows = [
     ["all", "ทั้งหมด", data.length],
     ["has", "มีของ", hasCount],
-    ["out", "ยาหมด", outCount],
+    ["out", "ของหมด", outCount],
     ["sealed", "ยังไม่เปิดใช้", sealedCount],
     ["opened", "เปิดใช้แล้ว", openedCount]
   ];
@@ -157,7 +165,7 @@ function stockPhotoOptionsHtml() {
   return rows.map(([key, label, count]) => `<option value="${key}" ${stockPhotoFilter === key ? "selected" : ""}>${label} (${fmtNum(count)})</option>`).join("");
 }
 function stockFilterLabel() {
-  const map = { all: "ทั้งหมด", has: "มีของ", out: "ยาหมด", sealed: "ยังไม่เปิดใช้", opened: "เปิดใช้แล้ว" };
+  const map = { all: "ทั้งหมด", has: "มีของ", out: "ของหมด", sealed: "ยังไม่เปิดใช้", opened: "เปิดใช้แล้ว" };
   return map[stockFilter] || "ทั้งหมด";
 }
 function stockPhotoLabel() {
@@ -515,6 +523,7 @@ App.stockViewSet = async function (value) {
 };
 App.deleteStock = function (id) {
   if (stockIsSharedView()) { toast("สต็อกที่แชร์มาเป็นโหมดอ่านอย่างเดียว"); return; }
+  if (stockReserved(S, id) > 0) { toast("สินค้านี้มีงานจองอยู่ กรุณาแก้ไขหรือยกเลิกแผนก่อนลบ"); return; }
   App.confirm("ลบรายการวัสดุ?", "", () => {
     S.stock = S.stock.filter(x => x.id !== id);
     saveState(S);
@@ -561,6 +570,8 @@ App.stockDetail = function (id) {
       ${row("หน่วยนับ", x.unit)}
       ${row("บริษัทจำหน่าย", x.supplier)}
       <div class="sd-row"><span class="k">ในสต็อก</span><span class="bold">${fmtNum(x.qty)} ${esc(x.unit)}${open > 0 ? ` <span class="stock-open" style="display:inline">+ เปิดใช้แล้ว ${fmtNum(open)} ${esc(x.unit)}</span>` : ""}</span></div>
+      ${readonly ? "" : `<div class="sd-row"><span class="k">จองตามแผน</span><span class="bold">${fmtNum(stockReserved(S, x.id))} ${esc(x.unit)}</span></div>
+      <div class="sd-row"><span class="k">พร้อมใช้</span><span class="bold">${fmtNum(stockAvailable(S, x.id))} ${esc(x.unit)}</span></div>`}
       ${stockPriceRow("ราคาต้นทุน", x.avgCost, x.unit)}
       ${stockPriceRow("ราคาทั่วไป", x.salePrice, x.unit)}
       ${stockPriceRow("ราคาลูกค้าประจำ", x.memberPrice, x.unit)}

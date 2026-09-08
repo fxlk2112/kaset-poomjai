@@ -30,7 +30,7 @@ function shareTokenFromUrl() {
   catch (e) { return ""; }
 }
 function landingPreviewFromUrl() {
-  try { return new URL(location.href).searchParams.get("landing") === "1"; }
+  try { const url = new URL(location.href); return url.searchParams.get("landing") === "1" || ["#privacy", "#terms"].includes(url.hash); }
   catch (e) { return false; }
 }
 
@@ -64,7 +64,7 @@ try {
 } catch (e) {}
 
 function authCall(action, extra) {
-  const controller = ["load", "save"].includes(action) ? new AbortController() : null;
+  const controller = ["load", "save", "photo_put"].includes(action) ? new AbortController() : null;
   const timeout = controller ? setTimeout(() => controller.abort(), 20000) : null;
   return fetch(AUTH_API, {
     method: "POST",
@@ -157,7 +157,7 @@ function setLocalDirty(dirty) {
 function localHasData() {
   return (S.plots && S.plots.length) || (S.cycles && S.cycles.length) ||
          (S.tasks && S.tasks.length) || (S.stock && S.stock.length) ||
-         (S.sales && S.sales.length) || (S.equipment && S.equipment.length);
+         (S.sales && S.sales.length) || (S.equipment && S.equipment.length) || (S.trials && S.trials.length);
 }
 function cloudHasContent(d) {
   return !!(d && ((d.plots && d.plots.length) || (d.cycles && d.cycles.length) ||
@@ -273,6 +273,7 @@ Auth.queueSave = function () {
 
 Auth.saveNow = function (options) {
   if (!Auth.session || Auth.shareMode) return Promise.resolve({ ok: false });
+  if (Auth._recoveryBusy) return Promise.resolve({ ok: false, deferred: true });
   if (Auth._syncPromise) return Auth._syncPromise;
   const session = Auth.session;
   const epoch = Auth._syncEpoch || 0;
@@ -290,8 +291,28 @@ Auth.saveNow = function (options) {
     const remote = loaded.data || {};
     const revision = Number(remote.updated_at) || 0;
     const snapshot = JSON.stringify(S);
+    if (options && options.replaceRevision !== undefined && options.localSnapshot !== snapshot) {
+      Auth.setSyncStatus("conflict", "ข้อมูลในเครื่องเปลี่ยนแล้ว · ตรวจสอบใหม่ก่อนซิงก์");
+      return { ok: false, conflict: true };
+    }
     const remoteMatches = remote.data && JSON.stringify(normalizedAccountState(remote.data)) === snapshot;
     const changed = revision !== cloudTs();
+    if (!remoteMatches && options && options.replaceRevision !== undefined) {
+      if (options.replaceRevision !== revision) {
+        Auth._conflict = remote;
+        Auth.setSyncStatus("conflict", "คลาวด์มีข้อมูลใหม่อีกครั้ง · ตรวจสอบก่อนซิงก์");
+        return { ok: false, conflict: true };
+      }
+      if (localDirty() && remote.data) {
+        try { await Recovery.save(session.email, S, remote.data, revision, "push"); }
+        catch (error) { throw new Error("สำรองข้อมูลไม่สำเร็จ ตรวจพื้นที่เก็บข้อมูลก่อนซิงก์ทับ"); }
+        if (!current()) return { ok: false };
+        if (JSON.stringify(S) !== snapshot) {
+          Auth.setSyncStatus("pending", "ข้อมูลในเครื่องเปลี่ยนแล้ว · ยังไม่ได้ซิงก์ทับ");
+          return { ok: false, pending: true };
+        }
+      }
+    }
     if (remoteMatches) {
       setCloudTs(revision);
       setLocalDirty(false);
@@ -343,7 +364,9 @@ Auth.saveNow = function (options) {
   const promise = work().catch(error => {
     if (!current()) return { ok: false };
     const message = String(error.message || "ส่งข้อมูลไม่สำเร็จ");
-    if (message.includes("เซสชัน")) {
+    if (message.includes("สำรองข้อมูล")) {
+      Auth.setSyncStatus("error", message);
+    } else if (message.includes("เซสชัน")) {
       Auth.setSyncStatus("error", "เซสชันหมดอายุ · เข้าสู่ระบบใหม่เพื่อซิงก์");
     } else {
       Auth.setSyncStatus("error", localDirty() ? "บันทึกในเครื่องแล้ว · ส่งไม่สำเร็จ กำลังรอลองใหม่" : "ตรวจข้อมูลคลาวด์ไม่สำเร็จ · กำลังรอลองใหม่");
@@ -358,14 +381,20 @@ Auth.saveNow = function (options) {
 };
 
 function applyCloudState(cloudData, updatedAt) {
+  const merged = normalizedAccountState(cloudData);
+  const incomingSequence = lastSaleNumber(merged);
+  merged.saleSequence = Math.max(lastSaleNumber(S), incomingSequence);
+  // Persist before replacing the in-memory state. Quota failures must leave local work intact.
+  localStorage.setItem(Auth.session ? slotKey(Auth.session.email) : STORAGE_KEY, JSON.stringify(merged));
   Auth.suppress = true;
   try {
-    resetSTo(cloudData);
-    saveState(S);
+    Object.keys(S).forEach(key => delete S[key]);
+    Object.assign(S, merged);
     setCloudTs(updatedAt);
-    setLocalDirty(false);
+    setLocalDirty(merged.saleSequence > incomingSequence);
     Auth._conflict = null;
   } finally { Auth.suppress = false; }
+  if (localDirty()) Auth.queueSave();
   if (typeof render === "function") render();
 }
 
@@ -378,12 +407,20 @@ Auth.bootCheck = async function () {
 /* ข้อมูลต่างกันทั้งสองฝั่งและเครื่องนี้มีข้อมูลยังไม่ขึ้นคลาวด์ — ถามว่าจะเอาฝั่งไหน */
 Auth.askMerge = function (cloudData, updatedAt) {
   Auth._conflict = { data: cloudData, updated_at: updatedAt };
+  Auth._conflictLocalSnapshot = JSON.stringify(S);
   const accountLabel = maskEmailForDisplay(Auth.session && Auth.session.email);
+  const diff = syncDifference(S, normalizedAccountState(cloudData));
+  const names = (label, values) => values.length ? `<div><b>${label} (${values.length})</b>: ${values.slice(0, 8).map(esc).join(", ")}${values.length > 8 ? " ..." : ""}</div>` : "";
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
-    <h3>${ic("refresh")} พบข้อมูลในคลาวด์</h3>
-    <div class="modal-sub">ข้อมูลบนคลาวด์ของบัญชี ${esc(accountLabel)} อัปเดตล่าสุด (${dateLabel(new Date(updatedAt).toISOString().slice(0, 10))}) ไม่ตรงกับเครื่องนี้ — เลือกว่าจะใช้ชุดไหน</div>
-    <div class="modal-actions" style="flex-direction:column;display:flex;gap:8px">
+    <h3>${ic("refresh")} ข้อมูลเปลี่ยนทั้งสองฝั่ง</h3>
+    <div class="modal-sub">บัญชี ${esc(accountLabel)} · คลาวด์ ${esc(new Date(updatedAt).toLocaleString("th-TH"))}</div>
+    <div class="sync-diff"><table><thead><tr><th>ข้อมูล</th><th>เครื่องนี้</th><th>คลาวด์</th></tr></thead><tbody>
+      ${diff.groups.map(g => `<tr><th>${g.label}</th><td>${g.localCount}</td><td>${g.cloudCount}</td></tr>${g.localOnly.length || g.cloudOnly.length || g.changed.length ? `<tr><td colspan="3" class="sync-diff-detail">${names("มีเฉพาะเครื่องนี้", g.localOnly)}${names("มีเฉพาะคลาวด์", g.cloudOnly)}${names("รายละเอียดต่างกัน", g.changed)}</td></tr>` : ""}`).join("")}
+    </tbody></table></div>
+    ${diff.otherChanged ? `<p class="small">การตั้งค่าหรือข้อมูลส่วนอื่นต่างกันด้วย</p>` : ""}
+    <p class="small">การเลือกจะแทนที่ข้อมูลทั้งชุด ไม่ได้รวมรายการเข้าด้วยกัน ระบบจะสำรองทั้งสองชุดในเครื่องนี้ก่อน เก็บจุดกู้คืนล่าสุด 5 ครั้ง</p>
+    <div class="modal-actions sync-conflict-actions">
       <button class="btn btn-primary btn-block" onclick="Auth.choosePull()">${ic("download")} ใช้ข้อมูลจากคลาวด์ (ทับเครื่องนี้)</button>
       <button class="btn btn-outline btn-block" onclick="Auth.choosePush()">${ic("upload")} ใช้ข้อมูลเครื่องนี้ (ส่งขึ้นคลาวด์ทับ)</button>
       <button class="btn btn-ghost btn-block" onclick="App.closeModal()">ไว้ก่อน</button>
@@ -392,20 +429,90 @@ Auth.askMerge = function (cloudData, updatedAt) {
 Auth.choosePull = function () {
   const session = Auth.session;
   const revision = Auth._conflict && Auth._conflict.updated_at;
+  const snapshot = Auth._conflictLocalSnapshot;
   closeModal();
-  App.confirm("ยืนยันดึงข้อมูลจากคลาวด์?", "ข้อมูลปัจจุบันในเครื่องนี้จะถูกแทนที่ทั้งหมด", () => {
-    authCall("load", { token: session.token }).then(r => {
+  App.confirm("ยืนยันใช้ข้อมูลคลาวด์?", "สำรองทั้งสองชุดก่อนแทนที่ข้อมูลในเครื่องนี้", async () => {
+    if (!session || Auth.session !== session || Auth._recoveryBusy) return;
+    Auth._recoveryBusy = true;
+    try {
+      if (Auth._syncPromise) await Auth._syncPromise;
+      const r = await authCall("load", { token: session.token });
       if (Auth.session !== session) return;
-      if (!r.ok) { toast("ดึงข้อมูลไม่สำเร็จ ข้อมูลในเครื่องยังอยู่"); return; }
-      if (r.data.updated_at !== revision) { toast("คลาวด์มีข้อมูลใหม่อีกครั้ง กรุณาตรวจสอบ"); Auth.askMerge(r.data.data, r.data.updated_at); return; }
-      if (r.data.data) { applyCloudState(r.data.data, r.data.updated_at); Auth.setSyncStatus("synced", "ซิงก์ข้อมูลล่าสุดแล้ว"); }
-    });
+      if (!r.ok || !r.data.data) throw new Error("ดึงข้อมูลไม่สำเร็จ");
+      if (r.data.updated_at !== revision || JSON.stringify(S) !== snapshot) {
+        toast("ข้อมูลเปลี่ยนแล้ว กรุณาตรวจสอบใหม่"); Auth.askMerge(r.data.data, r.data.updated_at); return;
+      }
+      await Recovery.save(session.email, S, r.data.data, revision, "pull");
+      if (Auth.session !== session || JSON.stringify(S) !== snapshot) { toast("ข้อมูลเปลี่ยนแล้ว ยังไม่ได้แทนที่"); return; }
+      applyCloudState(r.data.data, r.data.updated_at);
+      Auth.setSyncStatus(localDirty() ? "pending" : "synced", localDirty() ? "รับข้อมูลแล้ว · รอซิงก์เลขใบเสร็จล่าสุด" : "ซิงก์ข้อมูลล่าสุดแล้ว");
+    } catch (error) {
+      if (Auth.session !== session) return;
+      toast("ยังไม่แทนที่ข้อมูล: สำรองหรือบันทึกไม่สำเร็จ ตรวจพื้นที่เก็บข้อมูล");
+      Auth.setSyncStatus("error", "ยังไม่ซิงก์ · ข้อมูลเดิมยังอยู่");
+    } finally { Auth._recoveryBusy = false; }
   });
 };
 Auth.choosePush = function () {
+  const session = Auth.session;
   const revision = Auth._conflict && Auth._conflict.updated_at;
+  const localSnapshot = Auth._conflictLocalSnapshot;
   closeModal();
-  Auth.saveNow({ replaceRevision: revision }).then(r => toast(r.ok ? "ส่งข้อมูลเครื่องนี้ขึ้นคลาวด์แล้ว" : "ยังไม่ซิงก์สำเร็จ ตรวจสถานะด้านบน"));
+  App.confirm("ยืนยันใช้ข้อมูลเครื่องนี้?", "สำรองทั้งสองชุดก่อนส่งข้อมูลเครื่องนี้ทับคลาวด์", async () => {
+    if (Auth.session !== session) return;
+    if (Auth._syncPromise) await Auth._syncPromise;
+    if (Auth.session !== session) return;
+    const r = await Auth.saveNow({ replaceRevision: revision, localSnapshot });
+    toast(r.ok ? "ส่งข้อมูลเครื่องนี้ขึ้นคลาวด์แล้ว" : "ยังไม่ซิงก์สำเร็จ ตรวจสถานะด้านบน");
+  });
+};
+
+Auth.showRecovery = async function () {
+  const session = Auth.session;
+  if (!session) return;
+  try {
+    const entries = await Recovery.list(session.email);
+    if (Auth.session !== session) return;
+    openModal(`<button class="modal-x" onclick="App.closeModal()" aria-label="ปิด">✕</button><h3>${ic("save")} จุดกู้คืนก่อนซิงก์</h3>
+      <p class="modal-sub">เฉพาะบัญชีนี้บนเครื่องนี้ · เก็บล่าสุด 5 ครั้ง · ไม่รวมอยู่บนคลาวด์</p>
+      ${entries.length ? entries.map(x => `<section class="recovery-entry"><b>${esc(new Date(x.createdAt).toLocaleString("th-TH"))}</b>
+        <div class="recovery-actions">${["local", "cloud"].filter(side => x[side]).map(side => `<div><span>${side === "local" ? "ข้อมูลเครื่องนี้" : "ข้อมูลคลาวด์"}</span>
+          <button class="icon-btn" title="ดาวน์โหลด ${side === "local" ? "ข้อมูลเครื่องนี้" : "ข้อมูลคลาวด์"}" aria-label="ดาวน์โหลด ${side === "local" ? "ข้อมูลเครื่องนี้" : "ข้อมูลคลาวด์"}" onclick="Auth.exportRecovery('${x.id}','${side}')">${ic("download")}</button>
+          <button class="btn btn-sm btn-outline" aria-label="กู้คืน${side === "local" ? "ข้อมูลเครื่องนี้" : "ข้อมูลคลาวด์"} ${esc(new Date(x.createdAt).toLocaleString("th-TH"))}" onclick="Auth.restoreRecovery('${x.id}','${side}')">กู้คืน</button></div>`).join("")}</div></section>`).join("") : `<p>ยังไม่มีจุดกู้คืน</p>`}`);
+  } catch (error) { toast("เปิดจุดกู้คืนไม่ได้ ตรวจพื้นที่เก็บข้อมูลของเบราว์เซอร์"); }
+};
+Auth.exportRecovery = async function (id, side) {
+  const session = Auth.session;
+  if (!session || !["local", "cloud"].includes(side)) return;
+  try {
+    const entry = (await Recovery.list(session.email)).find(x => x.id === id);
+    if (Auth.session !== session || !entry || !entry[side]) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify({ app: "farmultimate-solutions", type: "backup", version: 54, data: entry[side] }, null, 2)], { type: "application/json" }));
+    const a = document.createElement("a"); a.href = url; a.download = `farm-recovery-${side}-${entry.createdAt}.json`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (error) { toast("ดาวน์โหลดจุดกู้คืนไม่สำเร็จ"); }
+};
+Auth.restoreRecovery = function (id, side) {
+  const session = Auth.session;
+  if (!session || !["local", "cloud"].includes(side)) return;
+  closeModal();
+  App.confirm("กู้คืนข้อมูลชุดนี้?", "สำรองข้อมูลปัจจุบันก่อนกู้คืนทั้งชุด แล้วรอซิงก์ตามปกติ หากคลาวด์เปลี่ยนจะให้ตรวจสอบอีกครั้ง", async () => {
+    if (Auth.session !== session || Auth._recoveryBusy) return;
+    Auth._recoveryBusy = true;
+    try {
+      if (Auth._syncPromise) await Auth._syncPromise;
+      const entry = (await Recovery.list(session.email)).find(x => x.id === id);
+      if (Auth.session !== session || !entry || !entry[side]) return;
+      const snapshot = JSON.stringify(S), revision = cloudTs();
+      await Recovery.save(session.email, S, null, revision, "restore");
+      if (Auth.session !== session || JSON.stringify(S) !== snapshot) { toast("ข้อมูลเปลี่ยนแล้ว ยังไม่ได้กู้คืน"); return; }
+      applyCloudState(entry[side], revision);
+      setLocalDirty(true);
+      Auth.queueSave();
+      toast("กู้คืนในเครื่องแล้ว · รอซิงก์");
+    } catch (error) { if (Auth.session === session) toast("กู้คืนไม่สำเร็จ ข้อมูลเดิมยังอยู่"); }
+    finally { Auth._recoveryBusy = false; }
+  });
 };
 
 window.addEventListener("online", () => Auth.saveNow());
@@ -561,24 +668,47 @@ Auth.showGate = function () {
 Auth.hideGate = function () {
   if (!Auth.gateEl) Auth.gateEl = document.getElementById("authGate");
   if (Auth.gateEl) {
+    Auth.gateEl.querySelector(".landing-page").inert = false;
+    Auth.gateEl.querySelector(".landing-page").removeAttribute("inert");
+    Auth.gateEl.querySelector(".landing-page").removeAttribute("aria-hidden");
     Auth.gateEl.classList.remove("show-auth");
     Auth.gateEl.style.display = "none";
   }
+  Auth._gateReturnFocus = null;
 };
 Auth.openGateForm = function (mode) {
   Auth.showGate();
   if (!Auth.gateEl) Auth.gateEl = document.getElementById("authGate");
-  if (Auth.gateEl) Auth.gateEl.classList.add("show-auth");
+  if (Auth.gateEl) {
+    if (!Auth.gateEl.classList.contains("show-auth")) Auth._gateReturnFocus = document.activeElement;
+    Auth.gateEl.classList.add("show-auth");
+    Auth.gateEl.querySelector(".landing-page").inert = true;
+    Auth.gateEl.querySelector(".auth-box").focus();
+    Auth.gateEl.querySelector(".landing-page").setAttribute("inert", "");
+    Auth.gateEl.querySelector(".landing-page").setAttribute("aria-hidden", "true");
+  }
   Auth.gateMode(mode || "login");
   setTimeout(() => Auth.renderGoogleButton(true), 60);
   setTimeout(() => {
     const first = document.getElementById("g_email");
-    if (first) first.focus();
+    if (first && Auth.gateEl?.classList.contains("show-auth")) first.focus();
   }, 40);
 };
 Auth.closeGateForm = function () {
   if (!Auth.gateEl) Auth.gateEl = document.getElementById("authGate");
-  if (Auth.gateEl) Auth.gateEl.classList.remove("show-auth");
+  if (Auth.gateEl) {
+    Auth.gateEl.querySelector(".landing-page").inert = false;
+    Auth.gateEl.querySelector(".landing-page").removeAttribute("inert");
+    Auth.gateEl.querySelector(".landing-page").removeAttribute("aria-hidden");
+    Auth.gateEl.classList.remove("show-auth");
+  }
+  if (Auth._gateReturnFocus?.isConnected && Auth._gateReturnFocus.getClientRects().length) {
+    Auth._gateReturnFocus.focus({ preventScroll: true });
+  } else {
+    const menuToggle = Auth.gateEl?.querySelector(".landing-menu-toggle");
+    if (menuToggle?.getClientRects().length) menuToggle.focus({ preventScroll: true });
+  }
+  Auth._gateReturnFocus = null;
 };
 
 Auth.gateMsg = function (msg) {
@@ -592,6 +722,10 @@ Auth.gateMode = function (mode) {
   const extra = document.getElementById("g_reg_extra"), submit = document.getElementById("ag_submit");
   if (tl) tl.classList.toggle("active", mode === "login");
   if (tr) tr.classList.toggle("active", mode === "register");
+  if (tl) tl.setAttribute("aria-pressed", String(mode === "login"));
+  if (tr) tr.setAttribute("aria-pressed", String(mode === "register"));
+  const password = document.getElementById("g_pass");
+  if (password) password.setAttribute("autocomplete", mode === "register" ? "new-password" : "current-password");
   if (extra) extra.style.display = mode === "register" ? "" : "none";
   if (submit) submit.textContent = (mode === "register" ? "สมัครบัญชีใหม่" : "ล็อกอิน");
   Auth.gateMsg("");
@@ -629,6 +763,27 @@ Auth.gateSubmit = async function () {
   ["g_email", "g_pass", "g_pass2", "g_name"].forEach(id => {
     const i = q(id);
     if (i) i.addEventListener("keydown", e => { if (e.key === "Enter") Auth.gateSubmit(); });
+  });
+  const gate = q("authGate");
+  if (gate) gate.addEventListener("keydown", event => {
+    if (!gate.classList.contains("show-auth")) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      Auth.closeGateForm();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const box = gate.querySelector(".auth-box");
+    const items = [...box.querySelectorAll('button, input, a[href], iframe, [tabindex="0"]')]
+      .filter(el => !el.disabled && !el.hidden && el.getClientRects().length);
+    const first = items[0], last = items[items.length - 1];
+    if (event.shiftKey && (document.activeElement === first || document.activeElement === box)) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
   });
   /* ปุ่มโปรไฟล์มุมขวาบน + ปิดเมนูเมื่อกดนอก panel */
   const pb = q("profileBtn");
@@ -879,6 +1034,7 @@ Auth.cardHtml = function () {
       ${Auth.session.name ? `<div class="row row-between mt-8"><span class="muted">ชื่อ</span><span class="small bold">${esc(Auth.session.name)}</span></div>` : ""}
       <div class="muted mt-8" style="font-size:.72rem">${ic("info")} ทุกครั้งที่บันทึกงาน ระบบจะส่งขึ้นคลาวด์ให้อัตโนมัติ${Auth.session.admin ? " · เมนูผู้ดูแลระบบอยู่ที่ไอคอนโปรไฟล์มุมขวาบน" : ""}</div>
       <button class="btn btn-primary btn-block mt-12" onclick="App.authSyncNow()">${ic("refresh")} ซิงก์ขึ้นคลาวด์ตอนนี้</button>
+      <button class="btn btn-outline btn-block mt-8" onclick="Auth.showRecovery()">${ic("save")} จุดกู้คืนก่อนซิงก์</button>
       <button class="btn btn-danger-soft btn-block mt-8" onclick="App.authLogout()">${ic("lock")} ออกจากระบบ</button>
     ` : `
       <div class="field"><label>อีเมล</label><input id="au_email" type="email" autocomplete="email"></div>

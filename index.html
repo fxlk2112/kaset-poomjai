@@ -12,133 +12,8 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=20260907googleauth3">
   <script>try{var _u0=new URL(location.href);var _shareToken=_u0.searchParams.get("share");var _landingPreview=_u0.searchParams.get("landing")==="1";if(_landingPreview||(!_shareToken&&!localStorage.getItem("farmult-session-v1")))document.documentElement.className+=" auth-locked";}catch(e){}</script>
   <style>
-    /* ===== Public Landing + Auth Gate (self-contained: ไม่พึ่งไฟล์ CSS อื่น) ===== */
-    html.auth-locked { background: #071911 url("images/login-smart-farm.png") center/cover fixed no-repeat; min-height:100%; }
     html.auth-locked #app { visibility: hidden; }
-    #authGate { position: fixed; inset: 0; z-index: 9999; display: none; background: #071911; overflow-y: auto; font-family: "Sarabun","Noto Sans Thai",system-ui,sans-serif; color: #f7fff9; }
-    .ag-bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
-    .ag-bg::before { content:""; position:absolute; inset:0; background:url("images/login-smart-farm.png") center/cover no-repeat; filter:saturate(1.08) contrast(1.04); }
-    .ag-bg::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,rgba(2,18,10,.92) 0%,rgba(4,32,18,.78) 44%,rgba(4,18,12,.42) 100%),linear-gradient(180deg,rgba(7,25,17,.08),#071911 94%); }
-    .ag-sun { position: absolute; top: 8%; left: 50%; transform: translateX(-50%); width: min(46vmin,340px); height: min(46vmin,340px); border-radius: 50%; background: radial-gradient(circle, rgba(255,214,120,.42) 0%, rgba(255,190,90,.24) 42%, rgba(255,180,80,0) 72%); }
-    .ag-hills { position: absolute; bottom: -2px; left: 0; width: 100%; height: 44%; }
-    .ag-hills .h1 { fill: rgba(255,255,255,.10); } .ag-hills .h2 { fill: rgba(16,71,39,.55); } .ag-hills .h3 { fill: rgba(9,46,24,.82); }
-    .landing-page { position: relative; z-index: 1; min-height: 100%; }
-    .landing-nav { position: sticky; top: 0; z-index: 4; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px clamp(16px,4vw,54px); background: rgba(7,25,17,.72); border-bottom: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(14px); }
-    .landing-brand { display: flex; align-items: center; gap: 10px; min-width: 0; color: #fff; font-weight: 900; letter-spacing: .2px; }
-    .landing-brand img { width: 40px; height: 40px; border-radius: 50%; object-fit: contain; background: #fff; padding: 2px; box-shadow: 0 8px 22px rgba(0,0,0,.22); }
-    .landing-brand small { display: block; color: rgba(220,252,231,.72); font-size: .72rem; font-weight: 700; margin-top: 1px; }
-    .landing-links { display: flex; align-items: center; gap: 18px; margin-left: auto; }
-    .landing-links a { color: rgba(241,255,245,.78); text-decoration: none; font-size: .82rem; font-weight: 900; }
-    .landing-nav-actions { display: flex; gap: 8px; flex-shrink: 0; }
-    .landing-btn { border: 0; border-radius: 999px; padding: 10px 16px; font: inherit; font-size: .86rem; font-weight: 900; cursor: pointer; color: #0c2f1b; background: #fff; box-shadow: 0 12px 26px rgba(0,0,0,.18); }
-    .landing-btn.primary { color: #fff; background: linear-gradient(135deg,#16a34a,#0f7a38); }
-    .landing-btn.ghost { color: #eafff0; background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.18); box-shadow: none; }
-    .landing-hero { min-height: calc(100svh - 72px); display: grid; grid-template-columns: minmax(0,.92fr) minmax(420px,1.08fr); gap: clamp(26px,4.5vw,70px); align-items: center; padding: clamp(46px,7vw,88px) clamp(16px,4vw,54px) 44px; }
-    .landing-kicker { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; color: #d9ffe5; background: rgba(22,163,74,.18); border: 1px solid rgba(134,239,172,.28); font-size: .78rem; font-weight: 900; }
-    .landing-hero h1 { margin: 18px 0 14px; max-width: 680px; color: #fff; font-size: clamp(2.2rem,5.35vw,4.45rem); line-height: 1.08; letter-spacing: 0; font-weight: 900; text-wrap: balance; }
-    .landing-hero p { max-width: 610px; margin: 0; color: rgba(241,255,245,.84); font-size: clamp(1rem,1.55vw,1.16rem); line-height: 1.82; font-weight: 600; }
-    .landing-cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
-    .landing-note { margin-top: 10px; color: rgba(220,252,231,.72); font-size: .8rem; font-weight: 800; }
-    .landing-metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; max-width: 650px; margin-top: 26px; }
-    .landing-metric { padding: 14px; border-radius: 8px; background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.14); backdrop-filter: blur(12px); }
-    .landing-metric b { display: block; color: #fff; font-size: 1.18rem; }
-    .landing-metric span { display: block; margin-top: 3px; color: rgba(220,252,231,.72); font-size: .76rem; font-weight: 700; line-height: 1.45; }
-    .landing-preview { position: relative; justify-self: end; width: min(100%,650px); color: #123f23; }
-    .lp-window { border-radius: 14px; overflow: hidden; background: #f4f8f5; border: 1px solid rgba(255,255,255,.72); box-shadow: 0 34px 80px rgba(0,0,0,.42); }
-    .lp-browser { height: 36px; display: flex; align-items: center; gap: 7px; padding: 0 14px; background: #e8f1eb; border-bottom: 1px solid #d4e3da; }
-    .lp-browser span { width: 8px; height: 8px; border-radius: 50%; background: #9fb3a8; }
-    .lp-browser span:nth-child(2) { background: #f5c25b; }
-    .lp-browser span:nth-child(3) { background: #32b768; }
-    .lp-browser b { margin-left: 8px; color: #6a8071; font-size: .72rem; font-weight: 900; }
-    .lp-shell { display: grid; grid-template-columns: 116px minmax(0,1fr); min-height: 410px; }
-    .lp-side { background: #0c2f1b; color: #dff8e8; padding: 16px 10px; }
-    .lp-side-brand { display: flex; align-items: center; gap: 7px; font-size: .72rem; font-weight: 900; margin-bottom: 18px; }
-    .lp-side-brand i { width: 18px; height: 18px; border-radius: 6px; background: linear-gradient(135deg,#22c55e,#f7c948); display: inline-block; }
-    .lp-nav-item { display: block; padding: 8px 9px; margin-top: 5px; border-radius: 8px; color: rgba(220,252,231,.68); font-size: .72rem; font-weight: 800; }
-    .lp-nav-item.active { background: rgba(255,255,255,.12); color: #fff; }
-    .lp-main { padding: 16px; background: linear-gradient(180deg,#f8fbf8,#edf5f0); }
-    .lp-main-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-    .lp-main-head b { display: block; color: #123f23; font-size: 1rem; }
-    .lp-main-head small { display: block; color: #678071; font-size: .72rem; font-weight: 800; margin-top: 2px; }
-    .lp-sync { color: #0f7a38; background: #e4f8ea; border: 1px solid #bfebca; border-radius: 999px; padding: 5px 9px; font-size: .68rem; font-weight: 900; white-space: nowrap; }
-    .lp-metrics-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin-bottom: 10px; }
-    .lp-mini-stat { border-radius: 8px; border: 1px solid #dcebe1; background: #fff; padding: 10px; }
-    .lp-mini-stat b { display: block; color: #123f23; font-size: .98rem; }
-    .lp-mini-stat span { display: block; color: #617566; font-size: .68rem; font-weight: 800; margin-top: 2px; }
-    .lp-split { display: grid; grid-template-columns: 1.15fr .85fr; gap: 8px; }
-    .lp-panel { border-radius: 8px; border: 1px solid #dcebe1; background: #fff; padding: 11px; }
-    .lp-panel-title { display: flex; justify-content: space-between; gap: 10px; color: #123f23; font-size: .78rem; font-weight: 900; margin-bottom: 9px; }
-    .lp-work-row { display: grid; grid-template-columns: 8px 1fr auto; gap: 8px; align-items: center; padding: 7px 0; border-top: 1px solid #edf3ef; font-size: .72rem; font-weight: 800; color: #405746; }
-    .lp-work-row:first-of-type { border-top: 0; }
-    .lp-work-row i { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
-    .lp-work-row:nth-child(3) i { background: #f7c948; }
-    .lp-work-row small { color: #7a8c81; font-size: .66rem; font-weight: 900; }
-    .lp-bars { display: grid; gap: 8px; }
-    .lp-bar { height: 9px; border-radius: 999px; background: #e8f1eb; overflow: hidden; }
-    .lp-bar i { display: block; height: 100%; width: var(--w,60%); background: linear-gradient(90deg,#16a34a,#f7c948); }
-    .lp-phone { position: absolute; right: -18px; bottom: -26px; width: 164px; border-radius: 18px; background: #071911; color: #eafff0; border: 1px solid rgba(255,255,255,.22); box-shadow: 0 22px 54px rgba(0,0,0,.34); padding: 10px; }
-    .lp-phone-screen { border-radius: 13px; background: #102d1d; padding: 11px; }
-    .lp-phone b { display: block; font-size: .78rem; }
-    .lp-phone span { display: block; color: rgba(220,252,231,.72); font-size: .66rem; font-weight: 800; line-height: 1.45; margin-top: 5px; }
-    .lp-card { border-radius: 8px; border: 1px solid #dfeae3; background: #fff; padding: 12px; }
-    .lp-card b { display: block; font-size: .88rem; color: #123f23; }
-    .lp-card small { display: block; color: #617566; font-weight: 700; line-height: 1.5; margin-top: 3px; }
-    .lp-progress { height: 8px; border-radius: 999px; background: #e7f3eb; overflow: hidden; margin-top: 9px; }
-    .lp-progress i { display: block; height: 100%; width: 72%; background: linear-gradient(90deg,#16a34a,#fbbf24); }
-    .landing-section { position: relative; z-index: 1; padding: 42px clamp(16px,4vw,54px); background: #f6faf7; color: #123f23; }
-    .landing-section.dark { background: #071911; color: #fff; }
-    .landing-section h2 { margin: 0 0 16px; font-size: clamp(1.55rem,3.2vw,2.6rem); line-height: 1.15; letter-spacing: 0; }
-    .landing-section-head { max-width: 760px; margin-bottom: 20px; }
-    .landing-section-head span { display: inline-block; color: #0f7a38; font-size: .76rem; font-weight: 900; margin-bottom: 8px; }
-    .landing-section.dark .landing-section-head span { color: #86efac; }
-    .landing-section-head p { margin: -6px 0 0; color: #5c7063; font-size: .96rem; line-height: 1.7; font-weight: 700; }
-    .landing-section.dark .landing-section-head p { color: rgba(241,255,245,.72); }
-    .landing-feature-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
-    .landing-feature { border: 1px solid #dcebe1; background: #fff; border-radius: 8px; padding: 16px; min-height: 124px; }
-    .landing-feature b { display: block; font-size: .96rem; color: #123f23; }
-    .landing-feature p { margin: 8px 0 0; color: #5c7063; font-size: .84rem; line-height: 1.6; font-weight: 600; }
-    .landing-flow { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
-    .landing-flow > div { border-radius: 8px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.08); padding: 18px; }
-    .landing-flow span { color: #86efac; font-size: .76rem; font-weight: 900; }
-    .landing-flow b { display: block; color: #fff; margin-top: 6px; }
-    .landing-flow p { margin: 7px 0 0; color: rgba(241,255,245,.72); line-height: 1.62; font-size: .86rem; font-weight: 600; }
-    .landing-proof { display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: center; padding: 22px clamp(16px,4vw,54px); background: #fff; color: #123f23; border-bottom: 1px solid #dcebe1; }
-    .landing-proof b { display: block; font-size: 1rem; }
-    .landing-proof p { margin: 4px 0 0; color: #5c7063; font-size: .86rem; line-height: 1.6; font-weight: 700; }
-    .landing-proof-list { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
-    .landing-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 7px 12px; border-radius: 999px; background: #edf8f0; border: 1px solid #dcebe1; color: #14532d; font-size: .78rem; font-weight: 900; white-space: nowrap; }
-    .landing-demo { display: grid; grid-template-columns: minmax(280px,.82fr) minmax(0,1.18fr); gap: 14px; align-items: stretch; }
-    .demo-phone, .demo-dashboard { border-radius: 12px; border: 1px solid #dcebe1; background: #fff; padding: 14px; box-shadow: 0 16px 34px rgba(18,63,35,.08); }
-    .demo-phone { max-width: 380px; }
-    .demo-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #e7f0ea; font-weight: 900; color: #123f23; }
-    .demo-chip { color: #15803d; background: #eaf7ee; border-radius: 999px; padding: 5px 9px; font-size: .7rem; }
-    .demo-list { display: grid; gap: 9px; margin-top: 12px; }
-    .demo-item { border-radius: 8px; border: 1px solid #e1ece5; padding: 10px; background: #fbfefc; }
-    .demo-item b { display: block; font-size: .84rem; color: #123f23; }
-    .demo-item span { display: block; color: #617566; font-size: .74rem; font-weight: 700; line-height: 1.45; margin-top: 2px; }
-    .demo-dashboard-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin-top: 12px; }
-    .demo-stat { border-radius: 8px; background: #f4faf6; border: 1px solid #dcebe1; padding: 12px; }
-    .demo-stat b { display: block; color: #123f23; font-size: 1.1rem; }
-    .demo-stat span { display: block; color: #617566; font-size: .72rem; font-weight: 800; margin-top: 2px; }
-    .landing-pricing { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
-    .price-card { border-radius: 8px; border: 1px solid #dcebe1; background: #fff; padding: 18px; }
-    .price-card.featured { border-color: #16a34a; box-shadow: 0 18px 38px rgba(22,163,74,.13); }
-    .price-card h3 { margin: 0; color: #123f23; font-size: 1.12rem; }
-    .price-card p { margin: 8px 0 12px; color: #5c7063; font-size: .84rem; line-height: 1.6; font-weight: 700; }
-    .price-card ul { margin: 0; padding-left: 18px; color: #415748; font-size: .82rem; line-height: 1.8; font-weight: 700; }
-    .landing-faq { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
-    .faq-card { border-radius: 8px; border: 1px solid #dcebe1; background: #fff; padding: 16px; }
-    .faq-card b { display: block; color: #123f23; }
-    .faq-card p { margin: 7px 0 0; color: #5c7063; font-size: .84rem; line-height: 1.6; font-weight: 700; }
-    .landing-legal { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
-    .legal-panel { border-radius: 8px; border: 1px solid #dcebe1; background: #fff; padding: 18px; }
-    .legal-panel h3 { margin: 0 0 8px; color: #123f23; font-size: 1.05rem; }
-    .legal-panel p, .legal-panel li { color: #5c7063; font-size: .82rem; line-height: 1.62; font-weight: 700; }
-    .legal-panel p { margin: 0 0 8px; }
-    .legal-panel ul { margin: 0; padding-left: 18px; }
-    .landing-final { text-align: center; padding-top: 54px; padding-bottom: 58px; }
-    .landing-final .landing-section-head { margin-left: auto; margin-right: auto; }
-    .landing-final .landing-cta { justify-content: center; }
+    #authGate { display: none; }
     #authGate.show-auth .auth-box { display: block; }
     #authGate:not(.show-auth) .auth-box { display: none; }
     #authGate.show-auth .landing-page { filter: blur(3px); pointer-events: none; }
@@ -187,11 +62,6 @@
     html[data-theme="dark"] .ag-field input { background: rgba(3,12,8,.84); color: #f4fbf6; border-color: rgba(134,239,172,.24); }
     html[data-theme="dark"] .ag-field input::placeholder { color: #7c9788; }
     html[data-theme="dark"] .auth-hint, html[data-theme="dark"] .auth-hint a { color: #9ab7a6; }
-    @media (max-width: 980px) { .landing-links { display: none; } .landing-pricing, .landing-demo { grid-template-columns: 1fr; } .demo-dashboard-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .lp-phone { right: 10px; } }
-    @media (max-width: 880px) { .landing-hero { grid-template-columns: 1fr; } .landing-preview { justify-self: start; max-width: 650px; padding-bottom: 24px; } .landing-feature-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .landing-flow, .landing-proof, .landing-faq { grid-template-columns: 1fr; } .landing-proof-list { justify-content: flex-start; } }
-    @media (max-width: 620px) { .lp-shell { grid-template-columns: 1fr; min-height: 0; } .lp-side { display: none; } .lp-split, .lp-metrics-grid { grid-template-columns: 1fr; } .lp-phone { position: static; width: auto; margin-top: 10px; } }
-    @media (max-width: 520px) { .landing-nav { align-items: flex-start; } .landing-nav-actions { flex-direction: column; } .landing-hero { padding-top: 34px; } .landing-metrics, .landing-feature-grid, .demo-dashboard-grid { grid-template-columns: 1fr; } .landing-btn { padding: 10px 13px; font-size: .82rem; } }
-    @media (max-width: 420px) { .auth-box { padding: 22px 16px 16px; border-radius: 20px; } .auth-brand-name { font-size: .95rem; } }
   </style>
   <script>
     function agHardReload(){
@@ -206,262 +76,163 @@
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script>try{var _ft=localStorage.getItem("farmult-theme")||"system";var _fd=_ft==="dark"||(_ft==="system"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);if(_fd)document.documentElement.setAttribute("data-theme","dark");}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=20260907interior1">
+  <link rel="stylesheet" href="css/style.css?v=20260908trialingredients1">
+  <link rel="stylesheet" href="css/landing.css?v=20260907landingsoft1">
   <link rel="icon" href="logo.jpg">
 </head>
 <body>
   <!-- ====== หน้าโปรโมท + บังคับล็อกอิน (static — ไม่พึ่ง JS ภายนอก) ====== -->
   <div id="authGate" style="display:none">
-    <div class="ag-bg" aria-hidden="true">
-      <div class="ag-sun"></div>
-      <svg class="ag-hills" viewBox="0 0 1440 420" preserveAspectRatio="none">
-        <path class="h1" d="M0,260 C240,180 420,300 720,240 C1020,180 1200,290 1440,230 L1440,420 L0,420 Z"/>
-        <path class="h2" d="M0,330 C260,270 520,360 820,320 C1120,280 1280,350 1440,310 L1440,420 L0,420 Z"/>
-        <path class="h3" d="M0,385 C300,350 600,400 900,375 C1150,355 1300,395 1440,370 L1440,420 L0,420 Z"/>
-      </svg>
-    </div>
-    <div class="landing-page">
+    <div class="landing-page" id="landing-top">
+      <a class="landing-skip" href="#features">ข้ามไปเนื้อหา</a>
       <header class="landing-nav">
-        <div class="landing-brand">
-          <img src="logo.jpg?v=20260907googleauth3" alt="">
-          <div>FARMULTIMATE SOLUTIONS<small>ระบบจัดการฟาร์มอัจฉริยะ</small></div>
-        </div>
-        <nav class="landing-links" aria-label="เมนูหน้าแนะนำ">
-          <a href="#features">ฟีเจอร์</a>
-          <a href="#demo">เดโม</a>
-          <a href="#pricing">แพ็กเกจ</a>
-          <a href="#faq">คำถาม</a>
-        </nav>
-        <div class="landing-nav-actions">
-          <button type="button" class="landing-btn ghost" onclick="Auth.openGateForm('login')">เข้าสู่ระบบ</button>
-          <button type="button" class="landing-btn primary" onclick="Auth.openGateForm('register')">สมัครใช้งาน</button>
+        <div class="landing-container landing-nav-inner">
+          <a class="landing-brand" href="#landing-top" aria-label="FARMULTIMATE SOLUTIONS หน้าแรก">
+            <img src="logo.jpg" width="44" height="44" alt="">
+            <span>FARMULTIMATE SOLUTIONS<small>ระบบจัดการฟาร์ม จากแปลงถึงต้นทุน</small></span>
+          </a>
+          <nav class="landing-links" id="landing-menu" aria-label="เมนูหน้าแนะนำ">
+            <a href="#features">การใช้งาน</a>
+            <a href="#trials">งานทดลอง</a>
+            <a href="#faq">คำถาม</a>
+            <div class="landing-mobile-auth"><button type="button" class="landing-login" onclick="Auth.openGateForm('login')">เข้าสู่ระบบ</button><button type="button" class="landing-btn primary" onclick="Auth.openGateForm('register')">สมัครใช้งาน</button></div>
+          </nav>
+          <div class="landing-nav-actions">
+            <button type="button" class="landing-login" onclick="Auth.openGateForm('login')">เข้าสู่ระบบ</button>
+            <button type="button" class="landing-btn primary landing-nav-signup" onclick="Auth.openGateForm('register')">สมัครใช้งาน<img src="images/landing-icons/arrow-right.svg" alt="" width="18" height="18"></button>
+            <button type="button" class="landing-icon-btn landing-menu-toggle" aria-label="เปิดเมนู" aria-controls="landing-menu" aria-expanded="false" title="เมนู"><img src="images/landing-icons/menu.svg" alt="" width="22" height="22"></button>
+          </div>
         </div>
       </header>
-      <section class="landing-hero">
-        <div>
-          <div class="landing-kicker">FARMULTIMATE SOLUTIONS</div>
-          <h1>ให้ฟาร์มเห็นงาน ต้นทุน และกำไรในที่เดียว</h1>
-          <p>เว็บสำหรับฟาร์มที่ต้องการจัดการแปลง รอบปลูก งานประจำ ค่าใช้จ่าย สต็อกสินค้า และยอดขาย โดยข้อมูลซิงก์ขึ้นคลาวด์อัตโนมัติและยังใช้งานต่อได้เมื่อไม่มีเน็ต</p>
-          <div class="landing-cta">
-            <button type="button" class="landing-btn primary" onclick="Auth.openGateForm('register')">เริ่มใช้ฟรี</button>
-            <button type="button" class="landing-btn ghost" onclick="Auth.openGateForm('login')">มีบัญชีแล้ว เข้าสู่ระบบ</button>
+      <main>
+        <section class="landing-hero" aria-labelledby="landing-title">
+          <picture class="landing-hero-photo">
+            <source media="(max-width: 600px)" srcset="images/landing-farm.webp">
+            <img src="images/landing-farm.webp" width="1774" height="887" alt="" fetchpriority="high">
+          </picture>
+          <div class="landing-container landing-hero-content">
+            <h1 id="landing-title">FARMULTIMATE<br>SOLUTIONS</h1>
+            <p>ระบบจัดการฟาร์ม จากแปลงถึงต้นทุน</p>
+            <div class="landing-cta">
+              <button type="button" class="landing-btn primary" onclick="Auth.openGateForm('register')">สมัครใช้งาน<img src="images/landing-icons/arrow-right.svg" alt="" width="20" height="20"></button>
+              <a class="landing-btn outline" href="#demo">ดูหน้าระบบ</a>
+            </div>
           </div>
-          <div class="landing-note">ตั้งค่าฟาร์มแรกได้เร็ว · เปิดต่อบนมือถือได้ · ไม่ต้องเริ่มจากศูนย์ทุกเครื่อง</div>
-          <div class="landing-metrics">
-            <div class="landing-metric"><b>24/7</b><span>เปิดดูข้อมูลฟาร์มได้จากคอมและมือถือ</span></div>
-            <div class="landing-metric"><b>ครบ</b><span>งาน ต้นทุน สต็อก ยอดขาย อยู่ในบัญชีเดียว</span></div>
-            <div class="landing-metric"><b>ออฟไลน์</b><span>บันทึกในพื้นที่เน็ตไม่ดี แล้ว sync ภายหลัง</span></div>
+        </section>
+        <section class="landing-section" id="features" aria-labelledby="features-title">
+          <div class="landing-container landing-product-grid">
+            <div class="landing-product-copy">
+              <p class="landing-eyebrow">งานในแปลง</p>
+              <h2 id="features-title">งานแต่ละวัน<br> เห็นต่อกันทั้งรอบปลูก</h2>
+              <p class="landing-body">จากแผนที่วางไว้ ถึงงานที่ทำจริง<br> เก็บไว้ด้วยกัน ไม่ต้องไล่หาหลายที่</p>
+              <ul class="landing-feature-list">
+                <li><img src="images/landing-icons/calendar-days.svg" width="32" height="32" alt=""><div><h3>งานและรอบปลูก</h3><p>ดูงานวันนี้ และแผนตลอดรอบปลูก</p></div></li>
+                <li><img src="images/landing-icons/package.svg" width="32" height="32" alt=""><div><h3>สต็อกที่ใช้จริง</h3><p>ยอดคงเหลือและรายการที่ใช้ไป</p></div></li>
+                <li><img src="images/landing-icons/chart-no-axes-column-increasing.svg" width="32" height="32" alt=""><div><h3>รายรับและต้นทุน</h3><p>สรุปจากรายการที่บันทึกไว้</p></div></li>
+              </ul>
+            </div>
+            <figure class="landing-product-image" id="demo">
+              <button class="landing-screenshot-button" type="button" data-landing-dialog="product-preview" aria-label="ขยายภาพหน้าระบบจริง" title="ขยายภาพหน้าระบบจริง">
+                <img src="images/landing-app.webp" width="1280" height="1000" alt="หน้าหลัก FARMULTIMATE แสดงงานวันนี้ สถานะกิจกรรม และรายรับหักรายจ่ายจากข้อมูลตัวอย่าง" loading="lazy">
+                <span class="landing-expand"><img src="images/landing-icons/maximize-2.svg" width="18" height="18" alt=""></span>
+              </button>
+              <figcaption>หน้าระบบจริง · ข้อมูลตัวอย่าง</figcaption>
+            </figure>
           </div>
-        </div>
-        <aside class="landing-preview" aria-label="ตัวอย่างหน้าระบบ">
-          <div class="lp-window">
-            <div class="lp-browser"><span></span><span></span><span></span><b>farmultimate.app/dashboard</b></div>
-            <div class="lp-shell">
-              <div class="lp-side">
-                <div class="lp-side-brand"><i></i>FUS</div>
-                <span class="lp-nav-item active">ภาพรวม</span>
-                <span class="lp-nav-item">แปลง</span>
-                <span class="lp-nav-item">รอบปลูก</span>
-                <span class="lp-nav-item">กิจกรรม</span>
-                <span class="lp-nav-item">สต็อก</span>
+        </section>
+        <section class="landing-trials" id="trials" aria-labelledby="trials-title">
+          <div class="landing-container landing-trials-grid">
+            <div>
+              <p class="landing-eyebrow">งานทดลอง</p>
+              <h2 id="trials-title">ลองสูตรใหม่<br> เก็บผลไว้เทียบกัน</h2>
+              <p class="landing-body">บันทึกสิ่งที่ทำในแต่ละแปลงย่อย<br> เปรียบเทียบผลที่วัดในวันเดียวกัน</p>
+            </div>
+            <img class="landing-trial-photo" src="images/landing-trial.webp" width="1400" height="700" alt="ภาพประกอบการวัดใบข้าวโพดในแปลงทดลอง" loading="lazy">
+          </div>
+        </section>
+        <section class="landing-section landing-start" id="start">
+          <div class="landing-container landing-start-grid">
+            <div>
+              <p class="landing-eyebrow">เริ่มทีละนิด ก็เห็นภาพมากขึ้น</p>
+              <h2>เริ่มจากแปลงแรกของคุณ</h2>
+              <ol class="landing-steps">
+                <li><span>1</span><div><h3>สร้างแปลงและรอบปลูก</h3><p>เลือกพืช วันเริ่มปลูก และปรับแผนงานให้เหมาะกับแปลง</p></div></li>
+                <li><span>2</span><div><h3>บันทึกงานที่ทำในแต่ละวัน</h3><p>เก็บสถานะงาน วัสดุที่ใช้ และค่าใช้จ่ายไว้ด้วยกัน</p></div></li>
+                <li><span>3</span><div><h3>กลับมาดูสิ่งที่เกิดขึ้นทั้งรอบ</h3><p>ทบทวนงาน ผลผลิต และรายรับหักต้นทุนที่บันทึกไว้</p></div></li>
+              </ol>
+            </div>
+            <div id="faq">
+              <aside class="landing-offline">
+                <img src="images/landing-icons/cloud.svg" width="40" height="40" alt="">
+                <div><h3>บันทึกในแปลง แล้วเปิดต่อที่บ้าน</h3><p>ใช้งานออฟไลน์ได้หลังเข้าสู่ระบบและโหลดข้อมูลไว้ก่อน เมื่อมีเน็ตจึงซิงก์ต่อให้ บางกรณีที่ข้อมูลชนกันจะให้ตรวจสอบก่อน</p></div>
+              </aside>
+              <h2 class="landing-faq-title">คำถามก่อนเริ่มใช้งาน</h2>
+              <div class="landing-faq">
+                <details><summary>ใช้มือถือกับคอม ข้อมูลเดียวกันไหม<img src="images/landing-icons/chevron-down.svg" alt="" width="18" height="18"></summary><p>ใช้บัญชีเดียวกันได้ทั้งสองเครื่อง เมื่อออนไลน์ ระบบจะรับข้อมูลล่าสุดให้อัตโนมัติ หากมีข้อมูลแก้ไขค้างทั้งสองฝั่ง อาจต้องตรวจสอบก่อนซิงก์</p></details>
+                <details><summary>แผนงานอัตโนมัติ ปรับเองได้ไหม<img src="images/landing-icons/chevron-down.svg" alt="" width="18" height="18"></summary><p>ได้ แผนที่สร้างให้เป็นจุดเริ่มต้น คุณแก้วันที่ งาน และรายละเอียดก่อนบันทึกได้ โดยเลือกให้เหมาะกับสภาพแปลงจริง ไม่ใช่คำแนะนำทางการเกษตรเฉพาะพื้นที่</p></details>
+                <details><summary>ออฟไลน์แล้ว อะไรยังต้องใช้เน็ต<img src="images/landing-icons/chevron-down.svg" alt="" width="18" height="18"></summary><p>การเข้าสู่ระบบครั้งแรก การใช้ Google สภาพอากาศ การอัปโหลดรูป และการซิงก์ข้ามเครื่องต้องใช้อินเทอร์เน็ต ควรเปิดเว็บและโหลดข้อมูลให้เรียบร้อยก่อนเข้าแปลง</p></details>
+                <details><summary>ข้อมูลของฉันแยกจากบัญชีอื่นไหม<img src="images/landing-icons/chevron-down.svg" alt="" width="18" height="18"></summary><p>ข้อมูลฟาร์มแยกตามบัญชี และมีข้อมูลที่เก็บไว้ในเครื่องเพื่อใช้งานต่อ ควรใช้บัญชีและอุปกรณ์ที่คุณมีสิทธิ์เข้าถึง และสำรองข้อมูลสำคัญเป็นระยะ <a href="#privacy">อ่านนโยบายความเป็นส่วนตัว</a></p></details>
               </div>
-              <div class="lp-main">
-                <div class="lp-main-head">
-                  <div><b>ภาพรวมฟาร์มวันนี้</b><small>ข้าวโพดหวาน · รอบปลูกที่ 2 · 7 ก.ย.</small></div>
-                  <span class="lp-sync">sync แล้ว</span>
-                </div>
-                <div class="lp-metrics-grid">
-                  <div class="lp-mini-stat"><b>8 งาน</b><span>ตามรอบปลูก</span></div>
-                  <div class="lp-mini-stat"><b>12.5 ไร่</b><span>พื้นที่ใช้งาน</span></div>
-                  <div class="lp-mini-stat"><b>฿42,800</b><span>มูลค่าสต็อก</span></div>
-                </div>
-                <div class="lp-split">
-                  <div class="lp-panel">
-                    <div class="lp-panel-title">งานวันนี้ <span>3 รายการ</span></div>
-                    <div class="lp-work-row"><i></i><span>รดน้ำโซน A</span><small>เสร็จแล้ว</small></div>
-                    <div class="lp-work-row"><i></i><span>ใส่ปุ๋ยรองพื้น</span><small>บันทึกต้นทุน</small></div>
-                    <div class="lp-work-row"><i></i><span>ตรวจแปลงหลังฝน</span><small>รอทำ</small></div>
-                  </div>
-                  <div class="lp-panel">
-                    <div class="lp-panel-title">ต้นทุนรอบนี้</div>
-                    <div class="lp-bars">
-                      <div class="lp-bar" style="--w:82%"><i></i></div>
-                      <div class="lp-bar" style="--w:58%"><i></i></div>
-                      <div class="lp-bar" style="--w:36%"><i></i></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
-          <div class="lp-phone">
-            <div class="lp-phone-screen">
-              <b>บันทึกในแปลง</b>
-              <span>เลือกหมวดต้นทุน ตัดสต็อก และแนบรูปงานได้จากมือถือ</span>
+        </section>
+        <section class="landing-final">
+          <div class="landing-container landing-final-inner">
+            <div><h2>เริ่มจากฟาร์มของคุณวันนี้</h2><p>เริ่มจากแปลงเดียว แล้วค่อยเพิ่มตามจังหวะของฟาร์มคุณ</p></div>
+            <div class="landing-cta">
+              <button type="button" class="landing-btn primary" onclick="Auth.openGateForm('register')">สมัครใช้งาน<img src="images/landing-icons/arrow-right.svg" width="20" height="20" alt=""></button>
+              <button type="button" class="landing-btn secondary" onclick="Auth.openGateForm('login')">เข้าสู่ระบบ</button>
             </div>
           </div>
-        </aside>
-      </section>
-      <section class="landing-proof">
-        <div>
-          <b>ทำมาเพื่อฟาร์มที่ต้องจดงานจริงทุกวัน ไม่ใช่แค่หน้า dashboard สวย ๆ</b>
-          <p>เริ่มจากแปลงและรอบปลูก แล้วให้ข้อมูลต้นทุน สต็อก งาน และยอดขายไหลกลับมาเป็นภาพรวมเดียวกัน</p>
+        </section>
+      </main>
+      <footer class="landing-footer">
+        <div class="landing-container landing-footer-inner">
+          <a class="landing-brand" href="#landing-top"><img src="logo.jpg" width="40" height="40" alt=""><span>FARMULTIMATE SOLUTIONS<small>ระบบจัดการฟาร์ม จากแปลงถึงต้นทุน</small></span></a>
+          <nav aria-label="ข้อมูลเว็บไซต์"><a href="#privacy">นโยบายความเป็นส่วนตัว</a><a href="#terms">ข้อกำหนดการใช้งาน</a></nav>
         </div>
-        <div class="landing-proof-list">
-          <span class="landing-pill">ทำงานได้บนคอมและมือถือ</span>
-          <span class="landing-pill">ใช้ต่อได้เมื่อเน็ตไม่ดี</span>
-          <span class="landing-pill">ข้อมูลแยกตามบัญชี</span>
-          <span class="landing-pill">เหมาะกับทีมดูแลหลายแปลง</span>
-        </div>
-      </section>
-      <section id="features" class="landing-section">
-        <div class="landing-section-head">
-          <span>FEATURES</span>
-          <h2>ครบตั้งแต่แปลงจนถึงยอดขาย</h2>
-          <p>ทุกอย่างผูกกับรอบปลูกและแปลงจริง ทำให้กลับมาดูย้อนหลังได้ว่าแต่ละรอบใช้เงิน ใช้ของ และได้ผลผลิตแค่ไหน</p>
-        </div>
-        <div class="landing-feature-grid">
-          <div class="landing-feature"><b>จัดการแปลงและรอบปลูก</b><p>เก็บพื้นที่ พิกัด สถานะรอบปลูก และดูงานทั้งหมดแยกตามแปลงได้ง่าย</p></div>
-          <div class="landing-feature"><b>แผนงานอัตโนมัติ</b><p>เริ่มรอบปลูกแล้วสร้างงานดูแลตามชนิดพืช ปรับวันที่และข้อความก่อนบันทึกได้</p></div>
-          <div class="landing-feature"><b>บันทึกกิจกรรมพร้อมต้นทุน</b><p>จดงานประจำ ใส่ปุ๋ย ฉีดยา เก็บเกี่ยว ค่าแรง และค่าใช้จ่ายอื่น ๆ</p></div>
-          <div class="landing-feature"><b>สต็อกสินค้าเกษตร</b><p>ติดตามปุ๋ย ยา เมล็ดพันธุ์ ราคา รูปสินค้า และตัดสต็อกจากกิจกรรม</p></div>
-          <div class="landing-feature"><b>ยอดขายและใบส่งสินค้า</b><p>บันทึกการขายสินค้า ออกสรุปยอด และดูรายได้แยกตามช่วงเวลา</p></div>
-          <div class="landing-feature"><b>กำไรต่อแปลง</b><p>ดูรายรับ ต้นทุน และกำไรจากงานจริงที่บันทึกไว้ ไม่ใช่ตัวเลขประมาณลอย ๆ</p></div>
-          <div class="landing-feature"><b>สภาพอากาศรายแปลง</b><p>ดูพยากรณ์ ฝน ลม ความชื้น และข้อมูลช่วยตัดสินใจทำงานในแปลง</p></div>
-          <div class="landing-feature"><b>ออฟไลน์และซิงก์คลาวด์</b><p>ใช้งานต่อในพื้นที่สัญญาณไม่ดี แล้วกลับมา sync เมื่อมีเน็ต</p></div>
-        </div>
-      </section>
-      <section id="demo" class="landing-section">
-        <div class="landing-section-head">
-          <span>WORKFLOW</span>
-          <h2>เห็นงานในแปลงแล้วกลับมาเป็นตัวเลขทันที</h2>
-          <p>ทีมจดจากมือถือในพื้นที่จริง เจ้าของเปิดดูภาพรวมบนคอมต่อได้โดยไม่ต้องไล่ถามงานทีละคน</p>
-        </div>
-        <div class="landing-demo">
-          <div class="demo-phone">
-            <div class="demo-top">บันทึกจากมือถือ <span class="demo-chip">ในแปลง</span></div>
-            <div class="demo-list">
-              <div class="demo-item"><b>รดน้ำโซน A</b><span>เลือกโซน ระยะเวลา และแนบรูปหลังทำ</span></div>
-              <div class="demo-item"><b>ใส่ปุ๋ยรองพื้น</b><span>เลือกหมวดต้นทุน ตัดสต็อก และบันทึกจำนวนใช้จริง</span></div>
-              <div class="demo-item"><b>ตรวจแปลง</b><span>จดอาการพืช สภาพอากาศ และงานต่อเนื่อง</span></div>
-            </div>
-          </div>
-          <div class="demo-dashboard">
-            <div class="demo-top">ภาพรวมบนแดชบอร์ด <span class="demo-chip">sync แล้ว</span></div>
-            <div class="demo-dashboard-grid">
-              <div class="demo-stat"><b>12.5 ไร่</b><span>พื้นที่ใช้งาน</span></div>
-              <div class="demo-stat"><b>8 งาน</b><span>งานตามรอบปลูก</span></div>
-              <div class="demo-stat"><b>฿42,800</b><span>มูลค่าสต็อก</span></div>
-              <div class="demo-stat"><b>3 รอบ</b><span>รอบปลูกย้อนหลัง</span></div>
-              <div class="demo-stat"><b>กำไร</b><span>แยกตามแปลง/รอบ</span></div>
-              <div class="demo-stat"><b>ฝน/ลม</b><span>ช่วยตัดสินใจทำงาน</span></div>
-            </div>
-          </div>
-        </div>
-      </section>
-      <section class="landing-section dark">
-        <div class="landing-section-head">
-          <span>SETUP</span>
-          <h2>เริ่มใช้แบบที่ฟาร์มทำงานจริง</h2>
-          <p>ไม่ต้องวางระบบซับซ้อนตั้งแต่วันแรก เริ่มจากข้อมูลที่ฟาร์มมีอยู่ แล้วค่อยเติมงานและต้นทุนระหว่างทำจริง</p>
-        </div>
-        <div class="landing-flow">
-          <div><span>01</span><b>สร้างแปลง</b><p>ใส่ชื่อแปลง พื้นที่ และพิกัด เพื่อให้ทุกงานผูกกับพื้นที่จริง</p></div>
-          <div><span>02</span><b>เริ่มรอบปลูก</b><p>เลือกพืช วันเริ่มปลูก และให้ระบบช่วยวางงานอัตโนมัติทั้งฤดู</p></div>
-          <div><span>03</span><b>บันทึกงานทุกวัน</b><p>ทำเสร็จแล้วเก็บรูป ต้นทุน สต็อก และรายได้ไว้ในบัญชีเดียว</p></div>
-        </div>
-        <div class="landing-cta">
-          <button type="button" class="landing-btn primary" onclick="Auth.openGateForm('register')">สมัครใช้งาน</button>
-          <button type="button" class="landing-btn ghost" onclick="Auth.openGateForm('login')">เข้าสู่ระบบ</button>
-        </div>
-      </section>
-      <section id="pricing" class="landing-section">
-        <div class="landing-section-head">
-          <span>PLANS</span>
-          <h2>เริ่มเล็ก แล้วค่อยขยายตามทีม</h2>
-          <p>เลือกใช้ตามขนาดงานของฟาร์มตอนนี้ แล้วเพิ่มส่วนที่ต้องการเมื่อเริ่มมีหลายแปลง หลายคน หรือหลายอุปกรณ์</p>
-        </div>
-        <div class="landing-pricing">
-          <div class="price-card"><h3>เริ่มต้น</h3><p>สำหรับเจ้าของฟาร์มที่อยากเลิกจดกระดาษและรวมข้อมูลไว้ที่เดียว</p><ul><li>แปลงและรอบปลูก</li><li>งานและต้นทุน</li><li>สต็อกพื้นฐาน</li></ul></div>
-          <div class="price-card featured"><h3>ฟาร์มทีม</h3><p>สำหรับทีมที่ทำงานหลายเครื่อง ต้อง sync ข้อมูลและตามงานประจำวัน</p><ul><li>บัญชีและคลาวด์</li><li>รูปงานและสต็อก</li><li>ยอดขายและกำไร</li></ul></div>
-          <div class="price-card"><h3>ขยายระบบ</h3><p>สำหรับงานที่ต้องเชื่อมอุปกรณ์ น้ำ ฝน หรือข้อมูลภายนอกเพิ่มเติม</p><ul><li>ระบบน้ำ</li><li>Lark/ข้อมูลภายนอก</li><li>สำรองและส่งออกข้อมูล</li></ul></div>
-        </div>
-        <div class="landing-cta">
-          <button type="button" class="landing-btn primary" onclick="Auth.openGateForm('register')">สมัครแล้วเริ่มตั้งค่าฟาร์ม</button>
-        </div>
-      </section>
-      <section id="faq" class="landing-section">
-        <div class="landing-section-head">
-          <span>FAQ</span>
-          <h2>คำถามที่เจอบ่อย</h2>
-        </div>
-        <div class="landing-faq">
-          <div class="faq-card"><b>ไม่มีเน็ตในแปลง ใช้ได้ไหม</b><p>ใช้ได้หลังล็อกอินแล้ว ข้อมูลจะอยู่ในเครื่องก่อน และ sync เมื่อกลับมาออนไลน์</p></div>
-          <div class="faq-card"><b>เปิดในมือถือกับคอมพร้อมกันได้ไหม</b><p>ได้ ข้อมูลล่าสุดจะดึงจากคลาวด์ให้อัตโนมัติเมื่อไม่มีข้อมูลค้างในเครื่องนั้น</p></div>
-          <div class="faq-card"><b>ต้องเริ่มจากอะไร</b><p>เริ่มจากสร้างแปลง แล้วเปิดรอบปลูก ระบบจะช่วยสร้างงานตามแผนให้แก้ก่อนบันทึก</p></div>
-          <div class="faq-card"><b>ข้อมูลฟาร์มปนกับบัญชีอื่นไหม</b><p>ไม่ปน ข้อมูลแยกตามบัญชี และเก็บสำรองในเครื่องของบัญชีนั้น</p></div>
-        </div>
-      </section>
-      <section class="landing-section" aria-label="ข้อมูลนโยบาย">
-        <div class="landing-legal">
-          <article id="privacy" class="legal-panel">
-            <h3>Privacy Policy</h3>
-            <p>FARMULTIMATE SOLUTIONS ใช้ข้อมูลบัญชี Google เฉพาะชื่อ อีเมล และรหัสบัญชี Google เพื่อสมัคร เข้าสู่ระบบ และแยกข้อมูลฟาร์มของแต่ละบัญชี</p>
-            <ul>
-              <li>ข้อมูลฟาร์ม เช่น แปลง รอบปลูก กิจกรรม สต็อก ยอดขาย และรูปงาน ถูกเก็บเพื่อให้ผู้ใช้เรียกดูและซิงก์ข้ามอุปกรณ์</li>
-              <li>เราไม่ขายข้อมูลส่วนตัว และไม่ใช้ข้อมูลบัญชี Google เพื่อโฆษณาภายนอก</li>
-              <li>ผู้ใช้สามารถออกจากระบบ หยุดใช้งาน หรือขอลบข้อมูลบัญชีและข้อมูลฟาร์มได้โดยติดต่ออีเมล support ของแอพ</li>
-            </ul>
-          </article>
-          <article id="terms" class="legal-panel">
-            <h3>Terms of Service</h3>
-            <p>การใช้งาน FARMULTIMATE SOLUTIONS มีไว้เพื่อช่วยบันทึกและติดตามงานฟาร์ม ผู้ใช้เป็นผู้รับผิดชอบความถูกต้องของข้อมูลที่บันทึกและการตัดสินใจใช้งานจริงในพื้นที่</p>
-            <ul>
-              <li>บัญชีหนึ่งควรใช้กับข้อมูลฟาร์มที่ผู้ใช้มีสิทธิ์จัดการเท่านั้น</li>
-              <li>ระบบอาจมีการปรับปรุงฟีเจอร์และรูปแบบการซิงก์เพื่อให้ใช้งานได้เสถียรขึ้น</li>
-              <li>ห้ามใช้ระบบเพื่อเก็บหรือเผยแพร่ข้อมูลที่ผิดกฎหมาย ละเมิดสิทธิ์ หรือทำให้ผู้อื่นเสียหาย</li>
-            </ul>
-          </article>
-        </div>
-      </section>
-      <section class="landing-section dark landing-final">
-        <div class="landing-section-head">
-          <span>READY</span>
-          <h2>พร้อมให้ฟาร์มเริ่มเก็บข้อมูลแบบเป็นระบบ</h2>
-          <p>สมัครแล้วเริ่มสร้างแปลงแรกได้ทันที จากนั้นค่อยเพิ่มรอบปลูก งาน สต็อก และยอดขายตามการใช้งานจริง</p>
-        </div>
-        <div class="landing-cta">
-          <button type="button" class="landing-btn primary" onclick="Auth.openGateForm('register')">เริ่มใช้ฟรี</button>
-          <button type="button" class="landing-btn ghost" onclick="Auth.openGateForm('login')">เข้าสู่ระบบ</button>
-        </div>
-      </section>
+      </footer>
     </div>
-    <div class="auth-box">
-      <button type="button" class="auth-close" onclick="Auth.closeGateForm()" aria-label="ปิด">×</button>
+    <dialog id="product-preview" class="landing-dialog landing-image-dialog" aria-labelledby="product-preview-title">
+      <div class="landing-dialog-head"><h2 id="product-preview-title">หน้าระบบจริง · ข้อมูลตัวอย่าง</h2><form method="dialog"><button class="landing-icon-btn" aria-label="ปิดภาพ" title="ปิดภาพ"><img src="images/landing-icons/x.svg" width="22" height="22" alt=""></button></form></div>
+      <img src="images/landing-app.webp" width="1280" height="1000" alt="ตัวอย่างหน้าหลัก แสดงงานรายวัน สถานะกิจกรรม และตัวเลขจากข้อมูลที่บันทึก">
+    </dialog>
+    <dialog id="privacy" class="landing-dialog" aria-labelledby="privacy-title">
+      <div class="landing-dialog-head"><h2 id="privacy-title">นโยบายความเป็นส่วนตัว</h2><form method="dialog"><button class="landing-icon-btn" aria-label="ปิดนโยบาย" title="ปิด"><img src="images/landing-icons/x.svg" width="22" height="22" alt=""></button></form></div>
+      <p>FARMULTIMATE SOLUTIONS ใช้ข้อมูลบัญชี Google เฉพาะชื่อ อีเมล และรหัสบัญชี Google เพื่อสมัคร เข้าสู่ระบบ และแยกข้อมูลฟาร์มของแต่ละบัญชี</p>
+      <ul><li>ข้อมูลฟาร์ม เช่น แปลง รอบปลูก กิจกรรม สต็อก ยอดขาย และรูปงาน ถูกเก็บเพื่อให้ผู้ใช้เรียกดูและซิงก์ข้ามอุปกรณ์</li><li>เราไม่ขายข้อมูลส่วนตัว และไม่ใช้ข้อมูลบัญชี Google เพื่อโฆษณาภายนอก</li><li>ผู้ใช้สามารถออกจากระบบ หยุดใช้งาน หรือขอลบข้อมูลบัญชีและข้อมูลฟาร์มได้โดยติดต่ออีเมล support ของแอพ</li></ul>
+    </dialog>
+    <dialog id="terms" class="landing-dialog" aria-labelledby="terms-title">
+      <div class="landing-dialog-head"><h2 id="terms-title">ข้อกำหนดการใช้งาน</h2><form method="dialog"><button class="landing-icon-btn" aria-label="ปิดข้อกำหนด" title="ปิด"><img src="images/landing-icons/x.svg" width="22" height="22" alt=""></button></form></div>
+      <p>การใช้งาน FARMULTIMATE SOLUTIONS มีไว้เพื่อช่วยบันทึกและติดตามงานฟาร์ม ผู้ใช้เป็นผู้รับผิดชอบความถูกต้องของข้อมูลที่บันทึกและการตัดสินใจใช้งานจริงในพื้นที่</p>
+      <ul><li>บัญชีหนึ่งควรใช้กับข้อมูลฟาร์มที่ผู้ใช้มีสิทธิ์จัดการเท่านั้น</li><li>ระบบอาจมีการปรับปรุงฟีเจอร์และรูปแบบการซิงก์เพื่อให้ใช้งานได้เสถียรขึ้น</li><li>ห้ามใช้ระบบเพื่อเก็บหรือเผยแพร่ข้อมูลที่ผิดกฎหมาย ละเมิดสิทธิ์ หรือทำให้ผู้อื่นเสียหาย</li></ul>
+    </dialog>
+    <div class="auth-box" role="dialog" aria-modal="true" aria-labelledby="ag_dialog_title" tabindex="-1">
+      <button type="button" class="auth-close" onclick="Auth.closeGateForm()" aria-label="ปิด" title="ปิด"><img src="images/landing-icons/x.svg" width="20" height="20" alt=""></button>
       <div class="auth-brand">
         <img src="logo.jpg?v=20260907googleauth3" alt="" onerror="this.style.display='none'">
-        <div class="auth-brand-name">FARMULTIMATE SOLUTIONS</div>
+        <div class="auth-brand-name" id="ag_dialog_title">FARMULTIMATE SOLUTIONS</div>
         <div class="auth-brand-sub">ระบบจัดการฟาร์มอัจฉริยะ</div>
       </div>
       <div class="auth-tabs">
-        <button type="button" id="ag_tab_login" class="active">ล็อกอิน</button>
-        <button type="button" id="ag_tab_reg">สมัครใหม่</button>
+        <button type="button" id="ag_tab_login" class="active" aria-pressed="true">ล็อกอิน</button>
+        <button type="button" id="ag_tab_reg" aria-pressed="false">สมัครใหม่</button>
       </div>
       <div class="google-auth">
         <div id="ag_google_btn" class="google-auth-slot"></div>
         <button type="button" id="ag_google_fallback" class="google-fallback" onclick="Auth.googleUnavailable()" hidden>ดำเนินการต่อด้วย Google</button>
-        <div id="ag_google_status" class="google-status"></div>
+        <div id="ag_google_status" class="google-status" role="status" aria-live="polite"></div>
         <div class="google-divider"><span>หรือใช้อีเมล</span></div>
       </div>
-      <div class="ag-field"><label>อีเมล</label><input id="g_email" type="email" placeholder="you@example.com" autocomplete="email"></div>
-      <div class="ag-field"><label>รหัสผ่าน</label><input id="g_pass" type="password" placeholder="อย่างน้อย 6 ตัวอักษร" autocomplete="current-password"></div>
+      <div class="ag-field"><label for="g_email">อีเมล</label><input id="g_email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+      <div class="ag-field"><label for="g_pass">รหัสผ่าน</label><input id="g_pass" type="password" placeholder="อย่างน้อย 6 ตัวอักษร" autocomplete="current-password"></div>
       <div id="g_reg_extra" style="display:none">
-        <div class="ag-field"><label>ยืนยันรหัสผ่าน</label><input id="g_pass2" type="password" autocomplete="new-password"></div>
-        <div class="ag-field"><label>ชื่อ-นามสกุล (ไม่บังคับ)</label><input id="g_name"></div>
+        <div class="ag-field"><label for="g_pass2">ยืนยันรหัสผ่าน</label><input id="g_pass2" type="password" autocomplete="new-password"></div>
+        <div class="ag-field"><label for="g_name">ชื่อ-นามสกุล (ไม่บังคับ)</label><input id="g_name" autocomplete="name"></div>
       </div>
       <button type="button" class="ag-submit" id="ag_submit">ล็อกอิน</button>
-      <div id="ag_msg" class="auth-msg"></div>
-      <div class="auth-hint">ข้อมูลแยกต่อบัญชี ซิงก์ขึ้นคลาวด์อัตโนมัติ · ใช้แบบออฟไลน์ได้หลังล็อกอิน<br><a href="javascript:void(0)" onclick="agHardReload()">หน้าไม่ปกติ? ล้างแคชแล้วโหลดใหม่</a></div>
+      <div id="ag_msg" class="auth-msg" role="status" aria-live="polite"></div>
+      <div class="auth-hint">ข้อมูลแยกต่อบัญชี ใช้แบบออฟไลน์ได้หลังเข้าสู่ระบบและโหลดข้อมูล<br><a href="javascript:void(0)" onclick="agHardReload()">หน้าไม่ปกติ? ล้างแคชแล้วโหลดใหม่</a></div>
     </div>
   </div>
   <script>try{var _u1=new URL(location.href);var _shareToken2=_u1.searchParams.get("share");var _landingPreview2=_u1.searchParams.get("landing")==="1";if(_landingPreview2||(!_shareToken2&&!localStorage.getItem("farmult-session-v1"))){document.documentElement.className+=" auth-locked";var _ag=document.getElementById("authGate");if(_ag)_ag.style.display="block";}}catch(e){}</script>
@@ -523,19 +294,21 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/data.js?v=20260907interior1"></script>
-  <script src="js/charts.js?v=20260826ao"></script>
+  <script src="js/data.js?v=20260907reliability1"></script>
+  <script src="js/charts.js?v=20260907trialtimeline1"></script>
   <script src="js/notify.js?v=20260826ao"></script>
-  <script src="js/stock.js?v=20260907interior1"></script>
-  <script src="js/sales.js?v=20260907interior1"></script>
-  <script src="js/lark.js?v=20260902shareflow"></script>
-  <script src="js/auth.js?v=20260907interior1"></script>
-  <script src="js/app.js?v=20260907interior1"></script>
+  <script src="js/stock.js?v=20260907reliability1"></script>
+  <script src="js/sales.js?v=20260907reliability1"></script>
+  <script src="js/lark.js?v=20260907reliability1"></script>
+  <script src="js/recovery.js?v=20260907reliability1"></script>
+  <script src="js/landing.js?v=20260907landingsoft1"></script>
+  <script src="js/auth.js?v=20260907landingsoft1"></script>
+  <script src="js/app.js?v=20260908trialingredients1"></script>
   <!-- ลงทะเบียน Service Worker — เปิดใช้แบบออฟไลน์/ติดตั้งเป็นแอพบนมือถือ (ต้องใช้ผ่าน HTTPS หรือ localhost) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js?v=20260907interior1').catch(function () { /* ไม่บังคับ — ถ้าลงทะเบียนไม่ได้ก็ใช้เว็บปกติ */ });
+        navigator.serviceWorker.register('sw.js?v=20260908trialingredients1').catch(function () { /* ไม่บังคับ — ถ้าลงทะเบียนไม่ได้ก็ใช้เว็บปกติ */ });
       });
     }
   </script>
