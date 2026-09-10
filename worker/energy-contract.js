@@ -1,5 +1,5 @@
 // Optional owner-private energy telemetry. No raw identity, free text or control capability.
-const roles = ["SYSTEM_TOTAL_FEEDER", "FILL_PUMP", "OUTFLOW_PUMP"];
+const roles = ["SYSTEM_TOTAL_FEEDER", "FILL_PUMP", "OUTFLOW_PUMP", "UNASSIGNED"];
 const limits = {
   voltage_l1_v: [0,600], voltage_l2_v: [0,600], voltage_l3_v: [0,600],
   current_l1_a: [0,10000], current_l2_a: [0,10000], current_l3_a: [0,10000],
@@ -7,6 +7,7 @@ const limits = {
   power_factor_total: [0,1], frequency_hz: [45,65]
 };
 const numeric = (v, [min,max]) => typeof v === "number" && Number.isFinite(v) && v >= min && v <= max ? v : null;
+const observationLimits = {...limits, active_power_total_kw:[-10000,10000], power_factor_total:[-1,1]};
 function sample(row, now) {
   if (!row || row.output_control_allowed !== false || row.modbus_write_allowed !== false) throw Error("ENERGY_SAFE_ONLY");
   const time = typeof row.observed_at === "string" ? Date.parse(row.observed_at) : NaN;
@@ -17,6 +18,17 @@ function sample(row, now) {
     display_comparison_verified: row.display_comparison_verified === true,
     stale_after_s: numeric(row.stale_after_s, [60,3600]) ?? 180};
   out.quality = !verified ? "UNVERIFIED" : ["GOOD","STALE","OUT_OF_RANGE","DISCONNECTED","SENSOR_FAULT"].includes(row.quality) ? row.quality : "SENSOR_FAULT";
+  if (row.observation_only === true) {
+    if (!["ct_ratio_verified","direction_verified","display_comparison_verified"].every(k=>row[k]===false) || !["UNVERIFIED","SENSOR_FAULT"].includes(row.quality)) throw Error("OBSERVATION_UNCOMMISSIONED_ONLY");
+    out.observation_only = true;
+    out.quality = row.quality;
+    out.observation = null;
+    if (row.quality === "UNVERIFIED" && row.observation && typeof row.observation === "object") {
+      const values = Object.fromEntries(Object.entries(observationLimits).map(([key,range])=>[key,numeric(row.observation[key],range)]));
+      if (Object.values(values).every(v=>v!==null)) out.observation=values;
+      else out.quality="SENSOR_FAULT";
+    } else if (row.quality === "UNVERIFIED") out.quality="SENSOR_FAULT";
+  }
   for (const [key,range] of Object.entries(limits)) out[key] = out.quality === "GOOD" ? numeric(row[key],range) : null;
   if (out.quality === "GOOD" && Object.keys(limits).some(k => out[k] === null)) {
     out.quality = "SENSOR_FAULT";
@@ -37,6 +49,7 @@ export function projectEnergy(p, now = Date.now()) {
       seen.add(source.id);
       if (!/^ADL400N-CT\/[A-Za-z0-9/-]{1,40}$/.test(source.meter_model) || source.register_map_id !== "ACREL_ADL400N_CT_EXTERNAL_CT_MANUAL_V1_5_FAST_READ_V1") throw Error("ENERGY_MODEL");
       const current = source.current ? sample(source.current,now) : null;
+      if (source.circuit_role === "UNASSIGNED" && (source.id !== "UNASSIGNED_METER_01" || current?.observation_only !== true)) throw Error("OBSERVATION_SOURCE");
       if (!Array.isArray(source.history) || source.history.length > 300) throw Error("ENERGY_HISTORY");
       const unique = new Map(source.history.map(r => {const s=sample(r,now); return [s.observed_at,s];}));
       const history = [...unique.values()].filter(r => Date.parse(r.observed_at) >= now - 86400000).sort((a,b)=>Date.parse(a.observed_at)-Date.parse(b.observed_at));

@@ -146,7 +146,7 @@ def create_app(config):
                 continue
             age=now-datetime.fromisoformat(current['observed_at'].replace('Z','+00:00')).timestamp()
             verified=all(current.get(g) is True for g in ('ct_ratio_verified','direction_verified','display_comparison_verified'))
-            source['status']='UNCOMMISSIONED' if not verified else 'STALE' if age< -120 or age>current['stale_after_s'] else current['quality']
+            source['status']='STALE' if age< -120 or age>current['stale_after_s'] else current['quality'] if current.get('observation_only') is True else 'UNVERIFIED' if not verified else current['quality']
         energy['schema']='farmultimate.energy.v1'
         return value
     @app.post('/api/monitor/read')

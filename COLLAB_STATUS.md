@@ -1,5 +1,14 @@
 # FARMULTIMATE Collaboration Status
 
+## Active task: OWNER-ENERGY-LIVE-002
+
+- Owner SUCHA; branch `pick/energy-live-observation-v1`; source `57b2668`, with freshly fetched `origin/develop@40721b5` verified as ancestor. Preserve deployed pond/LAN functionality and completed D1 index work.
+- Pick explicitly requested connecting the installed meter to the dashboard on 2026-09-10 after successful function-03 readings on Pi Zero. Scope includes dedicated data-only acquisition/storage services on Pi Zero/Pi 5 and the existing owner Cloud/LAN dashboard release; no actuator or meter-register writes.
+- Writable lock: `scripts/energy-observer/`, energy projection in `scripts/owner-monitor/publisher.py` and its energy tests, energy-only status handling in `scripts/lan/app.py` and tests, `worker/energy-contract.js` and energy tests, `js/energy.js`, `css/energy.css`, energy docs/QA and this entry. Commerce, controller, existing water acquisition and D1 schema remain untouched.
+- Queue: confirm runtime/ACL -> implement separately labelled unverified observations with durable spool and deduplication -> contract/recovery/visual tests -> deploy scoped observer/ingest and Cloud/LAN assets -> independent readback.
+- Installed adapter is Waveshare USB TO RS232/485, non-isolated; meter address 1, 9600, parity NONE observed in owner video. CRC-valid readings pass after owner selected RS485. Exact CT/phase/direction and display comparison remain unverified. Existing commissioned energy profile gates are preserved. New observations cannot become GOOD, pump run-state, cost estimates, or control inputs.
+- Status: LIVE_PI_DATA_PATH_VERIFIED / CLOUD_LAN_RELEASE_IN_PROGRESS. Dedicated receiver/observer active; acknowledged readings reach Pi 5. Scoped receiver-stop recovery drained the local outbox with zero duplicate IDs. Canonical values remain null and observation quality UNVERIFIED. JavaScript 132/132, observation Python 7/7, owner-monitor 6/6, LAN 8/8 pass; responsive fixture checked. See `docs/ENERGY_LIVE_OBSERVATIONS.md` and `qa/energy-live/`.
+
 ## Local task: OWNER-D1-QUEUED-INDEX-001
 
 - Owner SUCHA; branch `pick/d1-queued-index-20260910`; base deployed source `fba867ea0af77d8046ab654cded326c496d0ec83`, which contains `origin/develop@40721b5`. Release base preserves newer LAN safety guards absent from the older integration tree.

@@ -11,6 +11,31 @@ export function fixture(time=now) {
     active_power_total_kw:1.45,import_energy_total_kwh:1234.56,power_factor_total:.97,frequency_hz:50.01};
   return {generated_at:new Date(time).toISOString(),output_control_allowed:false,modbus_write_allowed:false,status:"AVAILABLE",sources:[{id:"SYSTEM_TOTAL_FEEDER_QA",circuit_role:"SYSTEM_TOTAL_FEEDER",meter_model:"ADL400N-CT/D16",register_map_id:"ACREL_ADL400N_CT_EXTERNAL_CT_MANUAL_V1_5_FAST_READ_V1",current:row,history:[row]}]};
 }
+export function observationFixture(time=now) {
+  const p=fixture(time), source=p.sources[0], old=source.current;
+  source.id="UNASSIGNED_METER_01";source.circuit_role="UNASSIGNED";source.meter_model="ADL400N-CT/UNVERIFIED";
+  const observation=Object.fromEntries(Object.entries(old).filter(([k])=>/^(voltage_|current_|active_power_|import_energy_|power_factor_|frequency_)/.test(k)));
+  observation.active_power_total_kw=-.25;observation.power_factor_total=-.08;
+  source.current={...old,quality:"UNVERIFIED",observation_only:true,ct_ratio_verified:false,direction_verified:false,display_comparison_verified:false,observation};
+  source.history=[source.current];return p;
+}
+test("uncommissioned observations remain separate, signed, private and never become GOOD",()=>{
+  const p=observationFixture();p.sources[0].current.observation.secret="hidden";
+  const out=projectEnergy(p,now),row=out.sources[0].current;
+  assert.equal(row.quality,"UNVERIFIED");assert.equal(row.active_power_total_kw,null);
+  assert.equal(row.observation.active_power_total_kw,-.25);assert.equal(row.ct_ratio_verified,false);
+  assert.doesNotMatch(JSON.stringify(out),/hidden|secret/);
+  assert.deepEqual(projectEnergy(out,now),out);
+  p.sources[0].current.ct_ratio_verified=true;
+  assert.equal(projectEnergy(p,now).status,"UNAVAILABLE");
+});
+test("observation fault and malformed values do not show old readings",()=>{
+  const p=observationFixture();p.sources[0].current.quality="SENSOR_FAULT";
+  const out=projectEnergy(p,now);assert.equal(out.sources[0].status,"SENSOR_FAULT");assert.equal(out.sources[0].current.observation,null);
+  const invalid=observationFixture();invalid.sources[0].current.observation.frequency_hz=Infinity;
+  assert.equal(projectEnergy(invalid,now).sources[0].status,"SENSOR_FAULT");
+  assert.equal(projectEnergy(observationFixture(now-240000),now).sources[0].status,"STALE");
+});
 test("energy projects measured zero correctly and strips private fields",()=>{
   const p=fixture();p.sources[0].current.current_l1_a=0;p.sources[0].current.secret="hidden-value";p.sources[0].serial="hidden-value";
   const out=projectEnergy(p,now);assert.equal(out.sources[0].status,"GOOD");assert.equal(out.sources[0].current.current_l1_a,0);assert.doesNotMatch(JSON.stringify(out),/hidden-value|secret|serial/);

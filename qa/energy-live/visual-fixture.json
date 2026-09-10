@@ -1,0 +1,23 @@
+{
+  "type": "SYNTHETIC_VISUAL_FIXTURE",
+  "results": [
+    {
+      "width": 390,
+      "overflow": false,
+      "errors": [],
+      "pendingVisible": true
+    },
+    {
+      "width": 840,
+      "overflow": false,
+      "errors": [],
+      "pendingVisible": true
+    },
+    {
+      "width": 1280,
+      "overflow": false,
+      "errors": [],
+      "pendingVisible": true
+    }
+  ]
+}

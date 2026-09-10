@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Mirror health with read-only SQLite and outbound HTTPS; no hardware imports."""
 import argparse
+import importlib.util
 import json
 import os
 import sqlite3
@@ -15,6 +16,7 @@ DEFAULT_DATABASE = "/var/lib/sucha-water-dashboard/water-level.sqlite3"
 ENDPOINT = "https://flytech-farmultimate-owner-staging.pongnarin-pa.workers.dev/api/monitor/publish"
 METRICS = "observed_at,quality,temp_c,load1,load5,load15,uptime_s,cpu_count"
 DEFAULT_RELAY_SNAPSHOT = "/var/lib/sucha-relay-observer/latest.json"
+OBSERVATIONS_MODULE = Path(__file__).with_name('energy_observations.py')
 ENERGY_FIELDS = ("observed_at,quality,stale_after_s,ct_ratio_verified,direction_verified,"
     "display_comparison_verified,voltage_l1_v,voltage_l2_v,voltage_l3_v,"
     "current_l1_a,current_l2_a,current_l3_a,active_power_total_kw,"
@@ -105,6 +107,18 @@ def health_snapshot(database=DEFAULT_DATABASE, now=None, relay_path=DEFAULT_RELA
             rows = db.execute("SELECT " + METRICS + ",MAX(observed_epoch) AS observed_epoch FROM pi_health_samples WHERE source_id=? AND observed_epoch>=? GROUP BY CAST(observed_epoch/900 AS INTEGER) ORDER BY observed_epoch", (source, now-7*86400)).fetchall()
             out["history"][source] = [dict(row) for row in rows][-700:]
         out["energy"] = energy_snapshot(db, now)
+    # Separate uncommissioned observations; never insert into commissioned energy_samples.
+    if OBSERVATIONS_MODULE.is_file():
+        try:
+            spec = importlib.util.spec_from_file_location('owner_energy_observations', OBSERVATIONS_MODULE)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            observed = module.observation_snapshot(now=now)
+            if observed and len(out['energy']['sources']) < 3:
+                out['energy']['sources'].append(observed)
+                out['energy']['status'] = 'AVAILABLE'
+        except (OSError, ValueError, TypeError, KeyError, sqlite3.Error):
+            pass  # Optional energy must never take water/Pi health offline.
     out["relays"] = relay_snapshot(relay_path)
     return out
 

@@ -44,5 +44,25 @@ class LanAuthTest(unittest.TestCase):
     def test_wrong_password_rate_limit_and_no_session(self):
         for _ in range(10):self.assertEqual(self.post('/api/lan/login',{'email':'qa@example.invalid','password':'wrong'}).status_code,401)
         self.assertEqual(self.login().status_code,429)
+    def test_observations_remain_unverified_and_stale_takes_precedence(self):
+        from datetime import datetime, timezone, timedelta
+        for seconds, expected in ((0, 'UNVERIFIED'), (600, 'STALE')):
+            stamp=(datetime.now(timezone.utc)-timedelta(seconds=seconds)).isoformat()
+            current={'observed_at':stamp,'stale_after_s':180,'quality':'UNVERIFIED','observation_only':True,
+                     'ct_ratio_verified':False,'direction_verified':False,'display_comparison_verified':False,
+                     'active_power_total_kw':None,'observation':{'active_power_total_kw':-0.25}}
+            fixture=Path(self.temp.name)/'monitor_fixture.py'
+            # Different filenames avoid importing cached bytecode between cases.
+            fixture=fixture.with_name('monitor_'+str(seconds)+'.py')
+            value={'sources':{},'energy':{'sources':[{'current':current}]}}
+            fixture.write_text('def health_snapshot(*args,**kwargs):\n return '+repr(value)+'\n')
+            config=dict(self.config,publisher=str(fixture))
+            self.client=create_app(config).test_client();self.login()
+            response=self.post('/api/monitor/read',{})
+            self.assertEqual(response.status_code,200)
+            source=response.json['data']['energy']['sources'][0]
+            self.assertEqual(source['status'],expected)
+            self.assertIsNone(source['current']['active_power_total_kw'])
+            self.assertEqual(source['current']['observation']['active_power_total_kw'],-0.25)
 
 if __name__=='__main__':unittest.main()
