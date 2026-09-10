@@ -101,5 +101,12 @@ Evidence: `qa/energy-live/deployment-readback.json`, `http-readback.json`,
 `recovery-test.json`, and labelled synthetic visual screenshots. Physical CT
 verification and a real WAN-disconnection test remain outside this delivery.
 
+Source branch `pick/energy-live-observation-v1` is pushed and remote hash verified.
+Draft PR creation into `develop` is blocked by GitHub integration HTTP 403
+(`Resource not accessible by integration`), after checking for duplicate PRs.
+No PR was created and no protected branch was merged. For a future source review,
+the energy-specific range is `57b2668..HEAD`; the branch inherits prior deployed
+pond/LAN and D1-index work because `develop` is still the older integration base.
+
 Safety: `DATA_ONLY / output_control_allowed=false / modbus_write_allowed=false /
 HARDWARE_NOT_COMMISSIONED`. Existing Pi 5 remains the sole output writer.
