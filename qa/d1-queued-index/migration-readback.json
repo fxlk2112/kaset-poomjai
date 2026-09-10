@@ -1,0 +1,36 @@
+{
+  "date": "2026-09-10",
+  "approval": "APPROVE_FARM_D1_INDEX_MIGRATION",
+  "database_name": "flytech-farmultimate-canary",
+  "database_id": "e4d96f00-36b2-404f-a5eb-abcae72755d1",
+  "source_commit": "ac71da04fddc386430a635b1426c663d8036a64a",
+  "execution_time_utc_bounds": ["2026-09-10T08:37:56Z", "2026-09-10T08:39:18Z"],
+  "pre_change_time_travel_bookmark": "00000a7e-0000135c-000050e2-c147d4d19330b12836b1f33d3895d39b",
+  "executed_sql": "CREATE INDEX IF NOT EXISTS relay_bench_queued_owner_expiry ON relay_bench_commands(user_id, expires_at) WHERE status = 'QUEUED';",
+  "console_result": "This query successfully executed.",
+  "console_query_time_ms": 0.45,
+  "console_response_time_ms": 799,
+  "index_definition_readback": "CREATE INDEX relay_bench_queued_owner_expiry ON relay_bench_commands(user_id, expires_at) WHERE status = 'QUEUED'",
+  "existing_indexes_preserved": ["relay_bench_one_active_channel", "relay_bench_owner_time", "sqlite_autoindex_relay_bench_commands_1"],
+  "expire_plan": "SEARCH relay_bench_commands USING INDEX relay_bench_queued_owner_expiry (user_id=? AND expires_at<?)",
+  "claim_subquery_plan": "SEARCH c USING INDEX relay_bench_queued_owner_expiry (user_id=? AND expires_at>?)",
+  "claim_ordering": "USE TEMP B-TREE FOR ORDER BY",
+  "heartbeat_readback": {"rows_returned":1,"limit":5,"heartbeat_age_ms":270,"fault_none":true,"snapshot_ready":true,"precision_note":"Age computed against whole-second unixepoch; subsecond precision is approximate."},
+  "worker_or_pi_deployment": false,
+  "application_control_requests_sent": false,
+  "command_or_state_rows_modified_by_operator": false,
+  "historical_preflight": "read-only-preflight.json",
+  "worker_metrics": {"window":"Last 30 minutes","errors":0,"invocations_display":"1.36k","note":"Window includes before and after migration; not a long-term reliability claim."},
+  "metrics_followup": "EARLY_PARTIAL_SAMPLE_ONLY",
+  "baseline_insights": {
+    "start_utc":"2026-09-10T08:25:00Z","end_utc":"2026-09-10T08:35:00Z",
+    "expire":{"calls":569,"rows_read_display":"46.09k","approx_rows_read_per_call":81,"rows_written":0,"p50_ms":0.3},
+    "claim":{"calls":359,"rows_read_display":"30.87k","approx_rows_read_per_call":86,"rows_written":0}
+  },
+  "post_insights": {
+    "start_utc":"2026-09-10T08:40:00Z","end_utc":"2026-09-10T08:41:00Z",
+    "expire":{"calls":10,"rows_read":20,"rows_read_per_call":2,"rows_written":0,"p50_ms":3},
+    "claim":"Not shown in selected interval; do not interpret as zero calls or zero reads.",
+    "limitations":"Short sample. Headline metrics and regional graph disagree in this immediate window. Claim savings and full-day cost reduction remain unverified. P50 is higher in this small sample, so no latency improvement is claimed."
+  }
+}

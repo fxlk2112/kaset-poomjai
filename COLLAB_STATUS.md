@@ -5,7 +5,7 @@
 - Owner SUCHA; branch `pick/d1-queued-index-20260910`; base deployed source `fba867ea0af77d8046ab654cded326c496d0ec83`, which contains `origin/develop@40721b5`. Release base preserves newer LAN safety guards absent from the older integration tree.
 - Scope lock: `worker/relay-bench-schema.sql`, new `worker/relay-bench-migrate-queued-index.sql`, related index tests, `docs/D1_QUEUED_INDEX.md`, `qa/d1-queued-index/`, and this task entry. Existing pond/LAN task entries and all runtime logic remain unchanged.
 - User authorized remote read-only metadata/EXPLAIN and local migration preparation on 2026-09-10. Production D1 migration requires separate approval of the concrete SQL. No Worker/Pi deployment, control calls or hardware changes.
-- Status: LOCAL_READY / NOT_DEPLOYED / MIGRATION_NOT_APPLIED_REMOTE. Live metadata confirms the missing queued index and both remote plans use owner_time. `TZ=UTC npm run check`: 129/129 tests and 9 relay messages PASS. Approval scope and application/readback plan: `docs/D1_QUEUED_INDEX.md`.
+- Status: REMOTE_INDEX_APPLIED / QUERY_PLANS_VERIFIED / NO_WORKER_OR_PI_DEPLOYMENT. Pick granted `APPROVE_FARM_D1_INDEX_MIGRATION`; only the queued partial index was created. Remote readback preserves all old indexes, both plans use the new index, and a bounded health read is fresh/ready with fault NONE. Pre-migration validation: `TZ=UTC npm run check` 129/129 and 9 relay messages PASS. Evidence: `qa/d1-queued-index/migration-readback.json`; runbook: `docs/D1_QUEUED_INDEX.md`.
 
 ## Active task: OWNER-POND-VISUAL-002
 

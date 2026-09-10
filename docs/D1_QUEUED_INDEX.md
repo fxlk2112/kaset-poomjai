@@ -1,12 +1,35 @@
-# D1 QUEUED index — พร้อมอนุมัติ migration
+# D1 QUEUED index — migration สำเร็จและตรวจอ่านกลับแล้ว
 
 Owner: SUCHA | วันที่ 10 กันยายน 2026
 
 Branch: `pick/d1-queued-index-20260910`
 
-สถานะ: **LOCAL_READY / NOT_DEPLOYED / REMOTE_MIGRATION_NOT_APPLIED**
+สถานะ: **REMOTE_INDEX_APPLIED / QUERY_PLANS_VERIFIED / NO_WORKER_OR_PI_DEPLOYMENT**
 
-## ผลตรวจล่าสุด
+## ผลดำเนินการจริง
+
+พี่ปิ๊กอนุมัติ `APPROVE_FARM_D1_INDEX_MIGRATION` แล้ว รันเฉพาะ CREATE INDEX ที่ระบุด้านล่างสำเร็จในวันที่ 10 กันยายน 2026 ภายในช่วง 15:37:56–15:39:18 เวลาไทย (บันทึกเวลาแบบขอบเขต ไม่ใช่ timestamp commit ของ D1) Console รายงาน query time 0.45 ms และ response time 799 ms
+
+อ่านกลับพบ index ใหม่ตรงนิยาม และ index เดิมทั้งสองพร้อม primary-key autoindex ยังครบ Remote EXPLAIN ยืนยัน expire ใช้ `relay_bench_queued_owner_expiry (user_id=? AND expires_at<?)` และ claim ใช้ `relay_bench_queued_owner_expiry (user_id=? AND expires_at>?)` แล้ว เงื่อนไข OFF/stop_seq/LAN และ ORDER BY เดิมคงอยู่
+
+อ่าน health แบบจำกัด 5 รายการ ได้ 1 รายการ: heartbeat สดประมาณ 270 ms, fault NONE และ snapshot ready (อายุคำนวณจาก unixepoch ระดับวินาที จึงเป็นค่าโดยประมาณ) ไม่ได้ส่ง request ควบคุมอุปกรณ์หรือเปลี่ยน command/state rows จากการตรวจนี้
+
+ได้รับ Time Travel bookmark ก่อนเปลี่ยนแล้ว เก็บใน `qa/d1-queued-index/migration-readback.json` สำหรับการกู้คืนที่ต้องได้รับอนุมัติแยก ไม่ได้ restore หรือสั่งหยุดระบบ ผล read-only preflight เดิมเก็บไว้เป็นประวัติ ไม่แก้ให้ดูเหมือนเป็นผลหลัง migration
+
+### Metrics ช่วงแรก
+
+Worker แสดง Errors = 0 ในช่วง 30 นาทีล่าสุด และประมาณ 1.36k invocations ช่วงนี้รวมทั้งก่อนและหลัง migration ไม่ใช่หลักฐานรับรองระยะยาว
+
+| Query | ก่อน: 15:25–15:35 ไทย | หลัง: 15:40–15:41 ไทย |
+|---|---|---|
+| Expire | 569 calls / 46.09k rows_read ≈ 81 ต่อครั้ง | 10 calls / 20 rows_read = 2 ต่อครั้ง |
+| Claim | 359 calls / 30.87k rows_read ≈ 86 ต่อครั้ง | ยังไม่ปรากฏใน Query Insights ช่วงที่เลือก |
+
+ช่วงเวลาไม่ทับกันและช่วงหลังเริ่มหลังขอบเขตเวลาทำ migration แน่นอน เป็นหลักฐานเบื้องต้นว่า expire อ่านลดลง แต่ยังไม่สรุปเปอร์เซ็นต์ลดทั้งระบบหรือบิลรายวัน ตัวอย่างหลังมีเพียง 10 calls และ headline/กราฟภูมิภาคยังแสดงยอดไม่ตรงกัน Refresh อีกครั้งได้ตัวอย่างเดิม ไม่ตีความ claim ที่ไม่แสดงว่าเป็นศูนย์
+
+P50 ของ expire ใน sample นี้เพิ่มจาก 0.3 ms เป็น 3 ms จึงยังไม่กล่าวว่า latency ดีขึ้น ต้องใช้ช่วงติดตามยาวขึ้นเพื่อแยกความแปรผันของตัวอย่าง เป้าหมาย rows_read ของ claim ยังต้องวัดจาก traffic จริงเพิ่มเติม แม้ remote query plan ยืนยันว่าใช้ index ใหม่แล้ว
+
+## หลักฐานก่อน migration
 
 ตรวจฐานข้อมูล `flytech-farmultimate-canary` จริงผ่าน Cloudflare Console แบบ read-only แล้ว พบ index เดิมครบสองตัว และ primary-key autoindex ไม่มี `relay_bench_queued_owner_expiry` ทั้งบนตารางเป้าหมายและชื่อซ้ำใน schema ทั้งฐานข้อมูล
 
@@ -14,7 +37,7 @@ Remote EXPLAIN ทั้ง expire และ claim เลือก `relay_bench_
 
 ฐาน source เป็น deployed release `fba867ea0af77d8046ab654cded326c496d0ec83` ซึ่งมี `origin/develop@40721b5` เป็น ancestor เพื่อไม่ถอยเงื่อนไข LAN ที่ใหม่กว่าต้น integration ห้ามใช้ branch นี้เป็นเหตุให้ deploy ทั้งแอปหรือ merge งานอื่นที่ยังไม่รวมเข้า develop ขั้นนี้ต้องการเฉพาะ SQL เพิ่ม index
 
-## Proposed migration only
+## SQL ที่ได้รับอนุมัติและรันแล้ว
 
 ไฟล์ที่เสนอ: `worker/relay-bench-migrate-queued-index.sql`
 
@@ -32,15 +55,15 @@ WHERE status = 'QUEUED';
 
 ชุด regression เดิมทั้งหมดใช้ fresh schema ที่มี index ใหม่ จึงครอบคลุม auth, duplicate command, OFF tombstone, 16 channels และ LAN takeover ด้วย ไม่มี UI/runtime code เปลี่ยน จึงไม่ต้อง build หรือ deploy Worker
 
-## ขอบเขตที่ขออนุมัติ
+## ขอบเขตที่ได้รับอนุมัติ
 
 อนุมัติ **เพิ่ม index เดียวตาม SQL ข้างต้นใน D1 `flytech-farmultimate-canary`** แล้วตรวจ readback/EXPLAIN และ Query Insights แบบ read-only ไม่รวม Worker/Pi deploy, เปลี่ยน polling, สั่งอุปกรณ์, ลบข้อมูล หรือรัน migration อื่น
 
 คำอนุมัติที่ใช้ได้: `APPROVE_FARM_D1_INDEX_MIGRATION`
 
-การอนุมัติรอบล่าสุดครอบคลุม read-only preflight และเตรียม local migration ตามข้อเสนอ ยังไม่ได้อนุมัติแก้ฐาน Farm จริง จึงหยุดเฉพาะก่อน apply SQL นี้ตามขอบเขตที่แจ้งกับผู้ใช้ ไม่ใช่ข้อจำกัดจากเครื่องมือ
+ได้รับคำอนุมัติข้างต้นและดำเนินการแล้ว ขอบเขตไม่ขยายไปยัง Worker/Pi deployment, index อื่น, polling หรือ hardware
 
-## แผนดำเนินการหลังอนุมัติ
+## Runbook ที่ใช้และการติดตามผล
 
 1. ยืนยัน database UUID `e4d96f00-36b2-404f-a5eb-abcae72755d1`, binding และตรวจ index metadata ซ้ำก่อน apply หากชื่อมีอยู่และนิยามต่างต้องหยุด หากเหมือนกันให้ข้าม CREATE และตรวจ readback ต่อ
 2. ตรวจสถานะ D1 และ recovery/Time Travel ที่ใช้งานได้ รับ bookmark ปัจจุบันก่อนเปลี่ยน ใช้ช่วง traffic ต่ำหากทำได้ การสร้าง index อ่านตารางครั้งแรกและอาจหน่วง request ชั่วคราว ไม่สั่ง disarm/หยุด service โดยอัตโนมัติ
