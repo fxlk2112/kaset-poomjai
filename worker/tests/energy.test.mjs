@@ -29,6 +29,15 @@ test("uncommissioned observations remain separate, signed, private and never bec
   p.sources[0].current.ct_ratio_verified=true;
   assert.equal(projectEnergy(p,now).status,"UNAVAILABLE");
 });
+test('bounded energy windows preserve thirty-day points, strip extras and reproject safely',()=>{
+ const p=observationFixture(),s=p.sources[0];
+ const point=(days)=>({observed_at:new Date(now-days*86400000).toISOString(),quality:'UNVERIFIED',observation:{active_power_total_kw:-.25,import_energy_total_kwh:12,private:'omit'}});
+ s.windows={'720':{hours:720,bucket_seconds:28800,points:[point(29),point(31),point(1)]}};
+ const out=projectEnergy(p,now);assert.equal(out.sources[0].windows['720'].points.length,2);assert.equal(out.sources[0].current.active_power_total_kw,null);
+ assert.doesNotMatch(JSON.stringify(out),/omit|private/);assert.deepEqual(projectEnergy(out,now),out);
+ s.windows['720'].points=Array(121).fill(point(1));assert.equal(projectEnergy(p,now).status,'UNAVAILABLE');
+ s.windows['720'].points=[{...point(1),quality:'GOOD'}];assert.equal(projectEnergy(p,now).status,'UNAVAILABLE');
+});
 test("observation fault and malformed values do not show old readings",()=>{
   const p=observationFixture();p.sources[0].current.quality="SENSOR_FAULT";
   const out=projectEnergy(p,now);assert.equal(out.sources[0].status,"SENSOR_FAULT");assert.equal(out.sources[0].current.observation,null);

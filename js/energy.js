@@ -1,7 +1,8 @@
 /* Owner energy dashboard: observations only. Never sends hardware commands. */
 (function (root) {
   "use strict";
-  const state = {data:null, loading:false, error:"", loadedAt:0, selected:0, loginRequired:false};
+  const state = {data:null, loading:false, error:"", loadedAt:0, selected:0, loginRequired:false, hours:24, metric:'active_power_total_kw'};
+  const ranges={1:'1 ชั่วโมง',24:'24 ชั่วโมง',168:'7 วัน',720:'30 วัน'};
   const labels = {SYSTEM_TOTAL_FEEDER:"ไฟฟ้ารวมระบบ", FILL_PUMP:"ปั๊มเติมน้ำ", OUTFLOW_PUMP:"ปั๊มจ่ายน้ำ", UNASSIGNED:"มิเตอร์ที่เชื่อมต่อ"};
   const names = {GOOD:"ข้อมูลล่าสุด", STALE:"ข้อมูลขาดช่วง", UNVERIFIED:"รอตรวจสอบมิเตอร์", SENSOR_FAULT:"อ่านค่าไม่สำเร็จ", OUT_OF_RANGE:"ค่านอกช่วง", DISCONNECTED:"มิเตอร์ขาดการเชื่อมต่อ", NO_DATA:"รอข้อมูลมิเตอร์", NO_METER_DATA:"รอเชื่อมต่อมิเตอร์", INGEST_NOT_READY:"รอเชื่อมต่อมิเตอร์", UNAVAILABLE:"ยังตรวจสอบข้อมูลไม่ได้"};
   let account = "", generation = 0;
@@ -52,27 +53,52 @@
       if (epoch===generation) {state.loading=false;state.loadedAt=Date.now();draw();}
     }
   }
+  function series(source, now=Date.now()) {
+    const win=source?.windows?.[state.hours];
+    const raw=win?win.points.map(r=>({...r,observation_only:true})):source?.history||[];
+    return raw.filter(r=>Date.parse(r.observed_at)>=now-state.hours*3600000 && Date.parse(r.observed_at)<=now).sort((a,b)=>Date.parse(a.observed_at)-Date.parse(b.observed_at));
+  }
+  const valueOf=(r,key)=>r.quality==='GOOD'?r[key]:r.quality==='UNVERIFIED'&&r.observation_only===true?r.observation?.[key]:null;
+  function summary(source, now=Date.now()) {
+    const rows=series(source,now), good=rows.filter(r=>typeof valueOf(r,'active_power_total_kw')==='number');
+    if(!good.length)return {count:0,total:rows.length};
+    const first=good[0],last=good[good.length-1], energy=good.map(r=>valueOf(r,'import_energy_total_kwh'));
+    const resets=energy.slice(1).some((v,i)=>typeof v!=='number'||typeof energy[i]!=='number'||v<energy[i]);
+    const powers=good.map(r=>valueOf(r,'active_power_total_kw'));
+    return {count:good.length,total:rows.length,first:first.observed_at,last:last.observed_at,spanHours:(Date.parse(last.observed_at)-Date.parse(first.observed_at))/3600000,
+      minimum:Math.min(...powers),maximum:Math.max(...powers),deltaKwh:good.length>1&&!resets&&energy.every(v=>typeof v==='number')?energy.at(-1)-energy[0]:null,resets};
+  }
+  function detailHtml(source) {
+    const s=summary(source),label=ranges[state.hours],bucket=source?.windows?.[state.hours]?.bucket_seconds||900;
+    const box=(label,value,unit,note)=>`<article class="monitor-stat"><span>${label}</span><strong>${number(value)} <small>${unit}</small></strong><p>${note}</p></article>`;
+    return `<div class="monitor-range" role="group" aria-label="ช่วงเวลาพลังงาน">${Object.entries(ranges).map(([h,label])=>`<button id="energy-range-${h}" aria-pressed="${state.hours===Number(h)}" onclick="EnergyDashboard.setRange(${h})">${label}</button>`).join('')}</div>
+      <div class="monitor-select"><label for="energy-metric">แสดงกราฟ</label><select id="energy-metric" onchange="EnergyDashboard.setMetric(this.value)"><option value="active_power_total_kw" ${state.metric==='active_power_total_kw'?'selected':''}>กำลังไฟ · kW</option><option value="import_energy_total_kwh" ${state.metric==='import_energy_total_kwh'?'selected':''}>มิเตอร์พลังงานรับเข้าสะสม · kWh</option></select></div>
+      <div class="monitor-stats">${box('พลังงานเพิ่มในข้อมูลที่มี',s.deltaKwh,'kWh',s.resets?'พบตัวนับลดลง จึงไม่รวมยอดข้ามการเปลี่ยนตัวนับ':'ผลต่างตัวนับรับเข้าระหว่างจุดแรกและจุดท้าย · รอตรวจรับ')}${box('กำลังไฟสูงสุดในจุดที่เก็บ',s.maximum,'kW','เป็นค่าสูงสุดของจุดกราฟ ไม่ใช่ค่า Maximum Demand')}${box('กำลังไฟต่ำสุดในจุดที่เก็บ',s.minimum,'kW','คงเครื่องหมายตามมิเตอร์ · ไม่ใช้สั่งอุปกรณ์')}</div>
+      <p class="monitor-note">ช่วงที่เลือก ${label} · ${s.count}/${s.total} จุดอ่านได้ · ความละเอียด ${bucket/60} นาที/จุด${s.count?`<br>ข้อมูลที่มี ${esc(stamp(s.first))} ถึง ${esc(stamp(s.last))} (${number(s.spanHours,1)} ชั่วโมง)`:' · ยังไม่มีข้อมูลในช่วงนี้'}<br>ประวัติเริ่มจากวันที่ติดตั้ง ระบบจะสะสมให้ครบช่วงเวลาเอง ไม่เติมข้อมูลย้อนหลังที่ไม่เคยวัด</p>
+      ${chartHtml(source)}
+      <details class="monitor-details"><summary>ดูจุดข้อมูลล่าสุดในช่วงนี้</summary><div class="monitor-table"><table><thead><tr><th>อ่านเมื่อ</th><th>kW</th><th>kWh รับเข้า</th><th>คุณภาพ</th></tr></thead><tbody>${series(source).slice(-12).reverse().map(r=>`<tr><td>${esc(stamp(r.observed_at))}</td><td>${number(valueOf(r,'active_power_total_kw'),3)}</td><td>${number(valueOf(r,'import_energy_total_kwh'),3)}</td><td>${r.quality==='UNVERIFIED'?'รอตรวจรับ':esc(names[r.quality]||r.quality)}</td></tr>`).join('')}</tbody></table></div></details>`;
+  }
   function chartHtml(source, now=Date.now()) {
-    const rows=(source?.history || []).filter(r=>Date.parse(r.observed_at)>=now-86400000 && Date.parse(r.observed_at)<=now);
-    const power=r=>r.quality==="GOOD" ? r.active_power_total_kw : r.quality==="UNVERIFIED" && r.observation_only===true ? r.observation?.active_power_total_kw : null;
+    const rows=series(source,now), hours=state.hours, duration=hours*3600000, label=ranges[hours];
+    const power=r=>valueOf(r,state.metric), unit=state.metric==='active_power_total_kw'?'kW':'kWh', title=unit==='kW'?'กำลังไฟย้อนหลัง':'ตัวนับพลังงานรับเข้าสะสม';
     const good=rows.filter(r=>typeof power(r)==="number" && Number.isFinite(power(r)));
-    if (!good.length) return `<div class="energy-chart-empty"><span aria-hidden="true">⌁</span><strong>กราฟจะเริ่มเมื่อมีข้อมูลจริง</strong><p>แสดงกำลังไฟย้อนหลัง 24 ชั่วโมง<br>ไม่สร้างค่าทดแทนในช่วงที่มิเตอร์ยังไม่ส่งข้อมูล</p></div>`;
-    const max=Math.max(1,...good.map(power))*1.15, min=Math.min(0,...good.map(power))*1.15, start=now-86400000;
+    if (!good.length) return `<div class="energy-chart-empty"><span aria-hidden="true">⌁</span><strong>กราฟจะเริ่มเมื่อมีข้อมูลจริง</strong><p>${title} ${label}<br>ไม่สร้างค่าทดแทนในช่วงที่มิเตอร์ยังไม่ส่งข้อมูล</p></div>`;
+    const max=Math.max(1,...good.map(power))*1.15, min=Math.min(0,...good.map(power))*1.15, start=now-duration;
     const pending=good.some(r=>r.observation_only===true), color=pending?"#f1c575":"#8fedb5";
-    const x=r=>52+(Date.parse(r.observed_at)-start)/86400000*620;
+    const x=r=>52+(Date.parse(r.observed_at)-start)/duration*620;
     const y=r=>180-(power(r)-min)/(max-min)*150;
     let path="", previous=null;
     for(const row of rows){
       if (!good.includes(row)) {previous=null;continue;}
-      const linked=previous && Date.parse(row.observed_at)-Date.parse(previous.observed_at)<=1200000;
+      const linked=previous && Date.parse(row.observed_at)-Date.parse(previous.observed_at)<=(source?.windows?.[hours]?.bucket_seconds||900)*2000 && !(unit==='kWh'&&power(row)<power(previous));
       path+=(linked?" L":" M")+x(row).toFixed(1)+","+y(row).toFixed(1);previous=row;
     }
-    return `<svg class="energy-chart" viewBox="0 0 700 225" role="img" aria-label="กำลังไฟย้อนหลัง 24 ชั่วโมง หน่วยกิโลวัตต์ มี ${good.length} จุดข้อมูลจริง">
+    return `<svg class="energy-chart" viewBox="0 0 700 225" role="img" aria-label="${title} ${label} หน่วย ${unit} มี ${good.length} จุดข้อมูลจริง">
       ${[0,.5,1].map(n=>`<line x1="52" x2="675" y1="${180-n*150}" y2="${180-n*150}" stroke="#315452"/><text x="44" y="${184-n*150}" text-anchor="end">${number(min+(max-min)*n,1)}</text>`).join("")}
       <path d="${path}" fill="none" stroke="${color}" stroke-width="2.5"/>
-      ${good.map(r=>`<circle cx="${x(r)}" cy="${y(r)}" r="2.5" fill="${color}"><title>${esc(stamp(r.observed_at))} · ${number(power(r))} kW${r.observation_only?" · รอตรวจรับ":""}</title></circle>`).join("")}
-      ${[0,6,12,18,24].map(h=>`<text x="${52+h/24*620}" y="210" text-anchor="middle">${h===24?"ตอนนี้":"−"+(24-h)+" ชม."}</text>`).join("")}
-    </svg><p class="energy-caption">${pending?"เส้นสีเหลือง: ค่าที่มิเตอร์ส่งมา ยังรอตรวจรับการติดตั้ง · ":""}จุดวัดล่าสุดของแต่ละช่วง 15 นาที · เว้นเส้นเมื่อข้อมูลขาดช่วง</p>`;
+      ${good.map(r=>`<circle cx="${x(r)}" cy="${y(r)}" r="2.5" fill="${color}"><title>${esc(stamp(r.observed_at))} · ${number(power(r))} ${unit}${r.observation_only?" · รอตรวจรับ":""}</title></circle>`).join("")}
+      ${[0,.25,.5,.75,1].map(n=>`<text x="${52+n*620}" y="210" text-anchor="middle">${n===1?'ตอนนี้':'−'+number((1-n)*(hours===1?60:hours>=168?hours/24:hours),hours===1||hours>=168?1:0)+(hours===1?' นาที':hours>=168?' วัน':' ชม.')}</text>`).join('')}
+    </svg><p class="energy-caption">${pending?"เส้นสีเหลือง: ค่าที่มิเตอร์ส่งมา ยังรอตรวจรับการติดตั้ง · ":""}จุดล่าสุดของแต่ละช่วงเวลา · เว้นเส้นเมื่อข้อมูลขาดช่วง</p>`;
   }
   function bodyHtml() {
     const token=sync(), source=selected(), status=statusOf(source), live=status==="GOOD" && !state.error;
@@ -92,14 +118,14 @@
       ${metric("ตัวประกอบกำลัง","power_factor_total","PF")}
       ${metric("ความถี่ระบบ","frequency_hz","Hz")}</div>
       <section class="energy-phases" aria-labelledby="energy-phase-heading"><div class="energy-section-title"><h3 id="energy-phase-heading">แรงดันและกระแสแต่ละเฟส</h3><span>3 PHASES</span></div><div class="energy-phase-grid">${[1,2,3].map(i=>`<article class="energy-phase phase-${i}"><h4><i></i>เฟส L${i}</h4><dl><div><dt>แรงดัน</dt><dd>${number(row?.["voltage_l"+i+"_v"],1)} <small>V</small></dd></div><div><dt>กระแส</dt><dd>${number(row?.["current_l"+i+"_a"])} <small>A</small></dd></div></dl></article>`).join("")}</div></section>
-      <section class="energy-history"><div class="energy-section-title"><h3>กำลังไฟย้อนหลัง</h3><span>24 ชั่วโมง · kW</span></div>${chartHtml(source)}</section>
+      <section class="energy-history"><div class="energy-section-title"><h3>วิเคราะห์พลังงานย้อนหลัง</h3><span>${ranges[state.hours]}</span></div>${detailHtml(source)}</section>
       <section class="energy-device"><div class="energy-section-title"><h3>มิเตอร์พลังงานไฟฟ้า</h3><span>อ่านข้อมูลเท่านั้น</span></div><div class="energy-device-info"><div><strong>Acrel ADL400N-CT</strong><p>มิเตอร์ 3 เฟส พร้อม CT · RS485 / Modbus RTU</p></div><span class="energy-model">${esc(source?.meter_model&&!source.meter_model.endsWith('/UNVERIFIED') ? source.meter_model : "รุ่นย่อยและอัตราทด CT รอยืนยันหน้างาน")}</span></div><p class="energy-caption">${live?"ข้อมูลมาจากมิเตอร์ที่ตรวจอัตราทด CT ทิศทาง และเทียบค่ากับหน้าจอแล้ว":provisional?"เชื่อมผ่าน Pi Zero · เก็บประวัติที่ Pi 5 ได้แม้อินเทอร์เน็ตหลุด · ยังไม่ใช้ควบคุมอุปกรณ์":"แสดงค่าพร้อมสถานะการตรวจรับเมื่อได้รับข้อมูลจากมิเตอร์"} · พลังงานสะสมไม่ใช่ค่าใช้ไฟเฉพาะวันนี้</p></section>
       <footer class="energy-footer"><span>อ่านมิเตอร์ทุก 15 วินาที · Cloud ส่งประมาณทุก 1 นาที</span><button id="energy-refresh" onclick="EnergyDashboard.refresh(true)" ${!token||state.loading?"disabled":""}>${state.loading?"กำลังโหลด…":"↻ รีเฟรชข้อมูล"}</button></footer>`;
   }
   function cardHtml() {
     return `<section class="energy-page" aria-label="แดชบอร์ดพลังงานไฟฟ้า"><header class="energy-header"><button onclick="App.farmMapBack()">← แผนที่ฟาร์ม</button><div><span class="energy-eyebrow">FLYTECH · ENERGY MONITOR</span><h1>พลังงานไฟฟ้า</h1></div><b>DATA ONLY</b></header><div id="energy-panel">${bodyHtml()}</div></section>`;
   }
-  root.EnergyDashboard={state,cardHtml,refresh,statusOf,chartHtml,select(index){state.selected=Number(index);draw();}};
+  root.EnergyDashboard={state,cardHtml,refresh,statusOf,chartHtml,series,summary,select(index){state.selected=Number(index);draw();},setRange(hours){if(ranges[hours]){state.hours=Number(hours);draw();}},setMetric(key){if(['active_power_total_kw','import_energy_total_kwh'].includes(key)){state.metric=key;draw();}}};
   if (typeof document!=="undefined") {
     setInterval(()=>{if (!document.hidden && document.getElementById("energy-panel")) refresh(false);},30000);
     document.addEventListener("visibilitychange",()=>{if (!document.hidden && document.getElementById("energy-panel")) refresh(false);});

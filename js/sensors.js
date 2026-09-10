@@ -1169,6 +1169,7 @@
         ${viewOptions.separateMonitorPages ? "" : weatherModelsHtml()}
 
         ${waterBalanceHtml()}
+        ${root.PondDetails ? root.PondDetails.html(state) : ''}
 
         <div class="digital-chart-grid">
           <section class="digital-chart-card">

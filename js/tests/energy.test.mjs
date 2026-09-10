@@ -3,6 +3,13 @@ import assert from "node:assert/strict";
 await import("../energy.js");
 await import("../farm-map.js");
 const ui=globalThis.EnergyDashboard;
+test('range summaries use selected history and refuse counter resets without extrapolation',()=>{
+ const now=Date.now(),point=(minutes,kwh)=>({observed_at:new Date(now-minutes*60000).toISOString(),quality:'UNVERIFIED',observation:{active_power_total_kw:-.1,import_energy_total_kwh:kwh}});
+ const source={windows:{'1':{bucket_seconds:60,points:[point(50,10),point(20,12),point(0,14)]},'720':{bucket_seconds:28800,points:[point(29*24*60,3),point(0,14)]}}};
+ ui.setRange(1);assert.equal(ui.summary(source,now).deltaKwh,4);assert.equal(ui.summary(source,now).maximum,-.1);
+ source.windows['1'].points[1].observation.import_energy_total_kwh=1;assert.equal(ui.summary(source,now).deltaKwh,null);
+ ui.setRange(720);assert.equal(ui.series(source,now).length,2);assert.match(ui.chartHtml(source,now),/30 วัน/);ui.setRange(24);
+});
 test("signed observations are labelled pending, remain empty when stale and graph below zero",()=>{
   globalThis.Auth={session:{token:"observation-test-session"}};ui.cardHtml();
   const row={observed_at:new Date().toISOString(),stale_after_s:180,quality:"UNVERIFIED",observation_only:true,

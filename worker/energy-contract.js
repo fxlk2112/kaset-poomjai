@@ -54,7 +54,29 @@ export function projectEnergy(p, now = Date.now()) {
       const unique = new Map(source.history.map(r => {const s=sample(r,now); return [s.observed_at,s];}));
       const history = [...unique.values()].filter(r => Date.parse(r.observed_at) >= now - 86400000).sort((a,b)=>Date.parse(a.observed_at)-Date.parse(b.observed_at));
       const status = !current ? "NO_DATA" : now - Date.parse(current.observed_at) > current.stale_after_s * 1000 ? "STALE" : current.quality;
-      return {id:source.id, circuit_role:source.circuit_role, meter_model:source.meter_model, register_map_id:source.register_map_id, status,current,history};
+      const result = {id:source.id, circuit_role:source.circuit_role, meter_model:source.meter_model, register_map_id:source.register_map_id, status,current,history};
+      if (source.windows && current?.observation_only === true) {
+        result.windows = {};
+        for (const [hours,bucket] of [[1,60],[24,900],[168,7200],[720,28800]]) {
+          const win=source.windows[String(hours)];
+          if (!win) continue;
+          if (win.hours!==hours || win.bucket_seconds!==bucket || !Array.isArray(win.points) || win.points.length>120) throw Error('ENERGY_WINDOW_LIMIT');
+          const points=win.points.map(row=>{
+            const time=Date.parse(row?.observed_at);
+            if (!Number.isFinite(time) || !['UNVERIFIED','SENSOR_FAULT'].includes(row.quality)) throw Error('ENERGY_WINDOW_POINT');
+            let observation=null;
+            if(row.quality==='UNVERIFIED') {
+              const power=numeric(row.observation?.active_power_total_kw,observationLimits.active_power_total_kw);
+              const energy=numeric(row.observation?.import_energy_total_kwh,observationLimits.import_energy_total_kwh);
+              if(power===null || energy===null) throw Error('ENERGY_WINDOW_VALUE');
+              observation={active_power_total_kw:power,import_energy_total_kwh:energy};
+            }
+            return {observed_at:new Date(time).toISOString(),quality:row.quality,observation};
+          }).filter(row=>Date.parse(row.observed_at)>=now-hours*3600000 && Date.parse(row.observed_at)<=now);
+          result.windows[String(hours)]={hours,bucket_seconds:bucket,points:[...new Map(points.map(row=>[row.observed_at,row])).values()].sort((a,b)=>Date.parse(a.observed_at)-Date.parse(b.observed_at))};
+        }
+      }
+      return result;
     });
     return {...empty, generated_at:new Date(generated).toISOString(), sources,
       status: now - generated > 180000 ? "STALE" : sources.length ? "AVAILABLE" : p.status === "INGEST_NOT_READY" ? "INGEST_NOT_READY" : p.status === "UNAVAILABLE" ? "UNAVAILABLE" : "NO_METER_DATA"};

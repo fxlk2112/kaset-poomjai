@@ -1,5 +1,12 @@
 # FARMULTIMATE Collaboration Status
 
+## Active task: OWNER-MONITOR-DETAILS-003
+
+- Owner SUCHA; branch `pick/energy-water-details-v1`; source `b137b08`, freshly fetched develop ancestor retained. Continue the owner dashboard improvement/release request.
+- Scope lock: energy observation history projection, energy Worker contract/UI/tests, new pond detail UI/tests, `js/sensors.js` insertion, `index.html`/`sw.js` asset references, matching CSS, monitor documentation/QA. No Commerce, controller, meter settings, water calibration, database schema or new hardware commands.
+- Deliver 1h/24h/7d/30d energy charts with bounded data and truthful coverage; reservoir storage change, rate, quality/coverage, missing water-temperature and flow measurements, explicit evaporation scenarios. No inference that every level drop is leakage; no air-temperature substitution. Current measurement acceptance remains pending.
+- Status: IN_PROGRESS.
+
 ## Active task: OWNER-ENERGY-LIVE-002
 
 - Owner SUCHA; branch `pick/energy-live-observation-v1`; source `57b2668`, with freshly fetched `origin/develop@40721b5` verified as ancestor. Preserve deployed pond/LAN functionality and completed D1 index work.

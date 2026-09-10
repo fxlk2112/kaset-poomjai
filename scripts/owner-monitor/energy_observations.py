@@ -152,6 +152,20 @@ def observation_snapshot(database=DATABASE, now=None):
         if not latest:
             return None
         history = db.execute('SELECT body,MAX(observed_epoch) FROM observations WHERE observed_epoch>=? GROUP BY CAST(observed_epoch/900 AS INTEGER) ORDER BY MAX(observed_epoch)', (now - 86400,)).fetchall()
+        windows = {}
+        for hours, bucket in ((1, 60), (24, 900), (168, 7200), (720, 28800)):
+            rows = db.execute('SELECT body,MAX(observed_epoch) FROM observations WHERE observed_epoch>=? AND observed_epoch<=? GROUP BY CAST(observed_epoch/? AS INTEGER) ORDER BY MAX(observed_epoch)',
+                              (now - hours * 3600, now, bucket)).fetchall()
+            first = db.execute('SELECT body,observed_epoch FROM observations WHERE observed_epoch>=? AND observed_epoch<=? ORDER BY observed_epoch LIMIT 1', (now-hours*3600, now)).fetchone()
+            if first and rows and first[1] != rows[0][1]:
+                rows.insert(0, first)
+            points = []
+            for raw, _ in rows:
+                item = json.loads(raw)
+                values = decode(item['frames']) if item['quality'] == 'UNVERIFIED' else None
+                points.append({'observed_at': item['observed_at'], 'quality': item['quality'],
+                               'observation': {k: values[k] for k in ('active_power_total_kw', 'import_energy_total_kwh')} if values else None})
+            windows[str(hours)] = {'hours': hours, 'bucket_seconds': bucket, 'points': points[-120:]}
     return {'id': SOURCE, 'circuit_role': 'UNASSIGNED', 'meter_model': 'ADL400N-CT/UNVERIFIED',
             'register_map_id': MAP_ID, 'current': sample(json.loads(latest[0])),
-            'history': [sample(json.loads(r[0])) for r in history][-100:]}
+            'history': [sample(json.loads(r[0])) for r in history][-100:], 'windows': windows}

@@ -104,5 +104,21 @@ class ObservationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             M.validate(value, now + 8 * 86400)
 
+    def test_history_windows_preserve_thirty_days_without_inventing_coverage(self):
+        path, db = self.store()
+        now = 1800000000
+        for hours in (31*24, 29*24, 6*24, 23, .8, .4, 0):
+            timestamp=now-hours*3600
+            M.insert(db,M.event(frames(),now=timestamp),timestamp)
+        db.close()
+        windows=M.observation_snapshot(path,now)['windows']
+        self.assertEqual(set(windows), {'1','24','168','720'})
+        self.assertEqual(len(windows['1']['points']),3)
+        self.assertEqual(len(windows['720']['points']),5) # newest three share one eight-hour bucket
+        for key, window in windows.items():
+            self.assertLessEqual(len(window['points']),120)
+            self.assertTrue(all(row['quality']=='UNVERIFIED' for row in window['points']))
+            self.assertNotIn('frames',json.dumps(window))
+
 if __name__ == '__main__':
     unittest.main()
