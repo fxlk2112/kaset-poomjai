@@ -1,0 +1,43 @@
+{
+  "captured_utc": "2026-09-10T08:52:31Z",
+  "database": "flytech-farmultimate-canary",
+  "source": "Cloudflare D1 dashboard Query Insights and APAC graph summaries; read-only",
+  "migration_evidence": "migration-readback.json",
+  "before": {
+    "start_utc":"2026-09-10T08:25:00Z","end_utc":"2026-09-10T08:35:00Z","minutes":10,
+    "graph_region":"APAC","graph_rows_read_display":"76.02k","graph_total_queries_display":"2.27k","graph_rows_written":472,
+    "headline_rows_read_display":"78k","headline_rows_written":447,
+    "claim":{"calls":359,"rows_read_display":"30.87k","rows_written":0,"p50_ms":0.5},
+    "expire":{"calls":569,"rows_read_display":"46.09k","rows_written":0,"p50_ms":0.3,"p99_ms":0.7}
+  },
+  "after": {
+    "start_utc":"2026-09-10T08:40:00Z","end_utc":"2026-09-10T08:50:00Z","minutes":10,
+    "graph_region":"APAC","graph_rows_read_display":"4.73k","graph_total_queries_display":"2.16k","graph_rows_written":447,
+    "headline_rows_read_display":"5k","headline_rows_written":388,
+    "claim":{"calls":408,"rows_read_display":"2.45k","rows_written":0,"p50_ms":0.5,"p99_ms":1.9},
+    "expire":{"calls":429,"rows_read":858,"rows_written":0,"p50_ms":0.3,"p99_ms":3},
+    "heartbeat_update":{"calls":372,"rows_read":372,"rows_written":372}
+  },
+  "approx_calculations": {
+    "claim_rows_read_per_call_before":85.98885793871867,
+    "claim_rows_read_per_call_after":6.004901960784314,
+    "claim_reduction_pct":93.01665110488639,
+    "expire_rows_read_per_call_before":81.00175746924428,
+    "expire_rows_read_per_call_after":2,
+    "expire_reduction_pct":97.53091776958125,
+    "graph_total_rows_read_reduction_pct":93.77795317021837,
+    "graph_query_count_reduction_pct":4.845814977973573,
+    "normalized_rows_read_per_hour_before":456120,
+    "normalized_rows_read_per_hour_after":28380
+  },
+  "earlier_after_crosscheck":{"start_utc":"2026-09-10T08:40:00Z","end_utc":"2026-09-10T08:48:00Z","claim_calls":342,"claim_rows_read_display":"2.05k","expire_calls":359,"expire_rows_read":718,"graph_rows_read_display":"4.01k"},
+  "verdict":"CLAIM_AND_TOTAL_READ_REDUCTION_CONFIRMED_IN_10_MINUTE_WINDOW",
+  "limitations":[
+    "k-suffixed UI values are rounded; calculated percentages are approximate.",
+    "APAC graph totals are compared against the same graph dataset before/after; headline totals are retained separately and not mixed into the calculation.",
+    "This is a 10-minute after window, not an actual hour or 24-hour observation. Hourly values are normalized rates only.",
+    "Both claim and expire wrote zero rows in the sampled windows, so this validates the idle/no-op workload, not active command handling under load.",
+    "Claim P50 is unchanged. Expire P99 is higher in this sample; no across-the-board latency improvement is claimed.",
+    "No new production queries, schema changes, deployments or device actions were performed for this measurement."
+  ]
+}

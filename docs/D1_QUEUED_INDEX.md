@@ -6,6 +6,8 @@ Branch: `pick/d1-queued-index-20260910`
 
 สถานะ: **REMOTE_INDEX_APPLIED / QUERY_PLANS_VERIFIED / NO_WORKER_OR_PI_DEPLOYMENT**
 
+ผลติดตามล่าสุดช่วงละ 10 นาที: claim ≈86 → ≈6 rows_read/ครั้ง และกราฟยอดอ่านรวม ≈76.02k → ≈4.73k แถว (ลด ≈93.8%) ดู `docs/D1_POST_MIGRATION_METRICS.md` และ `qa/d1-queued-index/metrics-comparison-10min.json` ผล 1 นาทีด้านล่างเก็บไว้เป็นประวัติ ช่วง 10 นาทียังไม่แทนการวัดครบ 1–24 ชั่วโมง
+
 ## ผลดำเนินการจริง
 
 พี่ปิ๊กอนุมัติ `APPROVE_FARM_D1_INDEX_MIGRATION` แล้ว รันเฉพาะ CREATE INDEX ที่ระบุด้านล่างสำเร็จในวันที่ 10 กันยายน 2026 ภายในช่วง 15:37:56–15:39:18 เวลาไทย (บันทึกเวลาแบบขอบเขต ไม่ใช่ timestamp commit ของ D1) Console รายงาน query time 0.45 ms และ response time 799 ms
