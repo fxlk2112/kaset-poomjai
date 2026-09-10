@@ -76,5 +76,30 @@ as part of rollback. Publisher/LAN changes use separate timestamped backups.
 - Live service, recovery, Cloud and LAN readbacks are recorded in the deployment
   checkpoint after installation.
 
+## Deployment checkpoint — 2026-09-10
+
+- Cloud main Worker version: `f50215be-6114-4616-a428-6e2b6a1e70d3`.
+- Cloud/LAN asset release: `e0914d376959d9229de82b86d5bb45b3a2c861a1`.
+- Both energy services are active; Pi Zero water/health services remain active.
+- Live receiver-stop test: one pending record was retained, then acknowledged
+  after receiver restart; zero pending and zero duplicate IDs afterward.
+- Cloud stored observation matches the original Pi 5 record. The existing owner
+  session in the browser displayed real three-phase measurements and history;
+  no page-console errors were observed. No credentials were extracted.
+- Cloud and LAN `/build.json` return the release above, energy JavaScript hashes
+  match, and unauthenticated monitor reads return 401. LAN HTTPS validates against
+  the existing project CA. The Codex browser does not trust this CA; its LAN
+  owner-session visual check is pending device trust setup. No warning bypass.
+- Pi Zero runtime initially could not access the water-service virtualenv. The
+  final service uses its own private runtime and installed paho copy. Only the
+  new observer was restarted to resolve this; no water service permissions changed.
+- Rollback assets remain `fba867ea0af77d8046ab654cded326c496d0ec83`. Pre-release
+  frontend Worker: `c4b9e05a-3f7d-4a27-bea3-0ea8228cf8d2`. Backend Worker and D1
+  schema were not changed. Device rollback manifests retain file backups.
+
+Evidence: `qa/energy-live/deployment-readback.json`, `http-readback.json`,
+`recovery-test.json`, and labelled synthetic visual screenshots. Physical CT
+verification and a real WAN-disconnection test remain outside this delivery.
+
 Safety: `DATA_ONLY / output_control_allowed=false / modbus_write_allowed=false /
 HARDWARE_NOT_COMMISSIONED`. Existing Pi 5 remains the sole output writer.

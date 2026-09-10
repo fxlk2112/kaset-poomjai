@@ -1,0 +1,16 @@
+{
+  "cloud": {
+    "build_status": 200,
+    "release": "e0914d376959d9229de82b86d5bb45b3a2c861a1",
+    "js_hash_match": true,
+    "unauthenticated_read_status": 401,
+    "tls_validated": true
+  },
+  "lan": {
+    "build_status": 200,
+    "release": "e0914d376959d9229de82b86d5bb45b3a2c861a1",
+    "js_hash_match": true,
+    "unauthenticated_read_status": 401,
+    "tls_validated": true
+  }
+}

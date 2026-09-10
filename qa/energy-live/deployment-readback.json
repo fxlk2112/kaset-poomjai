@@ -1,0 +1,86 @@
+{
+  "cloud": {
+    "status": "DEPLOYED",
+    "version": "f50215be-6114-4616-a428-6e2b6a1e70d3",
+    "release": "e0914d376959d9229de82b86d5bb45b3a2c861a1"
+  },
+  "lan": {
+    "status": "LAN_DEPLOYED",
+    "release": "e0914d376959d9229de82b86d5bb45b3a2c861a1",
+    "previous": "fba867ea0af77d8046ab654cded326c496d0ec83",
+    "assets_verified": 44,
+    "changed_assets": 7
+  },
+  "data": {
+    "cloud_matches_pi_record": true,
+    "receiver_rows": 37,
+    "latest_age_s": 7.7,
+    "quality": "UNVERIFIED",
+    "duplicates": 0
+  },
+  "browser": {
+    "cloud_owner_session": "LIVE_VALUES_VISIBLE",
+    "console_errors": 0,
+    "lan_owner_session": "NOT_VERIFIED_BROWSER_CA_NOT_TRUSTED",
+    "synthetic_viewports": [
+      390,
+      840,
+      1280
+    ]
+  },
+  "validation": {
+    "javascript": 132,
+    "python_observations": 7,
+    "python_owner_monitor": 6,
+    "python_lan": 8,
+    "relay_messages": 9
+  },
+  "safety": {
+    "output_control_allowed": false,
+    "modbus_write_allowed": false,
+    "commissioned": false
+  },
+  "zero_services": {
+    "sucha-energy-observer.service": {
+      "NRestarts": "0",
+      "MemoryCurrent": "[not set]",
+      "CPUUsageNSec": "1924979000",
+      "ActiveState": "active",
+      "SubState": "running"
+    },
+    "water-level-publisher.service": {
+      "NRestarts": "0",
+      "MemoryCurrent": "[not set]",
+      "CPUUsageNSec": "83213970000",
+      "ActiveState": "active",
+      "SubState": "running"
+    },
+    "pi-health-publisher.service": {
+      "NRestarts": "0",
+      "MemoryCurrent": "[not set]",
+      "CPUUsageNSec": "42735493000",
+      "ActiveState": "active",
+      "SubState": "running"
+    }
+  },
+  "five_services": {
+    "sucha-energy-ingest.service": {
+      "NRestarts": "0",
+      "MemoryCurrent": "[not set]",
+      "CPUUsageNSec": "157173000",
+      "ActiveState": "active",
+      "SubState": "running"
+    },
+    "sucha-owner-monitor.timer": {
+      "ActiveState": "active",
+      "SubState": "waiting"
+    },
+    "sucha-farm-lan.service": {
+      "NRestarts": "0",
+      "MemoryCurrent": "[not set]",
+      "CPUUsageNSec": "25061897000",
+      "ActiveState": "active",
+      "SubState": "running"
+    }
+  }
+}
