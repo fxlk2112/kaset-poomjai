@@ -1,0 +1,29 @@
+{
+  "checked_date": "2026-09-10",
+  "database_name": "flytech-farmultimate-canary",
+  "database_id": "e4d96f00-36b2-404f-a5eb-abcae72755d1",
+  "worker": "flytech-farmultimate-owner-staging",
+  "binding": "MONITOR_DB",
+  "environment": "production",
+  "method": "Authenticated Cloudflare D1 Console; two bounded sqlite_schema SELECTs and two EXPLAIN QUERY PLAN statements; no business SELECT/UPDATE execution",
+  "table": "relay_bench_commands",
+  "indexes": [
+    {"name":"relay_bench_one_active_channel","sql":"CREATE UNIQUE INDEX relay_bench_one_active_channel ON relay_bench_commands(user_id,module,channel) WHERE status IN ('QUEUED','CLAIMED','ON_VERIFIED')"},
+    {"name":"relay_bench_owner_time","sql":"CREATE INDEX relay_bench_owner_time ON relay_bench_commands(user_id,created_at DESC)"},
+    {"name":"sqlite_autoindex_relay_bench_commands_1","sql":null}
+  ],
+  "proposed_index_name_collision": false,
+  "expire_query_plan": ["SEARCH relay_bench_commands USING INDEX relay_bench_owner_time (user_id=?)"],
+  "claim_query_plan": [
+    "SEARCH relay_bench_commands USING COVERING INDEX sqlite_autoindex_relay_bench_commands_1 (id=?)",
+    "LIST SUBQUERY 1",
+    "SEARCH s USING INDEX sqlite_autoindex_relay_bench_state_1 (user_id=?)",
+    "SEARCH c USING INDEX relay_bench_owner_time (user_id=?)",
+    "USE TEMP B-TREE FOR ORDER BY"
+  ],
+  "table_note": "Production action column is last due to prior ALTER TABLE; migration references named columns only.",
+  "remote_migration_applied": false,
+  "worker_deployed": false,
+  "hardware_actions": false,
+  "validation": {"command":"TZ=UTC npm run check","passed":129,"failed":0,"relay_messages_validated":9}
+}

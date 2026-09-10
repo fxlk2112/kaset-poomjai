@@ -23,3 +23,5 @@ CREATE TABLE IF NOT EXISTS relay_bench_commands (
 CREATE INDEX IF NOT EXISTS relay_bench_owner_time ON relay_bench_commands(user_id,created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS relay_bench_one_active_channel ON relay_bench_commands(user_id,module,channel)
   WHERE status IN ('QUEUED','CLAIMED','ON_VERIFIED');
+CREATE INDEX IF NOT EXISTS relay_bench_queued_owner_expiry ON relay_bench_commands(user_id, expires_at)
+  WHERE status = 'QUEUED';

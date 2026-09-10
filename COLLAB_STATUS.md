@@ -1,5 +1,12 @@
 # FARMULTIMATE Collaboration Status
 
+## Local task: OWNER-D1-QUEUED-INDEX-001
+
+- Owner SUCHA; branch `pick/d1-queued-index-20260910`; base deployed source `fba867ea0af77d8046ab654cded326c496d0ec83`, which contains `origin/develop@40721b5`. Release base preserves newer LAN safety guards absent from the older integration tree.
+- Scope lock: `worker/relay-bench-schema.sql`, new `worker/relay-bench-migrate-queued-index.sql`, related index tests, `docs/D1_QUEUED_INDEX.md`, `qa/d1-queued-index/`, and this task entry. Existing pond/LAN task entries and all runtime logic remain unchanged.
+- User authorized remote read-only metadata/EXPLAIN and local migration preparation on 2026-09-10. Production D1 migration requires separate approval of the concrete SQL. No Worker/Pi deployment, control calls or hardware changes.
+- Status: LOCAL_READY / NOT_DEPLOYED / MIGRATION_NOT_APPLIED_REMOTE. Live metadata confirms the missing queued index and both remote plans use owner_time. `TZ=UTC npm run check`: 129/129 tests and 9 relay messages PASS. Approval scope and application/readback plan: `docs/D1_QUEUED_INDEX.md`.
+
 ## Active task: OWNER-POND-VISUAL-002
 
 - Owner SUCHA; branch `pick/pond-visual-v2`; source `0d610e2`, freshly fetched develop ancestor verified. Pick requested the 33% water illustration reaching the first foreground pier and more visible, gradual level changes.
