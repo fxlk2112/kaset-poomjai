@@ -5,7 +5,7 @@
 - Owner SUCHA; branch `pick/energy-water-details-v1`; source `b137b08`, freshly fetched develop ancestor retained. Continue the owner dashboard improvement/release request.
 - Scope lock: energy observation history projection, energy Worker contract/UI/tests, new pond detail UI/tests, `js/sensors.js` insertion, `index.html`/`sw.js` asset references, matching CSS, monitor documentation/QA. No Commerce, controller, meter settings, water calibration, database schema or new hardware commands.
 - Deliver 1h/24h/7d/30d energy charts with bounded data and truthful coverage; reservoir storage change, rate, quality/coverage, missing water-temperature and flow measurements, explicit evaporation scenarios. No inference that every level drop is leakage; no air-temperature substitution. Current measurement acceptance remains pending.
-- Status: IN_PROGRESS.
+- Status: DEPLOYED_AND_READBACK_VERIFIED. Owner Cloud/LAN release `266ac8e`; JS 136/136, Python observations 8/8, owner-monitor 6/6, relay 9. Live UI, asset hashes and unauthenticated 401 verified; no hardware commands. Measurement commissioning and LAN browser CA trust remain pending. See `docs/MONITOR_DETAILS.md`.
 
 ## Active task: OWNER-ENERGY-LIVE-002
 

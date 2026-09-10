@@ -56,3 +56,13 @@ Reference: https://www.fao.org/fishery/static/FAO_Training/FAO_Training/General/
   trust limitation from the previous task remains; no certificate warning bypass.
 
 Safety: DATA_ONLY / SAFE_OFF / uncommissioned observations / no actuator actions.
+
+## Verified deployment — 2026-09-10
+
+- Owner Cloud and LAN assets: `266ac8e587b1a7bc974bcf05c1984cccb4e3f7d7`; Worker version `8a60302e-76a6-4f40-82d9-077d81cb65b3`. Backend unchanged.
+- Final visual pass fixed selected-range hover contrast; Cloud 1-hour view returned 60 actual points, 30-day view returned two actual points spanning about five hours. All four windows populated; no synthesized backfill.
+- Authenticated owner Cloud UI rendered energy observations and reservoir details. The Cloud water source covered about 23.9 hours across 278 points; coverage can differ from a direct local extraction. Both are labelled by actual received span.
+- Cloud/LAN build matches and HTTP 200 asset SHA256 readback passed for energy JS, pond JS and shared CSS. Unauthenticated monitor reads returned HTTP 401 on both. LAN TLS verified with the project CA and hostname. LAN browser trust is still unverified in Codex; no warning bypass.
+- Pi 5 projection updated with a backup and exact SHA256 verification. Latest bounded energy projection was 33,985 bytes, windows 62/22/5/2 points. Pi Zero observer, Pi 5 ingest, owner publisher timer and LAN web service remained active. No acquisition configuration or actuator actions.
+- Previous owner asset release `e0914d376959d9229de82b86d5bb45b3a2c861a1` and module backup retained for rollback.
+- Current meter readings remain UNVERIFIED until CT/phase/direction and display comparison; water-temperature, measured evaporation, flow metering and calibrated storage geometry remain unconfirmed.
