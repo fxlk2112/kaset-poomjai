@@ -1,5 +1,13 @@
 # FARMULTIMATE Collaboration Status
 
+## Active task: OWNER-WATER-FRESHNESS-004
+
+- Owner SUCHA; source `488da97`; branch `pick/water-cloud-freshness-v1`.
+- Scope: diagnosed stale public water readings; change only existing Pi 5 outbound telemetry interval from 300 to 60 seconds with backup/readback. Keep device acquisition, water database, credentials, backend, UI freshness threshold and hardware control unchanged.
+- Evidence: source DB age under one minute; public water age four minutes; active forwarder runtime interval 300 seconds; accepted publishes spaced five minutes. Public energy is fresh.
+- Status: FIXED_AND_READBACK_VERIFIED. Running interval 60 seconds; two consecutive accepted deliveries one minute apart, zero pending outbox, public reservoir view LIVE. Existing public asset release 266ac8e unchanged. See `docs/WATER_CLOUD_FRESHNESS.md`.
+
+
 ## Active task: OWNER-MONITOR-DETAILS-003
 
 - Owner SUCHA; branch `pick/energy-water-details-v1`; source `b137b08`, freshly fetched develop ancestor retained. Continue the owner dashboard improvement/release request.
