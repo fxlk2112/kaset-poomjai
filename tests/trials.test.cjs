@@ -25,6 +25,47 @@ function observation(id,unitId,date,value,extra={}) {
   return {id,unitId,date,value,metricId:'m1',metric:'Height',unit:'cm',updatedAt:1,...extra};
 }
 
+test('count metrics reject negative and fractional samples without mutating the trial',()=>{
+  const {tr,run}=setup();tr.collectionMode='sampling';tr.sampleCount=3;
+  tr.metrics[0]={id:'m1',name:'จำนวนที่นับพบ',unit:'ตัว/จุด'};
+  const before=copy(tr);
+  for(const samples of [[0,-1,null],[0,1.5,null]]) assert.throws(()=>run(`trialBatchChanges(S.trials[0],'m1','2026-09-06',[{unitId:'u1',samples:${JSON.stringify(samples)}}])`),/จำนวนเต็ม|ไม่น้อยกว่า/);
+  assert.deepEqual(tr,before);
+  const valid=copy(run("trialBatchChanges(S.trials[0],'m1','2026-09-06',[{unitId:'u1',samples:[0,1,null]}])"));
+  assert.equal(valid[0].value,.5);assert.deepEqual(valid[0].samples,[0,1,null]);
+});
+
+test('explicit general-number metric supports signed values while positive metrics reject them',()=>{
+  const {tr,run}=setup();tr.metrics[0].valueKind='number';
+  assert.equal(run("trialBatchChanges(S.trials[0],'m1','2026-09-06',[{unitId:'u1',value:-1.5}])[0].value"),-1.5);
+  tr.metrics[0].valueKind='positive';
+  assert.throws(()=>run("trialBatchChanges(S.trials[0],'m1','2026-09-06',[{unitId:'u1',value:-1}])"),/ไม่น้อยกว่า/);
+});
+
+test('invalid old count observations remain in raw history but not comparison or import',()=>{
+  const {tr,run}=setup();tr.metrics[0]={id:'m1',name:'จำนวนแมลง',unit:'ตัว'};
+  tr.observations.push(observation('bad','u1','2026-09-06',-1,{unit:'ตัว'}));
+  assert.equal(run('trialComparisonData(S.trials[0]).excluded'),1);
+  assert.throws(()=>run('validateTrialImport(S)'),/ค่าวัดไม่ถูกต้อง/);
+  assert.equal(tr.observations.length,1);assert.equal(tr.observations[0].value,-1);
+});
+
+test('record groups keep each replicate together without changing subplot order',()=>{
+  const {tr,run}=setup();const before=copy(tr.units);
+  const groups=copy(run('trialUnitGroups(S.trials[0], S.trials[0].units)'));
+  assert.deepEqual(groups.map(g=>g.name),['ซ้ำ 1','ซ้ำ 2']);
+  assert.deepEqual(groups.map(g=>g.units.map(u=>u.id)),[['u1','u2'],['u3','u4']]);
+  assert.deepEqual(tr.units,before);
+});
+
+test('sampling record groups use physical plots, not artificial replications',()=>{
+  const {tr,run}=setup();tr.collectionMode='sampling';
+  tr.units.forEach((u,i)=>{u.physicalPlot=i<2?'Plot A':'Plot B';u.block=i+1;});
+  const groups=copy(run('trialUnitGroups(S.trials[0], S.trials[0].units)'));
+  assert.deepEqual(groups.map(g=>g.name),['Plot A','Plot B']);
+  assert.deepEqual(groups.map(g=>g.units.length),[2,2]);
+});
+
 test('legacy recipe reads both products without mutation and an empty list stays empty',()=>{
   const {tr,run}=setup();
   Object.assign(tr.treatments[0],{activeName:'Old A',activeRate:'20 ml/ไร่',mixName:'Old B',mixRate:'10 g/ไร่'});
@@ -166,6 +207,106 @@ function formHarness() {
   h.run('trialWizardValidateStep=()=>true;trialTreatmentsFromForm=()=>treatments;trialMetricsFromForm=()=>metrics;trialWizardSetStep=()=>{};trialWizardFocus=()=>{};');
   return {...h,fields,save:(id='trial')=>h.c.App.saveTrial({preventDefault(){}},id)};
 }
+
+function samplingHarness() {
+  const h=formHarness();
+  h.fields.tr_collection='sampling'; h.fields.tr_sample_count='3';
+  h.c.treatments=Array.from({length:5},(_,i)=>({id:'t'+(i+1),code:'T'+(i+1),name:'Test '+(i+1)}));
+  const locations=[['Plot 1','Left'],['Plot 1','Right'],['Plot 2','Left'],['Plot 2','Right'],['Plot 3','Whole']];
+  h.c.document.querySelectorAll=selector=>selector==='[data-sampling-treatment]' ? locations.map(([plot,section],i)=>({dataset:{samplingTreatment:'t'+(i+1)},querySelector:key=>({value:key==='[data-sampling-plot]' ? plot : section})})) : [];
+  h.save(''); h.tr=h.c.S.trials[1];
+  return h;
+}
+
+test('sampling creates five treatment areas in three physical plots, not fifteen replications',()=>{
+  const {tr}=samplingHarness();
+  assert.equal(tr.collectionMode,'sampling'); assert.equal(tr.design,'SAMPLING');
+  assert.equal(tr.units.length,5); assert.equal(tr.replications,1); assert.equal(tr.sampleCount,3);
+  assert.deepEqual(tr.units.map(u=>u.physicalPlot),['Plot 1','Plot 1','Plot 2','Plot 2','Plot 3']);
+  assert.equal(tr.units[4].sectionName,'Whole'); assert.equal(new Set(tr.units.map(u=>u.id)).size,5);
+});
+
+test('sampling accepts missing points and zero, averages within area and never inflates n',()=>{
+  const {c,tr,run}=samplingHarness(); c.sampleTrial=tr;
+  const changes=c.trialBatchChanges(tr,'m1','2026-09-07',[{unitId:tr.units[0].id,samples:['0','','12']}]);
+  c.applyTrialBatch(tr,changes);
+  assert.equal(tr.observations[0].value,6); assert.deepEqual(copy(tr.observations[0].samples),[0,null,12]);
+  const point=c.trialComparisonData(tr,'m1').series[0].points[0];
+  assert.equal(point.n,1); assert.equal(point.sd,null); assert.equal(point.sampledCount,2);
+  assert.equal(c.trialComparisonData(tr,'m1').series[0].expected,1);
+  assert.deepEqual(copy(c.trialCoverage(tr)),{total:30,done:2});
+  assert.ok(run('trialComparePanel(sampleTrial)').includes('จุดสุ่ม 2/3'));
+  c.route.trialMissingOnly=true;
+  const record=c.trialRecordPanel(tr,'2026-09-07');
+  assert.ok(record.includes('2/15 จุดสุ่ม')); assert.ok(record.includes('ยังเก็บจุดไม่ครบ (5)')); assert.ok(record.includes('เฉลี่ย'));
+});
+
+test('sampling preserves changed raw points even when their mean is unchanged',()=>{
+  const {c,tr}=samplingHarness(); const unitId=tr.units[0].id;
+  c.applyTrialBatch(tr,c.trialBatchChanges(tr,'m1','2026-09-07',[{unitId,samples:[1,2,3]}]));
+  const id=tr.observations[0].id;
+  tr.observations[0].note='Keep'; tr.observations[0].photos=['photo'];
+  const changes=c.trialBatchChanges(tr,'m1','2026-09-07',[{unitId,samples:[0,2,4]}]);
+  assert.equal(changes.length,1); c.applyTrialBatch(tr,changes);
+  assert.equal(tr.observations[0].id,id); assert.equal(tr.observations[0].note,'Keep');
+  assert.deepEqual(copy(tr.observations[0].photos),['photo']);
+  assert.equal(c.trialBatchChanges(tr,'m1','2026-09-07',[{unitId,samples:[0,2,4]}]).length,0);
+});
+
+test('sampling rejects invalid or mismatched points atomically, blanks skip an area',()=>{
+  const {c,tr}=samplingHarness(); const unitId=tr.units[0].id;
+  for(const samples of [[1,2,'invalid'],[1,Infinity,2],[1,2],null]) {
+    assert.throws(()=>c.trialBatchChanges(tr,'m1','2026-09-07',[{unitId,samples}]));
+    assert.equal(tr.observations.length,0);
+  }
+  assert.equal(c.trialBatchChanges(tr,'m1','2026-09-07',[{unitId,samples:['','','']}]).length,0);
+});
+
+test('sampling exports each raw point, including zero and missing values, separately',()=>{
+  const {c,tr}=samplingHarness();
+  c.applyTrialBatch(tr,c.trialBatchChanges(tr,'m1','2026-09-07',[{unitId:tr.units[0].id,samples:[0,'',12]}]));
+  const csv=c.trialCsv(tr);
+  assert.equal(csv.split('\r\n').length,4); assert.ok(csv.includes('"Plot 1"')); assert.ok(csv.includes('"จุดสุ่ม"'));
+  assert.ok(csv.includes('"0","cm","","1"')); assert.ok(csv.includes('"","cm","","2"'));
+  assert.ok(c.trialSummaryCsv(tr).includes('"2","3","สุ่มภายในพื้นที่ ไม่ใช่ซ้ำอิสระ"'));
+});
+
+test('sampling layout groups physical plots and has no replication or layout randomization controls',()=>{
+  const {c,tr}=samplingHarness();
+  const html=c.trialLayoutHtml(tr);
+  assert.equal((html.match(/class="trial-sampling-plot"/g)||[]).length,3);
+  assert.ok(html.includes('Whole')); assert.ok(!html.includes('ซ้ำ/บล็อก'));
+  assert.ok(!c.trialPlanPanel(tr).includes('สุ่มผังใหม่'));
+  const before=copy(tr);
+  c.App.randomizeTrial(tr.id); assert.deepEqual(copy(tr),before);
+});
+
+test('sampling measured data cannot be reinterpreted by changing point count or collection mode',()=>{
+  for(const change of ['count','mode']) {
+    const h=samplingHarness();
+    h.c.applyTrialBatch(h.tr,h.c.trialBatchChanges(h.tr,'m1','2026-09-07',[{unitId:h.tr.units[0].id,samples:[1,2,3]}]));
+    const before=copy(h.tr);
+    if(change==='count') h.fields.tr_sample_count='2'; else h.fields.tr_collection='replicated';
+    h.save(h.tr.id); assert.deepEqual(copy(h.tr),before);
+  }
+});
+
+test('editing a sampling plan keeps measured unit IDs and observations intact',()=>{
+  const h=samplingHarness();
+  h.c.applyTrialBatch(h.tr,h.c.trialBatchChanges(h.tr,'m1','2026-09-07',[{unitId:h.tr.units[0].id,samples:[1,2,3]}]));
+  const ids=h.tr.units.map(u=>u.id), observations=copy(h.tr.observations);
+  h.c.treatments[0].name='Renamed'; h.save(h.tr.id);
+  assert.deepEqual(h.tr.units.map(u=>u.id),ids); assert.deepEqual(copy(h.tr.observations),observations);
+  assert.equal(h.tr.treatments[0].name,'Renamed');
+});
+
+test('sampling rejects missing physical locations and invalid sample counts before saving',()=>{
+  for(const count of ['0','1.5','101','invalid','3']) {
+    const h=formHarness(), before=copy(h.c.S);
+    h.fields.tr_collection='sampling'; h.fields.tr_sample_count=count;
+    h.save(''); assert.deepEqual(copy(h.c.S),before);
+  }
+});
 test('saving renamed formulas preserves measured units and old observations',()=>{
   const h=formHarness(); h.tr.observations=[observation('a','u1','2026-09-07',10)];
   const units=copy(h.tr.units), observations=copy(h.tr.observations);

@@ -982,7 +982,9 @@ function plotChemUse(s, year) {
       items.forEach(ci => {
         row.cost += Number(ci.totalCost) || 0;
         const nm = ci.name || (ci.stockId ? (stockById(s, ci.stockId) || {}).name : "") || "อื่นๆ";
-        row.items[nm] = (row.items[nm] || 0) + (Number(ci.qty) || 0);
+        const unit = ci.unit || (stockById(s,ci.stockId) || {}).unit || 'ไม่ระบุหน่วย';
+        const key = JSON.stringify([nm,unit]);
+        row.items[key] = (row.items[key] || 0) + (Number(ci.qty) || 0);
       });
     } else {
       /* งานเดียวแบบเก่า: ใช้ t.cost + t.stockId/t.qty */
@@ -990,7 +992,8 @@ function plotChemUse(s, year) {
       if (t.stockId) {
         const st = stockById(s, t.stockId);
         const nm = (st && st.name) || "อื่นๆ";
-        row.items[nm] = (row.items[nm] || 0) + (Number(t.qty) || 0);
+        const key=JSON.stringify([nm,t.unit || st?.unit || 'ไม่ระบุหน่วย']);
+        row.items[key] = (row.items[key] || 0) + (Number(t.qty) || 0);
       }
     }
   });
@@ -999,7 +1002,7 @@ function plotChemUse(s, year) {
     name: (plotById(s, r.plotId) || {}).name || "—",
     crop: plotCropName(s, plotById(s, r.plotId)),
     cost: r.cost,
-    items: Object.entries(r.items).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([nm, qty]) => ({ name: nm, qty }))
+    items: Object.entries(r.items).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([key, qty]) => { const [name,unit]=JSON.parse(key); return {name,unit,qty}; })
   })).sort((a, b) => b.cost - a.cost);
 }
 

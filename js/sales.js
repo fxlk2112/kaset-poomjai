@@ -131,6 +131,10 @@ App.saleCheckLimit = function (i) {
   return !msg;
 };
 App.saleSum = function () {
+  saleItems.forEach((it, i) => {
+    const line = document.getElementById('saleLineTotal_' + i);
+    if (line) line.textContent = fmtMoney(saleLineTotal(it)) + ' บาท';
+  });
   const el = document.getElementById("saleTotal");
   if (!el) return;
   const sum = saleItems.reduce((a, it) => a + saleLineTotal(it), 0);
@@ -173,7 +177,7 @@ App.saleRender = function () {
           <input type="number" aria-label="ราคาต่อหน่วย รายการที่ ${i + 1}" min="0" step="0.5" value="${it.price || ""}" ${st && priceMode !== "custom" ? "readonly" : ""} oninput="App.saleSet(${i}, 'price', this.value)">
         </div>
       </div>
-      <div class="row row-between muted" style="font-size:.78rem;padding:2px 2px 0"><span>รวมรายการนี้</span><b>${fmtMoney(saleLineTotal(it))} บาท</b></div>` : ""}
+      <div class="row row-between muted" style="font-size:.78rem;padding:2px 2px 0"><span>รวมรายการนี้</span><b id="saleLineTotal_${i}" aria-live="polite">${fmtMoney(saleLineTotal(it))} บาท</b></div>` : ""}
     </div>`;
   }).join("");
   labelFormFields(list);

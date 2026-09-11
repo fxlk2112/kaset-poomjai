@@ -42,6 +42,7 @@ if (process.argv.includes('--trials')) {
     tr.observations.push({id:'sample-'+d+'-'+i+'-'+mi,unitId:u.id,date:day(-45+d*3),metricId:m.id,metric:m.name,unit:m.unit,value:mi ? Math.round(3+d*.4+i%3*.3) : Math.round(22+d*(5+i%3*.6)+u.block*1.5),note:d===10 && i===0 && mi===0 ? 'ข้อมูลสาธิตสำหรับตรวจหน้าทดลอง ไม่ใช่ผลทดลองจริง' : '',photos:d===10 && i===0 && mi===0 ? ['http://127.0.0.1:'+port+'/images/landing-trial.webp'] : [],createdAt:1000,updatedAt:1000});
   }));
 }
+if(process.argv.includes('--demo')) state=require('./demo-state.cjs').buildDemoState(today);
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.svg':'image/svg+xml','.ico':'image/x-icon'};
 const send=(res,code,type,body)=>{res.writeHead(code,{'Content-Type':type,'Cache-Control':'no-store'});res.end(body);};
 http.createServer(async(req,res)=>{
@@ -72,6 +73,8 @@ http.createServer(async(req,res)=>{
         else{state=JSON.parse(p.data);revision++;data={updated_at:revision};}
       }
       if(p.action==='me')data={email:'preview@example.invalid',name:'ฟาร์มตัวอย่าง',admin:false};
+      if(p.action==='market_prices')data=(await import('../worker/src/market-data.js')).MARKET_DATA;
+      if(p.action==='market_price_history')data={product:p.product,history:{},markets:[]};
       return send(res,200,types['.json'],JSON.stringify({ok:true,data}));
     }
     const relative=decodeURIComponent(url.pathname==='/'?'/index.html':url.pathname);

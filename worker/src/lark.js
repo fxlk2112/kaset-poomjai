@@ -505,19 +505,17 @@ async function doAdminGet(env, p) {
   return { email: row.email, name: row.name, updated_at: row.updated_at || 0, data };
 }
 
-/* ---------- ราคาตลาดจริงจาก API สศก. (NABC) — ราคารับซื้อรายวัน ณ ตลาดสำคัญ ---------- */
 /* ราคาตลาด: ข้อมูล static จาก kasetpoomjai.com (ตลาดศรีเมือง + ตลาดสี่มุมเมือง)
    อัปเดตทุกครั้งที่ deploy worker — ข้อมูลมี 213 รายการ, 171 สินค้า */
 async function doMarketPrices(env, p) {
-  /* เปิดหน้าราคาแล้ว seed ประวัติวันนี้ทันทีด้วย
-     INSERT OR REPLACE ทำให้เรียกซ้ำได้ ไม่ต้องรอ cron รอบ 08:00 วันถัดไป */
+  /* บันทึกประวัติตามวันที่ต้นทาง ไม่เปลี่ยนราคาเก่าให้เป็นราคาของวันนี้ */
   if (env.DB) {
     try { await doRecordPrices(env); } catch (e) { /* แสดงราคาปัจจุบันต่อได้ แม้บันทึก history ไม่สำเร็จ */ }
   }
   return MARKET_DATA;
 }
 
-/* บันทึกราคาวันนี้จาก MARKET_DATA ลง D1 (เรียกจาก cron ครั้งเดียวต่อวัน)
+/* บันทึกราคาตามวันที่ต้นทางจาก MARKET_DATA ลง D1
    ใช้ INSERT OR REPLACE เพื่อ idempotent — รัน cron ซ้ำได้ปลอดภัย */
 async function doRecordPrices(env) {
   /* ตรวจว่า table มีแล้วหรือยัง (migration อาจยังไม่ได้รัน) */
@@ -542,9 +540,12 @@ async function doRecordPrices(env) {
   /* แบ่ง batch ทีละ 50 rows (D1 จำกัด bound params) */
   const rows = [];
   for (const p of MARKET_DATA.products || []) {
+    const sourceDate = p.date || MARKET_DATA.date;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(sourceDate || '') || sourceDate > today ||
+        !Number.isFinite(Date.parse(sourceDate+'T12:00:00Z')) || new Date(sourceDate+'T12:00:00Z').toISOString().slice(0,10)!==sourceDate) continue;
     for (const m of p.markets || []) {
       rows.push({
-        product: p.product, market: m.market, date: today,
+        product: p.product, market: m.market, date: sourceDate,
         price: Number(m.price) || ((Number(p.min) + Number(p.max)) / 2),
         min: Number(p.min) || 0, max: Number(p.max) || 0,
         unit: p.unit || "", category: p.category || "",
@@ -564,7 +565,7 @@ async function doRecordPrices(env) {
   const nowBkk730 = new Date(Date.now() + 7 * 3600 * 1000 - 730 * 86400 * 1000);
   const cutoff = nowBkk730.toISOString().slice(0, 10);
   await env.DB.prepare("DELETE FROM price_history WHERE date < ?1").bind(cutoff).run();
-  return { recorded: rows.length, date: today };
+  return { recorded: rows.length, dates: [...new Set(rows.map(row=>row.date))] };
 }
 
 function bkkDateAgo(days) {

@@ -29,13 +29,14 @@ const Charts = {
     if (!dates.length || !values.length) { container.innerHTML = ''; return; }
     const rawMin = Math.min(...values), rawMax = Math.max(...values);
     const padding = (rawMax - rawMin || Math.abs(rawMax) || 1) * .12;
-    const min = rawMin - padding, max = rawMax + padding;
+    const min = Math.max(opts.minValue ?? -Infinity, rawMin - padding);
+    const max = Math.max(min + .000001, Math.min(opts.maxValue ?? Infinity, rawMax + padding));
     const time = d => Date.parse(d + 'T12:00:00Z');
     const first = time(dates[0]), span = time(dates[dates.length-1]) - first;
     const x = d => span ? L + (time(d)-first)/span*(W-L-R) : (L+W-R)/2;
     const y = v => T + (max-v)/(max-min)*(H-T-B);
     const text = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const label = d => d.slice(8)+'/'+d.slice(5,7)+'/'+d.slice(2,4);
+    const label = opts.dateLabel || (d => d.slice(8)+'/'+d.slice(5,7)+'/'+d.slice(2,4));
     const muted = chartCol('--muted','#64746c'), rule = chartCol('--line','#dae2dc');
     let out = '';
     for (let i=0;i<=4;i++) {
@@ -43,29 +44,43 @@ const Charts = {
       out += `<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="${rule}"/><text x="${L-10}" y="${yy+4}" text-anchor="end" font-size="11" fill="${muted}">${text(fmtChartVal(Number(v.toFixed(2))))}</text>`;
     }
     const ticks = span ? Array.from({length: W<500 ? 3 : 5}, (_,i) => first+span*i/(W<500 ? 2 : 4)) : [first];
-    ticks.forEach(t => {
-      const d=new Date(t).toISOString().slice(0,10);
-      out += `<text x="${x(d)}" y="${H-16}" text-anchor="middle" font-size="11" fill="${muted}">${text(label(d))}</text>`;
+    let tickDates = [...new Set(ticks.map(t=>new Date(t).toISOString().slice(0,10)))];
+    if (opts.recordDateTicks) {
+      // Keep real time spacing, but label only recorded dates without crowding.
+      const candidates = [...new Set(dates)];
+      tickDates = [candidates[0]];
+      const last = candidates[candidates.length-1];
+      for (const d of candidates.slice(1,-1)) {
+        if (x(d)-x(tickDates[tickDates.length-1])>=76 && x(last)-x(d)>=76) tickDates.push(d);
+      }
+      if (last!==tickDates[0]) tickDates.push(last);
+    }
+    tickDates.forEach(d => {
+      out += `<text x="${Math.max(32,Math.min(W-32,x(d)))}" y="${H-16}" text-anchor="middle" font-size="11" fill="${muted}">${text(label(d))}</text>`;
     });
     series.forEach((s,index) => {
       const dash = ['', '8 4', '2 4', '10 3 2 3'][index%4];
-      let segment=[];
+      let segment=[], previous=null, missing=false;
       const flush = () => {
         if (segment.length>1) out += `<polyline points="${segment.join(' ')}" fill="none" stroke="${text(s.color)}" stroke-width="2.5" stroke-dasharray="${dash}" stroke-linejoin="round"/>`;
         segment=[];
       };
       s.points.forEach(p => {
-        if (p.value === null || !Number.isFinite(p.value)) { flush(); return; }
+        if (p.value === null || !Number.isFinite(p.value)) { flush(); missing=true; return; }
+        if (opts.connectMissing && missing && previous) {
+          out += `<line x1="${x(previous.date)}" y1="${y(previous.value)}" x2="${x(p.date)}" y2="${y(p.value)}" stroke="${text(s.color)}" stroke-width="2" stroke-dasharray="4 5" opacity="0.65"><title>${text('ช่วงไม่มีค่าวัด ระหว่าง '+label(previous.date)+' ถึง '+label(p.date))}</title></line>`;
+        }
+        previous=p;missing=false;
         segment.push(`${x(p.date)},${y(p.value)}`);
       });
       flush();
       s.points.forEach(p => {
         if (p.value === null || !Number.isFinite(p.value)) return;
-        const title = `${s.label} · ${p.date}: ${Number(p.value.toFixed(2))} ${opts.unit || ''} · n=${p.n}/${s.expected}`;
+        const title = `${s.label} · ${p.date}: ${Number(p.value.toFixed(2))} ${opts.unit || ''} · ${opts.sampleLabel ? p.n+' '+opts.sampleLabel : 'n='+p.n+'/'+s.expected}`;
         out += `<circle cx="${x(p.date)}" cy="${y(p.value)}" r="4" fill="${text(s.color)}" stroke="${chartCol('--card','#fff')}" stroke-width="1.5"><title>${text(title)}</title></circle>`;
       });
     });
-    container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${text('แนวโน้ม '+(opts.unit || '')+' แยก '+series.map(s=>s.label).join(', ')+' ตั้งแต่ '+dates[0]+' ถึง '+dates[dates.length-1]+'. ค่าตัวเลขและจำนวนแปลงอยู่ในตารางเปรียบเทียบทุกวันที่วัด')}"><title>แนวโน้มแต่ละสูตร</title>${out}</svg>`;
+    container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${text(opts.description || 'แนวโน้ม '+(opts.unit || '')+' แยก '+series.map(s=>s.label).join(', ')+' ตั้งแต่ '+dates[0]+' ถึง '+dates[dates.length-1]+'. ค่าตัวเลขและจำนวนแปลงอยู่ในตารางเปรียบเทียบทุกวันที่วัด')}"><title>${text(opts.title || 'แนวโน้มแต่ละสูตร')}</title>${out}</svg>`;
   },
 
   /* Bar chart. items: [{label, value, color?}]

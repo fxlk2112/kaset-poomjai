@@ -1,7 +1,7 @@
 /* Cache only the app shell and public same-origin assets, never authenticated APIs. */
-const CACHE = "farmult-v127-trialingredients";
+const CACHE = "farmult-v138-usability";
 const SHELL = ["/", "/css/style.css", "/css/landing.css", "/js/data.js", "/js/charts.js", "/js/notify.js", "/js/stock.js",
-  "/js/sales.js", "/js/lark.js", "/js/recovery.js", "/js/landing.js", "/js/auth.js", "/js/app.js"];
+  "/js/sales.js", "/js/lark.js", "/js/recovery.js", "/js/landing.js", "/js/auth.js", "/js/inspection.js", "/js/app.js"];
 
 self.addEventListener("install", event => {
   event.waitUntil((async () => {

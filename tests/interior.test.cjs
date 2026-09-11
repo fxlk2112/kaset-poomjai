@@ -706,12 +706,25 @@ function plannerClient() {
   const c=client();
   c.run(`let plannerCalendarOpen=false, plannerFilter='today';
     let route={view:'planner'}, cal={y:2026,m:8,sel:null}; S.tasks=[];`);
-  Object.assign(c.c,{ic:()=>'',T:()=>'',dateLabel:date=>date,calCardHtml:()=>'',taskRowHtml:()=>'',closeModal(){},rerender(){}});
+  Object.assign(c.c,{ic:()=>'',T:()=>'',esc:x=>String(x ?? ''),TYPE_LABELS:{inspect:'ตรวจแปลง'},dateLabel:date=>date,calCardHtml:()=>'',taskRowHtml:()=>'',closeModal(){},rerender(){}});
   const app=source('js/app.js');
-  c.run(app.slice(app.indexOf('function renderPlanner()'),app.indexOf('App.plannerCalendarToggle =')));
+  c.run(app.slice(app.indexOf('const plannerSearch ='),app.indexOf('App.plannerCalendarToggle =')));
   for(const name of ['plannerCalendarToggle','pickDay','calMove','calToday','gotoCalendar','plannerFilter']) loadAppMethod(c,name);
   return c;
 }
+
+test('planner counts follow plot, cycle, type and search filters and reset together',()=>{
+  const c=plannerClient();
+  c.run(`S.tasks=[
+    {id:'a',title:'Inspect north',date:todayISO(),plotId:'p1',cycleId:'c1',type:'inspect',status:'done'},
+    {id:'b',title:'Inspect south',date:todayISO(),plotId:'p2',cycleId:'c2',type:'inspect',status:'done'},
+    {id:'c',title:'Water north',date:todayISO(),plotId:'p1',cycleId:'c1',type:'water',status:'planned'}
+  ];App.setPlannerSearch('plot','p1');App.setPlannerSearch('type','inspect');App.setPlannerSearch('query','north');App.setPlannerSearch('cycle','c1');`);
+  assert.equal(c.run('S.tasks.filter(plannerMatches).length'),1);
+  assert.match(c.run('renderPlanner()'),/เสร็จแล้ว<\/span><b>1<\/b>/);
+  c.run('App.setPlannerSearch("plot","p2")');assert.equal(c.run('plannerSearch.cycle'),'');
+  c.run('App.clearPlannerSearch()');assert.equal(c.run('S.tasks.filter(plannerMatches).length'),3);
+});
 
 test('calendar stays expanded after selecting days, months, today and filters',()=>{
   const c=plannerClient();
