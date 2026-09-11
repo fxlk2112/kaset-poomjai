@@ -1,0 +1,38 @@
+{
+  "checkedAt": "2026-09-11T17:27:21.509Z",
+  "session": "EXISTING_OWNER_SESSION_NO_CREDENTIAL_EXTRACTION",
+  "data": "LIVE_SAME_ORIGIN_NO_MOCKS",
+  "viewports": [
+    {
+      "energyVisible": true,
+      "nodeCards": 2,
+      "scrollWidth": 390,
+      "summaryVisible": true,
+      "waterVisible": true,
+      "width": 390
+    },
+    {
+      "energyVisible": true,
+      "nodeCards": 2,
+      "scrollWidth": 840,
+      "summaryVisible": true,
+      "waterVisible": true,
+      "width": 840
+    },
+    {
+      "energyVisible": true,
+      "nodeCards": 2,
+      "scrollWidth": 1280,
+      "summaryVisible": true,
+      "waterVisible": true,
+      "width": 1280
+    }
+  ],
+  "water": "FRESH_RENDERED",
+  "energy": "FRESH_UNVERIFIED_RENDERED_ACTUAL_TODAY_SPAN",
+  "pi5": "FRESH_RENDERED",
+  "piZero": "FRESH_RENDERED",
+  "browserErrors": 0,
+  "screenshotLimitation": "Windows capture scaling artifacts; live DOM independently checked",
+  "hardwareActions": false
+}

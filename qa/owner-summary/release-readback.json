@@ -1,0 +1,79 @@
+{
+  "checkedAt": "2026-09-11T17:26:21.544Z",
+  "release": "5e98145e9dce80df0b5bd1b28eec24646b886c5c",
+  "buildMatches": true,
+  "assets": [
+    {
+      "path": "index.html",
+      "status": 200,
+      "sha256": "bb580d8b57d218ec2fa6ea2258504d35f78a9f2c91946a8126a9c50b66a75187",
+      "matches": true
+    },
+    {
+      "path": "js/owner-summary.js",
+      "status": 200,
+      "sha256": "470c579d801ea6244e16dc5f06882fea55884659ddad8cf4436a3fa382de3403",
+      "matches": true
+    },
+    {
+      "path": "css/owner-summary.css",
+      "status": 200,
+      "sha256": "9e2d8a3b8d628fb332a4ac46c29ddbc94cde13e789bd668dc4377e4719159cf7",
+      "matches": true
+    },
+    {
+      "path": "js/app.js",
+      "status": 200,
+      "sha256": "fe6d2641546aefe1bf0809d9739f3327d948bd1ae0c4c3a516d665e59e81f471",
+      "matches": true
+    },
+    {
+      "path": "js/auth.js",
+      "status": 200,
+      "sha256": "f4507a64b6bc07c1dc4aee6a8bb71181f583eb336de7bd7a8edc1f946c5220d0",
+      "matches": true
+    },
+    {
+      "path": "js/farm-map.js",
+      "status": 200,
+      "sha256": "fe31d6f80df779b286740390079e46efb5e32b5928b5e3878acc30265507fd6c",
+      "matches": true
+    },
+    {
+      "path": "js/sensors.js",
+      "status": 200,
+      "sha256": "6b1dfbd52e83651fe03c4f278485b4393507e3e62afea680a8521c66b6e51445",
+      "matches": true
+    },
+    {
+      "path": "sw.js",
+      "status": 200,
+      "sha256": "93322d14e5890f398e0461d3e9cf6d3a91556883fb00e72faa3cf86ac1884cdf",
+      "matches": true
+    }
+  ],
+  "healthSafe": true,
+  "unauthenticatedMonitorStatus": 401,
+  "backendUnchanged": true,
+  "backendVersions": [
+    {
+      "version_id": "87ab09f5-1da5-43b3-81c1-30c5a858b11f",
+      "percentage": 100
+    }
+  ],
+  "frontendVersions": [
+    {
+      "version_id": "b679d63f-eb54-4048-b43b-25333550cc2b",
+      "percentage": 100
+    }
+  ],
+  "rollbackVersions": [
+    {
+      "version_id": "8a60302e-76a6-4f40-82d9-077d81cb65b3",
+      "percentage": 100
+    }
+  ],
+  "scope": "FRONTEND_ONLY / DATA_ONLY / SAFE_OFF / NO_PI_CHANGES",
+  "authenticatedLiveUI": "VERIFIED_EXISTING_OWNER_SESSION",
+  "pass": true
+}

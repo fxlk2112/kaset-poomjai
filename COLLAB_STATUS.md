@@ -6,7 +6,7 @@
 - Owner requested the remote owner summary and explicitly authorized publishing to the existing main website on 2026-09-12.
 - Scope lock: new `js/owner-summary.js`, `css/owner-summary.css`, summary-only map/app/auth navigation, sensor timer exclusion on the summary page, index assets, related tests/docs/QA. No Commerce, backend/schema, Pi service/config, or hardware changes.
 - Queue: implement real-source summary and field checklist -> calculation/access/freshness tests -> mobile/tablet/desktop visual verification -> main Worker dry-run/deploy -> independent public readback.
-- Status: IN_PROGRESS; DATA_ONLY / SAFE_OFF / Pi 5 sole writer. Current meter acceptance and water geometry remain unverified.
+- Status: DEPLOYED_AND_READBACK_VERIFIED. Public release `5e98145`, frontend Worker `b679d63f-eb54-4048-b43b-25333550cc2b`; 141 tests and 9 relay messages pass. Eight live asset hashes match, owner-session UI shows fresh water/energy/Pi sources, signed-out monitor returns 401, backend version unchanged. Responsive DOM checks at 390/840/1280 have no horizontal overflow; Windows screenshot scaling artifacts and physical iOS acceptance remain distinct limits. See `docs/OWNER_SUMMARY.md` and `qa/owner-summary/`. DATA_ONLY / SAFE_OFF / Pi 5 sole writer; no Pi/config/hardware changes.
 
 ## Active task: OWNER-WATER-FRESHNESS-004
 
