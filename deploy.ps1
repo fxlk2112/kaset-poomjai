@@ -2,11 +2,11 @@
 # ใช้: powershell -File deploy.ps1
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
-$stage = Join-Path $env:TEMP "kaset-pages-stage"
-if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+$stage = Join-Path $env:TEMP ("kaset-pages-stage-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $stage | Out-Null
-robocopy $root $stage /E /NFL /NDL /NJH /NJS /NP `
-  /XD .git .github .freebuff .wrangler .netlify node_modules worker netlify `
-  /XF .gitignore .assetsignore deploy.ps1 | Out-Null
-if ($LASTEXITCODE -ge 8) { throw "robocopy failed: $LASTEXITCODE" }
+# Match the site-only allowlist in the GitHub deployment workflow.
+foreach ($name in @("index.html", "sw.js", "manifest.json", "logo.jpg", "css", "js", "icons", "images", "_redirects")) {
+  Copy-Item -LiteralPath (Join-Path $root $name) -Destination $stage -Recurse
+}
 wrangler pages deploy $stage --project-name=farmultimate-solutions --branch=master --commit-dirty=true
+if ($LASTEXITCODE -ne 0) { throw "Pages deployment failed: $LASTEXITCODE" }

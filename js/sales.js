@@ -3,7 +3,7 @@ let saleItems = [];      // รายการขายชั่วคราว:
 let saleQueries = {};    // คำค้นหาสต็อกต่อแถว
 let saleEditingId = "";
 /* ขายจากสต็อกหลัก (หน่วยเต็ม) เท่านั้น — ไม่นับของที่เปิดใช้แล้ว */
-function saleAvail(x) { return Math.floor(Number(x.qty) || 0); }
+function saleAvail(x) { return stockSealedAvailable(S, x.id); }
 function salePriceFromMode(st, mode) {
   if (!st) return 0;
   if (mode === "member") return Number(st.memberPrice) || 0;
@@ -131,6 +131,10 @@ App.saleCheckLimit = function (i) {
   return !msg;
 };
 App.saleSum = function () {
+  saleItems.forEach((it, i) => {
+    const line = document.getElementById('saleLineTotal_' + i);
+    if (line) line.textContent = fmtMoney(saleLineTotal(it)) + ' บาท';
+  });
   const el = document.getElementById("saleTotal");
   if (!el) return;
   const sum = saleItems.reduce((a, it) => a + saleLineTotal(it), 0);
@@ -145,7 +149,7 @@ App.saleRender = function () {
   if (!list) return;
   list.innerHTML = saleItems.map((it, i) => {
     const st = it.stockId ? stockById(S, it.stockId) : null;
-    const max = st ? saleAvail(st) : 0;
+    const max = st ? saleLimitInfo(it).max : 0;
     const priceMode = it.priceMode || salePriceModeOf(st, it.price);
     return `
     <div class="usage-row">
@@ -170,12 +174,13 @@ App.saleRender = function () {
             ${st.memberPrice ? `<option value="member" ${priceMode === "member" ? "selected" : ""}>ลูกค้าประจำ (${fmtMoney(st.memberPrice)} บาท)</option>` : ""}
             <option value="custom" ${priceMode === "custom" ? "selected" : ""}>พิมพ์เอง</option>
           </select>` : ""}
-          <input type="number" min="0" step="0.5" value="${it.price || ""}" ${st && priceMode !== "custom" ? "readonly" : ""} oninput="App.saleSet(${i}, 'price', this.value)">
+          <input type="number" aria-label="ราคาต่อหน่วย รายการที่ ${i + 1}" min="0" step="0.5" value="${it.price || ""}" ${st && priceMode !== "custom" ? "readonly" : ""} oninput="App.saleSet(${i}, 'price', this.value)">
         </div>
       </div>
-      <div class="row row-between muted" style="font-size:.78rem;padding:2px 2px 0"><span>รวมรายการนี้</span><b>${fmtMoney(saleLineTotal(it))} บาท</b></div>` : ""}
+      <div class="row row-between muted" style="font-size:.78rem;padding:2px 2px 0"><span>รวมรายการนี้</span><b id="saleLineTotal_${i}" aria-live="polite">${fmtMoney(saleLineTotal(it))} บาท</b></div>` : ""}
     </div>`;
   }).join("");
+  labelFormFields(list);
   App.saleSum();
   saleItems.forEach((_, i) => App.saleCheckLimit(i));
 };
@@ -191,6 +196,7 @@ App.salePriceMode = function (i, mode) {
 /* เปิดฟอร์มขายสินค้า — ใส่ saleId เพื่อแก้ไขใบเสร็จเดิม */
 App.modalSale = function (saleId) {
   const editing = saleId ? (S.sales || []).find(x => x.id === saleId) : null;
+  if (saleId && (!editing || editing.status === "void")) { toast("ใบเสร็จนี้ไม่มีอยู่หรือยกเลิกแล้ว"); return; }
   saleEditingId = editing ? editing.id : "";
   saleItems = editing
     ? editing.items.map(it => ({ stockId: it.stockId, name: it.name, unit: it.unit, qty: it.qty, price: it.price, priceMode: it.priceMode || salePriceModeOf(stockById(S, it.stockId), it.price) }))
@@ -284,7 +290,9 @@ App.submitSale = function (e, saleId) {
     payMethod: (document.querySelector("input[name='sale_pay']:checked") || {}).value,
     account: document.getElementById("sale_acct").value
   };
-  const sale = editing ? updateSale(S, editing.id, data) : addSale(S, data);
+  let sale;
+  try { sale = editing ? updateSale(S, editing.id, data) : addSale(S, data); }
+  catch (err) { toast(err.message); return false; }
   saveState(S);
   closeModal();
   render();
@@ -305,6 +313,7 @@ function saleShareText(sale) {
   const payTxt = sale.payMethod === "transfer" ? `โอนเงิน${sale.account ? ` (${sale.account})` : ""}` : "เงินสด";
   const lines = [
     `${T("brandName")} - ใบส่งสินค้า #${sale.no}`,
+    sale.status === "void" ? "ยกเลิกแล้ว - ไม่ใช่ยอดขายที่ใช้งาน" : "",
     `วันที่ ${dateLabel(sale.date)}${sale.customer ? ` | ลูกค้า ${sale.customer}` : ""}`,
     "",
     ...(sale.items || []).map((it, i) => `${i + 1}. ${it.name}${it.code ? ` (${it.code})` : ""} ${fmtNum(it.qty)} ${it.unit || ""} x ${fmtMoney(it.price)} = ${fmtMoney(it.total)} บาท`),
@@ -372,6 +381,7 @@ App.viewSale = function (id) {
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${ic("box")} ใบส่งสินค้า เลขที่ ${sale.no}</h3>
     <div class="receipt" id="receiptArea">
+      ${sale.status === "void" ? `<h2 class="receipt-void">ยกเลิกแล้ว</h2>` : ""}
       <div class="receipt-head">
         <div class="receipt-brand">${esc(T("brandName"))}</div>
         <div class="receipt-no">ใบส่งสินค้า เลขที่ ${sale.no}</div>
@@ -404,8 +414,8 @@ App.viewSale = function (id) {
       <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
       <button class="btn btn-primary" onclick="App.shareSaleSummary('${sale.id}')">${ic("share")} แชร์</button>
       <button class="btn btn-outline" onclick="App.copySaleSummary('${sale.id}')">${ic("copy")} คัดลอกส่งลูกค้า</button>
-      <button class="btn btn-outline" onclick="App.modalSale('${sale.id}')">${ic("pencil")} แก้ไข</button>
-      <button class="btn btn-danger-soft" onclick="App.voidSale('${sale.id}')">${ic("trash")} ยกเลิกใบ</button>
+      ${sale.status !== "void" ? `<button class="btn btn-outline" onclick="App.modalSale('${sale.id}')">${ic("pencil")} แก้ไข</button>
+      <button class="btn btn-danger-soft" onclick="App.voidSale('${sale.id}')">${ic("trash")} ยกเลิกใบ</button>` : ""}
       <button class="btn btn-outline" onclick="App.printSale()">${ic("save")} พิมพ์ A4</button>
     </div>`);
 };
@@ -483,10 +493,10 @@ App.printSale = function () {
   w.focus();
   setTimeout(() => { w.print(); }, 250);
 };
-/* ยกเลิกใบเสร็จ — คืนสต็อก + ลบใบ */
+/* ยกเลิกใบเสร็จ: เก็บประวัติพร้อมสถานะ */
 App.voidSale = function (id) {
-  App.confirm("ยกเลิกใบเสร็จนี้?", "สต็อกที่ขายไปจะถูกคืนกลับ", () => {
-    voidSale(S, id);
+  App.confirm("ยกเลิกใบเสร็จนี้?", "คืนสต็อกและตัดออกจากยอดขาย โดยเก็บใบเดิมไว้ในประวัติ", () => {
+    if (!voidSale(S, id)) { toast("ใบเสร็จนี้ยกเลิกไปแล้ว"); return; }
     saveState(S);
     closeModal();
     render();
@@ -502,14 +512,14 @@ App.saleHistory = function () {
     <div class="modal-sub">${sales.length ? "กดใบเสร็จเพื่อดู/พิมพ์ซ้ำ" : "ยังไม่มีการขาย — กด ขายสินค้า เพื่อออกใบเสร็จใบแรก"}</div>
     ${sales.length === 0 ? `<div class="empty"><div class="e-ico">${ic("dollar")}</div><div class="e-title">ยังไม่มีใบเสร็จ</div></div>` : ""}
     ${sales.map(s => `
-      <div class="row-line" onclick="App.viewSale('${s.id}')" role="button" style="cursor:pointer">
+      <button type="button" class="row-line sale-history-row" onclick="App.viewSale('${s.id}')">
         <span class="task-ico" style="background:var(--green-soft);color:var(--green-dark)">${ic("dollar")}</span>
         <div class="grow">
-          <div class="bold" style="font-size:.85rem">ใบเสร็จ #${s.no} ${s.customer ? `— ${esc(s.customer)}` : ""}</div>
+          <div class="bold" style="font-size:.85rem">ใบเสร็จ #${s.no} ${s.customer ? `— ${esc(s.customer)}` : ""} ${s.status === "void" ? `<span class="badge">ยกเลิกแล้ว</span>` : ""}</div>
           <div class="muted" style="font-size:.7rem">${dateLabel(s.date)} · ${s.items.length} รายการ · ${s.payMethod === "transfer" ? "โอนเงิน" : "เงินสด"}</div>
         </div>
-        <b class="price-trend-up" style="font-size:.9rem">${fmtMoney(saleGrandTotal(s))}</b>
-      </div>`).join("")}
+        <b class="${s.status === "void" ? "muted" : "price-trend-up"}" style="font-size:.9rem">${fmtMoney(saleGrandTotal(s))}</b>
+      </button>`).join("")}
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
       <button class="btn btn-primary" onclick="App.modalSale()">${ic("dollar")} ขายสินค้า</button>
@@ -542,7 +552,7 @@ App.customerHistory = function () {
 };
 /* ประวัติการซื้อของลูกค้ารายคน — ดูทุกใบเสร็จ + รายการสินค้าที่ซื้อ */
 App.customerDetail = function (name) {
-  const sales = (S.sales || [])
+  const sales = activeSales(S)
     .filter(s => String(s.customer || "").trim() === name)
     .sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || 0) - (a.createdAt || 0));
   const total = sales.reduce((a, s) => a + saleGrandTotal(s), 0);

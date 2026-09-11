@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
   id         TEXT PRIMARY KEY,
   email      TEXT UNIQUE NOT NULL,
   pass_hash  TEXT NOT NULL,              -- pbkdf2$iterations$salt_b64$hash_b64
+  google_sub TEXT DEFAULT '',             -- Google account id (sub) เมื่อสมัคร/ล็อกอินด้วย Google
   name       TEXT DEFAULT '',
   created_at INTEGER NOT NULL
 );

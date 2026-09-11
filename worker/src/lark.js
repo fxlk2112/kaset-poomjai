@@ -332,6 +332,8 @@ async function doStockLarkSync(env, p) {
 /* ==================== บัญชีผู้ใช้ + ข้อมูลรายบัญชี (D1) ====================
    register {email,password,name} → {token,email,name}
    login    {email,password}      → {token,email,name}
+   google_config                  → {client_id}
+   google_login {credential}      → {token,email,name}
    logout   {token}
    me       {token}               → {email,name,updated_at}
    save     {token,data}          → {updated_at}  (data = สถานะทั้งหมดของแอป JSON)
@@ -340,6 +342,8 @@ async function doStockLarkSync(env, p) {
 const ITERATIONS = 100000;
 const SESSION_DAYS = 30;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
+let googleKeysCache = { keys: [], exp: 0 };
 
 function b64(buf) {
   return btoa(String.fromCharCode(...new Uint8Array(buf)));
@@ -360,6 +364,78 @@ function makeSalt() {
 }
 function makeToken() {
   return [...crypto.getRandomValues(new Uint8Array(32))].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+function b64urlToBytes(s) {
+  let v = String(s || "").replace(/-/g, "+").replace(/_/g, "/");
+  while (v.length % 4) v += "=";
+  return Uint8Array.from(atob(v), c => c.charCodeAt(0));
+}
+function b64urlJson(s) {
+  return JSON.parse(new TextDecoder().decode(b64urlToBytes(s)));
+}
+function googleClientIds(env) {
+  return String(env.GOOGLE_CLIENT_IDS || env.GOOGLE_CLIENT_ID || "").split(",").map(x => x.trim()).filter(Boolean);
+}
+function cacheMaxAge(headers) {
+  const cc = String(headers.get("Cache-Control") || "");
+  const m = cc.match(/max-age=(\d+)/i);
+  return m ? Number(m[1]) * 1000 : 3600000;
+}
+async function googleJwks() {
+  if (googleKeysCache.keys.length && Date.now() < googleKeysCache.exp) return googleKeysCache.keys;
+  const r = await fetch(GOOGLE_JWKS_URL);
+  if (!r.ok) throw new Error("ตรวจ Google token ไม่สำเร็จ");
+  const j = await r.json();
+  googleKeysCache = { keys: j.keys || [], exp: Date.now() + cacheMaxAge(r.headers) };
+  return googleKeysCache.keys;
+}
+async function verifyGoogleCredential(env, credential) {
+  const ids = googleClientIds(env);
+  if (!ids.length) throw new Error("ยังไม่ได้ตั้งค่า GOOGLE_CLIENT_ID ใน Worker");
+  const jwt = String(credential || "");
+  const parts = jwt.split(".");
+  if (parts.length !== 3) throw new Error("Google credential ไม่ถูกต้อง");
+  const head = b64urlJson(parts[0]);
+  const body = b64urlJson(parts[1]);
+  if (head.alg !== "RS256" || !head.kid) throw new Error("Google credential ไม่ถูกต้อง");
+  const key = (await googleJwks()).find(k => k.kid === head.kid);
+  if (!key) throw new Error("ไม่พบ public key ของ Google");
+  const cryptoKey = await crypto.subtle.importKey(
+    "jwk",
+    { kty: key.kty, n: key.n, e: key.e, alg: "RS256", ext: true },
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["verify"]
+  );
+  const ok = await crypto.subtle.verify(
+    "RSASSA-PKCS1-v1_5",
+    cryptoKey,
+    b64urlToBytes(parts[2]),
+    new TextEncoder().encode(parts[0] + "." + parts[1])
+  );
+  if (!ok) throw new Error("Google credential ไม่ผ่านการตรวจลายเซ็น");
+  if (!ids.includes(String(body.aud || ""))) throw new Error("Google client ไม่ตรงกับระบบนี้");
+  if (!["accounts.google.com", "https://accounts.google.com"].includes(String(body.iss || ""))) throw new Error("Google issuer ไม่ถูกต้อง");
+  if ((Number(body.exp) || 0) * 1000 <= Date.now()) throw new Error("Google credential หมดอายุแล้ว");
+  const email = String(body.email || "").trim().toLowerCase();
+  if (!EMAIL_RE.test(email) || body.email_verified !== true) throw new Error("บัญชี Google ยังไม่ยืนยันอีเมล");
+  return {
+    sub: String(body.sub || ""),
+    email,
+    name: String(body.name || "").trim().slice(0, 80)
+  };
+}
+async function ensureGoogleColumns(env) {
+  await env.DB.prepare("ALTER TABLE users ADD COLUMN google_sub TEXT DEFAULT ''").run().catch(e => {
+    if (!/duplicate column|already exists/i.test(String(e && e.message || e))) throw e;
+  });
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub)").run();
+}
+async function createSession(env, userId) {
+  const token = makeToken();
+  await env.DB.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?1, ?2, ?3)")
+    .bind(token, userId, Date.now() + SESSION_DAYS * 86400000).run();
+  return token;
 }
 
 /* จำกัดความถี่พื้นฐาน (ต่อ isolate): register/login ไม่เกิน 20 ครั้ง/นาที/IP */
@@ -429,19 +505,17 @@ async function doAdminGet(env, p) {
   return { email: row.email, name: row.name, updated_at: row.updated_at || 0, data };
 }
 
-/* ---------- ราคาตลาดจริงจาก API สศก. (NABC) — ราคารับซื้อรายวัน ณ ตลาดสำคัญ ---------- */
 /* ราคาตลาด: ข้อมูล static จาก kasetpoomjai.com (ตลาดศรีเมือง + ตลาดสี่มุมเมือง)
    อัปเดตทุกครั้งที่ deploy worker — ข้อมูลมี 213 รายการ, 171 สินค้า */
 async function doMarketPrices(env, p) {
-  /* เปิดหน้าราคาแล้ว seed ประวัติวันนี้ทันทีด้วย
-     INSERT OR REPLACE ทำให้เรียกซ้ำได้ ไม่ต้องรอ cron รอบ 08:00 วันถัดไป */
+  /* บันทึกประวัติตามวันที่ต้นทาง ไม่เปลี่ยนราคาเก่าให้เป็นราคาของวันนี้ */
   if (env.DB) {
     try { await doRecordPrices(env); } catch (e) { /* แสดงราคาปัจจุบันต่อได้ แม้บันทึก history ไม่สำเร็จ */ }
   }
   return MARKET_DATA;
 }
 
-/* บันทึกราคาวันนี้จาก MARKET_DATA ลง D1 (เรียกจาก cron ครั้งเดียวต่อวัน)
+/* บันทึกราคาตามวันที่ต้นทางจาก MARKET_DATA ลง D1
    ใช้ INSERT OR REPLACE เพื่อ idempotent — รัน cron ซ้ำได้ปลอดภัย */
 async function doRecordPrices(env) {
   /* ตรวจว่า table มีแล้วหรือยัง (migration อาจยังไม่ได้รัน) */
@@ -466,9 +540,12 @@ async function doRecordPrices(env) {
   /* แบ่ง batch ทีละ 50 rows (D1 จำกัด bound params) */
   const rows = [];
   for (const p of MARKET_DATA.products || []) {
+    const sourceDate = p.date || MARKET_DATA.date;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(sourceDate || '') || sourceDate > today ||
+        !Number.isFinite(Date.parse(sourceDate+'T12:00:00Z')) || new Date(sourceDate+'T12:00:00Z').toISOString().slice(0,10)!==sourceDate) continue;
     for (const m of p.markets || []) {
       rows.push({
-        product: p.product, market: m.market, date: today,
+        product: p.product, market: m.market, date: sourceDate,
         price: Number(m.price) || ((Number(p.min) + Number(p.max)) / 2),
         min: Number(p.min) || 0, max: Number(p.max) || 0,
         unit: p.unit || "", category: p.category || "",
@@ -488,7 +565,7 @@ async function doRecordPrices(env) {
   const nowBkk730 = new Date(Date.now() + 7 * 3600 * 1000 - 730 * 86400 * 1000);
   const cutoff = nowBkk730.toISOString().slice(0, 10);
   await env.DB.prepare("DELETE FROM price_history WHERE date < ?1").bind(cutoff).run();
-  return { recorded: rows.length, date: today };
+  return { recorded: rows.length, dates: [...new Set(rows.map(row=>row.date))] };
 }
 
 function bkkDateAgo(days) {
@@ -861,9 +938,7 @@ async function doRegister(env, request, p) {
   const id = crypto.randomUUID();
   await env.DB.prepare("INSERT INTO users (id, email, pass_hash, name, created_at) VALUES (?1, ?2, ?3, ?4, ?5)")
     .bind(id, email, await hashPassword(password, makeSalt()), name, Date.now()).run();
-  const token = makeToken();
-  await env.DB.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?1, ?2, ?3)")
-    .bind(token, id, Date.now() + SESSION_DAYS * 86400000).run();
+  const token = await createSession(env, id);
   return { token, email, name };
 }
 
@@ -872,16 +947,40 @@ async function doLogin(env, request, p) {
   const email = String(p.email || "").trim().toLowerCase();
   const password = String(p.password || "");
   const row = await env.DB.prepare("SELECT id, pass_hash, email, name FROM users WHERE email = ?1").bind(email).first();
+  if (row && !String(row.pass_hash || "").startsWith("pbkdf2$")) throw new Error("บัญชีนี้สมัครด้วย Google กรุณาใช้ปุ่ม Google");
   /* ถ้าไม่พบอีเมล ก็แฮชทึบ ๆ ให้เสียเวลาเท่ากัน กันการเดาว่าอีเมลนี้มีในระบบ */
   const stored = row ? row.pass_hash : "pbkdf2$" + ITERATIONS + "$" + makeSalt() + "$" + b64(crypto.getRandomValues(new Uint8Array(32)));
   const parts = stored.split("$");
   /* hashPassword คืนสตริงเต็ม pbkdf2$iter$salt$hash — เทียบเฉพาะส่วน hash */
   const testHash = (await hashPassword(password, parts[2])).split("$")[3];
   if (!row || testHash !== parts[3]) throw new Error("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
-  const token = makeToken();
-  await env.DB.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?1, ?2, ?3)")
-    .bind(token, row.id, Date.now() + SESSION_DAYS * 86400000).run();
+  const token = await createSession(env, row.id);
   return { token, email: row.email, name: row.name };
+}
+
+function doGoogleConfig(env) {
+  return { client_id: googleClientIds(env)[0] || "" };
+}
+
+async function doGoogleLogin(env, request, p) {
+  rateLimit(request);
+  await ensureGoogleColumns(env);
+  const g = await verifyGoogleCredential(env, p.credential);
+  if (!g.sub) throw new Error("Google credential ไม่สมบูรณ์");
+  let row = await env.DB.prepare("SELECT id, email, name, google_sub FROM users WHERE google_sub = ?1 AND google_sub <> ''").bind(g.sub).first();
+  if (!row) row = await env.DB.prepare("SELECT id, email, name, google_sub FROM users WHERE email = ?1").bind(g.email).first();
+  if (row) {
+    const nextName = row.name || g.name || "";
+    await env.DB.prepare("UPDATE users SET google_sub = CASE WHEN COALESCE(google_sub,'') = '' THEN ?1 ELSE google_sub END, name = ?2 WHERE id = ?3")
+      .bind(g.sub, nextName, row.id).run();
+    const token = await createSession(env, row.id);
+    return { token, email: row.email, name: nextName, provider: "google", created: false };
+  }
+  const id = crypto.randomUUID();
+  await env.DB.prepare("INSERT INTO users (id, email, pass_hash, name, created_at, google_sub) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
+    .bind(id, g.email, "google$" + g.sub, g.name, Date.now(), g.sub).run();
+  const token = await createSession(env, id);
+  return { token, email: g.email, name: g.name, provider: "google", created: true };
 }
 
 async function doLogout(env, p) {
@@ -899,11 +998,18 @@ async function doSave(env, p) {
   const u = await authUser(env, p.token);
   const data = typeof p.data === "string" ? p.data : JSON.stringify(p.data || {});
   if (data.length > 900000) throw new Error("ข้อมูลใหญ่เกิน (~0.9MB) — ติดต่อผู้ดูแล");
-  const ts = Number(p.updated_at) || Date.now();
-  await env.DB.prepare(
-    "INSERT INTO user_data (user_id, data, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT(user_id) DO UPDATE SET data = ?2, updated_at = ?3"
-  ).bind(u.user_id, data, ts).run();
-  return { updated_at: ts };
+  const expected = p.base_updated_at == null ? null : Number(p.base_updated_at);
+  if (expected !== null && (!Number.isSafeInteger(expected) || expected < 0)) throw new Error("รุ่นข้อมูลไม่ถูกต้อง กรุณาโหลดใหม่");
+  // Check and write in one statement so concurrent devices cannot pass the same revision.
+  const row = await env.DB.prepare(
+    `INSERT INTO user_data (user_id, data, updated_at) VALUES (?1, ?2, ?3)
+     ON CONFLICT(user_id) DO UPDATE SET data = excluded.data,
+       updated_at = MAX(user_data.updated_at + 1, excluded.updated_at)
+     WHERE ?4 IS NULL OR user_data.updated_at = ?4
+     RETURNING updated_at`
+  ).bind(u.user_id, data, Date.now(), expected).first();
+  if (!row) return { conflict: true };
+  return { updated_at: row.updated_at };
 }
 
 async function doLoad(env, p) {
@@ -979,6 +1085,8 @@ export default {
       else if (payload.action === "push") data = await doPush(env, payload.records || []);
       else if (payload.action === "pull") data = await doPull(env);
       else if (payload.action === "stock_lark_sync") data = await doStockLarkSync(env, payload);
+      else if (payload.action === "google_config") data = doGoogleConfig(env);
+      else if (payload.action === "google_login") data = await doGoogleLogin(env, request, payload);
       else if (payload.action === "register") data = await doRegister(env, request, payload);
       else if (payload.action === "login") data = await doLogin(env, request, payload);
       else if (payload.action === "logout") data = await doLogout(env, payload);

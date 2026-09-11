@@ -8,21 +8,18 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="FarmUltimate">
     <meta name="description" content="FARMULTIMATE SOLUTIONS — ระบบจัดการฟาร์มอัจฉริยะ: บันทึกแปลง/รอบปลูก/งาน/เก็บเกี่ยว, สต็อกวัสดุ, ขายพร้อมใบส่งสินค้า, สภาพอากาศรายแปลง — ใช้ได้ทั้งออนไลน์และออฟไลน์">
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <script>try{var _shareToken=(new URL(location.href)).searchParams.get("share");if(!_shareToken&&!localStorage.getItem("farmult-session-v1"))document.documentElement.className+=" auth-locked";}catch(e){}</script>
+  <link rel="manifest" href="manifest.json?v=20260907googleauth3">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=20260907googleauth3">
+  <script>try{var _u0=new URL(location.href);var _shareToken=_u0.searchParams.get("share");var _landingPreview=_u0.searchParams.get("landing")==="1";if(_landingPreview||(!_shareToken&&!localStorage.getItem("farmult-session-v1")))document.documentElement.className+=" auth-locked";}catch(e){}</script>
   <style>
-    /* ===== Auth Gate (self-contained: ไม่พึ่งไฟล์ CSS อื่น) ===== */
-    html.auth-locked { background: #0b3d20 url("images/login-smart-farm.png") center/cover fixed no-repeat; min-height:100%; }
     html.auth-locked #app { visibility: hidden; }
-    #authGate { position: fixed; inset: 0; z-index: 9999; display: none; align-items: center; justify-content: center; background: #0b3d20; padding: 18px; overflow-y: auto; font-family: "Sarabun","Noto Sans Thai",system-ui,sans-serif; }
-    .ag-bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
-    .ag-bg::before { content:""; position:absolute; inset:-16px; background:url("images/login-smart-farm.png") center/cover no-repeat; filter:blur(5px); transform:scale(1.03); }
-    .ag-bg::after { content:""; position:absolute; inset:0; background:linear-gradient(135deg,rgba(5,28,15,.62),rgba(13,71,36,.42) 44%,rgba(0,0,0,.34)),radial-gradient(circle at 18% 16%,rgba(255,217,142,.28),transparent 34%); }
-    .ag-sun { position: absolute; top: 8%; left: 50%; transform: translateX(-50%); width: min(46vmin,340px); height: min(46vmin,340px); border-radius: 50%; background: radial-gradient(circle, rgba(255,214,120,.42) 0%, rgba(255,190,90,.24) 42%, rgba(255,180,80,0) 72%); }
-    .ag-hills { position: absolute; bottom: -2px; left: 0; width: 100%; height: 44%; }
-    .ag-hills .h1 { fill: rgba(255,255,255,.10); } .ag-hills .h2 { fill: rgba(16,71,39,.55); } .ag-hills .h3 { fill: rgba(9,46,24,.82); }
+    #authGate { display: none; }
+    #authGate.show-auth .auth-box { display: block; }
+    #authGate:not(.show-auth) .auth-box { display: none; }
+    #authGate.show-auth .landing-page { filter: blur(3px); pointer-events: none; }
+    .auth-close { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border: 0; border-radius: 50%; background: #edf7f0; color: #335642; font: inherit; font-weight: 900; cursor: pointer; }
     .auth-box { position: relative; z-index: 1; width: min(410px, calc(100vw - 36px)); max-width: 100%; background: rgba(255,255,255,.92); backdrop-filter: blur(10px); border-radius: 24px; padding: 28px 24px 22px; box-shadow: 0 30px 70px rgba(4,32,17,.5); max-height: calc(100vh - 36px); overflow-y: auto; border: 1px solid rgba(255,255,255,.6); box-sizing: border-box; }
+    #authGate .auth-box { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); animation: none; }
     .auth-brand { text-align: center; margin-bottom: 16px; }
     .auth-brand img { width: 68px; height: 68px; border-radius: 16px; object-fit: cover; box-shadow: 0 8px 22px rgba(20,83,45,.35), 0 0 0 3px rgba(255,255,255,.85); }
     .auth-brand-name { font-weight: 800; font-size: 1.05rem; color: #123f23; letter-spacing: .4px; margin-top: 10px; }
@@ -30,6 +27,12 @@
     .auth-tabs { display: flex; gap: 6px; background: #eef7f0; border-radius: 12px; padding: 4px; margin-bottom: 14px; }
     .auth-tabs button { flex: 1; border: 0; background: transparent; cursor: pointer; font: inherit; font-weight: 700; font-size: .87rem; padding: 9px 0; border-radius: 9px; color: #4b6b58; }
     .auth-tabs button.active { background: linear-gradient(135deg,#16a34a,#15803d); color: #fff; box-shadow: 0 4px 12px rgba(21,128,61,.35); }
+    .google-auth { margin: 0 0 12px; }
+    .google-auth-slot { min-height: 42px; display: flex; justify-content: center; }
+    .google-fallback { width: 100%; border: 1.5px solid #d7e5dc; background: #fff; color: #24352a; border-radius: 10px; padding: 10px 12px; font: inherit; font-size: .9rem; font-weight: 800; cursor: pointer; }
+    .google-status { min-height: 18px; margin-top: 6px; color: #b45309; font-size: .72rem; line-height: 1.45; text-align: center; font-weight: 800; }
+    .google-divider { display: flex; align-items: center; gap: 10px; margin-top: 9px; color: #8aa092; font-size: .72rem; font-weight: 800; }
+    .google-divider::before, .google-divider::after { content: ""; flex: 1; height: 1px; background: #dfeae3; }
     .ag-field { margin-bottom: 10px; }
     .ag-field label { display: block; font-size: .78rem; font-weight: 700; color: #374151; margin-bottom: 4px; }
     .ag-field input { width: 100%; box-sizing: border-box; border: 1.5px solid #d7e5dc; border-radius: 10px; padding: 10px 12px; font: inherit; font-size: .95rem; outline: none; background: #fff; color: #111; }
@@ -52,11 +55,13 @@
     html[data-theme="dark"] .auth-tabs { background: rgba(16,36,26,.9); border: 1px solid rgba(134,239,172,.12); }
     html[data-theme="dark"] .auth-tabs button { color: #9ab7a6; }
     html[data-theme="dark"] .auth-tabs button.active { color: #fff; }
+    html[data-theme="dark"] .google-fallback { background: rgba(3,12,8,.84); color: #e6efe9; border-color: rgba(134,239,172,.24); }
+    html[data-theme="dark"] .google-divider { color: #9ab7a6; }
+    html[data-theme="dark"] .google-divider::before, html[data-theme="dark"] .google-divider::after { background: rgba(134,239,172,.18); }
     html[data-theme="dark"] .ag-field label { color: #cde7d7; }
     html[data-theme="dark"] .ag-field input { background: rgba(3,12,8,.84); color: #f4fbf6; border-color: rgba(134,239,172,.24); }
     html[data-theme="dark"] .ag-field input::placeholder { color: #7c9788; }
     html[data-theme="dark"] .auth-hint, html[data-theme="dark"] .auth-hint a { color: #9ab7a6; }
-    @media (max-width: 420px) { .auth-box { padding: 22px 16px 16px; border-radius: 20px; } .auth-brand-name { font-size: .95rem; } }
   </style>
   <script>
     function agHardReload(){
@@ -71,49 +76,173 @@
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script>try{var _ft=localStorage.getItem("farmult-theme")||"system";var _fd=_ft==="dark"||(_ft==="system"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);if(_fd)document.documentElement.setAttribute("data-theme","dark");}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=20260905taskfailwater">
+  <link rel="stylesheet" href="css/style.css?v=20260911usability1">
+  <link rel="stylesheet" href="css/landing.css?v=20260907landingsoft1">
   <link rel="icon" href="logo.jpg">
 </head>
 <body>
-  <!-- ====== บังคับล็อกอิน (static — ไม่พึ่ง JS ภายนอก) ====== -->
+  <!-- ====== หน้าโปรโมท + บังคับล็อกอิน (static — ไม่พึ่ง JS ภายนอก) ====== -->
   <div id="authGate" style="display:none">
-    <div class="ag-bg" aria-hidden="true">
-      <div class="ag-sun"></div>
-      <svg class="ag-hills" viewBox="0 0 1440 420" preserveAspectRatio="none">
-        <path class="h1" d="M0,260 C240,180 420,300 720,240 C1020,180 1200,290 1440,230 L1440,420 L0,420 Z"/>
-        <path class="h2" d="M0,330 C260,270 520,360 820,320 C1120,280 1280,350 1440,310 L1440,420 L0,420 Z"/>
-        <path class="h3" d="M0,385 C300,350 600,400 900,375 C1150,355 1300,395 1440,370 L1440,420 L0,420 Z"/>
-      </svg>
+    <div class="landing-page" id="landing-top">
+      <a class="landing-skip" href="#features">ข้ามไปเนื้อหา</a>
+      <header class="landing-nav">
+        <div class="landing-container landing-nav-inner">
+          <a class="landing-brand" href="#landing-top" aria-label="FARMULTIMATE SOLUTIONS หน้าแรก">
+            <img src="logo.jpg" width="44" height="44" alt="">
+            <span>FARMULTIMATE SOLUTIONS<small>ระบบจัดการฟาร์ม จากแปลงถึงต้นทุน</small></span>
+          </a>
+          <nav class="landing-links" id="landing-menu" aria-label="เมนูหน้าแนะนำ">
+            <a href="#features">การใช้งาน</a>
+            <a href="#trials">งานทดลอง</a>
+            <a href="#faq">คำถาม</a>
+            <div class="landing-mobile-auth"><button type="button" class="landing-login" onclick="Auth.openGateForm('login')">เข้าสู่ระบบ</button><button type="button" class="landing-btn primary" onclick="Auth.openGateForm('register')">สมัครใช้งาน</button></div>
+          </nav>
+          <div class="landing-nav-actions">
+            <button type="button" class="landing-login" onclick="Auth.openGateForm('login')">เข้าสู่ระบบ</button>
+            <button type="button" class="landing-btn primary landing-nav-signup" onclick="Auth.openGateForm('register')">สมัครใช้งาน<img src="images/landing-icons/arrow-right.svg" alt="" width="18" height="18"></button>
+            <button type="button" class="landing-icon-btn landing-menu-toggle" aria-label="เปิดเมนู" aria-controls="landing-menu" aria-expanded="false" title="เมนู"><img src="images/landing-icons/menu.svg" alt="" width="22" height="22"></button>
+          </div>
+        </div>
+      </header>
+      <main>
+        <section class="landing-hero" aria-labelledby="landing-title">
+          <picture class="landing-hero-photo">
+            <source media="(max-width: 600px)" srcset="images/landing-farm.webp">
+            <img src="images/landing-farm.webp" width="1774" height="887" alt="" fetchpriority="high">
+          </picture>
+          <div class="landing-container landing-hero-content">
+            <h1 id="landing-title">FARMULTIMATE<br>SOLUTIONS</h1>
+            <p>ระบบจัดการฟาร์ม จากแปลงถึงต้นทุน</p>
+            <div class="landing-cta">
+              <button type="button" class="landing-btn primary" onclick="Auth.openGateForm('register')">สมัครใช้งาน<img src="images/landing-icons/arrow-right.svg" alt="" width="20" height="20"></button>
+              <a class="landing-btn outline" href="#demo">ดูหน้าระบบ</a>
+            </div>
+          </div>
+        </section>
+        <section class="landing-section" id="features" aria-labelledby="features-title">
+          <div class="landing-container landing-product-grid">
+            <div class="landing-product-copy">
+              <p class="landing-eyebrow">งานในแปลง</p>
+              <h2 id="features-title">งานแต่ละวัน<br> เห็นต่อกันทั้งรอบปลูก</h2>
+              <p class="landing-body">จากแผนที่วางไว้ ถึงงานที่ทำจริง<br> เก็บไว้ด้วยกัน ไม่ต้องไล่หาหลายที่</p>
+              <ul class="landing-feature-list">
+                <li><img src="images/landing-icons/calendar-days.svg" width="32" height="32" alt=""><div><h3>งานและรอบปลูก</h3><p>ดูงานวันนี้ และแผนตลอดรอบปลูก</p></div></li>
+                <li><img src="images/landing-icons/package.svg" width="32" height="32" alt=""><div><h3>สต็อกที่ใช้จริง</h3><p>ยอดคงเหลือและรายการที่ใช้ไป</p></div></li>
+                <li><img src="images/landing-icons/chart-no-axes-column-increasing.svg" width="32" height="32" alt=""><div><h3>รายรับและต้นทุน</h3><p>สรุปจากรายการที่บันทึกไว้</p></div></li>
+              </ul>
+            </div>
+            <figure class="landing-product-image" id="demo">
+              <button class="landing-screenshot-button" type="button" data-landing-dialog="product-preview" aria-label="ขยายภาพหน้าระบบจริง" title="ขยายภาพหน้าระบบจริง">
+                <img src="images/landing-app.webp" width="1280" height="1000" alt="หน้าหลัก FARMULTIMATE แสดงงานวันนี้ สถานะกิจกรรม และรายรับหักรายจ่ายจากข้อมูลตัวอย่าง" loading="lazy">
+                <span class="landing-expand"><img src="images/landing-icons/maximize-2.svg" width="18" height="18" alt=""></span>
+              </button>
+              <figcaption>หน้าระบบจริง · ข้อมูลตัวอย่าง</figcaption>
+            </figure>
+          </div>
+        </section>
+        <section class="landing-trials" id="trials" aria-labelledby="trials-title">
+          <div class="landing-container landing-trials-grid">
+            <div>
+              <p class="landing-eyebrow">งานทดลอง</p>
+              <h2 id="trials-title">ลองสูตรใหม่<br> เก็บผลไว้เทียบกัน</h2>
+              <p class="landing-body">บันทึกสิ่งที่ทำในแต่ละแปลงย่อย<br> เปรียบเทียบผลที่วัดในวันเดียวกัน</p>
+            </div>
+            <img class="landing-trial-photo" src="images/landing-trial.webp" width="1400" height="700" alt="ภาพประกอบการวัดใบข้าวโพดในแปลงทดลอง" loading="lazy">
+          </div>
+        </section>
+        <section class="landing-section landing-start" id="start">
+          <div class="landing-container landing-start-grid">
+            <div>
+              <p class="landing-eyebrow">เริ่มทีละนิด ก็เห็นภาพมากขึ้น</p>
+              <h2>เริ่มจากแปลงแรกของคุณ</h2>
+              <ol class="landing-steps">
+                <li><span>1</span><div><h3>สร้างแปลงและรอบปลูก</h3><p>เลือกพืช วันเริ่มปลูก และปรับแผนงานให้เหมาะกับแปลง</p></div></li>
+                <li><span>2</span><div><h3>บันทึกงานที่ทำในแต่ละวัน</h3><p>เก็บสถานะงาน วัสดุที่ใช้ และค่าใช้จ่ายไว้ด้วยกัน</p></div></li>
+                <li><span>3</span><div><h3>กลับมาดูสิ่งที่เกิดขึ้นทั้งรอบ</h3><p>ทบทวนงาน ผลผลิต และรายรับหักต้นทุนที่บันทึกไว้</p></div></li>
+              </ol>
+            </div>
+            <div id="faq">
+              <aside class="landing-offline">
+                <img src="images/landing-icons/cloud.svg" width="40" height="40" alt="">
+                <div><h3>บันทึกในแปลง แล้วเปิดต่อที่บ้าน</h3><p>ใช้งานออฟไลน์ได้หลังเข้าสู่ระบบและโหลดข้อมูลไว้ก่อน เมื่อมีเน็ตจึงซิงก์ต่อให้ บางกรณีที่ข้อมูลชนกันจะให้ตรวจสอบก่อน</p></div>
+              </aside>
+              <h2 class="landing-faq-title">คำถามก่อนเริ่มใช้งาน</h2>
+              <div class="landing-faq">
+                <details><summary>ใช้มือถือกับคอม ข้อมูลเดียวกันไหม<img src="images/landing-icons/chevron-down.svg" alt="" width="18" height="18"></summary><p>ใช้บัญชีเดียวกันได้ทั้งสองเครื่อง เมื่อออนไลน์ ระบบจะรับข้อมูลล่าสุดให้อัตโนมัติ หากมีข้อมูลแก้ไขค้างทั้งสองฝั่ง อาจต้องตรวจสอบก่อนซิงก์</p></details>
+                <details><summary>แผนงานอัตโนมัติ ปรับเองได้ไหม<img src="images/landing-icons/chevron-down.svg" alt="" width="18" height="18"></summary><p>ได้ แผนที่สร้างให้เป็นจุดเริ่มต้น คุณแก้วันที่ งาน และรายละเอียดก่อนบันทึกได้ โดยเลือกให้เหมาะกับสภาพแปลงจริง ไม่ใช่คำแนะนำทางการเกษตรเฉพาะพื้นที่</p></details>
+                <details><summary>ออฟไลน์แล้ว อะไรยังต้องใช้เน็ต<img src="images/landing-icons/chevron-down.svg" alt="" width="18" height="18"></summary><p>การเข้าสู่ระบบครั้งแรก การใช้ Google สภาพอากาศ การอัปโหลดรูป และการซิงก์ข้ามเครื่องต้องใช้อินเทอร์เน็ต ควรเปิดเว็บและโหลดข้อมูลให้เรียบร้อยก่อนเข้าแปลง</p></details>
+                <details><summary>ข้อมูลของฉันแยกจากบัญชีอื่นไหม<img src="images/landing-icons/chevron-down.svg" alt="" width="18" height="18"></summary><p>ข้อมูลฟาร์มแยกตามบัญชี และมีข้อมูลที่เก็บไว้ในเครื่องเพื่อใช้งานต่อ ควรใช้บัญชีและอุปกรณ์ที่คุณมีสิทธิ์เข้าถึง และสำรองข้อมูลสำคัญเป็นระยะ <a href="#privacy">อ่านนโยบายความเป็นส่วนตัว</a></p></details>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="landing-final">
+          <div class="landing-container landing-final-inner">
+            <div><h2>เริ่มจากฟาร์มของคุณวันนี้</h2><p>เริ่มจากแปลงเดียว แล้วค่อยเพิ่มตามจังหวะของฟาร์มคุณ</p></div>
+            <div class="landing-cta">
+              <button type="button" class="landing-btn primary" onclick="Auth.openGateForm('register')">สมัครใช้งาน<img src="images/landing-icons/arrow-right.svg" width="20" height="20" alt=""></button>
+              <button type="button" class="landing-btn secondary" onclick="Auth.openGateForm('login')">เข้าสู่ระบบ</button>
+            </div>
+          </div>
+        </section>
+      </main>
+      <footer class="landing-footer">
+        <div class="landing-container landing-footer-inner">
+          <a class="landing-brand" href="#landing-top"><img src="logo.jpg" width="40" height="40" alt=""><span>FARMULTIMATE SOLUTIONS<small>ระบบจัดการฟาร์ม จากแปลงถึงต้นทุน</small></span></a>
+          <nav aria-label="ข้อมูลเว็บไซต์"><a href="#privacy">นโยบายความเป็นส่วนตัว</a><a href="#terms">ข้อกำหนดการใช้งาน</a></nav>
+        </div>
+      </footer>
     </div>
-    <div class="auth-box">
+    <dialog id="product-preview" class="landing-dialog landing-image-dialog" aria-labelledby="product-preview-title">
+      <div class="landing-dialog-head"><h2 id="product-preview-title">หน้าระบบจริง · ข้อมูลตัวอย่าง</h2><form method="dialog"><button class="landing-icon-btn" aria-label="ปิดภาพ" title="ปิดภาพ"><img src="images/landing-icons/x.svg" width="22" height="22" alt=""></button></form></div>
+      <img src="images/landing-app.webp" width="1280" height="1000" alt="ตัวอย่างหน้าหลัก แสดงงานรายวัน สถานะกิจกรรม และตัวเลขจากข้อมูลที่บันทึก">
+    </dialog>
+    <dialog id="privacy" class="landing-dialog" aria-labelledby="privacy-title">
+      <div class="landing-dialog-head"><h2 id="privacy-title">นโยบายความเป็นส่วนตัว</h2><form method="dialog"><button class="landing-icon-btn" aria-label="ปิดนโยบาย" title="ปิด"><img src="images/landing-icons/x.svg" width="22" height="22" alt=""></button></form></div>
+      <p>FARMULTIMATE SOLUTIONS ใช้ข้อมูลบัญชี Google เฉพาะชื่อ อีเมล และรหัสบัญชี Google เพื่อสมัคร เข้าสู่ระบบ และแยกข้อมูลฟาร์มของแต่ละบัญชี</p>
+      <ul><li>ข้อมูลฟาร์ม เช่น แปลง รอบปลูก กิจกรรม สต็อก ยอดขาย และรูปงาน ถูกเก็บเพื่อให้ผู้ใช้เรียกดูและซิงก์ข้ามอุปกรณ์</li><li>เราไม่ขายข้อมูลส่วนตัว และไม่ใช้ข้อมูลบัญชี Google เพื่อโฆษณาภายนอก</li><li>ผู้ใช้สามารถออกจากระบบ หยุดใช้งาน หรือขอลบข้อมูลบัญชีและข้อมูลฟาร์มได้โดยติดต่ออีเมล support ของแอพ</li></ul>
+    </dialog>
+    <dialog id="terms" class="landing-dialog" aria-labelledby="terms-title">
+      <div class="landing-dialog-head"><h2 id="terms-title">ข้อกำหนดการใช้งาน</h2><form method="dialog"><button class="landing-icon-btn" aria-label="ปิดข้อกำหนด" title="ปิด"><img src="images/landing-icons/x.svg" width="22" height="22" alt=""></button></form></div>
+      <p>การใช้งาน FARMULTIMATE SOLUTIONS มีไว้เพื่อช่วยบันทึกและติดตามงานฟาร์ม ผู้ใช้เป็นผู้รับผิดชอบความถูกต้องของข้อมูลที่บันทึกและการตัดสินใจใช้งานจริงในพื้นที่</p>
+      <ul><li>บัญชีหนึ่งควรใช้กับข้อมูลฟาร์มที่ผู้ใช้มีสิทธิ์จัดการเท่านั้น</li><li>ระบบอาจมีการปรับปรุงฟีเจอร์และรูปแบบการซิงก์เพื่อให้ใช้งานได้เสถียรขึ้น</li><li>ห้ามใช้ระบบเพื่อเก็บหรือเผยแพร่ข้อมูลที่ผิดกฎหมาย ละเมิดสิทธิ์ หรือทำให้ผู้อื่นเสียหาย</li></ul>
+    </dialog>
+    <div class="auth-box" role="dialog" aria-modal="true" aria-labelledby="ag_dialog_title" tabindex="-1">
+      <button type="button" class="auth-close" onclick="Auth.closeGateForm()" aria-label="ปิด" title="ปิด"><img src="images/landing-icons/x.svg" width="20" height="20" alt=""></button>
       <div class="auth-brand">
-        <img src="logo.jpg" alt="" onerror="this.style.display='none'">
-        <div class="auth-brand-name">FARMULTIMATE SOLUTIONS</div>
+        <img src="logo.jpg?v=20260907googleauth3" alt="" onerror="this.style.display='none'">
+        <div class="auth-brand-name" id="ag_dialog_title">FARMULTIMATE SOLUTIONS</div>
         <div class="auth-brand-sub">ระบบจัดการฟาร์มอัจฉริยะ</div>
       </div>
       <div class="auth-tabs">
-        <button type="button" id="ag_tab_login" class="active">ล็อกอิน</button>
-        <button type="button" id="ag_tab_reg">สมัครใหม่</button>
+        <button type="button" id="ag_tab_login" class="active" aria-pressed="true">ล็อกอิน</button>
+        <button type="button" id="ag_tab_reg" aria-pressed="false">สมัครใหม่</button>
       </div>
-      <div class="ag-field"><label>อีเมล</label><input id="g_email" type="email" placeholder="you@example.com" autocomplete="email"></div>
-      <div class="ag-field"><label>รหัสผ่าน</label><input id="g_pass" type="password" placeholder="อย่างน้อย 6 ตัวอักษร" autocomplete="current-password"></div>
+      <div class="google-auth">
+        <div id="ag_google_btn" class="google-auth-slot"></div>
+        <button type="button" id="ag_google_fallback" class="google-fallback" onclick="Auth.googleUnavailable()" hidden>ดำเนินการต่อด้วย Google</button>
+        <div id="ag_google_status" class="google-status" role="status" aria-live="polite"></div>
+        <div class="google-divider"><span>หรือใช้อีเมล</span></div>
+      </div>
+      <div class="ag-field"><label for="g_email">อีเมล</label><input id="g_email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+      <div class="ag-field"><label for="g_pass">รหัสผ่าน</label><input id="g_pass" type="password" placeholder="อย่างน้อย 6 ตัวอักษร" autocomplete="current-password"></div>
       <div id="g_reg_extra" style="display:none">
-        <div class="ag-field"><label>ยืนยันรหัสผ่าน</label><input id="g_pass2" type="password" autocomplete="new-password"></div>
-        <div class="ag-field"><label>ชื่อ-นามสกุล (ไม่บังคับ)</label><input id="g_name"></div>
+        <div class="ag-field"><label for="g_pass2">ยืนยันรหัสผ่าน</label><input id="g_pass2" type="password" autocomplete="new-password"></div>
+        <div class="ag-field"><label for="g_name">ชื่อ-นามสกุล (ไม่บังคับ)</label><input id="g_name" autocomplete="name"></div>
       </div>
       <button type="button" class="ag-submit" id="ag_submit">ล็อกอิน</button>
-      <div id="ag_msg" class="auth-msg"></div>
-      <div class="auth-hint">ข้อมูลแยกต่อบัญชี ซิงก์ขึ้นคลาวด์อัตโนมัติ · ใช้แบบออฟไลน์ได้หลังล็อกอิน<br><a href="javascript:void(0)" onclick="agHardReload()">หน้าไม่ปกติ? ล้างแคชแล้วโหลดใหม่</a></div>
+      <div id="ag_msg" class="auth-msg" role="status" aria-live="polite"></div>
+      <div class="auth-hint">ข้อมูลแยกต่อบัญชี ใช้แบบออฟไลน์ได้หลังเข้าสู่ระบบและโหลดข้อมูล<br><a href="javascript:void(0)" onclick="agHardReload()">หน้าไม่ปกติ? ล้างแคชแล้วโหลดใหม่</a></div>
     </div>
   </div>
-  <script>try{var _shareToken2=(new URL(location.href)).searchParams.get("share");if(!_shareToken2&&!localStorage.getItem("farmult-session-v1")){document.documentElement.className+=" auth-locked";var _ag=document.getElementById("authGate");if(_ag)_ag.style.display="flex";}}catch(e){}</script>
+  <script>try{var _u1=new URL(location.href);var _shareToken2=_u1.searchParams.get("share");var _landingPreview2=_u1.searchParams.get("landing")==="1";if(_landingPreview2||(!_shareToken2&&!localStorage.getItem("farmult-session-v1"))){document.documentElement.className+=" auth-locked";var _ag=document.getElementById("authGate");if(_ag)_ag.style.display="block";}}catch(e){}</script>
   <div id="app">
 
     <!-- ====== Top bar ====== -->
     <header class="topbar">
       <div class="topbar-row">
         <div class="brand">
-          <img class="brand-logo" id="brandLogo" src="logo.jpg" alt="FARMULTIMATE SOLUTIONS" onerror="this.style.display='none';document.getElementById('brandLogoFallback').style.display='inline'">
+          <img class="brand-logo" id="brandLogo" src="logo.jpg?v=20260907googleauth3" alt="FARMULTIMATE SOLUTIONS" onerror="this.style.display='none';document.getElementById('brandLogoFallback').style.display='inline'">
           <span class="brand-logo" id="brandLogoFallback" style="display:none">FUS</span>
           <div class="brand-text">
             <div class="brand-name"><span id="brandNameTxt">FARMULTIMATE SOLUTIONS</span> <span class="v-badge">v54</span></div>
@@ -165,19 +294,22 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/data.js?v=20260905taskfailwater"></script>
-  <script src="js/charts.js?v=20260826ao"></script>
+  <script src="js/data.js?v=20260911usability1"></script>
+  <script src="js/charts.js?v=20260910inspection7"></script>
   <script src="js/notify.js?v=20260826ao"></script>
-  <script src="js/stock.js?v=20260905taskfailwater"></script>
-  <script src="js/sales.js?v=20260905taskfailwater"></script>
-  <script src="js/lark.js?v=20260902shareflow"></script>
-  <script src="js/auth.js?v=20260903uxauditfix"></script>
-  <script src="js/app.js?v=20260905taskfailwater"></script>
+  <script src="js/stock.js?v=20260911usability1"></script>
+  <script src="js/sales.js?v=20260911usability1"></script>
+  <script src="js/lark.js?v=20260907reliability1"></script>
+  <script src="js/recovery.js?v=20260907reliability1"></script>
+  <script src="js/landing.js?v=20260907landingsoft1"></script>
+  <script src="js/auth.js?v=20260907landingsoft1"></script>
+  <script src="js/inspection.js?v=20260911usability1"></script>
+  <script src="js/app.js?v=20260911usability1"></script>
   <!-- ลงทะเบียน Service Worker — เปิดใช้แบบออฟไลน์/ติดตั้งเป็นแอพบนมือถือ (ต้องใช้ผ่าน HTTPS หรือ localhost) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js?v=20260905taskfailwater').catch(function () { /* ไม่บังคับ — ถ้าลงทะเบียนไม่ได้ก็ใช้เว็บปกติ */ });
+        navigator.serviceWorker.register('sw.js?v=20260911usability1').catch(function () { /* ไม่บังคับ — ถ้าลงทะเบียนไม่ได้ก็ใช้เว็บปกติ */ });
       });
     }
   </script>
