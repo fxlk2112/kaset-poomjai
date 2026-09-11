@@ -30,7 +30,7 @@
   }
 
   function normalizeSelection(id) {
-    return [DEFAULT_SELECTION, "health", "forecast", "relays", "energy"].includes(id) || zoneById(id) ? id : DEFAULT_SELECTION;
+    return [DEFAULT_SELECTION, "health", "forecast", "relays", "energy", "owner-summary"].includes(id) || zoneById(id) ? id : DEFAULT_SELECTION;
   }
 
   function select(id) {
@@ -42,7 +42,7 @@
   }
 
   function isMapSurface() {
-    return !["pond", "health", "forecast", "energy"].includes(state.selection);
+    return !["pond", "health", "forecast", "energy", "owner-summary"].includes(state.selection);
   }
 
   function sensorSummary() {
@@ -161,6 +161,10 @@
       <div class="farm-map-layout">
         <div class="farm-map-canvas-card">
           <nav class="farm-map-page-links" aria-label="ข้อมูลฟาร์ม">
+            <button type="button" onclick="App.farmMapSelect('owner-summary')" aria-label="สรุปสำหรับเจ้าของ">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M7 8h10M7 12h5M7 16h8"></path></svg>
+              <span><strong>สรุปสำหรับเจ้าของ</strong><small>น้ำ · พลังงาน · สุขภาพระบบ</small></span><b aria-hidden="true">›</b>
+            </button>
             <button type="button" onclick="App.farmMapSelect('forecast')" aria-label="สภาพอากาศ">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"></circle><path d="M8 1v2M1 8h2M3 3l1.5 1.5M13 3l-1.5 1.5M6 19h12a4 4 0 0 0 0-8 5 5 0 0 0-9.5 1.5A3.5 3.5 0 0 0 6 19Z"></path></svg>
               <span><strong>สภาพอากาศ</strong><small>พยากรณ์ 10 โมเดล</small></span><b aria-hidden="true">›</b>
@@ -201,6 +205,7 @@
   }
 
   function cardHtml() {
+    if (state.selection === "owner-summary" && root.OwnerSummary) return root.OwnerSummary.cardHtml();
     if (state.selection === "energy" && root.EnergyDashboard) return root.EnergyDashboard.cardHtml();
     if (["health", "forecast"].includes(state.selection) && root.SensorTelemetry) return root.SensorTelemetry.monitorHtml(state.selection);
     if (state.selection === "pond" && root.SensorTelemetry) {

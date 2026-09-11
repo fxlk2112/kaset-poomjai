@@ -389,6 +389,10 @@ function render() {
   if (route.view === "weather" || route.view === "plotDetail") renderPlotWeather();
   /* หน้าระบบน้ำ Phase 1: อ่าน telemetry จริงเท่านั้น; ไม่มีคำสั่งเอาต์พุต */
   if (route.view === "iot") {
+    if (typeof OwnerSummary !== "undefined" && FarmMapDashboard.state.selection === "owner-summary") {
+      OwnerSummary.refresh(false);
+      return;
+    }
     if (typeof EnergyDashboard !== "undefined" && FarmMapDashboard.state.selection === "energy") EnergyDashboard.refresh(false);
     if (typeof SensorTelemetry !== "undefined") {
       SensorTelemetry.mountChart();
@@ -7325,6 +7329,10 @@ try {
 } catch (e) {}
 try {
   const previewUrl = new URL(location.href);
+  if (previewUrl.searchParams.get("view") === "owner-summary" && typeof FarmMapDashboard !== "undefined") {
+    route.view = "iot";
+    FarmMapDashboard.select("owner-summary");
+  }
   const previewHost = String(location.hostname || "").toLowerCase();
   const localSensorRoute = (previewHost === "localhost" || previewHost === "127.0.0.1") &&
     (previewUrl.searchParams.get("sensorPreview") === "1" ||

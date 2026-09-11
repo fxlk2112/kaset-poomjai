@@ -1,5 +1,13 @@
 # FARMULTIMATE Collaboration Status
 
+## Active task: OWNER-SUMMARY-005
+
+- Owner SUCHA; branch `pick/owner-summary-v1`; source `188b03b`, freshly fetched `origin/develop@40721b5` retained as ancestor.
+- Owner requested the remote owner summary and explicitly authorized publishing to the existing main website on 2026-09-12.
+- Scope lock: new `js/owner-summary.js`, `css/owner-summary.css`, summary-only map/app/auth navigation, sensor timer exclusion on the summary page, index assets, related tests/docs/QA. No Commerce, backend/schema, Pi service/config, or hardware changes.
+- Queue: implement real-source summary and field checklist -> calculation/access/freshness tests -> mobile/tablet/desktop visual verification -> main Worker dry-run/deploy -> independent public readback.
+- Status: IN_PROGRESS; DATA_ONLY / SAFE_OFF / Pi 5 sole writer. Current meter acceptance and water geometry remain unverified.
+
 ## Active task: OWNER-WATER-FRESHNESS-004
 
 - Owner SUCHA; source `488da97`; branch `pick/water-cloud-freshness-v1`.

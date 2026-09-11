@@ -837,6 +837,7 @@
   }
 
   function shouldAutoRefresh(activeView, pageHidden) {
+    if (root.FarmMapDashboard?.state.selection === "owner-summary") return false;
     return activeView === "iot" && !pageHidden;
   }
 

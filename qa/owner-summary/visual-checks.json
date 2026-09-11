@@ -1,0 +1,33 @@
+{
+  "type": "SYNTHETIC_FIXTURE_AND_LOCAL_SIGNED_OUT_UI",
+  "viewports": [
+    {
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "width": 840,
+      "overflow": false
+    },
+    {
+      "width": 1280,
+      "overflow": false
+    }
+  ],
+  "states": [
+    "fresh",
+    "stale",
+    "failed",
+    "signed_out"
+  ],
+  "navigation": [
+    "direct_summary_link",
+    "login",
+    "cancel_login_returns_summary",
+    "back_to_map",
+    "summary_map_entry"
+  ],
+  "screenshotLimitation": "Codex Windows screenshot scaling/stitching artifact; DOM geometry and visible sections inspected. Physical iOS Safari not tested.",
+  "tests": 141,
+  "relayMessages": 9
+}

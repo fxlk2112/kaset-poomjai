@@ -77,6 +77,7 @@ function setSession(s) {
   const oldEmail = Auth.session && Auth.session.email;
   Auth.session = s;
   if (typeof SensorTelemetry !== "undefined" && typeof SensorTelemetry.syncSession === "function") SensorTelemetry.syncSession();
+  if (typeof OwnerSummary !== "undefined") OwnerSummary.sync();
   const newEmail = s && s.email;
   if (oldEmail !== newEmail) {
     App._stockShares = { outgoing: [], incoming: [] };
@@ -303,7 +304,7 @@ async function coreRegister(email, pw, name) {
 /* ปุ่มในหน้าตั้งค่า (การ์ด au_*) */
 App.openSensorLogin = function () {
   const panel = typeof FarmMapDashboard !== "undefined" && FarmMapDashboard.state.selection;
-  Auth._sensorLoginPanel = ["health", "relays", "energy"].includes(panel) ? panel : "pond";
+  Auth._sensorLoginPanel = ["health", "relays", "energy", "owner-summary"].includes(panel) ? panel : "pond";
   Auth._sensorLoginReturn = true;
   App.nav("settings");
   document.getElementById("au_email")?.focus();
@@ -643,13 +644,13 @@ Auth.cardHtml = function () {
       <button class="btn btn-primary btn-block mt-12" onclick="App.authSyncNow()">${ic("refresh")} ซิงก์ขึ้นคลาวด์ตอนนี้</button>
       <button class="btn btn-danger-soft btn-block mt-8" onclick="App.authLogout()">${ic("lock")} ออกจากระบบ</button>
     ` : `
-      ${Auth._sensorLoginReturn ? `<div class="muted mb-8">ใช้บัญชีเดิมที่เชื่อมเซ็นเซอร์ เข้าสู่ระบบแล้วจะกลับไปแสดงระดับน้ำให้อัตโนมัติ</div>` : ""}
+      ${Auth._sensorLoginReturn ? `<div class="muted mb-8">${Auth._sensorLoginPanel === "owner-summary" ? "ใช้บัญชีเจ้าของเดิม เข้าสู่ระบบแล้วจะกลับหน้าสรุปสำหรับเจ้าของให้อัตโนมัติ" : "ใช้บัญชีเดิมที่เชื่อมเซ็นเซอร์ เข้าสู่ระบบแล้วจะกลับไปแสดงระดับน้ำให้อัตโนมัติ"}</div>` : ""}
       <div class="field"><label>อีเมล</label><input id="au_email" type="email" autocomplete="email"></div>
       <div class="field"><label>รหัสผ่าน</label><input id="au_pass" type="password" autocomplete="current-password"></div>
       ${Auth._sensorLoginReturn ? "" : `<div class="field"><label>ยืนยันรหัสผ่าน (สมัครใหม่)</label><input id="au_pass2" type="password"></div>
       <div class="field"><label>ชื่อ-นามสกุล (ไม่บังคับ)</label><input id="au_name"></div>`}
       <button class="btn btn-primary btn-block mt-8" onclick="App.authLogin()">${ic("unlock")} ล็อกอิน</button>
-      ${Auth._sensorLoginReturn ? `<button class="btn btn-outline btn-block mt-8" onclick="App.cancelSensorLogin()">กลับหน้าเซ็นเซอร์</button>` : `<button class="btn btn-outline btn-block mt-8" onclick="App.authRegister()">${ic("plus")} สมัครบัญชีใหม่</button>`}
+      ${Auth._sensorLoginReturn ? `<button class="btn btn-outline btn-block mt-8" onclick="App.cancelSensorLogin()">${Auth._sensorLoginPanel === "owner-summary" ? "กลับหน้าสรุป" : "กลับหน้าเซ็นเซอร์"}</button>` : `<button class="btn btn-outline btn-block mt-8" onclick="App.authRegister()">${ic("plus")} สมัครบัญชีใหม่</button>`}
     `}
   </div>`;
 };
