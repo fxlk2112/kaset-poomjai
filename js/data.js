@@ -1514,4 +1514,6 @@ function dayStatus(s, dateStr) {
 
 /* สถานะหลักของแอป — ประกาศท้าย data.js (โหลดก่อน auth.js/app.js)
    เพื่อให้ระบบบัญชีสลับ slot ข้อมูลรายบัญชีได้ก่อน render หน้าแรก */
-const S = loadState();
+// The Worker reuses the same stock rules without initializing browser storage.
+const S = typeof module !== "undefined" && module.exports ? null : loadState();
+if (typeof module !== "undefined" && module.exports) module.exports = { prepareTaskStock };

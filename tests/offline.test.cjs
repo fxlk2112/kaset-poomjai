@@ -46,6 +46,24 @@ test('offline navigation with a different query and versioned scripts uses the c
   assert.equal(await (await w.emit('fetch',w.request('/js/auth.js?v=new'))).text(),'online:/js/auth.js');
 });
 
+test('collector aliases return explicit redirects rather than followed cached responses',async()=>{
+  const w=worker();await w.emit('install');let requests=0;
+  w.c.fetch=async()=>{requests++;throw new Error('unexpected fetch');};
+  for(const alias of ['/collector.html','/collector/']){
+    const r=await w.emit('fetch',w.request(alias+'?build=test',{mode:'navigate',redirect:'manual'}));
+    assert.equal(r.status,302);assert.equal(r.headers.get('location'),'https://example.invalid/collector?build=test');
+    assert.equal(r.redirected,false);
+  }
+  assert.equal(requests,0);
+});
+
+test('collector navigation uses its own canonical offline shell, never the owner page',async()=>{
+  const w=worker();await w.emit('install');w.c.fetch=async()=>{throw new Error('offline');};
+  const r=await w.emit('fetch',w.request('/collector?build=new',{mode:'navigate'}));
+  assert.equal(await r.text(),'online:/collector');
+  const cache=[...w.stores.values()][0];assert.equal(cache.has('/collector.html'),false);
+});
+
 test('server failures use cache and slow connections fall back after a bounded wait',async()=>{
   const w=worker();await w.emit('install');w.c.fetch=async()=>new Response('failure',{status:503});
   assert.equal(await (await w.emit('fetch',w.request('/js/data.js'))).text(),'online:/js/data.js');

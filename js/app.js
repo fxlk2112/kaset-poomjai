@@ -7,7 +7,7 @@
 
 /* ---------------- state & bootstrap ----------------
    (S ประกาศใน data.js — ให้ระบบบัญชี (auth.js) สลับ slot ข้อมูลรายบัญชีได้ก่อน render) */
-const APP_BUILD_VERSION = "20260911usability1";
+const APP_BUILD_VERSION = "20260928ux1";
 window.APP_BUILD_VERSION = APP_BUILD_VERSION;
 function ensureFreshAppBuild() {
   try {
@@ -282,7 +282,7 @@ function taskRowHtml(t, opts) {
       <div class="task-row-actions">
         ${st !== "done" && st !== "failed" ? `
           <button class="btn btn-sm btn-outline task-finish" onclick="App.toggleTask('${t.id}')" aria-label="ทำเสร็จ: ${esc(t.title)}">${ic("check")} ทำเสร็จ</button>
-          <button class="btn btn-sm btn-ghost icon-action" onclick="App.rescheduleTask('${t.id}')" title="เลื่อนวัน" aria-label="เลื่อนวัน: ${esc(t.title)}">${ic("calendar")}</button>` : `
+          <button class="btn btn-sm btn-ghost task-reschedule" onclick="App.rescheduleTask('${t.id}')" title="เลื่อนวัน" aria-label="เลื่อนวัน: ${esc(t.title)}">${ic("calendar")} <span>เลื่อน</span></button>` : `
           ${statusTag(st)}
           <button class="btn btn-sm btn-ghost icon-action" onclick="App.editTask('${t.id}')" title="แก้ไขกิจกรรม" aria-label="แก้ไข: ${esc(t.title)}">${ic("pencil")}</button>`}
       </div>
@@ -419,8 +419,17 @@ function render() {
   const navKey = VIEW_GROUP[route.view] || route.view;
   if (fd) {
     const inTrialWorkspace = route.view === "plots" && route.tab === "trials";
-    fd.style.display = navKey === "more" || inTrialWorkspace ? "none" : "";
+    const fabActions = navKey === "stock" ? ["stock", "sale"]
+      : navKey === "planner" ? ["task"]
+      : navKey === "plots" ? ["task", "plot"]
+      : navKey === "home" ? ["task", "plot"]
+      : [];
+    fd.style.display = navKey === "more" || navKey === "analytics" || inTrialWorkspace ? "none" : "";
+    fd.querySelectorAll(".fab-item").forEach(button => {
+      button.hidden = !fabActions.includes(button.dataset.action);
+    });
     fd.classList.remove("open");
+    document.getElementById("fabBtn")?.setAttribute("aria-expanded", "false");
   }
   if (!keys.includes(navKey)) {
     route.view = keys.includes("home") ? "home" : keys[0];
@@ -450,6 +459,8 @@ function render() {
   v.classList.toggle("no-anim", !viewChanged);
   v.innerHTML = Auth.syncStatusHtml() + (views[route.view] || renderHome)();
   v.dataset.view = route.view;
+  // Only show the team-review prompt when there is actually something waiting.
+  if (route.view === "home" && typeof Team !== "undefined" && typeof Team.renderHomeInbox === "function") Team.renderHomeInbox();
   v.querySelectorAll('.tabs button, .quick-filter, .planner-filter, .chip').forEach(btn => {
     btn.setAttribute('aria-pressed', String(btn.classList.contains('active')));
   });
@@ -549,6 +560,9 @@ function homeOrder() {
 /* สร้าง grid-template-areas สำหรับจอคอมตามลำดับที่ผู้ใช้เลือก
    slot 0 = คอลัมน์ซ้ายยาว 2 แถว, 1 = ขวาบน, 2 = ขวาล่าง, 3 = เต็มความกว้างล่าง
    ใช้ single quote ('...') เพื่อไม่ให้ชนกับเครื่องหมาย " ใน attribute style= */
+function hasRecordedFinance(tasks) {
+  return tasks.some(t => t.status === 'done' && (['expense', 'harvest'].includes(t.type) || t.costItems?.length || Number(t.cost) || Number(t.revenue)));
+}
 function renderHome() {
   const ytd = ytdFinance(S);
   const curBE = Number(todayISO().slice(0, 4)) + 543; // ปี พ.ศ. ปัจจุบัน (แสดงกำไรของปีนี้)
@@ -565,6 +579,8 @@ function renderHome() {
     .slice(0, 3);
   const doneToday = tToday.filter(t => t.status === "done").length;
   const overdue = S.tasks.filter(t => taskStatusOf(t) === "overdue").sort((a, b) => a.date.localeCompare(b.date));
+  const plannedToday = tToday.filter(t => !["done", "failed"].includes(t.status));
+  const pendingTasks = S.tasks.filter(t => !["done", "failed"].includes(t.status));
   /* กิจกรรมล่าสุด: โชว์ประวัติงานที่ปิดงานแล้ว/ไม่สำเร็จ เพื่อไม่ซ้ำกับงานถัดไป */
   const tsOf = t => t.updatedAt || t.createdAt || new Date(t.date + "T12:00:00").getTime() || 0;
   const recent = [...S.tasks]
@@ -577,26 +593,27 @@ function renderHome() {
   const curYr = todayISO().slice(0, 4);
   const plotProfits = S.plots.filter(p => p.status === "active").map(p => ({
     p,
+    hasFinance: hasRecordedFinance(S.tasks.filter(t => t.plotId === p.id && taskRecordDate(t).startsWith(curYr))),
     fin: taskFinance(S, t => t.plotId === p.id && taskRecordDate(t).startsWith(curYr))
   }));
   /* รายได้ขายยา/สินค้า — แยกจากกำไร/ขาดทุนของแปลง ไม่ปนกัน (โชว์แค่ตัวเลขสรุป ไม่ขึ้นรายการใบเสร็จให้ยาว) */
-  const salesBox = (() => {
+  const salesBox = (S.sales || []).length ? (() => {
     const day = salesToday(S), mo = salesMonth(S), yr = salesRevenue(S), cnt = salesYearCount(S);
     return `
     <button class="home-shop-strip" onclick="App.goShopAnalytics()">
-      <span class="home-shop-ico">${ic("dollar")}</span>
+      <span class="home-shop-ico">${ic("briefcase")}</span>
       <span class="grow">
         <b>รายได้ขายสินค้า</b>
-        <small>${(S.sales || []).length === 0 ? "ยังไม่มีใบเสร็จ" : `วันนี้ ${fmtMoney(day)} · เดือนนี้ ${fmtMoney(mo)} บาท`}</small>
+        <small>วันนี้ ${fmtMoney(day)} · เดือนนี้ ${fmtMoney(mo)} บาท</small>
       </span>
-      <span class="home-shop-total">${fmtMoney(yr)}<small>${cnt} ใบ</small></span>
+      <span class="home-shop-total">${fmtMoney(yr)} <small>บาท · ${cnt} ใบ</small></span>
     </button>`;
-  })();
+  })() : "";
 
   const setupSteps = [
-    { done: (S.plots || []).length > 0, label: "เพิ่มแปลง", action: "App.nav('plots')" },
-    { done: (S.stock || []).length > 0, label: "เพิ่มสินค้า", action: "App.nav('stock')" },
-    { done: (S.tasks || []).length > 0, label: "บันทึกกิจกรรม", action: `App.modalTask('${today}')` },
+    { done: (S.plots || []).length > 0, label: "เพิ่มแปลง", action: "App.modalPlot()" },
+    { done: (S.cycles || []).length > 0, label: "เริ่มรอบปลูก", action: "App.modalCycle()" },
+    { done: S.tasks.some(t => ["done", "failed"].includes(t.status)), label: "บันทึกงานแรก", action: `App.modalTask('${today}', {status:'done'})` },
   ];
   const welcome = setupSteps.some(x => !x.done) ? `
     <div class="welcome-strip setup-strip">
@@ -604,18 +621,30 @@ function renderHome() {
         <span class="plot-emoji sm">${ic("compass")}</span>
         <div class="grow">
           <div class="bold">เริ่มต้นใช้งาน</div>
-          <div class="muted">ทำตามลำดับนี้ก็เริ่มบันทึกงานได้เลย</div>
+          <div class="muted">พร้อมแล้ว ${setupSteps.filter(step => step.done).length} / 3 ขั้นตอน</div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="App.startTour()">${ic("compass")} แนะนำ</button>
       </div>
       <div class="setup-steps">
         ${setupSteps.map((step, i) => `
-          <button class="setup-step ${step.done ? "done" : ""}" onclick="${step.action}">
+          <button class="setup-step ${step.done ? "done" : ""}" ${!step.done && setupSteps.slice(0, i).some(previous => !previous.done) ? 'disabled' : ''} onclick="${step.action}">
             <span>${step.done ? ic("check") : i + 1}</span>
             <b>${step.label}</b>
           </button>`).join("")}
       </div>
     </div>` : "";
+
+  const nextRecommendedTask = !welcome && cycles.length && !pendingTasks.length ? (() => {
+    const cycle = cycles[0];
+    const plot = plotById(S, cycle.plotId);
+    return `
+      <section class="home-next-step" aria-label="งานถัดไปที่แนะนำ">
+        <div><span class="home-next-eyebrow">ฟาร์มพร้อมเริ่มติดตาม</span><b>วางแผนงานแรกของ${plot ? ` ${esc(plot.name)}` : "รอบนี้"}</b><small>ตั้งงานรดน้ำหรือตรวจแปลง เพื่อให้ระบบช่วยเตือนวันทำงาน</small></div>
+        <button class="btn btn-outline btn-sm" onclick="App.modalTask('${today}', {plotId:'${cycle.plotId}', cycleId:'${cycle.id}'})">${ic("calendar")} วางแผนงาน</button>
+      </section>`;
+  })() : "";
+
+  if (!S.plots.length) return `<div class="home-heading"><h1 class="hero-greet">จัดการฟาร์ม</h1><div class="hero-sub">ยังไม่มีแปลง</div></div>${welcome}`;
 
   const todayPanel = `
     <section class="sec-cal">
@@ -647,6 +676,12 @@ function renderHome() {
       </div>
     </section>`;
   const nextTasksCount = tTomorrow.length + soon.length;
+  const priorityTaskMode = overdue.length ? "overdue" : (plannedToday.length ? "today" : "");
+  const homeActions = priorityTaskMode ? `
+    <button class="btn btn-primary" onclick="App.openPlannerFilter('${priorityTaskMode}')">${ic("check")} อัปเดตงานที่วางไว้</button>
+    <button class="btn btn-outline" onclick="App.modalTask('${today}')">${ic("plus")} เพิ่มกิจกรรมใหม่</button>` : `
+    <button class="btn btn-primary" onclick="App.modalTask('${today}', {status:'done'})">${ic("check")} บันทึกงานที่ทำแล้ว</button>
+    <button class="btn btn-outline" onclick="App.modalTask('${today}')">${ic("calendar")} วางแผนงาน</button>`;
 
   return `
     <div class="home-heading">
@@ -655,21 +690,23 @@ function renderHome() {
           <div class="hero-greet" data-tkey="heroGreet">${T("heroGreet")}</div>
           <div class="hero-sub">${thaiDateStr(new Date())}</div>
         </div>
-        <span class="badge ${overdue.length ? "badge-red" : "badge-green"}">${overdue.length ? `ค้าง ${overdue.length} งาน` : `${doneToday}/${tToday.length} งานวันนี้เสร็จแล้ว`}</span>
+        <span class="badge ${overdue.length ? "badge-red" : "badge-green"}">${overdue.length ? `ค้าง ${overdue.length} งาน` : tToday.length ? `${doneToday}/${tToday.length} งานวันนี้เสร็จแล้ว` : 'วันนี้ยังไม่มีงาน'}</span>
       </div>
-      <div class="home-actions"><button class="btn btn-primary" onclick="App.modalTask('${today}', {status:'done'})">${ic("check")} บันทึกงานที่ทำแล้ว</button><button class="btn btn-outline" onclick="App.modalTask('${today}')">${ic("calendar")} วางแผนงาน</button></div>
+      <div class="home-actions">${homeActions}</div>
     </div>
 
     ${welcome}
+    ${nextRecommendedTask}
     ${todayPanel}
+    <div id="teamHomeInbox" class="team-home-slot" aria-live="polite"></div>
 
     <div class="home-summary-head" data-tkey="titleKpi">${T("titleKpi")}</div>
     <div class="home-summary-strip" id="kpiRow">
       <button class="home-summary-item ${kpiClass}" onclick="App.nav('analytics')">
-        <span>${ic("dollar")}</span><b>${fmtMoney(ytd.net)}</b><small>ส่วนต่างรายรับ-ต้นทุน พ.ศ. ${curBE}</small>
+        <span>${ic("chart")}</span><b>${hasRecordedFinance(S.tasks.filter(t => taskRecordDate(t).startsWith(curYr))) ? `${fmtMoney(ytd.net)} <em class="home-money-unit">บาท</em>` : 'ยังไม่มีรายการ'}</b><small>ส่วนต่างรายรับ-ต้นทุนที่บันทึก พ.ศ. ${curBE}</small>
       </button>
       <button class="home-summary-item" onclick="App.nav('plots')">
-        <span>${ic("pin")}</span><b>${fmtNum(area)} ไร่</b><small>${S.plots.filter(p => p.status === "active").length} แปลง Active</small>
+        <span>${ic("pin")}</span><b>${fmtNum(area)} ไร่</b><small>${S.plots.filter(p => p.status === "active").length} แปลงที่ใช้งาน</small>
       </button>
       <button class="home-summary-item" onclick="App.goCycles()">
         <span>${ic("leaf")}</span><b>${cycles.length}</b><small>รอบปลูก</small>
@@ -701,14 +738,14 @@ function renderHome() {
         <div class="section-title" data-tkey="titleProfit">${T("titleProfit")}</div>
         <div class="card" style="padding:6px 14px">
           ${plotProfits.length === 0 ? `<div class="muted" style="text-align:center;padding:8px">ยังไม่มีแปลง Active</div>` : ""}
-          ${plotProfits.map(({ p, fin }) => `
+          ${plotProfits.map(({ p, fin, hasFinance }) => `
             <button class="row plot-profit" onclick="App.openPlot('${p.id}')">
               <span class="plot-emoji sm">${cropEmoji(p.crop)}</span>
               <div class="grow" style="text-align:left">
                 <div class="bold" style="font-size:.88rem">${esc(p.name)}</div>
-                <div class="muted" style="font-size:.68rem">รายได้ ${fmtMoney(fin.revenue)} · ต้นทุน ${fmtMoney(fin.cost)}${p.sizeRai > 0 ? ` · <b>${fmtMoney(Math.round(fin.cost / p.sizeRai))} บ./ไร่</b>` : ""}</div>
+                <div class="muted" style="font-size:.68rem">${hasFinance ? `รายได้ ${fmtMoney(fin.revenue)} บาท · ต้นทุน ${fmtMoney(fin.cost)} บาท${p.sizeRai > 0 ? ` · <b>${fmtMoney(Math.round(fin.cost / p.sizeRai))} บ./ไร่</b>` : ""}` : 'ยังไม่มีรายการรายรับ/ต้นทุนในปีนี้'}</div>
               </div>
-              <div class="bold ${fin.net >= 0 ? "price-trend-up" : "price-trend-down"}" style="font-size:.95rem">${fmtMoney(fin.net)}</div>
+              <div class="bold ${hasFinance ? (fin.net >= 0 ? "price-trend-up" : "price-trend-down") : 'muted'}" style="font-size:.95rem">${hasFinance ? `${fmtMoney(fin.net)} บาท` : '—'}</div>
             </button>`).join("")}
         </div>
       </section>`;
@@ -733,6 +770,7 @@ function renderHome() {
       ${cycles.map(c => {
         const p = plotById(S, c.plotId);
         const fin = cycleFinance(S, c.id);
+        const hasFinance = hasRecordedFinance(S.tasks.filter(t => t.cycleId === c.id));
         return `
         <div class="row-line" onclick="App.openCycle('${c.id}')" role="button" tabindex="0" style="cursor:pointer" title="กดดูงาน/กิจกรรมของรอบนี้">
           <span class="plot-emoji sm">${cropEmoji(c.plant)}</span>
@@ -741,8 +779,8 @@ function renderHome() {
             <div class="muted">${p ? esc(p.name) : "—"} · อายุ ${ageDays(c.startDate)} วัน</div>
           </div>
           <div style="text-align:right">
-            <div class="bold ${fin.net >= 0 ? "price-trend-up" : "price-trend-down"}" style="font-size:.82rem">${fmtMoney(fin.net)}</div>
-            <div class="muted" style="font-size:.66rem">ส่วนต่างปัจจุบัน</div>
+            <div class="bold ${hasFinance ? (fin.net >= 0 ? "price-trend-up" : "price-trend-down") : 'muted'}" style="font-size:.82rem">${hasFinance ? `${fmtMoney(fin.net)} บาท` : '—'}</div>
+            <div class="muted" style="font-size:.66rem">${hasFinance ? 'ส่วนต่างปัจจุบัน' : 'ยังไม่มีรายรับ/ต้นทุน'}</div>
           </div>
           <span class="muted" style="font-size:1.05rem;margin-left:8px">›</span>
         </div>`;
@@ -797,7 +835,7 @@ function renderPlots() {
         <button class="quick-filter ${plotFilter.status === "inactive" ? "active" : ""}" onclick="App.plotFilterStatus('inactive')">ปิดใช้ <span>${counts.inactive}</span></button>
       </div>
       <div class="stock-filter-status ${plotFilterActive ? "" : "is-clear"}">
-        <span>${plotFilterActive ? `แสดง ${fmtNum(plotRows.length)} จาก ${fmtNum(plotRowsAll.length)} แปลง` : `${ic("pin")} ปักหมุด GPS ทุกแปลง เพื่อให้สภาพอากาศแม่นขึ้น`}</span>
+        <span>${plotFilterActive ? `แสดง ${fmtNum(plotRows.length)} จาก ${fmtNum(plotRowsAll.length)} แปลง` : `${ic("pin")} เพิ่มพิกัดในแปลงที่ต้องการดูสภาพอากาศ`}</span>
         ${plotFilterActive ? `<button class="btn btn-sm btn-ghost" onclick="App.plotFilterClear()">${ic("refresh")} ล้างตัวกรอง</button>` : ""}
       </div>
     </div>
@@ -6460,6 +6498,7 @@ function renderMore() {
         <div><b>ระบบและข้อมูล</b><span>ตั้งค่า สำรองข้อมูล และทัวร์ใช้งาน</span></div>
       </div>
       ${moreList(`
+      ${item(ic("user"), "ทีมบันทึกข้อมูล", "เชิญผู้บันทึกและตรวจรับข้อมูล", "Team.open()")}
       ${item(ic("gear"), "ตั้งค่า", "บัญชี สำรองข้อมูล เครื่องมือเสริม และล้างข้อมูล", "App.nav('settings')")}
       ${item(ic("compass"), "แนะนำระบบ", "เปิดทัวร์ใช้งานเร็วอีกครั้ง", "App.startTour()")}`)}
     </section>
@@ -6747,7 +6786,7 @@ App.modalPlot = function (id) {
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${p ? "อัปเกรด / แก้ไขแปลง" : "เพิ่มแปลงใหม่"}</h3>
-    <div class="modal-sub">${p ? "ปรับปรุงข้อมูลแปลงและพิกัด GPS" : "สร้างแผนที่ดิจิทัลของฟาร์ม ระบุชื่อ ขนาด และปักหมุดพิกัด GPS"}</div>
+    <div class="modal-sub">${p ? "ปรับปรุงข้อมูลแปลงและตำแหน่งสำหรับดูสภาพอากาศ" : "เริ่มจากชื่อและขนาดแปลงก่อน แล้วค่อยเพิ่มตำแหน่งได้เมื่อพร้อม"}</div>
     <form onsubmit="return App.submitPlot(event, '${id || ""}')">
       <div class="field"><label>ชื่อแปลง *</label><input id="f_name" value="${p ? esc(p.name) : ""}" placeholder="เช่น แปลง A" required></div>
       <div class="field"><label>ขนาดพื้นที่ (ไร่) *</label><input id="f_size" type="number" min="0.0001" step="any" value="${p ? p.sizeRai : ""}" placeholder="เช่น 0.25" required></div>
@@ -6758,18 +6797,21 @@ App.modalPlot = function (id) {
           <option value="inactive" ${p && p.status !== "active" ? "selected" : ""}>ว่าง / ไม่ใช้งาน</option>
         </select>
       </div>
-      <div class="field">
-        <label>พิกัด GPS (ปักหมุด)</label>
-        <div class="row" style="gap:8px">
-          <input id="f_lat" type="text" inputmode="decimal" value="${lat}" style="flex:1" placeholder="ละติจูด">
-          <input id="f_lng" type="text" inputmode="decimal" value="${lng}" style="flex:1" placeholder="ลองจิจูด">
+      <details class="plot-location-details" id="plotLocationDetails" ${p && lat !== '' && lng !== '' ? "open" : ""}>
+        <summary>${ic("pin")} เพิ่มตำแหน่งเพื่อดูสภาพอากาศ <small>ไม่บังคับ</small></summary>
+        <div class="field">
+          <label>พิกัด GPS (ปักหมุด)</label>
+          <div class="row" style="gap:8px">
+            <input id="f_lat" type="text" inputmode="decimal" value="${lat}" style="flex:1" placeholder="ละติจูด">
+            <input id="f_lng" type="text" inputmode="decimal" value="${lng}" style="flex:1" placeholder="ลองจิจูด">
+          </div>
+          <div class="hint">ตำแหน่งนี้ใช้ดึงสภาพอากาศรายแปลง ควรปักหมุดให้ใกล้แปลงที่สุด</div>
+          <button type="button" class="btn btn-sm btn-ghost mt-8" onclick="App.useGps()">${ic("pin")} ใช้ตำแหน่งจริงของฉัน</button>
         </div>
-        <div class="hint">ใช้พิกัดนี้ดึงสภาพอากาศรายแปลง (Open-Meteo) — ควรปักหมุดให้ตรงแปลงเพื่อให้ข้อมูลแม่นยำ</div>
-        <button type="button" class="btn btn-sm btn-ghost mt-8" onclick="App.useGps()">${ic("pin")} ใช้ตำแหน่งจริงของฉัน</button>
-      </div>
-      <div class="pick-hint">${ic("pin")} หรือ<b>แตะ/ลากหมุดบนแผนที่</b>เพื่อปักหมุดตำแหน่งแปลง</div>
-      <div class="plot-pick-map" id="pickMap"></div>
-      <div class="gps-box" id="gpsPreview"></div>
+        <div class="pick-hint">${ic("pin")} หรือ<b>แตะ/ลากหมุดบนแผนที่</b>เพื่อปักหมุดตำแหน่งแปลง</div>
+        <div class="plot-pick-map" id="pickMap"></div>
+        <div class="gps-box" id="gpsPreview"></div>
+      </details>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
         <button type="submit" class="btn btn-primary">${p ? "บันทึกการแก้ไข" : "สร้างแปลง"}</button>
@@ -6792,7 +6834,11 @@ App.modalPlot = function (id) {
     el.addEventListener("input", update);
   });
   update();
-  initPickMap();
+  const locationDetails = document.getElementById("plotLocationDetails");
+  locationDetails?.addEventListener("toggle", () => {
+    if (locationDetails.open) setTimeout(initPickMap, 0);
+  });
+  if (locationDetails?.open) initPickMap();
 };
 /* ---- แผนที่ปักหมุด (Leaflet + OpenStreetMap — ฟรี ไม่ต้องใช้คีย์) ---- */
 let pickMap = null, pickMarker = null;
@@ -6805,6 +6851,13 @@ function initPickMap() {
   const located = Number.isFinite(lat) && Number.isFinite(lng);
   const la = located ? lat : 14.9823;
   const ln = located ? lng : 100.4582;
+  // A modal creates a new map element each time. Tear down the old map instance
+  // before mounting on the new element so reopening the optional location panel works.
+  if (pickMap && pickMap.getContainer?.() !== el) {
+    pickMap.remove();
+    pickMap = null;
+    pickMarker = null;
+  }
   if (!pickMap) {
     pickMap = L.map(el, { scrollWheelZoom: false }).setView([la, ln], 16);
     /* โหมดมืด = ใช้ tile สีเข้ม (CARTO) — กันแผนที่ขาวโพลนตอนกลางคืน */
@@ -6841,6 +6894,9 @@ App.useGps = function () {
   navigator.geolocation.getCurrentPosition(
     pos => {
       setPickCoords(pos.coords.latitude, pos.coords.longitude);
+      const locationDetails = document.getElementById("plotLocationDetails");
+      if (locationDetails) locationDetails.open = true;
+      setTimeout(initPickMap, 0);
       if (pickMap) pickMap.setView([pos.coords.latitude, pos.coords.longitude], 16);
       toast("ปักหมุดตำแหน่งปัจจุบันแล้ว");
     },
@@ -7737,6 +7793,9 @@ App.viewTask = function (id) {
       ${rows.map(r => `<div class="td-row"><span class="td-k">${r.k}</span><span class="td-v">${esc(r.v)}</span></div>`).join("")}
     </div>
     ${costListHtml}
+    ${t.applicationWork?`<div class="td-cost-title">ปริมาณงานจากผู้บันทึก</div><p>${esc(ApplicationRate.workText(t.applicationWork))}</p>`:''}
+    ${t.reportedMaterials?.some(m=>m.rate)?`<div class="td-cost-title">อัตราใช้ที่ผู้บันทึกระบุ</div><div class="td-cost-list">${t.reportedMaterials.filter(m=>m.rate).map(m=>`<div class="td-cost-row"><span>${esc(m.name)}</span><b>${esc(m.rate)}</b></div>`).join('')}</div>`:''}
+    ${t.reportedMaterials?.some(m=>!costItems.length || m.source==='external')?`<div class="td-cost-title">รายการที่ไม่ตัดสต็อก</div><div class="td-cost-list">${t.reportedMaterials.filter(m=>!costItems.length || m.source==='external').map(m=>`<div class="td-cost-row"><span>${esc(m.name)}${m.source==='external'?' (นอกสต็อก)':''}</span><b>${fmtNum(m.qty)} ${esc(m.unit)}</b></div>`).join('')}</div>`:''}
     ${waterDetailHtml}
     ${typeof Inspection !== 'undefined' ? inspectionDetailHtml(t) : ''}
     ${planPhotoHtml}
@@ -8405,6 +8464,54 @@ App.waterFillZones = function (mode) {
   App.waterSessionsRender();
   toast("เติมรอบรดน้ำจากโซนแล้ว");
 };
+function taskMustBelongToPlot(type) {
+  return ["inspect", "water", "spray", "fertilize", "harvest", "expense"].includes(type);
+}
+App.taskScopeChange = function () {
+  const plotScope = document.getElementById("t_scope_plot")?.checked !== false;
+  const fields = document.getElementById("taskPlotCycleFields");
+  const hint = document.getElementById("taskScopeHint");
+  const plot = document.getElementById("t_plot");
+  const cycle = document.getElementById("t_cycle");
+  const summary = document.getElementById("taskScopeSummary");
+  const summaryDetail = document.getElementById("taskScopeSummaryDetail");
+  if (fields) fields.hidden = !plotScope;
+  if (plot) plot.disabled = !plotScope;
+  if (cycle) cycle.disabled = !plotScope || !plot.value;
+  if (hint) hint.textContent = plotScope
+    ? "เลือกแปลงเพื่อให้ประวัติงานและรายงานอยู่ถูกที่"
+    : "งานนี้จะไม่แสดงในประวัติแปลงหรือรอบปลูก";
+  if (summary) summary.textContent = plotScope ? "แปลงและรอบปลูก" : "ทั้งฟาร์ม";
+  if (summaryDetail) summaryDetail.textContent = plotScope
+    ? "ประวัติและรายงานจะอยู่กับแปลงที่เลือก"
+    : "เหมาะกับงานทั่วไปที่ไม่ผูกแปลง";
+  if (typeof Inspection !== "undefined") Inspection.contextRefresh();
+};
+App.taskScopeToggle = function () {
+  const choices = document.getElementById("taskScopeChoices");
+  if (!choices || choices.hidden) {
+    if (choices) choices.hidden = false;
+    return;
+  }
+  choices.hidden = true;
+};
+App.taskScopeAvailability = function () {
+  const type = document.getElementById("t_type")?.value || "work";
+  const plot = document.getElementById("t_plot");
+  const plotRadio = document.getElementById("t_scope_plot");
+  const farmRadio = document.getElementById("t_scope_farm");
+  const farmChoice = document.getElementById("taskFarmScopeOption");
+  const choices = document.getElementById("taskScopeChoices");
+  const changeButton = document.getElementById("taskScopeChangeButton");
+  // Legacy field records stay editable, but new crop-related work must be attributed.
+  const mustUsePlot = taskMustBelongToPlot(type) && !(taskEditingId && !plot?.value);
+  if (farmChoice) farmChoice.hidden = mustUsePlot;
+  if (farmRadio) farmRadio.disabled = mustUsePlot;
+  if (choices && mustUsePlot) choices.hidden = true;
+  if (changeButton) changeButton.hidden = mustUsePlot;
+  if (mustUsePlot && plotRadio) plotRadio.checked = true;
+  App.taskScopeChange();
+};
 App.taskTypeChange = function () {
   const sel = document.getElementById("t_type");
   const box = document.getElementById("waterBox");
@@ -8422,6 +8529,7 @@ App.taskTypeChange = function () {
   }
   const harvestOption = document.getElementById("taskHarvestOption");
   if (harvestOption) harvestOption.hidden = sel.value !== "harvest" && !document.getElementById("t_useharvest").checked;
+  App.taskScopeAvailability();
   const isWater = sel.value === "water";
   const plotId = (document.getElementById("t_plot") || {}).value || "";
   if (isWater && waterSessionsLookUntouched(taskWaterSessions)) taskWaterSessions = defaultWaterSessionsForPlot(plotId);
@@ -8476,6 +8584,7 @@ App.modalTask = function (date, preset) {
   const status = preset.inspectionCompletion ? 'done' : editing ? (["done", "failed"].includes(editing.status) ? editing.status : "planned") : (preset.status === "done" ? "done" : "planned");
   const hasCost = editing ? (editing.cost > 0 || !!editing.stockId || (editing.costItems || []).length > 0) : ["spray", "fertilize", "expense"].includes(type);
   const hasHarvest = editing ? (editing.revenue > 0 || editing.harvestQty > 0 || !!editing.finishCycle) : type === "harvest";
+  const plotScope = editing ? (editing.plotId ? "plot" : "farm") : (taskMustBelongToPlot(type) || preset.plotId ? "plot" : "farm");
   App._taskFormType = type;
   App._taskCostDrafts = {};
   const stockItem = editing && editing.stockId ? stockById(S, editing.stockId) : null;
@@ -8503,7 +8612,17 @@ App.modalTask = function (date, preset) {
         </select></div>
       </div>
       <div class="field"><label for="t_title">ชื่องาน *</label><input id="t_title" value="${esc(title)}" placeholder="เช่น ใส่ปุ๋ยครั้งที่ 2" required></div>
-      <div class="form-row-2">
+      <fieldset class="task-scope">
+        <legend>บันทึกให้กับ</legend>
+        <div class="task-scope-current"><span class="task-scope-current-icon">${ic("pin")}</span><span><b id="taskScopeSummary">${plotScope === "plot" ? "แปลงและรอบปลูก" : "ทั้งฟาร์ม"}</b><small id="taskScopeSummaryDetail">${plotScope === "plot" ? "ประวัติและรายงานจะอยู่กับแปลงที่เลือก" : "เหมาะกับงานทั่วไปที่ไม่ผูกแปลง"}</small></span></div>
+        <button type="button" class="btn btn-sm btn-ghost task-scope-change" id="taskScopeChangeButton" onclick="App.taskScopeToggle()">${ic("pencil")} เปลี่ยนการบันทึก</button>
+        <div class="task-scope-options" id="taskScopeChoices" hidden>
+          <label class="task-scope-choice"><input type="radio" name="t_scope" id="t_scope_plot" value="plot" ${plotScope === "plot" ? "checked" : ""} onchange="App.taskScopeChange()"><span><b>แปลงและรอบปลูก</b><small>งานจะอยู่ในประวัติและรายงานของแปลง</small></span></label>
+          <label class="task-scope-choice" id="taskFarmScopeOption"><input type="radio" name="t_scope" id="t_scope_farm" value="farm" ${plotScope === "farm" ? "checked" : ""} onchange="App.taskScopeChange()"><span><b>ทั้งฟาร์ม</b><small>สำหรับงานทั่วไปที่ไม่ผูกแปลง</small></span></label>
+        </div>
+        <div class="hint" id="taskScopeHint"></div>
+      </fieldset>
+      <div class="form-row-2" id="taskPlotCycleFields">
         <div class="field"><label>แปลง</label><select id="t_plot" onchange="App.taskPlotChange()"></select></div>
         <div class="field"><label>พืช / รอบ</label><select id="t_cycle" disabled onchange="Inspection.contextRefresh()"></select></div>
       </div>
@@ -8609,6 +8728,7 @@ App.modalTask = function (date, preset) {
     }
   };
   initTaskPlotCycle();
+  App.taskScopeAvailability();
   Inspection.contextRefresh();
   Inspection.pointsRender();
   if (type === 'inspect') Inspection.compact();
@@ -8697,13 +8817,22 @@ App.submitTask = function (e, editId) {
     }
   }
   const totalCost = costItems.reduce((a, it) => a + it.totalCost, 0);
-  const tPlot = document.getElementById("t_plot").value || null;
-  const tCycleRaw = document.getElementById("t_cycle").value || "";
+  const tType = document.getElementById("t_type").value;
+  const scope = document.getElementById("t_scope_plot")?.checked ? "plot" : "farm";
+  const tPlot = scope === "plot" ? (document.getElementById("t_plot").value || null) : null;
+  const tCycleRaw = scope === "plot" ? (document.getElementById("t_cycle").value || "") : "";
   /* "ยังไม่ปลูกอะไร" = ไม่ผูกกับรอบ แต่ยังเข้ารวมต้นทุนของแปลงที่เลือก */
   const tCycle = tCycleRaw === "__none__" ? null : (tCycleRaw || null);
   const tRevenue = useHarvest ? Math.round(hqty * hprice) || 0 : 0;
-  const tType = document.getElementById("t_type").value;
   const existing = editId ? S.tasks.find(x => x.id === editId) : null;
+  if (scope === "plot" && !tPlot) {
+    setModalFieldError(document.getElementById("t_plot"), "เลือกแปลง หรือเลือกงานทั้งฟาร์ม");
+    return false;
+  }
+  if (taskMustBelongToPlot(tType) && !tPlot && !(editId && !existing?.plotId)) {
+    setModalFieldError(document.getElementById("t_plot"), "กิจกรรมนี้ต้องเลือกแปลง");
+    return false;
+  }
   let inspection = existing?.inspection;
   if (tType === 'inspect') {
     if (!tPlot || !tCycleRaw) { toast('เลือกแปลงและรอบปลูก หรือเลือกยังไม่ปลูกอะไร'); return false; }
@@ -8932,8 +9061,14 @@ App.saveSchedules = function (id) {
 /* ---------------- FAB drawer ---------------- */
 const fabDock = document.getElementById("fabDock");
 const fabBtn = document.getElementById("fabBtn");
-function closeFAB() { fabDock.classList.remove("open"); }
-fabBtn.addEventListener("click", () => fabDock.classList.toggle("open"));
+function closeFAB() {
+  fabDock.classList.remove("open");
+  fabBtn.setAttribute("aria-expanded", "false");
+}
+fabBtn.addEventListener("click", () => {
+  const open = fabDock.classList.toggle("open");
+  fabBtn.setAttribute("aria-expanded", String(open));
+});
 App.quickAction = function (act) {
   closeFAB();
   if (act === "task") {
@@ -8973,7 +9108,7 @@ fabDock.querySelectorAll(".fab-item").forEach(btn => {
 const TOUR_STEPS = [
   { sel: ".today-card", title: "1 · งานวันนี้", text: "ดูงานที่ต้องจัดการวันนี้ก่อน และกดเพิ่มงานใหม่จากตรงนี้ได้ทันที", pos: "below" },
   { sel: "#kpiRow", title: "2 · ตัวเลขสำคัญ", text: "กำไรสุทธิ พื้นที่ และรอบปลูก สรุปให้ดูเร็วบนหน้าแรก", pos: "below" },
-  { sel: "#fabBtn", title: "3 · ปุ่มลัด", text: "ปุ่มกลมมุมขวาล่างสำหรับสร้างข้อมูลเร็ว เช่น เพิ่มกิจกรรม เพิ่มสินค้า ขายสินค้า และเพิ่มแปลง", pos: "left" },
+  { sel: "#fabBtn", title: "3 · ปุ่มลัด", text: "ปุ่มกลมมุมขวาล่างจะแสดงคำสั่งที่เกี่ยวกับหน้าที่กำลังใช้อยู่", pos: "left" },
   { sel: "#bottomNav", title: "4 · เมนูหลัก", text: "หน้าแรก แปลง สต็อก กิจกรรม วิเคราะห์ และเพิ่มเติม กดเพื่อสลับหน้าได้ทันที", pos: "below" },
   { sel: "#tourBtn", title: "5 · จบการแนะนำ", text: "พร้อมแล้ว กดปุ่มแนะนำระบบได้ทุกเมื่อเพื่อดูทัวร์อีกครั้ง", pos: "below" },
 ];

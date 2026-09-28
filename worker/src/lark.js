@@ -9,6 +9,7 @@
      { action: "pull" }                            → ดึง record ทั้งหมดกลับมา
 */
 import { MARKET_DATA } from "./market-data.js";
+import { teamAction } from "./team.js";
 const BATCH = 500;
 
 /* แคช tenant_access_token ต่อ isolate (Cloudflare เก็บระหว่าง request) */
@@ -1062,6 +1063,7 @@ export default {
         try {
           const key = decodeURIComponent(url.pathname.slice("/photo/".length));
           if (!key || key.includes("..")) return new Response("bad key", { status: 400 });
+          if (key.startsWith('team-private/')) return new Response('Authentication required', {status:403,headers:{'Cache-Control':'no-store'}});
           if (!env.PHOTOS) return new Response("R2 ยังไม่พร้อม", { status: 503 });
           const obj = await env.PHOTOS.get(key);
           if (!obj) return new Response("ไม่พบรูป", { status: 404 });
@@ -1081,7 +1083,8 @@ export default {
     try { payload = await request.json(); } catch (e) { /* ปล่อยว่าง */ }
     try {
       let data;
-      if (payload.action === "status") data = await doStatus(env);
+      if (String(payload.action || '').startsWith('team_')) data = await teamAction(env,payload,await authUser(env,payload.token));
+      else if (payload.action === "status") data = await doStatus(env);
       else if (payload.action === "push") data = await doPush(env, payload.records || []);
       else if (payload.action === "pull") data = await doPull(env);
       else if (payload.action === "stock_lark_sync") data = await doStockLarkSync(env, payload);

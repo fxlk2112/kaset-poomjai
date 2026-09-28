@@ -1,7 +1,7 @@
 /* Cache only the app shell and public same-origin assets, never authenticated APIs. */
-const CACHE = "farmult-v138-usability";
-const SHELL = ["/", "/css/style.css", "/css/landing.css", "/js/data.js", "/js/charts.js", "/js/notify.js", "/js/stock.js",
-  "/js/sales.js", "/js/lark.js", "/js/recovery.js", "/js/landing.js", "/js/auth.js", "/js/inspection.js", "/js/app.js"];
+const CACHE = "farmult-v152-ux";
+const SHELL = ["/", "/css/style.css", "/css/landing.css", "/js/data.js", "/js/application-rate.js", "/js/charts.js", "/js/notify.js", "/js/stock.js", "/js/lucide.min.js",
+  "/js/sales.js", "/js/lark.js", "/js/recovery.js", "/js/landing.js", "/js/auth.js", "/js/inspection.js", "/js/app.js", "/js/team.js", "/js/private-photos.js", "/collector", "/css/collector.css", "/js/collector.js"];
 
 self.addEventListener("install", event => {
   event.waitUntil((async () => {
@@ -25,10 +25,18 @@ self.addEventListener("fetch", event => {
   const req = event.request;
   const url = new URL(req.url);
   if (req.method !== "GET" || url.origin !== self.location.origin) return;
-  const navigation = req.mode === "navigate" && ["/", "/index.html"].includes(url.pathname);
+  // Redirect aliases explicitly instead of returning a cached, followed redirect
+  // to a navigation request whose redirect mode is manual.
+  const alias = {"/index.html":"/", "/collector.html":"/collector", "/collector/":"/collector"}[url.pathname];
+  if(req.mode === "navigate" && alias){
+    url.pathname=alias;
+    event.respondWith(Response.redirect(url.href,302));
+    return;
+  }
+  const navigation = req.mode === "navigate" && ["/", "/collector"].includes(url.pathname);
   const asset = SHELL.includes(url.pathname) || /^\/(icons|images)\//.test(url.pathname) || ["/logo.jpg", "/manifest.json"].includes(url.pathname);
   if (!navigation && !asset) return;
-  const key = navigation ? "/" : url.pathname;
+  const key = url.pathname;
   const network = fetch(req).then(async res => {
     if (!res.ok) throw new Error("Network response unavailable");
     try { const cache = await caches.open(CACHE); await cache.put(key, res.clone()); } catch (error) { /* Online response still usable when cache is full. */ }

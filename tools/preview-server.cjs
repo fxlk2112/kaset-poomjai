@@ -43,6 +43,15 @@ if (process.argv.includes('--trials')) {
   }));
 }
 if(process.argv.includes('--demo')) state=require('./demo-state.cjs').buildDemoState(today);
+if(process.argv.includes('--empty')) state={...state,plots:[],cycles:[],tasks:[],stock:[],sales:[],equipment:[],trials:[],water:{sources:[],systems:[],logs:[]}};
+const teamDb=process.argv.includes('--team')?require('./local-d1.cjs').localD1():null;
+const teamPhotos=teamDb?require('./local-r2.cjs').localR2():null;
+const teamReady=teamDb?(async()=>{
+  await teamDb.exec(fs.readFileSync(path.join(root,'worker/schema.sql'),'utf8'));
+  await teamDb.exec(fs.readFileSync(path.join(root,'worker/team.sql'),'utf8'));
+  for(const [id,email,name] of [['preview-owner','preview@example.invalid','ฟาร์มตัวอย่าง'],['preview-member','collector@example.invalid','ผู้บันทึกตัวอย่าง']])await teamDb.prepare('INSERT INTO users(id,email,name,pass_hash,created_at) VALUES(?,?,?,?,?)').bind(id,email,name,'preview-only',Date.now()).run();
+  await teamDb.prepare('INSERT INTO user_data VALUES(?,?,?)').bind('preview-owner',JSON.stringify(state),revision).run();
+})():Promise.resolve();
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.svg':'image/svg+xml','.ico':'image/x-icon'};
 const send=(res,code,type,body)=>{res.writeHead(code,{'Content-Type':type,'Cache-Control':'no-store'});res.end(body);};
 http.createServer(async(req,res)=>{
@@ -65,24 +74,37 @@ http.createServer(async(req,res)=>{
       return send(res,200,types['.js'],bootstrap);
     }
     if(url.pathname==='/__preview/api'&&req.method==='POST'){
+      await teamReady;
       let body='';for await(const chunk of req){body+=chunk;if(body.length>1000000)return send(res,413,types['.json'],'{}');}
       const p=JSON.parse(body);let data={};
+      if(teamDb) {
+        const row=await teamDb.prepare('SELECT data,updated_at FROM user_data WHERE user_id=?').bind('preview-owner').first();state=JSON.parse(row.data);revision=row.updated_at;
+        if(p.action==='login')return send(res,200,types['.json'],JSON.stringify(p.email==='collector@example.invalid' && p.password==='Preview123!'?{ok:true,data:{token:'collector-only',email:p.email,name:'ผู้บันทึกตัวอย่าง'}}:{ok:false,error:'บัญชีพรีวิว: collector@example.invalid / Preview123!'}));
+        if(p.action==='google_config')return send(res,200,types['.json'],JSON.stringify({ok:true,data:{client_id:''}}));
+        if(p.action.startsWith('team_')) {
+          const user=p.token==='preview-only'?{user_id:'preview-owner',email:'preview@example.invalid'}:p.token==='collector-only'?{user_id:'preview-member',email:'collector@example.invalid'}:null;
+          try{if(!user)throw new Error('กรุณาเข้าสู่ระบบพรีวิว');const data=await (await import('../worker/src/team.js')).teamAction({DB:teamDb,PHOTOS:teamPhotos},p,user);return send(res,200,types['.json'],JSON.stringify({ok:true,data}));}
+          catch(e){return send(res,400,types['.json'],JSON.stringify({ok:false,error:e.message}));}
+        }
+      }
+      if(teamDb && ['load','save','me'].includes(p.action) && p.token!=='preview-only')return send(res,403,types['.json'],JSON.stringify({ok:false,error:'ไม่มีสิทธิ์เข้าข้อมูลเจ้าของพรีวิว'}));
       if(p.action==='load')data={data:state,updated_at:revision};
       if(p.action==='save'){
         if(p.base_updated_at!==revision)data={conflict:true};
-        else{state=JSON.parse(p.data);revision++;data={updated_at:revision};}
+        else{state=JSON.parse(p.data);revision++;data={updated_at:revision};if(teamDb)await teamDb.prepare('UPDATE user_data SET data=?,updated_at=? WHERE user_id=?').bind(JSON.stringify(state),revision,'preview-owner').run();}
       }
       if(p.action==='me')data={email:'preview@example.invalid',name:'ฟาร์มตัวอย่าง',admin:false};
       if(p.action==='market_prices')data=(await import('../worker/src/market-data.js')).MARKET_DATA;
       if(p.action==='market_price_history')data={product:p.product,history:{},markets:[]};
       return send(res,200,types['.json'],JSON.stringify({ok:true,data}));
     }
-    const relative=decodeURIComponent(url.pathname==='/'?'/index.html':url.pathname);
+    const relative=decodeURIComponent(url.pathname==='/'?'/index.html':['/collector','/collector/'].includes(url.pathname)?'/collector.html':url.pathname);
     const file=path.resolve(root,'.'+relative);
     if(!file.startsWith(root+path.sep)||relative.split('/').some(part=>part.startsWith('.')||['worker','tests','tools'].includes(part)))return send(res,403,'text/plain','Forbidden');
     let bytes=await fs.promises.readFile(file);
     if(relative==='/index.html')bytes=Buffer.from(bytes.toString().replace('<head>','<head>\n<script src="/__preview/bootstrap.js"></script>'));
     if(relative==='/js/auth.js')bytes=Buffer.from(bytes.toString().replace('"https://farmbackup.carfork123.workers.dev"','"/__preview/api"'));
+    if(relative==='/js/collector.js')bytes=Buffer.from(bytes.toString().replace("'https://farmbackup.carfork123.workers.dev'","'/__preview/api'"));
     send(res,200,types[path.extname(file)]||'application/octet-stream',bytes);
   }catch(error){send(res,404,'text/plain','Not found');}
 }).listen(port,'127.0.0.1',()=>console.log(`Preview with isolated sample data: http://127.0.0.1:${port}/`));
