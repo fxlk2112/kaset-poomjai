@@ -361,7 +361,7 @@ function larkSerializeState() {
   push("equipment", S.equipment);
   /* ข้อมูลระบบที่ไม่ใช่รายการ (คำที่แก้ หมวดต้นทุน เมนู ลำดับหน้าแรก โหมด) */
   const misc = {};
-  ["texts", "customCostCats", "customMenus", "homeOrder", "role", "version", "stockReplacedV1"].forEach(k => {
+  ["texts", "customCostCats", "customMenus", "homeOrder", "role", "version", "stockReplacedV1", "saleSequence"].forEach(k => {
     if (S[k] !== undefined) misc[k] = S[k];
   });
   out.push({ type: "state", id: "state", json: JSON.stringify(misc), updated_at: Date.now() });
