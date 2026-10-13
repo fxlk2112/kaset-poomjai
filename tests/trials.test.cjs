@@ -25,6 +25,29 @@ function observation(id,unitId,date,value,extra={}) {
   return {id,unitId,date,value,metricId:'m1',metric:'Height',unit:'cm',updatedAt:1,...extra};
 }
 
+test('excluded trial values point to their exact reason without changing raw observations',()=>{
+  const {tr,run}=setup();
+  tr.observations=[observation('units','u1','2026-09-01',12,{unit:'mm'}),observation('future','u2','2026-10-01',12),observation('orphan','removed','2026-09-02',12),observation('good','u3','2026-09-01',0)];
+  const before=copy(tr),data=copy(run('trialComparisonData(S.trials[0])'));
+  assert.equal(data.excluded,3);assert.equal(data.count,1);
+  assert.match(data.issues.find(x=>x.obs.id==='units').reason,/mm.*cm/);
+  assert.match(data.issues.find(x=>x.obs.id==='future').reason,/อนาคต/);
+  assert.match(data.issues.find(x=>x.obs.id==='orphan').reason,/ไม่พบแปลงย่อย/);
+  const html=run('trialIssuesHtml(S.trials[0],trialComparisonData(S.trials[0]).issues)');
+  assert.match(html,/ตรวจแก้/);assert.match(html,/&quot;orphan&quot;/);
+  assert.deepEqual(tr,before);
+});
+
+test('editing invalid units reveals a warning and requires explicit selection for an orphan',()=>{
+  const {c,tr,run}=setup();let html='';c.openModal=value=>{html=value;};c.renderTrialPhotoPreview=()=>{};
+  tr.observations=[observation('bad','removed','2026-09-01',5,{unit:'mm'})];
+  run("App.modalTrialObs('trial','removed','bad')");
+  assert.match(html,/เลือกแปลงที่วัดจริง/);
+  assert.match(html,/option value="" selected/);
+  assert.match(html,/id="tro_unitlabel" type="hidden" value="cm"/);
+  assert.match(html,/หน่วยที่บันทึกใหม่จะเป็น cm/);
+});
+
 test('count metrics reject negative and fractional samples without mutating the trial',()=>{
   const {tr,run}=setup();tr.collectionMode='sampling';tr.sampleCount=3;
   tr.metrics[0]={id:'m1',name:'จำนวนที่นับพบ',unit:'ตัว/จุด'};
@@ -169,8 +192,114 @@ test('CSV preserves Thai and quotes, and neutralizes spreadsheet formulas',()=>{
 });
 test('recording workspace hides setup, destructive actions, and empty charts',()=>{
   const {run}=setup(); const html=run('renderTrialDetail(S.trials[0])');
-  assert.ok(html.includes('กรอกหลายแปลง')); assert.ok(html.includes('role="tabpanel"'));
+  assert.ok(html.includes('กรอกค่าวัด')); assert.ok(html.includes('role="tabpanel"'));
   assert.ok(!html.includes('สุ่มผังใหม่')); assert.ok(!html.includes('ลบงานทดลอง')); assert.ok(!html.includes('data-trial-mean'));
+});
+
+test('recording metric switch preserves a backdated collection day',()=>{
+  const {run}=setup();
+  run("route.trialSection='record';route.trialDate='2026-09-01';App.setTrialMetric('m2')");
+  assert.equal(run('route.trialDate'),'2026-09-01');
+  assert.equal(run('route.trialMetricId'),'m2');
+  run("route.trialSection='compare';App.setTrialMetric('m1')");
+  assert.equal(run('route.trialDate'),'');
+});
+
+test('browser navigation shortcuts do not switch trial tabs',()=>{
+  const {c,run}=setup();c.event={key:'Home',ctrlKey:true,preventDefault(){throw new Error('Browser shortcut was intercepted');}};
+  run("route.trialSection='history';App.trialTabKey(event,'history')");
+  assert.equal(run('route.trialSection'),'history');
+});
+
+test('trial chart uses recorded dates and Thai years, while retaining genuine negative values',()=>{
+  const {tr,run}=setup();tr.observations=[observation('a','u1','2026-09-01',0)];
+  assert.equal(run('trialChartOptions(trialComparisonData(S.trials[0])).recordDateTicks'),true);
+  assert.equal(run("trialChartOptions(trialComparisonData(S.trials[0])).dateLabel('2026-09-01')"),'01/09/69');
+  assert.equal(run('trialChartOptions(trialComparisonData(S.trials[0])).minValue'),0);
+  tr.observations[0].value=-2;
+  assert.equal(run('trialChartOptions(trialComparisonData(S.trials[0])).minValue'),undefined);
+});
+
+test('new experiments require an explicit collection mode; existing sampling and replicated modes stay selected',()=>{
+  const {tr,run}=setup();
+  assert.ok(run('trialSamplingSetupHtml(null)').includes('value="" selected'));
+  assert.ok(run('trialSamplingSetupHtml(S.trials[0])').includes('value="replicated" selected'));
+  tr.collectionMode='sampling';
+  assert.ok(run('trialSamplingSetupHtml(S.trials[0])').includes('value="sampling" selected'));
+});
+
+test('sampling metric selector reports collected points rather than claiming every area is complete',()=>{
+  const {tr,run}=setup();tr.collectionMode='sampling';tr.sampleCount=3;
+  tr.observations=[observation('a','u1','2026-09-07',1,{samples:[0,2,null]})];
+  run("route.trialSection='record'");
+  const html=run("trialWorkspaceFilters(S.trials[0],'2026-09-07')");
+  assert.ok(html.includes('2/12 จุดสุ่ม'));
+  assert.ok(html.includes('0/12 จุดสุ่ม'));
+  assert.ok(!html.includes('1/4 แปลง'));
+});
+
+test('metric presets fill empty fields but never overwrite or duplicate an existing metric',()=>{
+  const {c,run}=setup();
+  const controls={'[data-trm-name]':{value:'',focus(){}},'[data-trm-unit]':{value:''},'[data-trm-kind]':{value:'auto'}};
+  let appends=0;
+  const row={querySelector:key=>controls[key]};
+  c.document.getElementById=()=>({querySelectorAll:()=>[row],insertAdjacentHTML(){appends++;}});
+  c.labelFormFields=()=>{};
+  run('App.addTrialMetricPreset(2)');
+  assert.equal(controls['[data-trm-name]'].value,'จำนวนแมลง');
+  assert.equal(controls['[data-trm-unit]'].value,'ตัว');
+  assert.equal(controls['[data-trm-kind]'].value,'count');
+  controls['[data-trm-unit]'].value='ตัว/ต้น';
+  run('App.addTrialMetricPreset(2)');
+  assert.equal(controls['[data-trm-unit]'].value,'ตัว/ต้น');
+  assert.equal(appends,0);
+  run('App.addTrialMetricPreset(0)');
+  assert.equal(appends,1);
+  assert.equal(controls['[data-trm-name]'].value,'จำนวนแมลง');
+});
+
+test('history groups by date without losing any metric, note, zero or invalid raw row',()=>{
+  const {tr,run}=setup();
+  tr.observations=[observation('a','u1','2026-09-01',0,{note:'Retain me'}),observation('b','u2','2026-09-01',3),observation('bad','u1','2026-09-02',9,{unit:'wrong'}),observation('c','u1','2026-09-02',4,{metricId:'m2',metric:'Disease',unit:'score'})];
+  const before=copy(tr), html=run('trialTimelineHtml(S.trials[0],true)');
+  assert.equal((html.match(/class="trial-history-day"/g)||[]).length,2);
+  assert.equal((html.match(/class="trial-time-row"/g)||[]).length,4);
+  assert.ok(html.indexOf('2026-09-02')<html.indexOf('2026-09-01'));
+  for(const value of ['Retain me','0 cm','wrong','Disease']) assert.ok(html.includes(value));
+  assert.deepEqual(tr,before);
+});
+
+test('compact record sheet counts only valid values and keeps invalid entries editable',()=>{
+  const {tr,run}=setup();
+  tr.observations=[observation('a','u1','2026-09-07',0),observation('b','u2','2026-09-07',5,{unit:'wrong'})];
+  run("route.trialSection='record'");
+  const html=run("trialRecordPanel(S.trials[0],'2026-09-07')");
+  assert.ok(html.includes('วัดแล้ว 1/4 แปลง'));
+  assert.ok(html.includes('ค่าวัดที่ยังใช้เปรียบเทียบไม่ได้ 1 รายการ'));
+  assert.ok(html.includes('หน่วยเดิม wrong ไม่ตรงกับ cm'));
+  assert.ok(html.includes('wrong')); assert.ok(html.includes("App.modalTrialObs('trial','u2','b')"));
+  assert.ok(!html.includes('trial-record-grid'));
+  assert.ok(!html.includes('trial-history-day'));
+});
+
+test('detailed statistics are folded while multi-date chart and matrix remain present',()=>{
+  const {tr,run}=setup();
+  tr.observations=[observation('a','u1','2026-09-01',10),observation('b','u1','2026-09-02',12)];
+  const html=run('trialComparePanel(S.trials[0])');
+  assert.match(html,/data-trial-series/); assert.match(html,/trial-matrix/);
+  assert.match(html,/<details class="trial-disclosure trial-statistics-disclosure"\s+ontoggle/);
+  run('route.trialStatisticsOpen=true');
+  assert.match(run('trialComparePanel(S.trials[0])'),/trial-statistics-disclosure" open/);
+});
+
+test('sampling form labels physical points and uses integer inputs for counts',()=>{
+  const {tr,run}=setup();tr.collectionMode='sampling';tr.sampleCount=3;
+  tr.metrics[0]={id:'m1',name:'จำนวนแมลง',unit:'ตัว',valueKind:'count'};
+  Object.assign(tr.units[0],{physicalPlot:'แปลง 1',sectionName:'ครึ่งซ้าย'});
+  const html=run("trialSampleFields(S.trials[0],null,'u1')");
+  assert.equal((html.match(/data-sample-value/g)||[]).length,3);
+  assert.equal((html.match(/step="1" min="0"/g)||[]).length,3);
+  assert.ok(html.includes('แปลง 1 · ครึ่งซ้าย จุด 1'));
 });
 test('comparison is neutral, shows missing measurements and escapes trial content',()=>{
   const {tr,run}=setup(); tr.name='<script>'; tr.observations=[observation('a','u1','2026-09-07',10)];
@@ -198,7 +327,7 @@ test('comparison excludes mixed legacy units without silently converting them',(
   const {tr,run}=setup(); tr.observations=[observation('a','u1','2026-09-07',1,{unit:'m'}),observation('b','u3','2026-09-07',110)];
   run("route.trialSection='compare'");
   assert.equal(run('trialMeanChartItems(S.trials[0])[0].value'),110);
-  assert.ok(run('trialComparePanel(S.trials[0],"2026-09-07")').includes('หน่วยไม่ตรงกัน'));
+  assert.ok(run('trialComparePanel(S.trials[0],"2026-09-07")').includes('หน่วยเดิม'));
 });
 function formHarness() {
   const h=setup(), fields={tr_name:'Updated',tr_plot:'p',tr_plot_name:'',tr_rep:'2',tr_layout_mode:'random',tr_start:'2026-08-01',tr_end:'',tr_objective:'',tr_type:'screening',tr_crop:'Corn',tr_spray_method:'',tr_water_rate:'',tr_mix_volume:'',tr_note:'',tr_status:'active'};
@@ -238,7 +367,7 @@ test('sampling accepts missing points and zero, averages within area and never i
   assert.ok(run('trialComparePanel(sampleTrial)').includes('จุดสุ่ม 2/3'));
   c.route.trialMissingOnly=true;
   const record=c.trialRecordPanel(tr,'2026-09-07');
-  assert.ok(record.includes('2/15 จุดสุ่ม')); assert.ok(record.includes('ยังเก็บจุดไม่ครบ (5)')); assert.ok(record.includes('เฉลี่ย'));
+  assert.ok(record.includes('2/15 จุดสุ่ม')); assert.ok(record.includes('เฉพาะแปลงที่ยังต้องกรอกหรือแก้ (5)')); assert.ok(record.includes('เฉลี่ย'));
 });
 
 test('sampling preserves changed raw points even when their mean is unchanged',()=>{

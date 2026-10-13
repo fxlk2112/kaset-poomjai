@@ -1,6 +1,6 @@
 // Shared by the collector, owner views and Worker; never converts stock packages.
 const ApplicationRate = (() => {
-  const units = {ml:'มล. (ซีซี)',l:'ลิตร',g:'กรัม',kg:'กก.'};
+  const units = {ml:'ซีซี (มล.)',l:'ลิตร',g:'กรัม',kg:'กก.'};
   const bases = {water:'น้ำ (ลิตร)',area:'พื้นที่ (ไร่)'};
   const blank = v => v === undefined || v === null || (typeof v === 'string' && !v.trim());
   function positive(v,label) {

@@ -14,7 +14,7 @@ jobs:
       - name: Assemble site-only directory
         run: |
           mkdir -p "${{ runner.temp }}/site-stage"
-          cp -r index.html collector.html sw.js manifest.json logo.jpg css js icons images "${{ runner.temp }}/site-stage/"
+          cp -r index.html collector.html guide.html sw.js manifest.json logo.jpg css js icons images "${{ runner.temp }}/site-stage/"
           [ -f _redirects ] && cp _redirects "${{ runner.temp }}/site-stage/" || true
 
       - name: Deploy to Cloudflare Pages

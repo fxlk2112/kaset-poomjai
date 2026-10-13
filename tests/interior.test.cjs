@@ -321,6 +321,21 @@ test('open units are consumed before opening another sealed unit',()=>{
   c.c.plan(0.5,{status:'done'});
   assert.equal(c.state.stock[0].qty,10);assert.equal(c.state.stock[0].openQty,0.3);
 });
+test('new package mode reserves and cuts whole sealed packages without creating opened leftovers',()=>{
+  const c=inventoryClient();
+  c.c.plan(1.2,{status:'done',costItems:[{stockId:'s',qty:1.2,stockMode:'package',category:'fertilizer'}]});
+  assert.equal(c.state.stock[0].qty,8);assert.equal(c.state.stock[0].openQty,0);
+  assert.equal(c.state.tasks[0].cost,1500);assert.equal(c.state.tasks[0].stockLog[0].mainWithdrawn,2);
+  c.run('restockTask(S,S.tasks[0]);');assert.equal(c.state.stock[0].qty,10);assert.equal(c.state.stock[0].openQty,0);
+});
+test('open and record modes never fall through to sealed stock',()=>{
+  const c=inventoryClient();c.state.stock[0].openQty=.8;
+  c.c.plan(.5,{status:'done',costItems:[{stockId:'s',qty:.5,stockMode:'open',category:'fertilizer'}]});
+  assert.equal(c.state.stock[0].qty,10);assert.equal(c.state.stock[0].openQty,.3);
+  c.c.plan(.5,{status:'done',costItems:[{stockId:'s',qty:.5,stockMode:'record',category:'fertilizer'}]});
+  assert.equal(c.state.stock[0].qty,10);assert.equal(c.state.stock[0].openQty,.3);
+  assert.equal(c.state.tasks[1].stockState,'untracked');assert.equal(c.state.tasks[1].cost,375);
+});
 test('cancelling or deleting a reserved task never creates physical stock',()=>{
   const c=inventoryClient();c.c.plan(2);
   c.run('S.tasks[0].status="failed"; restockTask(S,S.tasks[0]);');
@@ -721,7 +736,7 @@ test('planner counts follow plot, cycle, type and search filters and reset toget
     {id:'c',title:'Water north',date:todayISO(),plotId:'p1',cycleId:'c1',type:'water',status:'planned'}
   ];App.setPlannerSearch('plot','p1');App.setPlannerSearch('type','inspect');App.setPlannerSearch('query','north');App.setPlannerSearch('cycle','c1');`);
   assert.equal(c.run('S.tasks.filter(plannerMatches).length'),1);
-  assert.match(c.run('renderPlanner()'),/เสร็จแล้ว<\/span><b>1<\/b>/);
+  assert.match(c.run('renderPlanner()'),/ประวัติ<\/span><b>1<\/b>/);
   c.run('App.setPlannerSearch("plot","p2")');assert.equal(c.run('plannerSearch.cycle'),'');
   c.run('App.clearPlannerSearch()');assert.equal(c.run('S.tasks.filter(plannerMatches).length'),3);
 });

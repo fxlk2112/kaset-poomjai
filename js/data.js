@@ -81,8 +81,8 @@ const STOCK_CATS = [
 /* หน่วยนับสต็อก (แนะนำในฟอร์ม — พิมพ์เองได้ด้วย) */
 const STOCK_UNITS = ["กก", "กล่อง", "ขวด", "แกลลอน", "ถุง", "ถัง", "กระปุก", "กระสอบ", "ซอง", "ชุด", "กรัม"];
 /* ---- การแปลงหน่วยสำหรับคำนวณการใช้ตามพื้นที่ (เช่น ฉีดยา 4 ไร่ × 100 ซีซี/ไร่) ---- */
-const VOLUME_UNITS = { "ซีซี": 1, "มล": 1, "มิลลิลิตร": 1, "ลิตร": 1000 }; // แปลงเป็น ซีซี
-const MASS_UNITS = { "กรัม": 1, "กก": 1000, "กิโลกรัม": 1000 }; // แปลงเป็น กรัม
+const VOLUME_UNITS = { "ซีซี": 1, "มล": 1, "มิลลิลิตร": 1, "ลิตร": 1000, cc: 1, ml: 1, l: 1000 }; // แปลงเป็น ซีซี
+const MASS_UNITS = { "กรัม": 1, "กก": 1000, "กิโลกรัม": 1000, g: 1, kg: 1000 }; // แปลงเป็น กรัม
 /* แยก "ขนาดสินค้า" เช่น "1,000 ซีซี" -> { amount: 1000, unit: "ซีซี" } (หน่วยตัดจุดท้ายออก) */
 function parseStockSize(size) {
   if (!size) return null;
@@ -94,14 +94,14 @@ function parseStockSize(size) {
 }
 function sizeFamily(unit) {
   if (!unit) return null;
-  const u = String(unit).trim().replace(/\.+$/, "");
+  const u = String(unit).trim().toLowerCase().replace(/\.+$/, "");
   if (u in VOLUME_UNITS) return "volume";
   if (u in MASS_UNITS) return "mass";
   return null;
 }
 function unitToBase(unit) {
   if (!unit) return 1;
-  const u = String(unit).trim().replace(/\.+$/, "");
+  const u = String(unit).trim().toLowerCase().replace(/\.+$/, "");
   return VOLUME_UNITS[u] || MASS_UNITS[u] || 1;
 }
 function stockImportKey(x) {
@@ -982,9 +982,9 @@ function plotChemUse(s, year) {
       items.forEach(ci => {
         row.cost += Number(ci.totalCost) || 0;
         const nm = ci.name || (ci.stockId ? (stockById(s, ci.stockId) || {}).name : "") || "อื่นๆ";
-        const unit = ci.unit || (stockById(s,ci.stockId) || {}).unit || 'ไม่ระบุหน่วย';
+        const unit = ci.usageUnit || ci.unit || (stockById(s,ci.stockId) || {}).unit || 'ไม่ระบุหน่วย';
         const key = JSON.stringify([nm,unit]);
-        row.items[key] = (row.items[key] || 0) + (Number(ci.qty) || 0);
+        row.items[key] = (row.items[key] || 0) + (Number(ci.usageUnit ? ci.usageQty : ci.qty) || 0);
       });
     } else {
       /* งานเดียวแบบเก่า: ใช้ t.cost + t.stockId/t.qty */
@@ -1007,45 +1007,118 @@ function plotChemUse(s, year) {
 }
 
 /* ---------- mutations ---------- */
+/* New activities choose their stock action explicitly.  Older records retain the
+   former tracked behaviour so their reservation and history never change. */
+function taskStockMode(ci) {
+  return ["package", "open", "record", "content"].includes(ci?.stockMode) ? ci.stockMode : "tracked";
+}
+function taskStockPhysicalQty(ci) {
+  const qty = Math.max(0, Number(ci?.qty) || 0);
+  return taskStockMode(ci) === "package" ? Math.ceil(qty) : qty;
+}
+function taskStockChargeQty(ci) {
+  return taskStockMode(ci) === "package" && !ci?.usageUnit ? taskStockPhysicalQty(ci) : Math.max(0, Number(ci?.qty) || 0);
+}
+function externalPackageSizeInUsageUnit(ci) {
+  const amount = Number(ci.externalPackQty);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  const unit = String(ci.unit || "").trim();
+  // Older records stored package size in the usage unit without a separate unit.
+  const packUnit = String(ci.externalPackUnit || unit).trim();
+  const family = sizeFamily(unit);
+  if (family && family === sizeFamily(packUnit)) return amount * unitToBase(packUnit) / unitToBase(unit);
+  return unit && unit.toLowerCase() === packUnit.toLowerCase() ? amount : null;
+}
+function externalMaterialCost(ci) {
+  if (ci.stockId) return null;
+  const positive = value => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
+  if (ci.externalPriceMode === "total") return Math.round(positive(ci.externalTotal) * 100) / 100;
+  if (ci.externalPriceMode === "package") {
+    const size = externalPackageSizeInUsageUnit(ci);
+    return size ? Math.round(positive(ci.qty) / size * positive(ci.externalPackPrice) * 100) / 100 : 0;
+  }
+  return null;
+}
+function taskMaterialCost(ci, stock) {
+  if (ci.areaAllocation && ci.areaAllocation.key === taskAllocationCostKey(ci)) return ci.areaAllocation.cost;
+  const external = externalMaterialCost(ci);
+  if (external !== null) return external;
+  const scale = ci.usageUnit || (!ci.stockId && ci.externalPriceMode) ? 100 : 1;
+  const price = ci.unitCost != null && Number.isFinite(Number(ci.unitCost)) ? Number(ci.unitCost) : Number(stock?.avgCost) || 0;
+  const qty = ci.stockId ? taskStockChargeQty(ci) : Math.max(0, Number(ci.qty) || 0);
+  return Math.round(qty * price * scale) / scale;
+}
 function taskStockItems(t) {
   return (t.costItems?.length ? t.costItems : (t.stockId ? [{ stockId: t.stockId, qty: t.qty }] : []))
-    .filter(ci => ci.stockId && Number(ci.qty) > 0);
+    .filter(ci => ci.stockId && Number(ci.qty) > 0 && taskStockMode(ci) !== "record");
 }
 function hasTaskStockUse(t) {
   if (!t) return false;
   // Old versions withdrew stock as soon as a task was planned. Preserve that history.
   return !!t.stockLog?.length || t.stockState === "consumed" || (!t.stockState && taskStockItems(t).length > 0);
 }
+function stockReservationBreakdown(s, id, exceptTaskId) {
+  const out = { package: 0, open: 0, tracked: 0, content: 0 };
+  (s.tasks || []).filter(t => t.id !== exceptTaskId && t.status === "planned" && t.stockState === "reserved").forEach(t => {
+    taskStockItems(t).filter(ci => ci.stockId === id).forEach(ci => {
+      const mode = taskStockMode(ci);
+      out[mode] = rndQty((out[mode] || 0) + taskStockPhysicalQty(ci));
+    });
+  });
+  return out;
+}
+function stockCapacity(s, id, exceptTaskId) {
+  const x = stockById(s, id);
+  if (!x) return { sealed: 0, open: 0, total: 0 };
+  const reserved = stockReservationBreakdown(s, id, exceptTaskId);
+  let open = Math.max(0, Number(x.openQty) || 0);
+  let sealed = Math.max(0, Math.floor(Number(x.qty) || 0));
+  open = Math.max(0, open - reserved.open);
+  sealed = Math.max(0, sealed - reserved.package);
+  // Legacy and measured-content reservations can use an opened package first,
+  // then reserve one sealed package when that opened balance is insufficient.
+  const flexible = reserved.tracked + reserved.content;
+  const flexibleFromOpen = Math.min(open, flexible);
+  open = rndQty(open - flexibleFromOpen);
+  sealed = Math.max(0, sealed - Math.ceil(Math.max(0, flexible - flexibleFromOpen)));
+  const total = Math.max(0, (Number(x.qty) || 0) + (Number(x.openQty) || 0) - reserved.package - reserved.open - reserved.tracked - reserved.content);
+  return { sealed, open, total: rndQty(total) };
+}
 function stockReserved(s, id, exceptTaskId) {
-  return rndQty((s.tasks || []).filter(t => t.id !== exceptTaskId && t.status === "planned" && t.stockState === "reserved")
-    .reduce((n, t) => n + taskStockItems(t).filter(ci => ci.stockId === id).reduce((a, ci) => a + Number(ci.qty), 0), 0));
+  const r = stockReservationBreakdown(s, id, exceptTaskId);
+  return rndQty(r.package + r.open + r.tracked + r.content);
 }
-function stockAvailable(s, id, exceptTaskId) {
-  const x = stockById(s, id);
-  return x ? rndQty(Math.max(0, Number(x.qty) + (Number(x.openQty) || 0) - stockReserved(s, id, exceptTaskId))) : 0;
-}
-function stockSealedAvailable(s, id) {
-  const x = stockById(s, id);
-  return x ? Math.max(0, Math.floor(Number(x.qty) - Math.ceil(Math.max(0, stockReserved(s, id) - (Number(x.openQty) || 0))))) : 0;
+function stockAvailable(s, id, exceptTaskId) { return stockCapacity(s, id, exceptTaskId).total; }
+function stockSealedAvailable(s, id, exceptTaskId) { return stockCapacity(s, id, exceptTaskId).sealed; }
+function stockAvailableForMode(s, id, mode, exceptTaskId) {
+  const cap = stockCapacity(s, id, exceptTaskId);
+  return mode === "package" ? cap.sealed : mode === "open" ? cap.open : cap.total;
 }
 function validateTaskStock(s, t) {
   const needs = new Map();
-  taskStockItems(t).forEach(ci => needs.set(ci.stockId, rndQty((needs.get(ci.stockId) || 0) + Number(ci.qty))));
-  needs.forEach((qty, id) => {
+  taskStockItems(t).forEach(ci => {
+    if (!needs.has(ci.stockId)) needs.set(ci.stockId, { package: 0, open: 0, tracked: 0, content: 0 });
+    const byMode = needs.get(ci.stockId), mode = taskStockMode(ci);
+    byMode[mode] = rndQty(byMode[mode] + taskStockPhysicalQty(ci));
+  });
+  needs.forEach((need, id) => {
     const x = stockById(s, id);
     if (!x) throw new Error("ไม่พบสินค้าในสต็อก กรุณาเลือกรายการใหม่");
-    const avail = stockAvailable(s, id, t.id);
-    if (qty > avail) throw new Error(`${x.name} พร้อมใช้ ${avail} ${x.unit || ""} หลังหักยอดจอง`);
+    const cap = stockCapacity(s, id, t.id);
+    if (need.package > cap.sealed) throw new Error(`${x.name} ตัดจากขวด/ถุงได้ ${cap.sealed} ${x.unit || ""} หลังหักยอดจอง`);
+    if (need.open > cap.open) throw new Error(`${x.name} ใช้ยอดที่เปิดแล้วได้ ${cap.open} ${x.unit || ""} หลังหักยอดจอง`);
+    if (need.tracked > cap.total) throw new Error(`${x.name} พร้อมใช้ ${cap.total} ${x.unit || ""} หลังหักยอดจอง`);
+    if (need.content > cap.total) throw new Error(`${x.name} พร้อมใช้ ${cap.total} ${x.unit || ""} หลังหักยอดจอง`);
   });
 }
 function prepareTaskStock(s, t) {
   if (hasTaskStockUse(t)) return;
   if (t.status !== "failed") validateTaskStock(s, t);
-  t.stockState = "reserved";
+  t.stockState = taskStockItems(t).length ? "reserved" : (t.costItems?.some(ci => ci.stockId && Number(ci.qty) > 0 && taskStockMode(ci) === "record") ? "untracked" : "reserved");
   t.stockLog = [];
   if (t.costItems?.length) {
     t.costItems.forEach(ci => {
-      if (ci.totalCost == null) ci.totalCost = Math.round(Number(ci.qty) * (Number(ci.unitCost) || stockById(s, ci.stockId)?.avgCost || 0));
+      if (ci.totalCost == null || ["package", "content"].includes(taskStockMode(ci))) ci.totalCost = taskMaterialCost(ci, stockById(s, ci.stockId));
     });
     t.cost = t.costItems.reduce((n, ci) => n + (Number(ci.totalCost) || 0), 0);
   }
@@ -1105,10 +1178,80 @@ function addTask(s, t) {
   closeCycleForTask(s, t);
   return t;
 }
-/* ตัดสต็อกอัตโนมัติเมื่อใช้ของ (รองรับหลายรายการ costItems)
-   หลักการ: ใช้ของที่เบิกมาเปิดแล้ว (openQty) ก่อน แล้วเบิกจากสต็อกหลักปัดขึ้นเป็นหน่วยเต็ม
-   เช่น ใช้ 3.5 ถุง, openQty=0 → เบิก 4 ถุงจากหลัก, ใช้ 3.5 → เศษ 0.5 เข้า openQty
-   เก็บ log (stockLog) ไว้ในงาน เพื่อให้คืนสต็อกได้แม่นยำเมื่อแก้ไข/ลบงาน */
+function taskAllocationCostKey(ci) {
+  return JSON.stringify([ci.stockId || null, taskStockMode(ci), Number(ci.qty)||0, ci.unit||'', Number(ci.usageQty)||0, ci.usageUnit, ci.packageSize, Number(ci.unitCost)||0,
+    ci.externalPriceMode, Number(ci.externalPackQty)||0, ci.externalPackUnit, Number(ci.externalPackPrice)||0, Number(ci.externalTotal)||0]);
+}
+function taskPlotAllocations(s, data, selections) {
+  if (!['spray', 'fertilize'].includes(data.type)) throw new Error('เลือกหลายแปลงได้สำหรับฉีดยาและใส่ปุ๋ย');
+  if (!Array.isArray(selections) || selections.length < 2) throw new Error('เลือกอย่างน้อย 2 แปลง');
+  const seen = new Set();
+  selections.forEach(row => {
+    const plot = plotById(s, row.plotId), cycle = cycleById(s, row.cycleId);
+    if (!plot || seen.has(row.plotId)) throw new Error('แปลงที่เลือกไม่ถูกต้องหรือซ้ำกัน');
+    seen.add(row.plotId);
+    if (!Number.isFinite(Number(row.areaRai)) || Number(row.areaRai) <= 0) throw new Error('ระบุพื้นที่ทำจริงของทุกแปลงให้มากกว่า 0 ไร่');
+    if (Number(plot.sizeRai) > 0 && Number(row.areaRai) > Number(plot.sizeRai)) throw new Error('พื้นที่ทำจริงต้องไม่เกินขนาดแปลง ' + plot.name);
+    if (row.cycleId !== '__none__' && (!cycle || cycle.plotId !== row.plotId || cycle.status !== 'active')) throw new Error('เลือกรอบปลูกที่ใช้งานอยู่ของทุกแปลง หรือเลือกต้นทุนรวมแปลง');
+  });
+  if (data.revenue || data.harvestQty || data.finishCycle) throw new Error('การเก็บเกี่ยวต้องบันทึกแยกแปลง');
+  const items = data.costItems || [];
+  if (items.some(ci => ci.stockId && Number(ci.qty) > 0 && taskStockMode(ci) === 'package')) {
+    throw new Error('หลายแปลง: เลือกใช้บางส่วน · เก็บที่เหลือ หรือใช้ของเปิดแล้ว แทนเบิกเต็มขวด/ถุง');
+  }
+  const area = selections.reduce((n, row) => n + Number(row.areaRai), 0);
+  if (!Number.isFinite(area)) throw new Error('พื้นที่รวมไม่ถูกต้อง');
+  // Allocate cumulative totals, so rounding cannot multiply quantities or lose cents.
+  const split = (value, digits) => {
+    const scale = 10 ** digits, total = Math.round((Number(value) || 0) * scale);
+    let cumulative = 0, previous = 0;
+    return selections.map((row, i) => {
+      cumulative += Number(row.areaRai);
+      const next = i === selections.length - 1 ? total : Math.round(total * cumulative / area);
+      const amount = (next - previous) / scale; previous = next; return amount;
+    });
+  };
+  const parts = items.map(ci => ({qty: split(ci.qty, ci.stockId ? 4 : 8), usage: split(ci.usageQty, 8),
+    cost: split(ci.totalCost == null ? taskMaterialCost(ci, stockById(s, ci.stockId)) : ci.totalCost, 2)}));
+  return selections.map((row, i) => {
+    const task = JSON.parse(JSON.stringify(data));
+    task.scope = 'plot'; task.plotId = row.plotId; task.cycleId = row.cycleId === '__none__' ? null : row.cycleId;
+    task.materialAreaRai = Number(row.areaRai);
+    task.costItems = items.map((ci, j) => {
+      const item = JSON.parse(JSON.stringify(ci)), part = parts[j];
+      if (ci.stockId && Number(ci.qty) > 0 && part.qty[i] <= 0) throw new Error('ปริมาณยาน้อยเกินกว่าจะแบ่งตามพื้นที่ได้ กรุณาบันทึกแยกแปลง');
+      item.qty = part.qty[i];
+      if (ci.usageUnit) item.usageQty = part.usage[i];
+      delete item.calcArea; delete item.calcRate;
+      item.totalCost = part.cost[i];
+      if (item.externalPriceMode === 'total') item.externalTotal = part.cost[i];
+      item.areaAllocation = {key: taskAllocationCostKey(item), cost: part.cost[i]};
+      return item;
+    });
+    task.cost = task.costItems.reduce((n, ci) => n + ci.totalCost, 0);
+    const first = task.costItems.find(ci => ci.stockId) || task.costItems[0];
+    task.stockId = first?.stockId || null; task.qty = first?.qty || 0; task.unit = first?.unit || '';
+    return task;
+  });
+}
+function addTasksForPlots(s, data, selections) {
+  const batchId = uid(), tasks = taskPlotAllocations(s, data, selections);
+  if (data.status !== 'failed') {
+    const needs = new Map();
+    taskStockItems(data).forEach(ci => needs.set(ci.stockId, rndQty((needs.get(ci.stockId) || 0) + Number(ci.qty))));
+    needs.forEach((qty, id) => {
+      if (qty > stockCapacity(s, id).total) throw new Error((stockById(s, id)?.name || 'สินค้า') + ' พร้อมใช้ไม่พอสำหรับยอดรวมทุกแปลง');
+    });
+  }
+  const staged = {...s, stock: s.stock.map(x => ({...x})), tasks: s.tasks.slice()};
+  const created = tasks.map(task => addTask(staged, {...task, batchId}));
+  // Publish only after every plot and combined inventory requirement succeeds.
+  staged.stock.forEach(item => Object.assign(stockById(s, item.id), item));
+  s.tasks.push(...created);
+  return created;
+}
+/* Cut stock only by the action recorded on each new cost item.  "tracked" is
+   retained solely for activities saved before the explicit action existed. */
 function applyStockUse(s, t) {
   if (hasTaskStockUse(t)) return;
   validateTaskStock(s, t);
@@ -1116,38 +1259,47 @@ function applyStockUse(s, t) {
     let total = 0;
     t.stockLog = [];
     t.costItems.forEach(ci => {
-      if (ci.stockId && ci.qty > 0) {
+      if (ci.stockId && ci.qty > 0 && taskStockMode(ci) !== "record") {
         const item = stockById(s, ci.stockId);
         if (item) {
-          let need = rndQty(ci.qty);
+          const mode = taskStockMode(ci);
+          const usedQty = rndQty(ci.qty);
           item.openQty = rndQty(item.openQty);
           const beforeMain = item.qty, beforeOpen = item.openQty;
-          // 1) ใช้ของที่เปิดใช้แล้วก่อน
-          const fromOpen = Math.min(item.openQty, need);
-          item.openQty = rndQty(item.openQty - fromOpen);
-          need = rndQty(need - fromOpen);
-          // 2) เบิกจากสต็อกหลักเป็นหน่วยเต็ม (ปัดขึ้น)
-          let openAdded = 0;
-          if (need > 0) {
-            const withdraw = Math.min(Number(item.qty), Math.ceil(need));
+          let withdraw = 0, fromOpen = 0, openAdded = 0;
+          if (mode === "package") {
+            withdraw = Math.min(Number(item.qty), Math.ceil(usedQty));
             item.qty = Math.max(0, item.qty - withdraw);
-            // เศษที่เบิกเกิน (เช่น 4-3.5=0.5) เก็บเป็นของที่เปิดใช้แล้ว
-            openAdded = rndQty(Math.max(0, withdraw - need));
-            item.openQty = rndQty(item.openQty + openAdded);
+          } else if (mode === "open") {
+            fromOpen = Math.min(item.openQty, usedQty);
+            item.openQty = rndQty(item.openQty - fromOpen);
+          } else {
+            // Historical behaviour: use open balance first, then create a remainder.
+            let need = usedQty;
+            fromOpen = Math.min(item.openQty, need);
+            item.openQty = rndQty(item.openQty - fromOpen);
+            need = rndQty(need - fromOpen);
+            if (need > 0) {
+              withdraw = Math.min(Number(item.qty), Math.ceil(need));
+              item.qty = Math.max(0, item.qty - withdraw);
+              openAdded = rndQty(Math.max(0, withdraw - need));
+              item.openQty = rndQty(item.openQty + openAdded);
+            }
           }
           t.stockLog.push({
             stockId: ci.stockId,
-            qty: Number(ci.qty) || 0,
+            qty: usedQty,
             mainWithdrawn: beforeMain - item.qty,   // เบิกจากหลักไปเท่าไหร่
             openUsed: beforeOpen - (item.openQty - openAdded), // ใช้ openQty ไปเท่าไหร่
-            openAdded                                    // เศษที่เพิ่มเข้า openQty
+            openAdded,                                   // เศษที่เพิ่มเข้า openQty
+            stockMode: mode
           });
-          if (ci.totalCost == null) ci.totalCost = Math.round(ci.qty * item.avgCost);
+          if (ci.totalCost == null || mode === "package" || mode === "content") ci.totalCost = taskMaterialCost(ci, item);
         }
       }
       total += Number(ci.totalCost) || 0;
     });
-    t.cost = Math.round(total);
+    t.cost = Math.round(total * 100) / 100;
     // สรุปยอดจากรายการแรก (เข้ากันได้กับโค้ดเดิมที่อ่าน t.stockId/t.qty)
     const first = t.costItems.find(ci => ci.stockId) || t.costItems[0];
     if (first) {
@@ -1170,7 +1322,7 @@ function applyStockUse(s, t) {
   } else {
     t.stockLog = [];
   }
-  t.stockState = t.stockLog.length ? "consumed" : "reserved";
+  t.stockState = t.stockLog.length ? "consumed" : (t.costItems?.some(ci => taskStockMode(ci) === "record") ? "untracked" : "reserved");
 }
 function toggleTaskDone(s, taskId) {
   const t = s.tasks.find(x => x.id === taskId);
@@ -1464,6 +1616,14 @@ function restockTask(s, t) {
     const item = stockById(s, log.stockId);
     if (!item) return;
     item.openQty = Number(item.openQty) || 0;
+    if (log.stockMode === "package") {
+      item.qty = rndQty(Number(item.qty) + (Number(log.mainWithdrawn) || 0));
+      return;
+    }
+    if (log.stockMode === "open") {
+      item.openQty = rndQty(item.openQty + (Number(log.openUsed) || 0));
+      return;
+    }
     const total = rndQty(Number(item.qty) + item.openQty + Number(log.qty || 0));
     item.qty += Math.min(Number(log.mainWithdrawn) || 0, Math.floor(total - Number(item.qty)));
     item.openQty = rndQty(total - item.qty);

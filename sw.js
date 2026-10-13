@@ -1,7 +1,7 @@
 /* Cache only the app shell and public same-origin assets, never authenticated APIs. */
-const CACHE = "farmult-v152-ux";
-const SHELL = ["/", "/css/style.css", "/css/landing.css", "/js/data.js", "/js/application-rate.js", "/js/charts.js", "/js/notify.js", "/js/stock.js", "/js/lucide.min.js",
-  "/js/sales.js", "/js/lark.js", "/js/recovery.js", "/js/landing.js", "/js/auth.js", "/js/inspection.js", "/js/app.js", "/js/team.js", "/js/private-photos.js", "/collector", "/css/collector.css", "/js/collector.js"];
+const CACHE = "farmult-v185-multiplot";
+const SHELL = ["/", "/guide.html", "/logo.jpg", "/css/style.css","/css/workspace.css", "/css/landing.css", "/js/data.js", "/js/application-rate.js", "/js/charts.js", "/js/notify.js", "/js/stock.js", "/js/lucide.min.js",
+  "/js/sales.js", "/js/lark.js", "/js/recovery.js", "/js/landing.js", "/js/auth.js", "/js/inspection.js", "/js/app.js", "/js/team.js","/js/workspace.js","/js/workspace-flows.js", "/js/task-wizard.js", "/js/private-photos.js", "/collector", "/css/collector.css", "/js/collector.js"];
 
 self.addEventListener("install", event => {
   event.waitUntil((async () => {

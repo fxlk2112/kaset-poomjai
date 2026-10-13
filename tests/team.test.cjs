@@ -209,10 +209,26 @@ test('structured application data survives submit, edit and approval; only actua
     p.applicationWork.waterLitres=300;
     await t.call('team_submit',{...input,revision:1},member);
     assert.deepEqual(await ownerState(t),before);
-    const [s]=await t.call('team_inbox');assert.equal(JSON.parse(s.payload).materials[0].rate,'20 มล. (ซีซี) ต่อน้ำ 20 ลิตร');
+    const [s]=await t.call('team_inbox');assert.equal(JSON.parse(s.payload).materials[0].rate,'20 ซีซี (มล.) ต่อน้ำ 20 ลิตร');
     await t.call('team_review',{id:input.id,revision:2,decision:'approve',confirmMaterials:true});
     const task=(await ownerState(t)).tasks[0];assert.equal(task.applicationWork.waterLitres,300);
     assert.equal(task.reportedMaterials[0].dose.per,20);assert.equal(task.cost,50);assert.equal(task.costItems[0].qty,1);
+  }finally{t.db.close();}
+});
+
+test('measured bottle content is validated server-side, priced proportionally and leaves the remainder open',async()=>{
+  const t=await materialSetup();try{
+    t.s.stock[0].size='500 ซีซี';t.s.stock[0].avgCost=120;t.s.stock[0].openQty=0;
+    await t.db.prepare('UPDATE user_data SET data=? WHERE user_id=?').bind(JSON.stringify(t.s),'owner').run();
+    const p={...materialPayload(),materials:[{stockId:'bottle',unit:'bottle',qty:99,usageQty:50,usageUnit:'ml'}]};
+    await t.call('team_submit',{grantId:t.g.id,id:'measured-content',payload:p},member);
+    const pending=JSON.parse((await t.call('team_inbox'))[0].payload);
+    assert.equal(pending.materials[0].qty,.1);assert.equal(pending.materials[0].usageQty,50);assert.equal(pending.materials[0].stockMode,'content');
+    await t.call('team_review',{id:'measured-content',revision:1,decision:'approve',confirmMaterials:true});
+    const s=await ownerState(t),task=s.tasks[0];
+    assert.equal(s.stock[0].qty,9);assert.equal(s.stock[0].openQty,.9);assert.equal(task.cost,12);
+    assert.equal(task.costItems[0].stockMode,'content');assert.equal(task.reportedMaterials[0].usageQty,50);
+    await assert.rejects(t.call('team_submit',{grantId:t.g.id,id:'bad-measured-content',payload:{...p,materials:[{stockId:'bottle',unit:'bottle',usageQty:50,usageUnit:'kg'}]}}));
   }finally{t.db.close();}
 });
 
@@ -239,13 +255,13 @@ test('external materials are recorded without stock, fabricated cost or automati
   }finally{t.db.close();}
 });
 
-test('mixed material submissions consume and price only selected inventory items',async()=>{
+test('mixed material submissions use whole packages and price only selected inventory items',async()=>{
   const t=await materialSetup();try{
     const p=materialPayload();p.materials.push({source:'external',name:'Outside',unit:'g',qty:12});
     await t.call('team_submit',{grantId:t.g.id,id:'mixed',payload:p},member);
     await assert.rejects(t.call('team_review',{id:'mixed',revision:1,decision:'approve'}));
     await t.call('team_review',{id:'mixed',revision:1,decision:'approve',confirmMaterials:true});
-    const s=await ownerState(t);assert.equal(s.tasks[0].cost,275);assert.equal(s.tasks[0].costItems.length,2);
+    const s=await ownerState(t);assert.equal(s.tasks[0].cost,300);assert.equal(s.tasks[0].costItems.length,2);
     assert.equal(s.tasks[0].reportedMaterials.length,3);assert.equal(s.stock.length,t.s.stock.length);
   }finally{t.db.close();}
 });
@@ -283,15 +299,15 @@ test('materials validate identifiers, duplicates, quantities and stale units',as
   }finally{t.db.close();}
 });
 
-test('owner approval consumes stock exactly once using open packages and records real cost',async()=>{
+test('owner approval consumes stock exactly once from sealed packages and records real cost',async()=>{
   const t=await materialSetup();try{
     const input={grantId:t.g.id,id:'stock-use',payload:materialPayload()};
     await t.call('team_submit',input,member);await t.call('team_submit',input,member);
     assert.deepEqual((await ownerState(t)).stock,t.s.stock);
     await assert.rejects(t.call('team_review',{id:input.id,revision:1,decision:'approve'}));
     await t.call('team_review',{id:input.id,revision:1,decision:'approve',confirmMaterials:true});
-    const s=await ownerState(t);assert.equal(s.stock[0].qty,8);assert.equal(s.stock[0].openQty,.75);
-    assert.equal(s.stock[1].qty,8);assert.equal(s.tasks[0].cost,275);assert.equal(s.tasks[0].stockState,'consumed');
+    const s=await ownerState(t);assert.equal(s.stock[0].qty,8);assert.equal(s.stock[0].openQty,.25);
+    assert.equal(s.stock[1].qty,8);assert.equal(s.tasks[0].cost,300);assert.equal(s.tasks[0].stockState,'consumed');
     assert.equal(s.tasks[0].stockLog.length,2);assert.equal(s.tasks[0].costItems[0].unitCost,50);
     assert.deepEqual(s.sales,t.s.sales);
     await assert.rejects(t.call('team_review',{id:input.id,revision:1,decision:'approve',confirmMaterials:true}));

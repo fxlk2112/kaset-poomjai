@@ -76,7 +76,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script>try{var _ft=localStorage.getItem("farmult-theme")||"system";var _fd=_ft==="dark"||(_ft==="system"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);if(_fd)document.documentElement.setAttribute("data-theme","dark");}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=20260928ux1">
+  <link rel="stylesheet" href="css/style.css?v=20261013taskwizard1">
+  <link rel="stylesheet" href="css/workspace.css?v=20261013multiplot1">
   <link rel="stylesheet" href="css/landing.css?v=20260907landingsoft1">
   <link rel="icon" href="logo.jpg">
 </head>
@@ -133,7 +134,7 @@
             </div>
             <figure class="landing-product-image" id="demo">
               <button class="landing-screenshot-button" type="button" data-landing-dialog="product-preview" aria-label="ขยายภาพหน้าระบบจริง" title="ขยายภาพหน้าระบบจริง">
-                <img src="images/landing-app.webp" width="1280" height="1000" alt="หน้าหลัก FARMULTIMATE แสดงงานวันนี้ สถานะกิจกรรม และรายรับหักรายจ่ายจากข้อมูลตัวอย่าง" loading="lazy">
+                <img src="images/landing-workspace.png" width="1280" height="1000" alt="หน้าหลัก FARMULTIMATE แสดงงานวันนี้ สถานะกิจกรรม และรายรับหักรายจ่ายจากข้อมูลตัวอย่าง" loading="lazy">
                 <span class="landing-expand"><img src="images/landing-icons/maximize-2.svg" width="18" height="18" alt=""></span>
               </button>
               <figcaption>หน้าระบบจริง · ข้อมูลตัวอย่าง</figcaption>
@@ -145,7 +146,7 @@
             <div>
               <p class="landing-eyebrow">งานทดลอง</p>
               <h2 id="trials-title">ลองสูตรใหม่<br> เก็บผลไว้เทียบกัน</h2>
-              <p class="landing-body">บันทึกสิ่งที่ทำในแต่ละแปลงย่อย<br> เปรียบเทียบผลที่วัดในวันเดียวกัน</p>
+              <p class="landing-body">บันทึกสิ่งที่ทำในแต่ละแปลงย่อย<br> ดูผลรายวันและแนวโน้มตลอดการทดลอง</p>
             </div>
             <img class="landing-trial-photo" src="images/landing-trial.webp" width="1400" height="700" alt="ภาพประกอบการวัดใบข้าวโพดในแปลงทดลอง" loading="lazy">
           </div>
@@ -195,7 +196,7 @@
     </div>
     <dialog id="product-preview" class="landing-dialog landing-image-dialog" aria-labelledby="product-preview-title">
       <div class="landing-dialog-head"><h2 id="product-preview-title">หน้าระบบจริง · ข้อมูลตัวอย่าง</h2><form method="dialog"><button class="landing-icon-btn" aria-label="ปิดภาพ" title="ปิดภาพ"><img src="images/landing-icons/x.svg" width="22" height="22" alt=""></button></form></div>
-      <img src="images/landing-app.webp" width="1280" height="1000" alt="ตัวอย่างหน้าหลัก แสดงงานรายวัน สถานะกิจกรรม และตัวเลขจากข้อมูลที่บันทึก">
+      <img src="images/landing-workspace.png" width="1280" height="1000" alt="ตัวอย่างหน้าหลัก แสดงงานรายวัน สถานะกิจกรรม และตัวเลขจากข้อมูลที่บันทึก">
     </dialog>
     <dialog id="privacy" class="landing-dialog" aria-labelledby="privacy-title">
       <div class="landing-dialog-head"><h2 id="privacy-title">นโยบายความเป็นส่วนตัว</h2><form method="dialog"><button class="landing-icon-btn" aria-label="ปิดนโยบาย" title="ปิด"><img src="images/landing-icons/x.svg" width="22" height="22" alt=""></button></form></div>
@@ -253,7 +254,7 @@
           <button class="icon-btn" id="tourBtn" title="แนะนำระบบ">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
           </button>
-          <button class="icon-btn notif-btn" id="notifBtn" title="การแจ้งเตือน (ครบกำหนด/เลยกำหนด)">
+          <button class="icon-btn notif-btn" id="notifBtn" aria-label="การแจ้งเตือนงานครบกำหนดและเลยกำหนด" title="การแจ้งเตือน (ครบกำหนด/เลยกำหนด)">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             <span class="notif-badge" id="notifBadge" hidden></span>
           </button>
@@ -294,25 +295,28 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/data.js?v=20260928ux1"></script>
-  <script src="js/charts.js?v=20260910inspection7"></script>
+  <script src="js/data.js?v=20261013multiplot1"></script>
+  <script src="js/charts.js?v=20261013taskwizard1"></script>
   <script src="js/notify.js?v=20260826ao"></script>
-  <script src="js/stock.js?v=20260911usability1"></script>
-  <script src="js/sales.js?v=20260911usability1"></script>
+  <script src="js/stock.js?v=20261013taskwizard1"></script>
+  <script src="js/sales.js?v=20261013taskwizard1"></script>
   <script src="js/lark.js?v=20260907reliability1"></script>
   <script src="js/recovery.js?v=20260907reliability1"></script>
   <script src="js/landing.js?v=20260907landingsoft1"></script>
-  <script src="js/auth.js?v=20260907landingsoft1"></script>
-  <script src="js/inspection.js?v=20260911usability1"></script>
-  <script src="js/application-rate.js?v=20260928ux1"></script>
-  <script src="js/app.js?v=20260928ux1"></script>
-  <script src="js/private-photos.js?v=20260928ux1"></script>
-  <script src="js/team.js?v=20260928ux1"></script>
+  <script src="js/auth.js?v=20261013taskwizard1"></script>
+  <script src="js/inspection.js?v=20261013taskwizard1"></script>
+  <script src="js/application-rate.js?v=20260930ownerusage2"></script>
+  <script src="js/app.js?v=20261013multiplot1"></script>
+  <script src="js/private-photos.js?v=20261013taskwizard1"></script>
+  <script src="js/team.js?v=20261013taskwizard1"></script>
+  <script src="js/workspace.js?v=20261013taskwizard1"></script>
+  <script src="js/workspace-flows.js?v=20261013multiplot1"></script>
+  <script src="js/task-wizard.js?v=20261013multiplot1"></script>
   <!-- ลงทะเบียน Service Worker — เปิดใช้แบบออฟไลน์/ติดตั้งเป็นแอพบนมือถือ (ต้องใช้ผ่าน HTTPS หรือ localhost) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js?v=20260928ux1').catch(function () { /* ไม่บังคับ — ถ้าลงทะเบียนไม่ได้ก็ใช้เว็บปกติ */ });
+        navigator.serviceWorker.register('sw.js?v=20261013multiplot1').catch(function () { /* ไม่บังคับ — ถ้าลงทะเบียนไม่ได้ก็ใช้เว็บปกติ */ });
       });
     }
   </script>

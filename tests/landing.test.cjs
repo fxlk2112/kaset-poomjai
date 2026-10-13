@@ -38,7 +38,7 @@ function gateHarness() {
 test('landing keeps existing branding and real product proof without fictional plans', () => {
   const page = html.slice(html.indexOf('class="landing-page"'), html.indexOf('<div class="auth-box"'));
   assert.match(page, /src="logo.jpg"/);
-  assert.match(page, /images\/landing-app.webp/);
+  assert.match(page, /images\/landing-workspace.png/);
   assert.match(page, /ข้อมูลตัวอย่าง/);
   assert.match(page, /id="trials"/);
   assert.doesNotMatch(page, /price-card|landing-pricing|lp-window|24\/7|เริ่มใช้ฟรี/);

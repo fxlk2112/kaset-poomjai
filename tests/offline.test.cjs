@@ -37,12 +37,20 @@ test('first installation precaches every local script and stylesheet before taki
   const scripts=[...html.matchAll(/src="(js\/[^?]+)\?/g)].map(m=>'/'+m[1]);
   const styles=[...html.matchAll(/href="(css\/[^?]+)\?/g)].map(m=>'/'+m[1]);
   const cache=[...w.stores.values()][0];
-  for(const file of ['/',...styles,...scripts])assert.ok(cache.has(file),file);
+  for(const file of ['/','/guide.html','/logo.jpg',...styles,...scripts])assert.ok(cache.has(file),file);
+});
+
+test('every deployment path ships the public guide page',()=>{
+  const deploy=fs.readFileSync(path.join(__dirname,'../deploy.ps1'),'utf8');
+  const workflow=fs.readFileSync(path.join(__dirname,'../.github/workflows/deploy.yml'),'utf8');
+  assert.match(deploy,/"guide\.html"/);
+  assert.match(workflow,/\bguide\.html\b/);
 });
 
 test('offline navigation with a different query and versioned scripts uses the cached shell',async()=>{
   const w=worker();await w.emit('install');w.c.fetch=async()=>{throw new Error('offline');};
   assert.equal(await (await w.emit('fetch',w.request('/?build=another&landing=1',{mode:'navigate'}))).text(),'online:/');
+  assert.equal(await (await w.emit('fetch',w.request('/guide.html',{mode:'navigate'}))).text(),'online:/guide.html');
   assert.equal(await (await w.emit('fetch',w.request('/js/auth.js?v=new'))).text(),'online:/js/auth.js');
 });
 

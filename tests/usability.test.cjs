@@ -44,9 +44,9 @@ test('activity scope requires an intentional plot choice and reserves whole-farm
   const form=section('App.modalTask = function', '/* เมื่อเปลี่ยนแปลง -> โหลดเฉพาะพืช');
   const submit=section('App.submitTask = function', '  let savedTaskId =');
   assert.match(form,/บันทึกให้กับ/);
-  assert.match(form,/ทั้งฟาร์ม/);
+  assert.match(form,/งานส่วนกลาง/);
   assert.match(form,/t_scope_plot/);
-  assert.match(submit,/เลือกแปลง หรือเลือกงานทั้งฟาร์ม/);
+  assert.match(submit,/เลือกแปลง หรือเลือกงานส่วนกลาง/);
   assert.match(app,/function taskMustBelongToPlot/);
 });
 test('home prioritizes updating scheduled work and gives a next step after setup is complete',()=>{
@@ -56,12 +56,56 @@ test('home prioritizes updating scheduled work and gives a next step after setup
   assert.match(home,/ฟาร์มพร้อมเริ่มติดตาม/);
   assert.match(home,/วางแผนงานแรกของ/);
 });
-test('general work defaults to farm scope while crop work remains attributed to a plot',()=>{
+test('crop work remains attributed to a plot while general work can use a single active crop cycle',()=>{
   const form=section('App.modalTask = function', '/* เมื่อเปลี่ยนแปลง -> โหลดเฉพาะพืช');
-  assert.match(form,/taskMustBelongToPlot\(type\) \|\| preset\.plotId \? "plot" : "farm"/);
+  assert.match(form,/const forceFarmScope = preset\.scope === "farm"/);
+  assert.match(form,/!forceFarmScope && \(preset\.scope === "plot" \|\| preset\.plotId \|\| suggestedCycleId\)/);
+  assert.match(form,/activeCycles\.length === 1/);
   assert.match(form,/taskScopeChangeButton/);
   assert.match(app,/App\.taskScopeToggle/);
   assert.match(app,/if \(changeButton\) changeButton\.hidden = mustUsePlot/);
+});
+test('whole-farm activities can retain their own cost and remain findable in the activity planner',()=>{
+  const submit=section('App.submitTask = function', '  let savedTaskId =');
+  assert.match(submit,/scope,\s*\n\s*cycleId: tCycle/);
+  assert.doesNotMatch(submit,/ต้องเลือกแปลงก่อน — ต้นทุน/);
+  assert.match(app,/task-farm/);
+  assert.match(app,/option value="farm" \$\{plannerSearch\.scope==='farm'/);
+  const context=vm.createContext({});
+  const planner=section('const plannerSearch =', 'App.setPlannerSearch =');
+  vm.runInContext(`${planner}; globalThis.matches=plannerMatches; globalThis.filters=plannerSearch;`,context);
+  vm.runInContext(`filters.scope='farm'`,context);
+  assert.equal(vm.runInContext(`matches({title:'ซ่อมรั้ว',plotId:null})`,context),true);
+  assert.equal(vm.runInContext(`matches({title:'ใส่ปุ๋ย',plotId:'p-1'})`,context),false);
+});
+test('typed external materials keep their exact price without creating or deducting stock',()=>{
+  const source=section('function costStockMode(', 'function costEditableAvail(');
+  const data=fs.readFileSync(path.join(__dirname,'..','js/data.js'),'utf8');
+  const c=vm.createContext({App:{}});
+  vm.runInContext(data.slice(data.indexOf('function externalMaterialCost('),data.indexOf('function taskMaterialCost(')),c);
+  vm.runInContext(source,c);
+  assert.equal(vm.runInContext('costChargeQty({qty:.5,unitCost:120})',c),.5);
+  assert.equal(vm.runInContext('costTotal({qty:.5,unitCost:120})',c),60);
+  assert.equal(vm.runInContext('costChargeQty({stockId:"medicine",stockMode:"package",qty:.5,unitCost:120})',c),1);
+  const costUi=section('function costStockPickerHtml(', 'App.costShowStock = function');
+  assert.match(costUi,/พิมพ์เอง · ไม่ตัดสต็อก/);
+  assert.match(costUi,/App\.costUseExternal/);
+});
+test('farm-wide activities have a dedicated overview and can start a task explicitly scoped to the farm',()=>{
+  const farm=section('function renderFarmOverview()', '/* ---------------- Equipment ---------------- */');
+  const more=section('function renderMore()', '/* ---------------- Modals ---------------- */');
+  const nav=section('const NAV_ALL =', 'function visibleNav()');
+  const form=section('App.modalTask = function', '/* เมื่อเปลี่ยนแปลง -> โหลดเฉพาะพืช');
+  assert.match(farm,/ข้อมูลงานส่วนกลาง/);
+  assert.match(farm,/App\.farmTab\('analytics'\)/);
+  assert.match(farm,/renderAnalytics\(true\)/);
+  assert.match(farm,/!t\.plotId/);
+  assert.match(farm,/App\.modalTask\('\$\{todayISO\(\)\}', \{scope:'farm'\}\)/);
+  assert.match(farm,/App\.openFarmActivities/);
+  assert.match(nav,/\{ key: "farm", label: "ฟาร์ม", ico: "briefcase" \}/);
+  assert.doesNotMatch(nav,/key: "analytics"/);
+  assert.doesNotMatch(more,/ข้อมูลทั้งฟาร์ม/);
+  assert.match(form,/preset\.scope === "plot"/);
 });
 test('home keeps team review after today work and limits the quick menu to the current workspace',()=>{
   const home=section('function renderHome()', '/* ---------------- Plots & cycles ---------------- */');
@@ -71,6 +115,45 @@ test('home keeps team review after today work and limits the quick menu to the c
   assert.match(renderSource,/navKey === "planner" \? \["task"\]/);
   assert.match(renderSource,/button\.hidden = !fabActions\.includes/);
   assert.match(app,/จะแสดงคำสั่งที่เกี่ยวกับหน้าที่กำลังใช้อยู่/);
+});
+test('cycle deletion is visible, removes only unrecorded work, and protects recorded history',()=>{
+  const source=section('App.deleteCycle = function', 'App.deletePlot = function');
+  const actions=section('function renderCycleDetail()', '/* ตั้งค่าตัวกรอง/เรียง');
+  assert.match(actions,/ลบรอบปลูก/);
+  const prompts=[];
+  const c=vm.createContext({
+    S:{plots:[{id:'p',name:'แปลงเหนือ'}],cycles:[{id:'empty',plotId:'p'},{id:'kept',plotId:'p'}],tasks:[{id:'planned',cycleId:'empty',status:'planned'},{id:'done',cycleId:'kept',status:'done'}]},
+    App:{confirm:(title,text,onOk)=>prompts.push({title,text,onOk}),openPlot:id=>c.opened=id},
+    cycleById:(s,id)=>s.cycles.find(x=>x.id===id),plotById:(s,id)=>s.plots.find(x=>x.id===id),saveState:()=>c.saved=true,toast:message=>c.toast=message
+  });
+  vm.runInContext(source,c);
+  vm.runInContext("App.deleteCycle('empty')",c);
+  assert.equal(prompts[0].title,'ลบรอบปลูกนี้?');
+  prompts[0].onOk();
+  assert.deepEqual(Array.from(c.S.cycles,x=>x.id),['kept']);
+  assert.deepEqual(Array.from(c.S.tasks,x=>x.id),['done']);
+  assert.equal(c.opened,'p');assert.equal(c.saved,true);
+  vm.runInContext("App.deleteCycle('kept')",c);
+  assert.equal(prompts[1].title,'ลบรอบนี้ไม่ได้');
+  assert.equal(c.S.cycles.length,1);
+});
+test('new general activity defaults to the only active crop cycle, while multiple cycles still require a deliberate choice',()=>{
+  const form=section('App.modalTask = function', '/* เมื่อเปลี่ยนแปลง -> โหลดเฉพาะพืช');
+  assert.match(form,/const activeCycles = !editing/);
+  assert.match(form,/const suggestedCycleId = activeCycles\.length === 1/);
+  assert.match(form,/preset\.cycleId \|\| suggestedCycleId/);
+  assert.match(form,/บันทึกเข้ารอบ/);
+});
+test('expired sessions offer a re-login action and a blank stock list explains how to begin',()=>{
+  const auth=read('js/auth.js'),stock=read('js/stock.js'),team=read('js/team.js');
+  assert.match(auth,/state === "reauth" \? \(\) => Auth\.reauthenticate\(\)/);
+  assert.match(auth,/Auth\.reauthenticate = function/);
+  assert.match(auth,/if \(Auth\._reauthenticating\) \{ Auth\.hideGate\(\); return; \}/);
+  assert.match(auth,/Auth\.setSyncStatus\("reauth", "เซสชันหมดอายุ · กดเพื่อเข้าสู่ระบบใหม่"\)/);
+  assert.match(team,/เข้าสู่ระบบใหม่/);
+  assert.match(stock,/ยังไม่มีสินค้าในสต็อก/);
+  assert.match(stock,/เพิ่มยา ปุ๋ย เมล็ดพันธุ์/);
+  assert.match(stock,/onclick="App\.modalStock\(\)"/);
 });
 test('sale row totals and grand total update together, including custom price',()=>{
   const fields={saleTotal:{},saleGrandTotal:{},sale_discount:{value:'30'},saleLineTotal_0:{},saleLineTotal_1:{}};

@@ -204,7 +204,8 @@ const Inspection = {
     const details=document.createElement('details');details.className='inspection-task-options';
     const summary=document.createElement('summary');summary.textContent='ชื่องาน / ประเภทกิจกรรม';details.appendChild(summary);
     for(const id of ['t_type','t_title'])details.appendChild(document.getElementById(id).closest('.field'));
-    form.insertBefore(details,form.firstChild);
+    const section=form.querySelector('[data-task-step="0"]') || form;
+    section.insertBefore(details,section.firstChild);
     details.addEventListener('invalid',()=>{details.open=true;},true);
   },
   check(key,field,value) { this.draft.checks[key]={...(this.draft.checks[key] || {}),[field]:value};this.dirty(); },
@@ -231,7 +232,7 @@ const Inspection = {
     const age=same ? old.ageDays : inspectionAge(cycle,date);
     const previous=plotId ? inspectionRecords(S,plotId,cycleId==='__none__'?null:cycleId,date,this.taskId).filter(t=>(t.cycleId || null)===(this.context.cycleId || null))[0] : null;
     const planned=document.getElementById('t_status')?.value==='planned';
-    document.getElementById('inspectionContext').innerHTML=`<div class="inspection-context"><b>${planned && age!==null ? 'อายุคาดการณ์ '+age+' วันตามกำหนดตรวจ' : inspectionAgeLabel({ageDays:age})}</b><span>${esc((same?old.plantName:cycle?.plant) || 'ยังไม่ระบุพืช / รอบ')}</span><small>${(same?old.plantingDate:cycle?.startDate) ? 'เริ่มปลูก '+esc(dateLabel(same?old.plantingDate:cycle.startDate))+' · วันเริ่มปลูกนับเป็น 0 วัน' : 'ยังไม่มีวันที่เริ่มปลูกของรอบนี้'}</small></div>
+    document.getElementById('inspectionContext').innerHTML=!cycleId ? '<p class="inspection-context" role="status">เลือกรอบปลูกเพื่อแสดงอายุพืช ณ วันที่ตรวจ</p>' : cycleId==='__none__' ? '<p class="inspection-context">ตรวจพื้นที่ที่ยังไม่ปลูก · ไม่คำนวณอายุพืช</p>' : `<div class="inspection-context"><b>${planned && age!==null ? 'อายุคาดการณ์ '+age+' วันตามกำหนดตรวจ' : inspectionAgeLabel({ageDays:age})}</b><span>${esc((same?old.plantName:cycle?.plant) || 'ไม่พบรอบปลูกเดิม')}</span><small>${(same?old.plantingDate:cycle?.startDate) ? 'เริ่มปลูก '+esc(dateLabel(same?old.plantingDate:cycle.startDate))+' · วันเริ่มปลูกนับเป็น 0 วัน' : 'รอบนี้ยังไม่มีวันเริ่มปลูก กรุณาตรวจข้อมูลรอบปลูก'}</small></div>
       ${previous?`<details class="inspection-previous"><summary>ครั้งก่อน ${esc(dateLabel(taskRecordDate(previous)))} · ${inspectionAgeLabel(previous.inspection || {ageDays:inspectionAge(cycle,taskRecordDate(previous))})}</summary><p>${esc(inspectionSummary(previous.inspection))}</p><p>${esc(previous.doneNote || previous.note || '')}</p>${inspectionPhotos([...(previous.photos || []),...(previous.donePhotos || []),...(previous.inspection?.points || []).flatMap(p=>p.photos || [])],'รูปการตรวจครั้งก่อน')}</details>`:'<p class="muted inspection-previous">ยังไม่มีผลตรวจก่อนหน้านี้ในรอบที่เลือก</p>'}`;
     this.followupsRender();
     this.weatherRefresh();

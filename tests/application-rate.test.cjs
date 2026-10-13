@@ -4,7 +4,7 @@ const rate=require('../js/application-rate.js');
 
 test('structured rates normalize units and do not trust conflicting display text',()=>{
   const dose={amount:'20',unit:'ml',per:'20',basis:'water'};
-  assert.deepEqual(rate.materialFields({dose,rate:'forged'}),{dose:{amount:20,unit:'ml',per:20,basis:'water'},rate:'20 มล. (ซีซี) ต่อน้ำ 20 ลิตร'});
+  assert.deepEqual(rate.materialFields({dose,rate:'forged'}),{dose:{amount:20,unit:'ml',per:20,basis:'water'},rate:'20 ซีซี (มล.) ต่อน้ำ 20 ลิตร'});
   assert.equal(rate.materialFields({rate:'  legacy  '}).rate,'legacy');
   assert.deepEqual(rate.materialFields({dose:{amount:'',unit:'ml',per:'',basis:'water'}}),{});
 });

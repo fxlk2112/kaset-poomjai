@@ -244,13 +244,16 @@ Auth.setSyncStatus = function (state, message) {
     const label = el.querySelector("span");
     if (label) label.textContent = message;
     el.title = message;
+    el.setAttribute("aria-label", state === "reauth" ? "เข้าสู่ระบบใหม่เพื่อซิงก์ข้อมูล" : message);
+    el.onclick = state === "reauth" ? () => Auth.reauthenticate() : () => App.authSyncNow();
   }
 };
 Auth.syncStatusHtml = function () {
   if (!Auth.session) return "";
   const state = Auth.syncState || (localDirty() ? "pending" : "checking");
   const message = Auth.syncMessage || (localDirty() ? "บันทึกในเครื่องแล้ว · รอซิงก์" : "กำลังตรวจข้อมูลล่าสุด");
-  return `<button id="syncStatus" class="sync-status" data-state="${state}" onclick="App.authSyncNow()" title="${esc(message)}"><i aria-hidden="true"></i><span role="status" aria-live="polite">${esc(message)}</span>${ic("refresh")}</button>`;
+  const needsLogin = state === "reauth";
+  return `<button id="syncStatus" class="sync-status" data-state="${state}" onclick="${needsLogin ? "Auth.reauthenticate()" : "App.authSyncNow()"}" title="${esc(message)}" aria-label="${esc(needsLogin ? "เข้าสู่ระบบใหม่เพื่อซิงก์ข้อมูล" : message)}"><i aria-hidden="true"></i><span role="status" aria-live="polite">${esc(message)}</span>${ic(needsLogin ? "lock" : "refresh")}</button>`;
 };
 Auth.canApplyCloud = function () {
   const active = document.activeElement;
@@ -367,7 +370,7 @@ Auth.saveNow = function (options) {
     if (message.includes("สำรองข้อมูล")) {
       Auth.setSyncStatus("error", message);
     } else if (message.includes("เซสชัน")) {
-      Auth.setSyncStatus("error", "เซสชันหมดอายุ · เข้าสู่ระบบใหม่เพื่อซิงก์");
+      Auth.setSyncStatus("reauth", "เซสชันหมดอายุ · กดเพื่อเข้าสู่ระบบใหม่");
     } else {
       Auth.setSyncStatus("error", localDirty() ? "บันทึกในเครื่องแล้ว · ส่งไม่สำเร็จ กำลังรอลองใหม่" : "ตรวจข้อมูลคลาวด์ไม่สำเร็จ · กำลังรอลองใหม่");
       Auth.retrySync();
@@ -675,6 +678,7 @@ Auth.hideGate = function () {
     Auth.gateEl.style.display = "none";
   }
   Auth._gateReturnFocus = null;
+  Auth._reauthenticating = false;
 };
 Auth.openGateForm = function (mode) {
   Auth.showGate();
@@ -694,6 +698,12 @@ Auth.openGateForm = function (mode) {
     if (first && Auth.gateEl?.classList.contains("show-auth")) first.focus();
   }, 40);
 };
+/* รักษาข้อมูลในเครื่องไว้ แล้วให้ผู้ใช้ยืนยันตัวตนใหม่เพื่อซิงก์ต่อ */
+Auth.reauthenticate = function () {
+  Auth._reauthenticating = true;
+  Auth.openGateForm("login");
+  Auth.gateMsg("เซสชันหมดอายุ โปรดเข้าสู่ระบบอีกครั้ง ข้อมูลที่บันทึกในเครื่องยังอยู่");
+};
 Auth.closeGateForm = function () {
   if (!Auth.gateEl) Auth.gateEl = document.getElementById("authGate");
   if (Auth.gateEl) {
@@ -702,6 +712,7 @@ Auth.closeGateForm = function () {
     Auth.gateEl.querySelector(".landing-page").removeAttribute("aria-hidden");
     Auth.gateEl.classList.remove("show-auth");
   }
+  if (Auth._reauthenticating) { Auth.hideGate(); return; }
   if (Auth._gateReturnFocus?.isConnected && Auth._gateReturnFocus.getClientRects().length) {
     Auth._gateReturnFocus.focus({ preventScroll: true });
   } else {
@@ -790,7 +801,7 @@ Auth.gateSubmit = async function () {
   if (pb) pb.addEventListener("click", e => { e.stopPropagation(); Auth.toggleProfile(); });
   document.addEventListener("click", e => {
     const p = q("profilePanel");
-    if (p && !p.hidden && !p.contains(e.target)) Auth.closeProfile();
+    if (p && !p.hidden && !e.composedPath().includes(p)) Auth.closeProfile();
   });
 })();
 
@@ -980,6 +991,11 @@ Auth.setTheme = function (mode) {
   try { localStorage.setItem("farmult-theme", mode); } catch (e) {}
   Auth.applyTheme();
   render();
+  document.querySelectorAll('#profilePanel [data-theme-mode]').forEach(button => {
+    const active = button.dataset.themeMode === mode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
   toast(mode === "dark" ? "🌙 โหมดมืด" : mode === "light" ? "☀️ โหมดสว่าง" : mode === "auto" ? "⏰ สลับเองตามเวลา (มืด 18:00-06:00)" : "🖥️ ตามระบบเครื่อง");
 };
 try {
@@ -991,12 +1007,14 @@ Auth.applyTheme();
 Auth.closeProfile = function () {
   const p = document.getElementById("profilePanel");
   if (p) p.hidden = true;
+  document.getElementById('profileBtn')?.setAttribute('aria-expanded', 'false');
 };
 Auth.toggleProfile = function () {
   const p = document.getElementById("profilePanel");
   if (!p) return;
   if (p.hidden) { Auth.fillProfilePanel(); p.hidden = false; }
   else p.hidden = true;
+  document.getElementById('profileBtn')?.setAttribute('aria-expanded', String(!p.hidden));
 };
 Auth.fillProfilePanel = function () {
   const p = document.getElementById("profilePanel");
@@ -1012,15 +1030,13 @@ Auth.fillProfilePanel = function () {
       </div>
     </div>
     <div class="pp-actions">
+      <button class="btn btn-outline btn-block" onclick="Auth.closeProfile();App.nav('settings')">${ic('gear')} ตั้งค่าบัญชี</button>
       ${s.admin ? `<button class="btn btn-primary btn-block" onclick="Auth.closeProfile();App.adminView()">${ic("user")} ดูข้อมูลทุกบัญชี</button>` : ""}
       <button class="btn btn-outline btn-block" onclick="Auth.closeProfile();App.authSyncNow()">${ic("refresh")} ซิงก์ขึ้นคลาวด์</button>
       <button class="btn btn-danger-soft btn-block" onclick="Auth.closeProfile();App.authLogout()">${ic("lock")} ออกจากระบบ</button>
     </div>
-    <div class="pp-theme">
-      <button class="${Auth.getTheme() === "light" ? "active" : ""}" onclick="Auth.setTheme('light')" title="โหมดสว่างตลอด">☀️ สว่าง</button>
-      <button class="${Auth.getTheme() === "dark" ? "active" : ""}" onclick="Auth.setTheme('dark')" title="โหมดมืดตลอด">🌙 มืด</button>
-      <button class="${Auth.getTheme() === "system" ? "active" : ""}" onclick="Auth.setTheme('system')" title="ตามค่าที่ตั้งในเครื่อง">🖥️ ระบบ</button>
-      <button class="${Auth.getTheme() === "auto" ? "active" : ""}" onclick="Auth.setTheme('auto')" title="สว่างกลางวัน มืดหลัง 18:00">⏰ เวลา</button>
+    <div class="pp-theme" role="group" aria-label="รูปแบบหน้าจอ">
+      ${[['light','สว่าง'],['dark','มืด'],['system','ตามระบบ'],['auto','ตามเวลา']].map(([mode,label])=>`<button data-theme-mode="${mode}" aria-pressed="${Auth.getTheme()===mode}" class="${Auth.getTheme()===mode?'active':''}" onclick="Auth.setTheme('${mode}')">${label}</button>`).join('')}
     </div>`;
 };
 

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#166534">
+  <title>คู่มือใช้งาน | FARMULTIMATE SOLUTIONS</title>
+  <style>
+    :root { --green:#167a3c; --green-deep:#104b28; --green-soft:#edf8ef; --ink:#18241d; --muted:#5b6b62; --line:#dce7df; --page:#f5f8f6; --card:#fff; --amber:#9a6500; --amber-bg:#fff7df; --blue:#1d5ca6; --blue-bg:#eaf3ff; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; color:var(--ink); background:var(--page); font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif; line-height:1.55; }
+    a { color:inherit; }
+    .bar { background:var(--green-deep); color:#fff; }
+    .bar-inner, main, footer { width:min(1040px,calc(100% - 32px)); margin:0 auto; }
+    .bar-inner { min-height:66px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+    .brand { display:flex; align-items:center; gap:10px; min-width:0; text-decoration:none; }
+    .brand img { width:38px; height:38px; object-fit:contain; border-radius:50%; background:#fff; padding:2px; }
+    .brand b { display:block; font-size:.95rem; letter-spacing:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .brand small { display:block; color:#cde7d4; font-size:.72rem; }
+    .back { flex:0 0 auto; color:#fff; border:1px solid rgba(255,255,255,.42); border-radius:6px; padding:7px 10px; text-decoration:none; font-size:.82rem; font-weight:700; }
+    .back:hover { background:rgba(255,255,255,.12); }
+    .hero { padding:44px 0 26px; }
+    .eyebrow { color:var(--green); font-weight:800; font-size:.78rem; }
+    h1 { margin:5px 0 10px; font-size:clamp(1.8rem,4vw,2.65rem); line-height:1.18; letter-spacing:0; }
+    .lead { max-width:660px; margin:0; color:var(--muted); font-size:1.03rem; }
+    .start { margin-top:22px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+    .start div { padding:12px 14px; border-right:1px solid var(--line); }
+    .start div:last-child { border-right:0; }
+    .start b { display:block; color:var(--green-deep); font-size:.87rem; }
+    .start span { color:var(--muted); font-size:.76rem; }
+    .choose { margin:0 0 28px; padding:16px; background:var(--card); border:1px solid var(--line); border-radius:8px; }
+    .choose h2 { font-size:1.12rem; }
+    .choose > p { margin:3px 0 12px; color:var(--muted); font-size:.84rem; }
+    .choice-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .choice { display:flex; align-items:center; gap:9px; min-height:64px; padding:10px; border:1px solid var(--line); border-radius:7px; text-decoration:none; }
+    .choice:hover { border-color:var(--green); background:var(--green-soft); }
+    .choice-mark { flex:0 0 auto; width:27px; height:27px; border-radius:50%; display:grid; place-items:center; background:var(--green-soft); color:var(--green-deep); font-weight:800; font-size:.78rem; }
+    .choice b, .choice small { display:block; }
+    .choice b { font-size:.83rem; }
+    .choice small { color:var(--muted); font-size:.72rem; line-height:1.3; }
+    .layout { display:grid; grid-template-columns:220px minmax(0,1fr); gap:34px; padding:18px 0 46px; }
+    .toc { position:sticky; top:14px; align-self:start; padding:13px 0; }
+    .toc b { display:block; margin:0 0 7px 10px; font-size:.76rem; color:var(--muted); }
+    .toc a { display:block; padding:7px 10px; border-radius:5px; color:var(--muted); font-size:.83rem; text-decoration:none; }
+    .toc a:hover { color:var(--green-deep); background:var(--green-soft); }
+    section { scroll-margin-top:20px; margin-bottom:34px; }
+    h2 { margin:0 0 5px; font-size:1.35rem; letter-spacing:0; }
+    .section-intro { margin:0 0 13px; color:var(--muted); }
+    .steps { display:grid; gap:9px; }
+    .step { display:grid; grid-template-columns:34px minmax(0,1fr); gap:11px; align-items:start; background:var(--card); border:1px solid var(--line); border-radius:7px; padding:12px 13px; }
+    .num { width:26px; height:26px; border-radius:50%; display:grid; place-items:center; background:var(--green-soft); color:var(--green-deep); font-size:.76rem; font-weight:800; }
+    .step h3 { margin:0 0 3px; font-size:.94rem; }
+    .step p { margin:0; color:var(--muted); font-size:.84rem; }
+    .where { display:inline-block; margin:0 0 5px; padding:2px 6px; border-radius:4px; background:var(--green-soft); color:var(--green-deep); font-size:.72rem; font-weight:800; }
+    .tip { margin-top:10px; display:flex; gap:9px; padding:10px 12px; border-radius:7px; background:var(--blue-bg); color:var(--blue); font-size:.82rem; }
+    .tip b { white-space:nowrap; }
+    .warn { background:var(--amber-bg); color:var(--amber); }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:7px; padding:14px; }
+    .card h3 { margin:0 0 5px; font-size:.92rem; }
+    .card p, .card li { margin:0; color:var(--muted); font-size:.83rem; }
+    .card ul { margin:6px 0 0; padding-left:18px; }
+    .mode { margin-top:8px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
+    .mode div { border:1px solid var(--line); border-radius:6px; padding:9px; font-size:.76rem; }
+    .mode b { display:block; margin-bottom:3px; color:var(--green-deep); }
+    .mode span { color:var(--muted); }
+    .terms { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:7px; overflow:hidden; font-size:.82rem; }
+    .terms th, .terms td { padding:10px 12px; text-align:left; vertical-align:top; border-bottom:1px solid var(--line); }
+    .terms tr:last-child th, .terms tr:last-child td { border-bottom:0; }
+    .terms th { width:34%; color:var(--green-deep); background:var(--green-soft); }
+    .terms td { color:var(--muted); }
+    .finish { background:var(--green-deep); color:#fff; border-radius:7px; padding:20px; }
+    .finish h2 { margin:0 0 5px; }
+    .finish p { margin:0 0 14px; color:#d5eadb; font-size:.88rem; }
+    .finish a { display:inline-block; background:#fff; color:var(--green-deep); border-radius:6px; padding:8px 11px; text-decoration:none; font-size:.84rem; font-weight:800; }
+    footer { padding:0 0 28px; color:var(--muted); font-size:.76rem; }
+    @media (max-width:720px) { .bar-inner, main, footer { width:min(100% - 24px,620px); } .hero { padding-top:28px; } .start { grid-template-columns:1fr; } .start div { border-right:0; border-bottom:1px solid var(--line); } .start div:last-child { border-bottom:0; } .layout { display:block; padding-top:4px; } .toc { position:static; display:flex; gap:6px; overflow:auto; padding:9px 0 16px; white-space:nowrap; } .toc b { display:none; } .toc a { background:#fff; border:1px solid var(--line); } .grid, .mode, .choice-grid { grid-template-columns:1fr; } section { margin-bottom:27px; } }
+  </style>
+</head>
+<body>
+  <header class="bar"><div class="bar-inner">
+    <a class="brand" href="./" aria-label="กลับไปหน้าแรกของ FarmUltimate"><img src="logo.jpg" alt=""><span><b>FARMULTIMATE SOLUTIONS</b><small>คู่มือใช้งานสำหรับเจ้าของฟาร์มและผู้บันทึก</small></span></a>
+    <a class="back" href="./">เข้าเว็บ</a>
+  </div></header>
+  <main>
+    <div class="hero">
+      <div class="eyebrow">คู่มือเริ่มต้นใช้งาน</div>
+      <h1>เริ่มจัดการฟาร์มอย่างเป็นระบบ</h1>
+      <p class="lead">ไม่ต้องรู้เรื่องระบบมาก่อนก็ใช้ได้ เลือกเรื่องที่กำลังจะทำด้านล่าง แล้วทำตามทีละข้อได้เลย</p>
+      <div class="start"><div><b>1. ตั้งต้นฟาร์ม</b><span>แปลง และรอบปลูก</span></div><div><b>2. บันทึกหน้างาน</b><span>กิจกรรม ตรวจแปลง และวัสดุ</span></div><div><b>3. ดูภาพรวม</b><span>ต้นทุน สต็อก และผลการทดลอง</span></div></div>
+    </div>
+    <div class="choose"><h2>ตอนนี้คุณอยากทำอะไร</h2><p>กดหัวข้อที่ตรงกับงานของคุณ ไม่จำเป็นต้องอ่านทั้งหมด</p><div class="choice-grid">
+      <a class="choice" href="#start"><span class="choice-mark">1</span><span><b>เพิ่งเริ่มใช้</b><small>สร้างแปลงและเริ่มปลูก</small></span></a>
+      <a class="choice" href="#activities"><span class="choice-mark">2</span><span><b>จะบันทึกงานวันนี้</b><small>รดน้ำ ฉีดยา ใส่ปุ๋ย หรือค่าใช้จ่าย</small></span></a>
+      <a class="choice" href="#stock"><span class="choice-mark">3</span><span><b>มีปุ๋ยหรือยาจะเพิ่ม</b><small>รับเข้า ดูจำนวน และตัดสต็อก</small></span></a>
+      <a class="choice" href="#team"><span class="choice-mark">4</span><span><b>อยากให้คนอื่นช่วยกรอก</b><small>เชิญผู้บันทึกโดยไม่เห็นข้อมูลสำคัญ</small></span></a>
+    </div></div>
+    <div class="layout">
+      <nav class="toc" aria-label="สารบัญ"><b>ในคู่มือนี้</b><a href="#start">เริ่มต้น</a><a href="#activities">บันทึกกิจกรรม</a><a href="#stock">สต็อก</a><a href="#inspection">ตรวจแปลง</a><a href="#trials">แปลงทดลอง</a><a href="#team">ทีมบันทึก</a><a href="#offline">ออฟไลน์และซิงก์</a></nav>
+      <div>
+        <section id="start"><h2>เริ่มครั้งแรก: ทำ 2 อย่างพอ</h2><p class="section-intro">ยังไม่ต้องกรอกทุกเมนู เริ่มจากพื้นที่ปลูกก่อน แล้วค่อยบันทึกงานจริงเมื่อมีงานเกิดขึ้น</p>
+          <div class="steps"><div class="step"><span class="num">1</span><div><span class="where">ไปที่: แปลงและรอบปลูก</span><h3>เพิ่มแปลงของคุณ</h3><p>กด <b>เพิ่มแปลง</b> แล้วใส่ชื่อที่เรียกกันง่าย เช่น “แปลงข้าวโพดหลังบ้าน” ใส่พื้นที่ถ้ารู้ ส่วนพิกัดยังไม่มีก็ข้ามได้</p></div></div><div class="step"><span class="num">2</span><div><span class="where">เลือกแปลงที่เพิ่งสร้าง</span><h3>กดเริ่มรอบปลูก</h3><p>เลือกพืชและวันที่เริ่มปลูก เท่านี้พอ งานที่บันทึกหลังจากนี้จะถูกรวมไว้กับแปลงนี้เอง</p></div></div></div>
+          <div class="tip"><b>ไม่ต้องกังวล</b><span>ปุ๋ย ยา อุปกรณ์ และรายละเอียดอื่น เพิ่มทีหลังได้เมื่อพร้อมใช้งานจริง</span></div>
+        </section>
+        <section id="activities"><h2>จะบันทึกงานวันนี้</h2><p class="section-intro">จากหน้าแรกกด <b>บันทึกกิจกรรม</b> แล้วตอบคำถามตามนี้ ไม่ต้องกรอกช่องที่ไม่เกี่ยวกับงาน</p>
+          <div class="steps"><div class="step"><span class="num">1</span><div><h3>เลือกว่าทำอะไร</h3><p>เลือก เช่น <b>รดน้ำ</b>, <b>ฉีดยา</b>, <b>ใส่ปุ๋ย</b>, <b>ตรวจแปลง</b> หรือ <b>ค่าใช้จ่าย</b></p></div></div><div class="step"><span class="num">2</span><div><h3>เลือก “ทำแล้ว” หรือ “วางแผนงาน”</h3><p>ทำแล้ว ใช้เมื่อจบงานจริงวันนี้ ส่วนวางแผนงาน ใช้เตือนงานล่วงหน้า</p></div></div><div class="step"><span class="num">3</span><div><h3>เลือกแปลง</h3><p>ถ้างานทำกับพืช ให้เลือกแปลงและรอบปลูก ถ้าเป็นค่าใช้จ่ายส่วนกลาง เช่น ซ่อมรถ ให้เลือก <b>งานส่วนกลาง</b></p></div></div></div>
+          <div class="grid"><div class="card"><h3>เมื่อควรเลือก “แปลงและรอบปลูก”</h3><p>ใช้กับรดน้ำ ฉีดยา ใส่ปุ๋ย ตรวจแปลง เก็บเกี่ยว หรือทุกงานที่อยากดูประวัติและต้นทุนย้อนกลับตามแปลง</p></div><div class="card"><h3>เมื่อควรเลือก “งานส่วนกลาง”</h3><p>ใช้กับค่าใช้จ่ายหรือกิจกรรมทั่วไป เช่น ซ่อมอุปกรณ์ ค่าแรงส่วนกลาง หรือจัดการพื้นที่ที่ไม่ผูกกับแปลงใด</p></div></div>
+          <div class="card" style="margin-top:10px"><h3>เมื่อตัดวัสดุจากสต็อก</h3><p>เลือกสินค้าแล้วกรอกปริมาณที่ใช้จริงเป็นซีซีหรือกิโลกรัมได้ เมื่อสินค้ามีขนาดบรรจุ ระบบคำนวณต้นทุนให้ ไม่ต้องแปลงเป็นเศษขวดเอง</p><div class="mode"><div><b>เบิกเต็มขวด/ถุง</b><span>เหมาะเมื่อเบิกสินค้าใหม่ทั้งขวดหรือถุง ระบบตัดเป็นจำนวนเต็มและไม่เก็บยอดที่เหลือ</span></div><div><b>ใช้บางส่วน · เก็บที่เหลือ</b><span>ใช้ยอดเปิดก่อน ถ้าไม่พอจึงเปิดขวดหรือถุงใหม่ สต็อกหลักลดเป็นจำนวนเต็ม และเก็บส่วนที่เหลือไว้เป็นยอดเปิดใช้</span></div><div><b>ใช้เฉพาะของเปิด</b><span>เลือกเองเมื่อมีของค้างที่เปิดไว้จริง ระบบจะใช้เฉพาะยอดนั้น และไม่เบิกจากสต็อกหลัก</span></div><div><b>ไม่ตัดสต็อก</b><span>บันทึกงานและต้นทุนก่อน แต่ยังไม่จองหรือตัดจำนวนสินค้า เหมาะเมื่อจะตรวจนับภายหลัง</span></div></div></div>
+          <div class="tip"><b>ยาไม่ได้อยู่ในสต็อก</b><span>เลือก “พิมพ์เอง · ไม่ตัดสต็อก” ใส่ชื่อและปริมาณ เช่น ใช้ 50 ซีซี ขวดละ 500 ซีซี ราคา 380 บาท ระบบคิดเป็น 38 บาท จะกรอกค่าใช้จ่ายรวมเองก็ได้ ส่วนอัตราต่อไร่คำนวณจากปริมาณทั้งหมดหารพื้นที่ที่ทำจริง</span></div>
+          <div class="tip warn"><b>ก่อนกดบันทึก</b><span>ดูวันที่ สถานะ แปลง/รอบปลูก ปริมาณ และวิธีตัดสต็อกหนึ่งครั้ง งานวางแผนจะจองสินค้าไว้ แต่ยังไม่ตัดจนกว่าจะบันทึกว่าทำแล้ว</span></div>
+        </section>
+        <section id="stock"><h2>มีปุ๋ยหรือยาจะเพิ่ม</h2><p class="section-intro">ทำเฉพาะตอนอยากรู้ว่าเหลือกี่ถุงหรือกี่ขวด ถ้ายังไม่อยากคุมสต็อก ข้ามส่วนนี้ได้</p>
+          <div class="steps"><div class="step"><span class="num">1</span><div><span class="where">ไปที่: คลังวัสดุและยา</span><h3>กดเพิ่มสินค้า</h3><p>พิมพ์ชื่อที่เรียกกัน เช่น “ปุ๋ย 16-20-0” เลือกหน่วยเป็น <b>ถุง</b> หรือ <b>ขวด</b> แล้วใส่จำนวนที่มีอยู่</p></div></div><div class="step"><span class="num">2</span><div><h3>ซื้อเพิ่มเมื่อไร</h3><p>เปิดสินค้านั้นแล้วกด <b>รับของเข้า</b> ใส่จำนวนที่ซื้อและราคา ระบบจะรวมจำนวนให้เอง</p></div></div><div class="step"><span class="num">3</span><div><h3>ใช้ไปแล้วให้บันทึกเป็นกิจกรรม</h3><p>เวลาใส่ปุ๋ยหรือฉีดยา ให้บันทึกจากหน้า <b>กิจกรรม</b> แล้วเลือกสินค้าจากสต็อก ไม่จำเป็นต้องมาลดยอดเอง</p></div></div></div>
+        </section>
+        <section id="inspection"><h2>เดินตรวจแปลง</h2><p class="section-intro">ตอนเดินดูพืช ให้สร้างกิจกรรม <b>ตรวจแปลง</b> ระบบจะบอกว่าพืชอายุกี่วันให้เอง</p>
+          <div class="grid"><div class="card"><h3>ข้อมูลที่ควรเก็บ</h3><ul><li>ความสูงหรือระยะการเจริญเติบโต</li><li>แมลงที่พบ พร้อมจำนวนต้นที่ตรวจ</li><li>อาการโรค วัชพืช หรือความเสียหาย</li><li>รูปและสิ่งที่ต้องติดตาม</li></ul></div><div class="card"><h3>เคล็ดลับ</h3><p>ตรวจจุดเดิมหรือใช้จำนวนจุดใกล้เคียงกันในแต่ละครั้ง จะทำให้กราฟและแนวโน้มอ่านได้เที่ยงตรงกว่า</p></div></div>
+        </section>
+        <section id="trials"><h2>ทดลองสูตรยา หรือปุ๋ย</h2><p class="section-intro">ใช้เมื่ออยากเทียบว่าสูตรไหนดีกว่า ไม่ต้องใช้กับงานประจำทุกวัน</p>
+          <div class="steps"><div class="step"><span class="num">1</span><div><h3>สร้างการทดลองและทรีตเมนต์</h3><p>ตั้งชื่อ เป้าหมาย ตัวชี้วัด และทรีตเมนต์ให้เป็นคำที่อ่านแล้วเข้าใจได้ เช่น T1 ควบคุม, T2 สูตร A</p></div></div><div class="step"><span class="num">2</span><div><h3>เลือกผังตามหน้างาน</h3><p>ถ้าแบ่งพื้นที่จริงเป็นแปลงย่อย ใช้ผังแปลงย่อยได้ หากวัดหลายจุดในพื้นที่เดียว ให้ใช้การสุ่มจุด ไม่จำเป็นต้องเรียกว่า “ซ้ำ” เสมอไป</p></div></div><div class="step"><span class="num">3</span><div><h3>บันทึกตามวันที่เดียวกัน</h3><p>บันทึกค่าของทุกทรีตเมนต์ในวันเดียวกันให้มากที่สุด แล้วใช้มุมมองช่วงเวลาเพื่ออ่านแนวโน้ม ไม่ยึดติดกับการเทียบทีละวัน</p></div></div></div>
+        </section>
+        <section id="team"><h2>ให้คนอื่นช่วยกรอกข้อมูล</h2><p class="section-intro">ไปที่ <b>ทีมบันทึกข้อมูล &gt; สมาชิกและสิทธิ์</b> แล้วสร้างคำเชิญ ส่งลิงก์ให้คนที่ช่วยงานได้เลย</p>
+          <div class="grid"><div class="card"><h3>ผู้บันทึกทำอะไรได้</h3><p>ส่งงานรดน้ำ ฉีดยา ใส่ปุ๋ย ตรวจแปลง รูป และอัตราใช้ตามขอบเขตที่เจ้าของกำหนด</p></div><div class="card"><h3>ผู้บันทึกไม่เห็นอะไร</h3><p>ไม่เห็นยอดสต็อก ต้นทุน รายงานวิเคราะห์ หรือข้อมูลของแปลงที่ไม่ได้รับสิทธิ์ เจ้าของตรวจรับก่อนเข้าประวัติจริงเสมอ</p></div></div>
+        </section>
+        <section id="offline"><h2>ไม่มีเน็ตก็ยังบันทึกได้</h2><p class="section-intro">เปิดเว็บและเข้าสู่ระบบไว้ก่อน จากนั้นแม้สัญญาณหายก็ยังบันทึกงานได้ ข้อมูลจะส่งเองเมื่อเน็ตกลับมา</p>
+          <div class="tip"><b>ทำงานหลายเครื่อง</b><span>งานที่บันทึกและซิงก์สำเร็จจากคอมหรือโทรศัพท์ จะอัปเดตอีกเครื่องอัตโนมัติเมื่อเครื่องนั้นมีอินเทอร์เน็ตและใช้บัญชีเดียวกัน</span></div>
+          <div class="tip warn"><b>ระวัง</b><span>ถ้าระบบแจ้งว่ามีข้อมูลใหม่จากอีกเครื่อง ให้เลือกข้อมูลฝั่งที่ถูกต้องก่อนยืนยัน เพื่อป้องกันการเขียนทับรายการที่ยังไม่ได้ซิงก์</span></div>
+        </section>
+        <section class="finish"><h2>พร้อมเริ่มแล้ว</h2><p>เริ่มจากเพิ่มแปลงและรอบปลูกหนึ่งรอบ จากนั้นบันทึกกิจกรรมจริงครั้งแรก ระบบจะเริ่มสร้างประวัติและภาพรวมให้เอง</p><a href="./">กลับเข้า FarmUltimate</a></section>
+      </div>
+    </div>
+  </main>
+  <footer>FARMULTIMATE SOLUTIONS · คู่มือใช้งานฉบับเริ่มต้น</footer>
+</body>
+</html>

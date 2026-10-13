@@ -24,13 +24,14 @@ async function refresh() {
   const epoch=C.refreshEpoch=(C.refreshEpoch || 0)+1,session=C.session,assignment=C.assignment;
   msg('กำลังโหลดสิทธิ์...');
   try {
-    const rows=await api('team_assignments');if(C.refreshEpoch!==epoch || C.session!==session || C.assignment!==assignment)return;write('assignments',rows);
+    const rows=await api('team_assignments');if(C.refreshEpoch!==epoch || C.session!==session || C.assignment!==assignment)return;write('assignments',rows);C.assignmentError='';
     el('assignment').innerHTML=options(rows,C.assignment,x=>x.owner_name||'ฟาร์มที่ได้รับมอบหมาย');
     C.assignment=el('assignment').value;await loadContext();msg('');await flush();
   }catch(e){
     if(C.refreshEpoch!==epoch || C.session!==session)return;
-    const rows=read('assignments',[]);el('assignment').innerHTML=options(rows,C.assignment,x=>x.owner_name||'ฟาร์มที่ได้รับมอบหมาย');C.assignment=el('assignment').value;
-    C.context=read('context-'+C.assignment,null);render();msg(e.denied?e.message:'เชื่อมต่อไม่ได้ กรอกร่างออฟไลน์ได้ ส่งข้อมูลจะตรวจสิทธิ์ใหม่');
+    C.assignmentError=e.denied?e.message:'ยังตรวจสิทธิ์ไม่ได้ กรุณาเชื่อมต่ออินเทอร์เน็ตแล้วโหลดสิทธิ์ใหม่';
+    const rows=e.denied?[]:read('assignments',[]);el('assignment').innerHTML=options(rows,C.assignment,x=>x.owner_name||'ฟาร์มที่ได้รับมอบหมาย');C.assignment=el('assignment').value;
+    C.context=e.denied?null:read('context-'+C.assignment,null);render();msg(e.denied?e.message:C.context?'เชื่อมต่อไม่ได้ กรอกร่างออฟไลน์ได้ ส่งข้อมูลจะตรวจสิทธิ์ใหม่':C.assignmentError);
   }
 }
 async function loadContext() {
@@ -104,17 +105,23 @@ function capture() {
   p.checks=Object.fromEntries(Object.keys(checkOptions).map(k=>[k,fd.get('check-'+k)||'']));
   p.points=[...form.querySelectorAll('[data-point]')].map(node=>Object.fromEntries([...node.querySelectorAll('input')].map(input=>[input.dataset.key,input.value])));
   p.samples=[...form.querySelectorAll('[data-sample]')].map(input=>input.value);p.photos=C.photos;
-  p.materials=[...form.querySelectorAll('[data-material]')].map(node=>({...((node.dataset.source==='external')
+  p.materials=[...form.querySelectorAll('[data-material]')].map(node=>{const usage=node.querySelector('[data-material-usage]');return {...((node.dataset.source==='external')
     ?{source:'external',name:node.querySelector('[data-material-name]').value,qty:node.querySelector('[data-material-qty]').value,unit:node.querySelector('[data-material-unit]').value,rate:node.querySelector('[data-material-rate]')?.value || ''}
-    :{stockId:node.querySelector('select').value,qty:node.querySelector('[data-material-qty]').value,unit:node.dataset.unit,rate:node.querySelector('[data-material-rate]')?.value || ''}),...captureDose(node)}));return p;
+    :{stockId:node.querySelector('select').value,qty:node.querySelector('[data-material-qty]').value,unit:node.dataset.unit,rate:node.querySelector('[data-material-rate]')?.value || '',...(usage && node.dataset.contentUnit?{usageQty:usage.value,usageUnit:node.dataset.contentUnit}:{})}),...captureDose(node)};});return p;
 }
 function captureDose(node){
   const amount=node.querySelector('[data-dose="amount"]');if(!amount)return {};
   return {dose:Object.fromEntries(['amount','unit','per','basis'].map(key=>[key,node.querySelector('[data-dose="'+key+'"]').value]))};
 }
 function persist(){try{write('draft-'+C.assignment,capture());if(el('draftStatus'))el('draftStatus').textContent='เก็บร่างในเครื่องแล้ว · ยังไม่ส่ง · '+new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});return true;}catch(e){msg('พื้นที่เครื่องเต็ม ร่างยังไม่ถูกเก็บ อย่าปิดหน้านี้');return false;}}
+function unassignedHtml() {
+  if(C.assignmentError)return '<div class="empty-state" role="status"><h2>ยังโหลดสิทธิ์เข้าฟาร์มไม่ได้</h2><p>'+esc(C.assignmentError)+'</p><button onclick="refresh()">ลองใหม่</button><p>ข้อมูลร่างเดิมยังเก็บอยู่ในเครื่อง</p></div>';
+  return '<div class="empty-state" role="status"><h2>ยังไม่ได้รับสิทธิ์เข้าฟาร์ม</h2><p>ขอลิงก์คำเชิญจากเจ้าของฟาร์ม แล้วเปิดลิงก์ด้วยบัญชีอีเมลที่ได้รับเชิญ ข้อมูลร่างเดิมยังเก็บอยู่ในเครื่อง</p><button onclick="refresh()">โหลดสิทธิ์ใหม่</button><p><a href="/guide.html#team">ดูวิธีเข้าร่วมทีม</a> · <a href="/">กลับหน้าหลัก</a></p></div>';
+}
 function render() {
   document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tab===C.tab)));
+  el('assignment').closest('label').hidden=!C.assignment;
+  if(!C.assignment){el('content').innerHTML=unassignedHtml();return;}
   if(C.tab==='sent'){sent();return;}
   if(!C.context){el('content').innerHTML='<div class="empty-state"><h2>ยังไม่มีแปลงที่เปิดให้บันทึก</h2><p>รับคำเชิญจากเจ้าของฟาร์ม หรือรีเฟรชสิทธิ์อีกครั้ง</p><button onclick="refresh()">โหลดสิทธิ์ใหม่</button></div>';return;}
   const p=draft(),ctx=C.context;
@@ -170,6 +177,21 @@ function materialMatches(catalog,query){
   const words=String(query || '').normalize('NFKC').toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
   return catalog.filter(x=>{const label=[x.name,x.size,x.unit].join(' ').normalize('NFKC').toLocaleLowerCase();return words.every(word=>label.includes(word));});
 }
+const contentUnits={ml:{label:'ซีซี (มล.)',factor:1,family:'volume'},l:{label:'ลิตร',factor:1000,family:'volume'},g:{label:'กรัม',factor:1,family:'mass'},kg:{label:'กก.',factor:1000,family:'mass'}};
+function contentUnitKey(unit){const key=String(unit||'').trim().toLowerCase().replace(/\.+$/,'');return ({'ซีซี':'ml','cc':'ml','มล':'ml','มิลลิลิตร':'ml','ml':'ml','ลิตร':'l','litre':'l','liter':'l','l':'l','กรัม':'g','gram':'g','g':'g','กก':'kg','กิโลกรัม':'kg','kg':'kg'})[key] || '';}
+function stockContentInfo(item){
+  if(!item || contentUnitKey(item.unit))return null;
+  const match=String(item.size||'').trim().match(/^([\d.,]+)\s*([^\d\s].*)$/);if(!match)return null;
+  const amount=Number(match[1].replace(/,/g,'')),unit=contentUnitKey(match[2]);
+  return Number.isFinite(amount) && amount>0 && contentUnits[unit]?{amount,unit,...contentUnits[unit]}:null;
+}
+function materialNumber(value){const n=Number(value);return Number.isFinite(n)?n.toLocaleString('th-TH',{maximumFractionDigits:4}):'';}
+function materialContentText(row,item){
+  const content=stockContentInfo(item);if(!content)return '';
+  const used=Number(row?.usageQty);if(!Number.isFinite(used)||used<=0)return `1 ${item.unit} = ${materialNumber(content.amount)} ${content.label}`;
+  const packages=used/content.amount;
+  return `ใช้ ${materialNumber(used)} ${content.label} = ${materialNumber(packages)} ${item.unit} · เจ้าของจะคิดต้นทุนตามปริมาณที่ใช้`;
+}
 function materialOptions(catalog,selected,query=''){
   const matches=materialMatches(catalog,query),current=catalog.find(x=>x.id===selected);
   return '<option value="">เลือกจากสต็อก</option>'+(selected && !current?'<option selected value="'+esc(selected)+'">รายการเดิมใช้ไม่ได้ กรุณาเลือกใหม่</option>':'')+
@@ -186,9 +208,9 @@ function filterMaterials(i,query){
 function materialsHtml(p){
   const catalog=C.context.materials || [],rows=p.materials || [];
   return `<fieldset class="material-section"><legend>ยาและปุ๋ยที่ใช้</legend><div class="material-tools"><button type="button" onclick="reusePrevious()">${cIcon('history')} ใช้รายการครั้งก่อน</button></div>${applicationWorkHtml(p)}${!catalog.length?'<p class="muted">ยังไม่มีสินค้าในรายการสต็อก</p>':''}
-    ${rows.map((row,i)=>{if(row.source==='external')return externalMaterialHtml(row,i);const item=catalog.find(x=>x.id===row.stockId);return `<div class="material-row" data-material="${i}" data-unit="${esc(row.unit || item?.unit || '')}">
+    ${rows.map((row,i)=>{if(row.source==='external')return externalMaterialHtml(row,i);const item=catalog.find(x=>x.id===row.stockId),content=stockContentInfo(item);return `<div class="material-row" data-material="${i}" data-unit="${esc(row.unit || item?.unit || '')}" ${content?`data-content-unit="${content.unit}" data-material-content="${i}"`:''}>
       <div class="material-picker"><label>ค้นหายา / ปุ๋ย รายการ ${i+1}<input type="search" data-material-search="${i}" placeholder="ชื่อยา ขนาด หรือหน่วย" autocomplete="off" aria-describedby="materialResults${i}"></label><small id="materialResults${i}" data-material-results role="status" aria-live="polite">${catalog.length} รายการ</small><label>สินค้า รายการ ${i+1}<select required aria-label="สินค้า รายการ ${i+1}">${materialOptions(catalog,row.stockId)}</select></label></div>
-      <label>จำนวนใช้จริง (${esc(item?.unit || row.unit || 'หน่วย')})<input data-material-qty aria-label="จำนวนใช้ รายการ ${i+1}" type="number" inputmode="decimal" min="0.0001" step="0.0001" required value="${esc(row.qty)}"></label>
+      ${content?`<label>ใช้จริง (${esc(content.label)})<input data-material-usage aria-label="ปริมาณที่ใช้จริง รายการ ${i+1}" type="number" inputmode="decimal" min="0.0001" max="1000000000" step="0.0001" required value="${esc(row.usageQty ?? '')}"><small class="material-content-note" data-content-estimate="${i}">${esc(materialContentText(row,item))}</small></label><input data-material-qty type="hidden" value="${esc(row.qty || '')}">`:`<label>จำนวนใช้จริง (${esc(item?.unit || row.unit || 'หน่วย')})<input data-material-qty aria-label="จำนวนใช้ รายการ ${i+1}" type="number" inputmode="decimal" min="0.0001" step="0.0001" required value="${esc(row.qty)}"></label>`}
       <button type="button" class="icon-button text-button danger" onclick="removeMaterial(${i})" aria-label="ลบสินค้า รายการ ${i+1}" title="ลบรายการ">${cIcon('trash-2')}</button>${materialRateHtml(row,i)}</div>`;}).join('')}
     <div class="material-add"><button type="button" onclick="addMaterial()" ${!catalog.length || rows.length>=20?'disabled':''}>${cIcon('plus')} เพิ่มจากสต็อก</button><button type="button" onclick="addMaterial('external')" ${rows.length>=20?'disabled':''}>${cIcon('pencil')} เพิ่มนอกสต็อก</button></div></fieldset>`;
 }
@@ -210,6 +232,10 @@ function updateEstimates(){
     const m=p.materials[Number(output.dataset.estimate)];
     try{output.textContent=ApplicationRate.estimateText(m,p.applicationWork,p.workStatus);output.classList.remove('invalid');}
     catch(e){output.textContent=e.message;output.classList.add('invalid');}
+  });
+  document.querySelectorAll('[data-content-estimate]').forEach(output=>{
+    const i=Number(output.dataset.contentEstimate),row=p.materials[i],item=C.context?.materials?.find(x=>x.id===row?.stockId);
+    output.textContent=materialContentText(row,item);
   });
 }
 function externalMaterialHtml(row,i){
@@ -241,6 +267,12 @@ function validateMaterials(materials){
     }else{
       const stock=C.context.materials?.find(x=>x.id===m.stockId);
       if(!stock || stock.unit!==m.unit)throw new Error('สินค้าใช้ไม่ได้หรือหน่วยเปลี่ยน กรุณาเลือกรายการใหม่');key=m.stockId;
+      if(m.usageQty!==undefined || m.usageUnit!==undefined){
+        const content=stockContentInfo(stock),usageQty=Number(m.usageQty);
+        if(!content || m.usageUnit!==content.unit || !Number.isFinite(usageQty) || usageQty<=0 || usageQty>1e9 || Math.abs(usageQty*1e4-Math.round(usageQty*1e4))>1e-6)throw new Error('กรอกปริมาณที่ใช้จริงให้ถูกต้อง');
+        if(Math.abs((usageQty/content.amount)*1e4-Math.round((usageQty/content.amount)*1e4))>1e-6)throw new Error('ปริมาณที่ใช้ละเอียดเกินขนาดบรรจุ กรุณากรอกเป็นทศนิยมไม่เกิน 4 ตำแหน่ง');
+        if(used.has(key))throw new Error('รายการซ้ำ กรุณารวมจำนวนในแถวเดียว');used.add(key);continue;
+      }
     }
     const qty=Number(m.qty);
     if(!Number.isFinite(qty) || qty<=0 || qty>1e9 || Math.abs(qty*1e4-Math.round(qty*1e4))>1e-6)throw new Error('จำนวนใช้ต้องมากกว่า 0 และมีทศนิยมไม่เกิน 4 ตำแหน่ง');
@@ -289,7 +321,7 @@ function reuseDraft(p,s){
   const previous=JSON.parse(s.payload);
   return {id:crypto.randomUUID(),date:p.date,plotId:p.plotId,cycleId:p.cycleId,type:p.type,title:types[p.type],workStatus:p.workStatus || 'done',photos:[],points:[],note:'',applicationWork:{},materials:previous.materials.map(m=>{
     const fields=ApplicationRate.materialFields(m);
-    return m.source==='external'?{source:'external',name:m.name,unit:m.unit,qty:'',...fields}:{stockId:m.stockId,unit:m.unit,qty:'',...fields};
+    return m.source==='external'?{source:'external',name:m.name,unit:m.unit,qty:'',...fields}:{stockId:m.stockId,unit:m.unit,qty:'',...(m.usageQty!==undefined?{usageQty:'',usageUnit:m.usageUnit}:{}),...fields};
   })};
 }
 async function reusePrevious(){
@@ -320,9 +352,10 @@ async function flush(){if(C.busy || !navigator.onLine)return;C.busy=true;const s
 }
 function submissionDetails(p){
   const ctx=C.context,tr=ctx?.trials.find(t=>t.id===p.trialId),metric=tr?.metrics.find(m=>m.id===p.metricId);
-  return `<p>แปลง: ${esc(ctx?.plots.find(x=>x.id===p.plotId)?.name || 'แปลงที่ส่งบันทึก')} · ${esc(types[p.type])} · ${p.workStatus==='failed'?'ไม่สำเร็จ':'สำเร็จ'}</p>${ctx?.cycles?.find(c=>c.id===p.cycleId)?'<p>รอบปลูก: '+esc(ctx.cycles.find(c=>c.id===p.cycleId).plant)+' · รอบ '+esc(ctx.cycles.find(c=>c.id===p.cycleId).round)+'</p>':''}${p.applicationWork && ApplicationRate.workText(p.applicationWork)?'<p>'+esc(ApplicationRate.workText(p.applicationWork))+'</p>':''}${p.type==='water'?'<p>ระยะเวลารดน้ำ: '+(p.wateringMinutes===null || p.wateringMinutes===undefined || p.wateringMinutes===''?'ไม่ได้ระบุ':esc(p.wateringMinutes)+' นาที')+'</p>':''}${Object.entries(p.checks || {}).filter(([,v])=>v).map(([k,v])=>`<p>${esc(checkOptions[k]?.[0] || k)}: ${esc(v)}</p>`).join('')}${(p.points || []).map(q=>`<p><b>${esc(q.label)}</b><br>ความสูง ${q.heightCm??'ยังไม่วัด'} ซม. · ตรวจ ${q.examinedPlants??'ยังไม่นับ'} ต้น<br>แมลง ${q.pestCount??'ยังไม่นับ'} ตัว${q.pestName?' ('+esc(q.pestName)+')':''} · มีอาการ ${q.affectedPlants??'ยังไม่นับ'} ต้น${q.symptomName?' ('+esc(q.symptomName)+')':''}</p>`).join('')}${(p.materials || []).map(m=>'<p>'+esc(m.name || ctx?.materials?.find(x=>x.id===m.stockId)?.name || 'สินค้าที่เลือก')+(m.source==='external'?' (นอกสต็อก · ไม่ตัดสต็อก)':'')+'<br>จำนวนใช้จริง: '+esc(m.qty)+' '+esc(m.unit)+(m.rate?'<br>อัตราใช้: '+esc(m.rate):'')+(m.dose && p.workStatus!=='failed'?'<br>'+esc(ApplicationRate.estimateText(m,p.applicationWork,p.workStatus)):'')+'</p>').join('')}${p.type==='trial'?`<p>${esc(tr?.name || 'งานทดลอง')} · ${esc(tr?.units.find(u=>u.id===p.unitId)?.label || p.unitId)}<br>${esc(metric?.name || p.metricId)}: ${esc(p.value)} ${esc(metric?.unit || '')}</p>${p.samples?'<p>'+p.samples.map((v,i)=>'จุด '+(i+1)+': '+(v===null?'ยังไม่วัด':esc(v))).join(' · ')+'</p>':''}`:''}<div class="photos">${(p.photos || []).map(src=>`<img src="${esc(src)}" alt="รูปประกอบบันทึก">`).join('')}</div>`;
+  const materialLine=m=>{const item=ctx?.materials?.find(x=>x.id===m.stockId),content=stockContentInfo(item);const amount=m.usageQty!==undefined?`${esc(m.usageQty)} ${esc(content?.label || m.usageUnit || '')} (${esc(materialContentText(m,item))})`:`${esc(m.qty)} ${esc(m.unit)}`;return '<p>'+esc(m.name || item?.name || 'สินค้าที่เลือก')+(m.source==='external'?' (นอกสต็อก · ไม่ตัดสต็อก)':'')+'<br>จำนวนใช้จริง: '+amount+(m.rate?'<br>อัตราใช้: '+esc(m.rate):'')+(m.dose && p.workStatus!=='failed'?'<br>'+esc(ApplicationRate.estimateText(m,p.applicationWork,p.workStatus)):'')+'</p>';};
+  return `<p>แปลง: ${esc(ctx?.plots.find(x=>x.id===p.plotId)?.name || 'แปลงที่ส่งบันทึก')} · ${esc(types[p.type])} · ${p.workStatus==='failed'?'ไม่สำเร็จ':'สำเร็จ'}</p>${ctx?.cycles?.find(c=>c.id===p.cycleId)?'<p>รอบปลูก: '+esc(ctx.cycles.find(c=>c.id===p.cycleId).plant)+' · รอบ '+esc(ctx.cycles.find(c=>c.id===p.cycleId).round)+'</p>':''}${p.applicationWork && ApplicationRate.workText(p.applicationWork)?'<p>'+esc(ApplicationRate.workText(p.applicationWork))+'</p>':''}${p.type==='water'?'<p>ระยะเวลารดน้ำ: '+(p.wateringMinutes===null || p.wateringMinutes===undefined || p.wateringMinutes===''?'ไม่ได้ระบุ':esc(p.wateringMinutes)+' นาที')+'</p>':''}${Object.entries(p.checks || {}).filter(([,v])=>v).map(([k,v])=>`<p>${esc(checkOptions[k]?.[0] || k)}: ${esc(v)}</p>`).join('')}${(p.points || []).map(q=>`<p><b>${esc(q.label)}</b><br>ความสูง ${q.heightCm??'ยังไม่วัด'} ซม. · ตรวจ ${q.examinedPlants??'ยังไม่นับ'} ต้น<br>แมลง ${q.pestCount??'ยังไม่นับ'} ตัว${q.pestName?' ('+esc(q.pestName)+')':''} · มีอาการ ${q.affectedPlants??'ยังไม่นับ'} ต้น${q.symptomName?' ('+esc(q.symptomName)+')':''}</p>`).join('')}${(p.materials || []).map(materialLine).join('')}${p.type==='trial'?`<p>${esc(tr?.name || 'งานทดลอง')} · ${esc(tr?.units.find(u=>u.id===p.unitId)?.label || p.unitId)}<br>${esc(metric?.name || p.metricId)}: ${esc(p.value)} ${esc(metric?.unit || '')}</p>${p.samples?'<p>'+p.samples.map((v,i)=>'จุด '+(i+1)+': '+(v===null?'ยังไม่วัด':esc(v))).join(' · ')+'</p>':''}`:''}<div class="photos">${(p.photos || []).map(src=>`<img src="${esc(src)}" alt="รูปประกอบบันทึก">`).join('')}</div>`;
 }
-async function sent(silent=false){const request=C.sentRequest=(C.sentRequest || 0)+1,assignment=C.assignment,session=C.session;let records=[],loaded=false;try{records=await api('team_sent',{grantId:assignment,offset:C.sentOffset || 0});loaded=true;}catch(e){if(!silent && request===C.sentRequest)msg('โหลดรายการที่ส่งไม่ได้ ตรวจการเชื่อมต่อหรือสิทธิ์');}
+async function sent(silent=false){if(!C.assignment){el('content').innerHTML=unassignedHtml();return;}const request=C.sentRequest=(C.sentRequest || 0)+1,assignment=C.assignment,session=C.session;let records=[],loaded=false;try{records=await api('team_sent',{grantId:assignment,offset:C.sentOffset || 0});loaded=true;}catch(e){if(!silent && request===C.sentRequest)msg(e.denied?e.message:'โหลดรายการที่ส่งไม่ได้ กรุณาตรวจการเชื่อมต่อแล้วลองใหม่');}
   if(request!==C.sentRequest || C.tab!=='sent' || C.assignment!==assignment || C.session!==session)return;C.sent=records;C.sentLoaded=loaded;renderSent();
 }
 function sentMatches(s,filter,context){

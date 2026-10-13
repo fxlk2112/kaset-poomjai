@@ -14,6 +14,16 @@ function setup(){
   return {ctx,message,run:s=>vm.runInContext(s,ctx)};
 }
 
+test('unassigned collector never requests history and distinguishes an unavailable connection',async()=>{
+  const t=setup();let called=0;t.ctx.api=async()=>{called++;return [];};
+  t.run("C.assignment='';C.tab='sent';write('queue',[{id:'preserve'}]);");
+  await t.run('sent()');assert.equal(called,0);assert.match(t.message.innerHTML,/ยังไม่ได้รับสิทธิ์เข้าฟาร์ม/);
+  t.run("C.assignmentError='<offline>';renderSent=()=>{};");
+  assert.match(t.run('unassignedHtml()'),/ยังโหลดสิทธิ์เข้าฟาร์มไม่ได้/);
+  assert.match(t.run('unassignedHtml()'),/&lt;offline&gt;/);
+  assert.equal(t.run("read('queue',[])[0].id"),'preserve');
+});
+
   test('context change cancellation preserves measurements, zeros, notes and photos',async()=>{
   const t=setup();t.run("write('draft-grant',{id:'keep',plotId:'p',samples:[0,2],note:'keep',photos:['photo']});");
   assert.equal(await t.run("changeContext(draft(),'plotId','other')"),null);
@@ -57,6 +67,16 @@ test('material search matches Thai names, package size and case-insensitive unit
   assert.equal(t.run("materialMatches(C.context.materials,'  ').length"),2);
   const html=t.run("materialOptions(C.context.materials,'a','ยา')");
   assert.match(html,/ที่เลือกไว้:/);assert.match(html,/value="a" selected/);
+});
+
+test('measured package content lets a collector enter millilitres instead of bottle fractions',()=>{
+  const t=setup();t.run("C.context={materials:[{id:'a',name:'ยา A',unit:'ขวด',size:'500 ซีซี'}]};");
+  assert.equal(t.run("stockContentInfo(C.context.materials[0]).unit"),'ml');
+  assert.equal(t.run("stockContentInfo(C.context.materials[0]).amount"),500);
+  const html=t.run("materialsHtml({materials:[{stockId:'a',unit:'ขวด',usageQty:50,usageUnit:'ml'}]})");
+  assert.match(html,/ใช้จริง \(ซีซี \(มล\.\)\)/);assert.match(html,/data-material-usage/);assert.match(html,/0\.1 ขวด/);
+  assert.doesNotThrow(()=>t.run("validateMaterials([{stockId:'a',unit:'ขวด',qty:'',usageQty:50,usageUnit:'ml'}])"));
+  assert.throws(()=>t.run("validateMaterials([{stockId:'a',unit:'ขวด',qty:'',usageQty:50,usageUnit:'kg'}])"));
 });
 
 test('filtering materials preserves selection and quantity without rerendering or saving the form',()=>{

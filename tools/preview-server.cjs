@@ -28,6 +28,10 @@ let state = {
   trials:[{id:'trial-a',plotId:'plot-a',name:'เปรียบเทียบปุ๋ยในข้าวโพดหวาน',trialType:'screening',status:'active',startDate:day(-12),design:'RCBD',reps:2,metrics:[{id:'height',name:'ความสูง',unit:'ซม.',direction:'high'}],treatments:[{id:'t1',code:'T1',name:'สูตรเดิม'},{id:'t2',code:'T2',name:'สูตรทดลอง'}],units:[{id:'u1',treatmentId:'t1',rep:1,areaRai:0.5},{id:'u2',treatmentId:'t2',rep:1,areaRai:0.5},{id:'u3',treatmentId:'t1',rep:2,areaRai:0.5},{id:'u4',treatmentId:'t2',rep:2,areaRai:0.5}],observations:[]}],
   workers:[],texts:{},notifDismissed:{}
 };
+if (process.argv.includes('--ux')) {
+  state.stock.push({id:'stock-liquid',name:'ยาทดสอบ 500 ซีซี',category:'ยา',unit:'ขวด',size:'500 ซีซี',qty:4,openQty:0.5,avgCost:380},
+    {id:'stock-unknown',name:'สินค้าที่ยังไม่ตั้งราคา',category:'ยา',unit:'ขวด',size:'500 มล.',qty:2,openQty:0,avgCost:0});
+}
 if (process.argv.includes('--trials')) {
   const tr=state.trials[0];
   tr.name='เปรียบเทียบการดูแลข้าวโพดหวาน (ข้อมูลตัวอย่าง)';
@@ -102,7 +106,7 @@ http.createServer(async(req,res)=>{
     const file=path.resolve(root,'.'+relative);
     if(!file.startsWith(root+path.sep)||relative.split('/').some(part=>part.startsWith('.')||['worker','tests','tools'].includes(part)))return send(res,403,'text/plain','Forbidden');
     let bytes=await fs.promises.readFile(file);
-    if(relative==='/index.html')bytes=Buffer.from(bytes.toString().replace('<head>','<head>\n<script src="/__preview/bootstrap.js"></script>'));
+    if(relative==='/index.html'&&!process.argv.includes('--public'))bytes=Buffer.from(bytes.toString().replace('<head>','<head>\n<script src="/__preview/bootstrap.js"></script>'));
     if(relative==='/js/auth.js')bytes=Buffer.from(bytes.toString().replace('"https://farmbackup.carfork123.workers.dev"','"/__preview/api"'));
     if(relative==='/js/collector.js')bytes=Buffer.from(bytes.toString().replace("'https://farmbackup.carfork123.workers.dev'","'/__preview/api'"));
     send(res,200,types[path.extname(file)]||'application/octet-stream',bytes);

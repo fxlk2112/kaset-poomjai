@@ -1,5 +1,23 @@
 /* Owner-side controls. Collector data is accessed only through scoped team APIs. */
+function teamMaterialQtyHtml(m) {
+  if (m.usageQty === undefined || m.usageQty === null) return `${esc(m.qty)} ${esc(m.unit)}`;
+  const unit = ({ ml: "มล. (ซีซี)", l: "ลิตร", g: "กรัม", kg: "กก." })[m.usageUnit] || m.usageUnit || "";
+  return `${esc(m.usageQty)} ${esc(unit)}<small> = ${esc(m.qty)} ${esc(m.unit)}</small>`;
+}
+
 const Team = {
+  present(html) {
+    const page=typeof document!=='undefined'?document.getElementById('teamPageContent'):null;
+    if(typeof route==='undefined'||route.view!=='team'||!page){openModal(html);return;}
+    closeModal();
+    page.innerHTML=html;
+    page.querySelector('.modal-x')?.remove();
+    const heading=page.querySelector('h3');
+    if(heading){const h=document.createElement('h1');h.innerHTML=heading.innerHTML;heading.replaceWith(h);}
+    labelFormFields(page);
+    if(typeof Concept!=='undefined')Concept.shell();
+    if(typeof ConceptWorkflows!=='undefined')ConceptWorkflows.teamSearch();
+  },
   members:[], inbox:[], busy:false, offset:0, memberOffset:0, section:'inbox', filter:'pending', counts:[], homeEpoch:0,
   async call(action,extra={}) {
     const token=Auth.session?.token,r=await authCall(action,{token,...extra});
@@ -7,10 +25,11 @@ const Team = {
     if(!r.ok)throw new Error(r.error || 'ดำเนินการไม่สำเร็จ');return r.data;
   },
   async open() {
+    const pageRequest=typeof route!=='undefined'&&route.view==='team',requestId=this.requestId=(this.requestId||0)+1;
     this.offset=0;
-    openModal('<button class="modal-x" onclick="App.closeModal()">✕</button><h3>ทีมบันทึกข้อมูล</h3><p role="status">กำลังโหลด...</p>');
-    try {this.members=await this.call('team_members',{offset:this.memberOffset});this.inbox=await this.call('team_inbox',{status:this.filter});this.counts=await this.call('team_counts');this.render();}
-    catch(e){openModal('<button class="modal-x" onclick="App.closeModal()">✕</button><h3>ทีมบันทึกข้อมูล</h3><p role="alert">'+esc(e.message)+'</p><button class="btn btn-outline" onclick="Team.open()">ลองใหม่</button>');}
+    this.present('<button class="modal-x" onclick="App.closeModal()">✕</button><h3>ทีมบันทึกข้อมูล</h3><p role="status">กำลังโหลด...</p>');
+    try {this.members=await this.call('team_members',{offset:this.memberOffset});this.inbox=await this.call('team_inbox',{status:this.filter});this.counts=await this.call('team_counts');if(requestId!==this.requestId||(pageRequest&&route.view!=='team'))return;this.render();}
+    catch(e){if(requestId!==this.requestId||(pageRequest&&route.view!=='team'))return;const expired=/เซสชัน/.test(String(e.message||''));this.present('<button class="modal-x" onclick="App.closeModal()">✕</button><h3>ทีมบันทึกข้อมูล</h3><p role="alert">'+esc(e.message)+'</p><button class="btn '+(expired?'btn-primary':'btn-outline')+'" onclick="'+(expired?'App.closeModal();Auth.reauthenticate()':'Team.open()')+'">'+(expired?'เข้าสู่ระบบใหม่':'ลองใหม่')+'</button>');}
   },
   openPending() { this.section='inbox'; this.filter='pending'; this.open(); },
   async renderHomeInbox() {
@@ -26,8 +45,8 @@ const Team = {
   },
   render() {
     const statuses={pending:'รอตรวจ',returned:'ส่งกลับแก้ไข',approved:'รับรองแล้ว'};
-    openModal(`<button class="modal-x" onclick="App.closeModal()">✕</button><div class="team-screen"><header class="team-heading"><div><span class="team-eyebrow">การทำงานร่วมกัน</span><h3>ทีมบันทึกข้อมูล</h3></div><button class="btn btn-primary" onclick="Team.invite()">${ic('plus')} เชิญสมาชิก</button></header>
-      <div class="team-counts">${Object.entries(statuses).map(([k,v])=>`<div><strong>${this.counts.find(c=>c.status===k)?.count || 0}</strong><span>${v}</span></div>`).join('')}</div>
+    this.present(`<button class="modal-x" onclick="App.closeModal()">✕</button><div class="team-screen"><header class="team-heading"><div><span class="team-eyebrow">การทำงานร่วมกัน</span><h3>ทีมบันทึกข้อมูล</h3></div><button class="btn btn-primary" onclick="Team.invite()">${ic('plus')} เชิญสมาชิก</button></header>
+      ${this.section==='inbox' ? `<div class="team-counts">${Object.entries(statuses).map(([k,v])=>`<div><strong>${this.counts.find(c=>c.status===k)?.count || 0}</strong><span>${v}</span></div>`).join('')}</div>` : ''}
       <nav class="team-tabs" aria-label="ส่วนจัดการทีม"><button class="btn ${this.section==='inbox'?'btn-primary':'btn-ghost'}" aria-pressed="${this.section==='inbox'}" onclick="Team.section='inbox';Team.render()">${ic('check')} ตรวจรับข้อมูล</button><button class="btn ${this.section==='members'?'btn-primary':'btn-ghost'}" aria-pressed="${this.section==='members'}" onclick="Team.section='members';Team.render()">${ic('user')} สมาชิกและสิทธิ์</button><button class="btn btn-icon btn-ghost" title="โหลดข้อมูลทีมใหม่" aria-label="โหลดข้อมูลทีมใหม่" onclick="Team.open()">${ic('refresh')}</button></nav>
       ${this.section==='members'?`<div class="team-list">${this.members.length?this.members.map((m,i)=>{const scope=JSON.parse(m.scopes);return `<article class="team-member"><div class="team-member-head"><b>${esc(m.email)}</b><span class="team-status ${m.status}">${esc(({active:'ใช้งานอยู่',invited:m.expires_at<Date.now()?'คำเชิญหมดอายุ':'รอรับคำเชิญ',revoked:'ถอนสิทธิ์แล้ว'})[m.status])}</span></div><dl class="team-permissions"><dt>แปลง</dt><dd>${scope.plots.map(id=>esc(S.plots.find(p=>p.id===id)?.name || 'แปลงที่ปิดไปแล้ว')).join(' · ')}</dd><dt>บันทึกได้</dt><dd>${scope.types.map(t=>esc(t==='trial'?'ผลทดลอง':TYPE_LABELS[t] || t)).join(' · ')}</dd></dl>${m.status!=='revoked'?`<div class="team-member-actions">${m.status==='invited'?`<button class="btn btn-outline btn-sm" onclick="Team.renewInvite(${i})">${ic('refresh')} สร้างลิงก์ใหม่</button>`:''}<button class="btn btn-outline btn-sm" onclick="Team.invite(${i})">${ic('pencil')} แก้สิทธิ์</button><button class="btn btn-ghost btn-sm" onclick="Team.revoke(${i})">ถอนสิทธิ์</button></div>`:''}</article>`;}).join(''):'<div class="team-empty"><h4>ยังไม่มีสมาชิก</h4><p>เริ่มจากเชิญผู้บันทึกคนแรก</p></div>'}</div><div class="row">${this.memberOffset?'<button class="btn btn-ghost" onclick="Team.memberPage(-1)">ก่อนหน้า</button>':''}${this.members.length===200?'<button class="btn btn-ghost" onclick="Team.memberPage(1)">ถัดไป</button>':''}</div><a class="btn btn-ghost" href="/collector">${ic('pencil')} เปิดหน้าผู้บันทึก</a>`:
       `<label class="team-filter">สถานะ<select onchange="Team.setFilter(this.value)"><option value="">ทั้งหมด</option>${Object.entries(statuses).map(([k,v])=>`<option value="${k}" ${this.filter===k?'selected':''}>${v}</option>`).join('')}</select></label><div class="team-list">${this.inbox.length?this.inbox.map((s,i)=>{const p=JSON.parse(s.payload);return `<button class="team-review-row" onclick="Team.detail(${i})"><span><b>${esc(p.title)}</b><small>${esc(s.member_name)} · ${esc(dateLabel(p.date))}</small><small>${esc(S.plots.find(x=>x.id===p.plotId)?.name || 'แปลงเดิม')} · ${esc(p.type==='trial'?'ผลทดลอง':TYPE_LABELS[p.type])}</small></span><span class="team-status ${s.status}">${statuses[s.status]}</span></button>`;}).join(''):'<div class="team-empty">'+ic('check')+'<h4>ไม่มีรายการในสถานะนี้</h4><p>รายการใหม่จากผู้บันทึกจะอยู่ในรอตรวจ</p></div>'}</div><div class="team-pagination"><span>หน้า ${this.offset/100+1}</span>${this.offset?'<button class="btn btn-ghost" onclick="Team.page(-1)">ก่อนหน้า</button>':''}${this.inbox.length===100?'<button class="btn btn-ghost" onclick="Team.page(1)">ถัดไป</button>':''}</div>`}</div>`);
@@ -41,7 +60,7 @@ const Team = {
       <label class="field">อีเมลผู้บันทึก<input name="email" type="email" value="${esc(m?.email || '')}" ${m?'readonly':''} required maxlength="254"></label>
       <fieldset class="team-options"><legend>แปลงที่มอบหมาย</legend>${S.plots.filter(p=>p.status!=='inactive').map(p=>`<label><input type="checkbox" name="plots" value="${esc(p.id)}" ${scope.plots.includes(p.id)?'checked':''}>${esc(p.name)}</label>`).join('')}</fieldset>
       <fieldset class="team-options"><legend>ประเภทงานที่บันทึกได้</legend>${Object.entries({...TYPE_LABELS,trial:'ผลทดลอง'}).filter(([k])=>k!=='expense').map(([k,v])=>`<label><input type="checkbox" name="types" value="${k}" ${scope.types.includes(k)?'checked':''}>${esc(v)}</label>`).join('')}</fieldset>
-      <p class="team-policy">${ic('eye')} ไม่เปิดให้ดูสต็อก ต้นทุน หรือข้อมูลวิเคราะห์</p><p class="muted">${m?'การส่งครั้งถัดไปจะตรวจตามสิทธิ์ใหม่ ข้อมูลที่บันทึกแล้วจะไม่ถูกลบ':'ลิงก์ใช้ได้ครั้งเดียว ภายใน 7 วัน ผู้รับต้องใช้อีเมลนี้'}</p>
+      <p class="team-policy">${ic('eye')} เลือกชื่อวัสดุเพื่อบันทึกได้ แต่ไม่เห็นยอดคงเหลือ ต้นทุน หรือข้อมูลวิเคราะห์</p><p class="muted">${m?'การส่งครั้งถัดไปจะตรวจตามสิทธิ์ใหม่ ข้อมูลที่บันทึกแล้วจะไม่ถูกลบ':'ลิงก์ใช้ได้ครั้งเดียว ภายใน 7 วัน ผู้รับต้องใช้อีเมลนี้'}</p>
       <div class="modal-actions"><button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button><button class="btn btn-primary" type="submit">${m?'บันทึกสิทธิ์':'สร้างคำเชิญ'}</button></div></form></div>`);
   },
   async sendInvite(e) {
@@ -77,7 +96,7 @@ const Team = {
     openModal(`<button class="modal-x" onclick="App.closeModal()">✕</button><div class="team-detail"><button class="btn btn-ghost btn-sm" onclick="Team.render()">${ic('chevron','team-back-icon')} กลับรายการ</button><h3>${esc(p.title)}</h3><span class="team-status ${s.status}">${esc({pending:'รอตรวจ',returned:'ส่งกลับแล้ว',approved:'รับรองแล้ว'}[s.status])}</span><dl class="team-permissions"><dt>ผู้บันทึก</dt><dd>${esc(s.member_name)}</dd><dt>วันที่</dt><dd>${esc(dateLabel(p.date))}</dd><dt>แปลง</dt><dd>${esc(plotById(S,p.plotId)?.name || p.plotId)}</dd><dt>ผลการทำงาน</dt><dd>${p.workStatus==='failed'?'ไม่สำเร็จ':'สำเร็จ'}</dd>${p.type==='water'?`<dt>รดน้ำ</dt><dd>${p.wateringMinutes===null || p.wateringMinutes===undefined?'ไม่ได้ระบุเวลา':esc(p.wateringMinutes)+' นาที'}</dd>`:''}</dl>${p.applicationWork?'<p>'+esc(ApplicationRate.workText(p.applicationWork))+'</p>':''}${p.note?'<p class="team-note">'+esc(p.note)+'</p>':''}<div class="team-checks">${details}</div>
       ${(p.points || []).map(q=>`<section class="team-point"><h4>${esc(q.label)}</h4><dl>${[['ความสูง',q.heightCm,'ซม.'],['ต้นที่ตรวจ',q.examinedPlants,'ต้น'],['แมลงที่นับ',q.pestCount,'ตัว'],['ต้นที่มีอาการ',q.affectedPlants,'ต้น']].map(([label,value,unit])=>`<div><dt>${label}</dt><dd>${value===null || value===undefined?'ยังไม่วัด':esc(value)+' <small>'+unit+'</small>'}</dd></div>`).join('')}</dl>${q.pestName?'<p>ชนิดแมลง: '+esc(q.pestName)+'</p>':''}${q.symptomName?'<p>อาการที่พบ: '+esc(q.symptomName)+'</p>':''}</section>`).join('')}
       ${p.type==='trial'?`<p>งานทดลอง: ${esc(tr?.name || p.trialId)}<br>แปลงย่อย: ${esc(treatment?.code || '')} · ${esc(unit?trialUnitDescription(tr,unit):p.unitId)}<br>ตัวชี้วัด: ${esc(metric?.name || p.metricId)}<br>${p.samples?'ค่าเฉลี่ย':'ค่าวัด'}: ${p.value} ${esc(metric?.unit || '')}${p.samples?'<br>'+p.samples.map((v,i)=>'จุด '+(i+1)+': '+(v??'ยังไม่วัด')).join(' · '):''}</p>`:''}
-      ${p.materials?.length?`<section class="team-point"><h4>ยาและปุ๋ยที่ระบุ</h4>${p.materials.map(m=>`<div class="team-row"><span>${esc(m.name)}${m.rate?'<br><small>อัตราใช้: '+esc(m.rate)+'</small>':''}${m.source==='external'?' <small>นอกสต็อก · ไม่ตัดสต็อก</small>':''}</span><b>${esc(m.qty)} ${esc(m.unit)}</b></div>`).join('')}${p.workStatus==='failed'?'<p>งานไม่สำเร็จ รายการนี้ไม่ตัดสต็อก</p>':''}</section>`:''}
+      ${p.materials?.length?`<section class="team-point"><h4>ยาและปุ๋ยที่ระบุ</h4>${p.materials.map(m=>`<div class="team-row"><span>${esc(m.name)}${m.rate?'<br><small>อัตราใช้: '+esc(m.rate)+'</small>':''}${m.source==='external'?' <small>นอกสต็อก · ไม่ตัดสต็อก</small>':''}</span><b>${teamMaterialQtyHtml(m)}</b></div>`).join('')}${p.workStatus==='failed'?'<p>งานไม่สำเร็จ รายการนี้ไม่ตัดสต็อก</p>':''}</section>`:''}
       <div class="inspection-photos">${(p.photos || []).map((src,i)=>`<button class="team-photo" aria-label="ขยายรูป ${i+1}" onclick="PrivatePhotos.open(this.querySelector('img').src)"><img src="${esc(src)}" alt="รูปจากผู้บันทึก"></button>`).join('')}</div>
       ${s.review_note?'<p>ข้อเสนอแนะ: '+esc(s.review_note)+'</p>':''}
       ${s.status==='pending'?`<label class="field">สิ่งที่ต้องแก้ไข <small>จำเป็นเมื่อส่งกลับแก้ไข</small><textarea id="teamReviewNote" maxlength="1000" placeholder="เช่น ระบุเวลารดน้ำ หรือแนบรูปหน้างานเพิ่ม"></textarea></label><p class="muted">${usesMaterials?'รับรองแล้วจะตัดและบันทึกต้นทุนเฉพาะรายการจากสต็อก รายการนอกสต็อกเก็บเป็นข้อมูลการใช้เท่านั้น':'รับรองแล้วจะเพิ่มกิจกรรมหรือค่าวัด ไม่ตัดสต็อกและไม่เพิ่มต้นทุน'}</p><div class="modal-actions"><button class="btn btn-outline" onclick="Team.review('return')">ส่งกลับแก้ไข</button><button class="btn btn-primary" onclick="Team.review('approve')">${ic('check')} ${usesMaterials?'รับรองและตัดสต็อก':'รับรองข้อมูล'}</button></div>`:''}

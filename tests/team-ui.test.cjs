@@ -34,6 +34,12 @@ test('owner review displays work totals and the collector rate without exposing 
   t.team.inbox=[{id:'s',status:'pending',member_name:'Collector',payload:JSON.stringify({type:'spray',plotId:'p',date:'2026-09-14',title:'Spray',workStatus:'done',applicationWork:{waterLitres:200,areaRai:3},materials:[{name:'<Product>',unit:'bottle',qty:1,rate:'20 ml / 20 L'}]})}];
   t.team.detail(0);const html=t.html();assert.match(html,/น้ำทั้งหมด 200 ลิตร/);assert.match(html,/พื้นที่ 3 ไร่/);assert.match(html,/อัตราใช้: 20 ml \/ 20 L/);assert.match(html,/1 bottle/);assert.match(html,/&lt;Product&gt;/);
 });
+
+test('owner review shows the actual measured content alongside the package equivalent',()=>{
+  const t=setup();Object.assign(t.ctx,{ApplicationRate:{workText:()=>''},INSPECTION_CHECKS:[],dateLabel:d=>d,plotById:()=>({name:'Plot'})});t.ctx.S.trials=[];
+  t.team.inbox=[{id:'s',status:'pending',member_name:'Collector',payload:JSON.stringify({type:'spray',plotId:'p',date:'2026-09-14',title:'Spray',workStatus:'done',materials:[{name:'Product',unit:'ขวด',qty:.1,usageQty:50,usageUnit:'ml'}]})}];
+  t.team.detail(0);assert.match(t.html(),/50 มล\. \(ซีซี\)/);assert.match(t.html(),/= 0\.1 ขวด/);
+});
 test('returning a pending entry clearly identifies the required correction note',()=>{
   const t=setup();Object.assign(t.ctx,{ApplicationRate:{workText:()=>''},INSPECTION_CHECKS:[],dateLabel:d=>d,plotById:()=>({name:'Plot'})});t.ctx.S.trials=[];
   t.team.inbox=[{id:'s',status:'pending',member_name:'Collector',payload:JSON.stringify({type:'inspect',plotId:'p',date:'2026-09-14',title:'Inspect',workStatus:'done'})}];

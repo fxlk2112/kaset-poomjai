@@ -24,6 +24,16 @@ function number(v,kind='positive') {
   if(!Number.isFinite(n) || Math.abs(n)>1e9 || (kind!=='number' && n<0) || (kind==='count' && !Number.isInteger(n)))fail('ค่าวัดไม่ถูกต้อง จำนวนที่นับต้องเป็นจำนวนเต็มตั้งแต่ 0');
   return n;
 }
+const packageUnits={ml:{factor:1,family:'volume'},l:{factor:1000,family:'volume'},g:{factor:1,family:'mass'},kg:{factor:1000,family:'mass'}};
+function packageUnitKey(unit){const key=String(unit||'').trim().toLowerCase().replace(/\.+$/,'');return ({'ซีซี':'ml','cc':'ml','มล':'ml','มิลลิลิตร':'ml','ml':'ml','ลิตร':'l','litre':'l','liter':'l','l':'l','กรัม':'g','gram':'g','g':'g','กก':'kg','กิโลกรัม':'kg','kg':'kg'})[key] || '';}
+function packageContent(size){const match=String(size||'').trim().match(/^([\d.,]+)\s*([^\d\s].*)$/);if(!match)return null;const amount=Number(match[1].replace(/,/g,'')),unit=packageUnitKey(match[2]);return Number.isFinite(amount) && amount>0 && packageUnits[unit]?{amount,unit}:null;}
+function contentUsage(row,stock){
+  if(!Object.hasOwn(row,'usageQty') && !Object.hasOwn(row,'usageUnit'))return null;
+  const pack=packageContent(stock.size);if(!pack || packageUnitKey(row.usageUnit)!==pack.unit)fail('ขนาดบรรจุของสินค้าไม่รองรับปริมาณที่ใช้จริง');
+  const usageQty=number(row.usageQty);if(usageQty===null || usageQty<=0 || Math.abs(usageQty*1e4-Math.round(usageQty*1e4))>1e-6)fail('ปริมาณที่ใช้จริงไม่ถูกต้อง');
+  const qty=usageQty/pack.amount;if(!Number.isFinite(qty) || qty<=0 || Math.abs(qty*1e4-Math.round(qty*1e4))>1e-6)fail('ปริมาณที่ใช้ละเอียดเกินขนาดบรรจุ กรุณาตรวจขนาดสินค้า');
+  return {qty:Math.round(qty*1e4)/1e4,usageQty,usageUnit:pack.unit,packageSize:String(stock.size||''),stockMode:'content'};
+}
 function photos(values=[]) {
   if(!Array.isArray(values) || values.length>3)fail('แนบรูปได้ไม่เกิน 3 รูป');
   return values.map(v=>{
@@ -103,9 +113,9 @@ export function cleanSubmission(raw,context) {
       if(!row || typeof row!=='object' || Array.isArray(row))fail('รายการยาไม่ถูกต้อง');
       const rateFields=applicationRate.materialFields(row);
       if(raw.workStatus==='done')applicationRate.estimate(row,work);
-      const qty=number(row.qty);
-      if(qty===null || qty<=0 || Math.abs(qty*1e4-Math.round(qty*1e4))>1e-6)fail('จำนวนใช้ต้องมากกว่า 0 และมีทศนิยมไม่เกิน 4 ตำแหน่ง');
       if(row.source==='external'){
+        const qty=number(row.qty);
+        if(qty===null || qty<=0 || Math.abs(qty*1e4-Math.round(qty*1e4))>1e-6)fail('จำนวนใช้ต้องมากกว่า 0 และมีทศนิยมไม่เกิน 4 ตำแหน่ง');
         if(row.stockId || typeof row.name!=='string' || typeof row.unit!=='string' || row.name.length>160 || row.unit.length>40)fail('รายการนอกสต็อกไม่ถูกต้อง');
         const name=text(row.name,160),unit=text(row.unit,40);
         if(!name || !unit)fail('กรอกชื่อและหน่วยของรายการนอกสต็อก');
@@ -118,6 +128,10 @@ export function cleanSubmission(raw,context) {
       if(!stock)fail('รายการที่เลือกใช้ไม่ได้แล้ว กรุณาโหลดรายการใหม่');
       if(row.unit && row.unit!==stock.unit)fail('หน่วยสินค้าเปลี่ยนแล้ว กรุณาเลือกรายการใหม่');
       if(used.has(stock.id))fail('รายการซ้ำ กรุณารวมจำนวนไว้ในแถวเดียว');used.add(stock.id);
+      const content=contentUsage(row,stock);
+      if(content)return {stockId:stock.id,name:stock.name,unit:stock.unit,...content,...rateFields};
+      const qty=number(row.qty);
+      if(qty===null || qty<=0 || Math.abs(qty*1e4-Math.round(qty*1e4))>1e-6)fail('จำนวนใช้ต้องมากกว่า 0 และมีทศนิยมไม่เกิน 4 ตำแหน่ง');
       return {stockId:stock.id,name:stock.name,unit:stock.unit,qty,...rateFields};
     });
   }
@@ -172,7 +186,8 @@ export function applySubmission(state,record,context,memberName) {
         task.costItems=stockMaterials.map(m=>{
           const stock=state.stock.find(x=>x.id===m.stockId),unitCost=Number(stock.avgCost);
           if(!Number.isFinite(unitCost) || unitCost<0)fail('กรุณาตรวจต้นทุนสินค้าก่อนรับรอง');
-          return {stockId:m.stockId,name:m.name,unit:m.unit,qty:m.qty,category:p.type==='fertilize'?'fertilizer':'chemical',unitCost,totalCost:Math.round(m.qty*unitCost)};
+          const stockMode=m.stockMode==='content'?'content':'package';
+          return {stockId:m.stockId,name:m.name,unit:m.unit,qty:m.qty,stockMode,usageQty:m.usageQty,usageUnit:m.usageUnit,packageSize:m.packageSize,category:p.type==='fertilize'?'fertilizer':'chemical',unitCost,totalCost:Math.round((stockMode==='package'?Math.ceil(m.qty):m.qty)*unitCost)};
         });
         stockLogic.prepareTaskStock(state,task);
       }
