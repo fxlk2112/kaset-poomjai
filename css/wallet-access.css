@@ -1,0 +1,21 @@
+body.wallet-locked> :not(#walletGate){display:none!important}
+#walletGate{display:none;width:min(380px,calc(100% - 40px));margin:64px auto;padding-bottom:32px}
+body.wallet-locked #walletGate{display:block}
+.pin-brand{display:flex;align-items:center;gap:12px;font-weight:700;line-height:1.4;margin-bottom:40px}.pin-brand img{width:44px;height:44px;object-fit:contain}.pin-brand small{display:block;font-size:11px;color:var(--muted)}
+#pinForm h1{font-size:24px;margin:12px 0 24px}#pinForm .pin-symbol{width:28px;height:28px;color:var(--green)}#pinForm input{font-size:22px;font-variant-numeric:tabular-nums;min-height:52px}#pinForm .action-btn{width:100%;margin-top:12px}#walletGate>a{display:inline-flex;align-items:center;min-height:44px;margin-top:20px}
+@media(max-width:480px){#walletGate{margin-top:36px}}
+@media print{body.wallet-locked>*{display:none!important}}
+#walletGate [hidden]{display:none!important}
+#walletGate h1{font-size:24px;line-height:1.4;margin:12px 0 20px}
+#walletGate p{line-height:1.7}#walletGate label{display:block;margin-top:16px}
+#walletGate input:not([type=checkbox]){width:100%;min-height:52px;font-size:20px;box-sizing:border-box}
+#walletGate .action-btn{width:100%;margin-top:16px;min-height:48px}
+#walletGate .text-btn{min-height:44px;margin-top:8px;display:inline-flex;gap:8px;align-items:center}
+#recoveryCode{display:block;overflow-wrap:anywhere;white-space:normal;font-size:20px;line-height:1.7;padding:16px;background:var(--soft);border:1px solid var(--border);border-radius:6px}
+#walletGate .recovery-check{display:flex;align-items:flex-start;gap:10px;line-height:1.6}#codeSaved{width:20px;height:20px;flex:0 0 20px;margin-top:3px}
+.recovery-note{font-size:13px;color:var(--muted)}
+#larkLogin .pin-symbol{width:30px;height:30px;color:var(--green)}
+#larkLogin .action-btn{display:flex;gap:10px;justify-content:center;align-items:center}
+#larkLoginStatus,.lark-account-label{font-size:14px;color:var(--muted)}
+#larkSetup{margin-top:20px;border-top:1px solid var(--border);padding-top:16px;font-size:14px;line-height:1.7}
+#larkSetup summary{cursor:pointer}#larkCallback{display:block;overflow-wrap:anywhere;padding:12px 0;font-size:13px}

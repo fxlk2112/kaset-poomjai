@@ -5,6 +5,15 @@ const path=require('node:path');
 const vm=require('node:vm');
 const read=file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8');
 const ui=read('js/workspace.js'),flows=read('js/workspace-flows.js');
+test('wallet entry stays on the local owner workspace, never production or shared pages',()=>{
+  const body=ui.match(/walletUrl\(\) \{([^}]+)\}/)[1];
+  const url=(origin,enabled)=>vm.runInNewContext('(function(){'+body+'}).call({enabled:()=>enabled})',{window:{location:{origin}},enabled});
+  assert.equal(url('http://127.0.0.1:4207',true),'http://127.0.0.1:4208/wallet-preview.html');
+  assert.equal(url('http://127.0.0.1:4207',false),'');
+  for(const origin of ['https://farmultimate-solutions.pages.dev','http://127.0.0.1:4208','http://localhost:4207','https://example.com'])assert.equal(url(origin,true),'');
+  assert.match(ui,/this.walletUrl\(\)\?navItem\('wallet'/);
+  assert.match(read('wallet-preview.html'),/href="http:\/\/127.0.0.1:4207\/"/);
+});
 
 test('live activity search keeps typing focus and cannot rerender a departed page',()=>{
   const app=read('js/app.js');

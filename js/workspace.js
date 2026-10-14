@@ -3,6 +3,9 @@ Auth.applyTheme();
 
 const Concept = {
   enabled() { return !!Auth.session && !Auth.shareMode && !Auth.landingMode; },
+  walletUrl() {
+    return this.enabled() && window.location.origin === 'http://127.0.0.1:4207' ? 'http://127.0.0.1:4208/wallet-preview.html' : '';
+  },
   taskFilter: 'auto',
   groups: { team: false, tools: false },
   saleFilter: 'all',
@@ -32,6 +35,7 @@ const Concept = {
     return route.view;
   },
   go(key) {
+    if (key === 'wallet') { const url=this.walletUrl(); if(url)window.location.assign(url); return; }
     if(typeof ConceptWorkflows!=='undefined')ConceptWorkflows.backStack=[];
     document.body.classList.remove('concept-drawer');
     this.syncNav();
@@ -88,7 +92,7 @@ const Concept = {
       <div class="cn-section-label">งานในฟาร์ม</div>
       ${navItem('tasks','กิจกรรม','calendar',pending)}${navItem('plots','แปลงและรอบปลูก','map')}${navItem('trials','งานทดลอง','leaf')}${navItem('farm','งานส่วนกลาง','briefcase')}
       <div class="cn-section-label">คลังและธุรกิจ</div>
-      ${navItem('stock','คลังวัสดุและยา','box')}${navItem('sales','ขายสินค้าและเอกสาร','briefcase')}${navItem('reports','รายงานและวิเคราะห์','chart')}
+      ${navItem('stock','คลังวัสดุและยา','box')}${this.walletUrl()?navItem('wallet','กระเป๋าเงิน (ทดลอง)','briefcase'):''}${navItem('sales','ขายสินค้าและเอกสาร','briefcase')}${navItem('reports','รายงานและวิเคราะห์','chart')}
       ${group('team','ทีมบันทึกข้อมูล','user',navItem('team','ตรวจรับข้อมูล','check')+navItem('members','สมาชิกและสิทธิ์','user'))}
       ${group('tools','เครื่องมือฟาร์ม','gear',navItem('weather','สภาพอากาศ','cloud')+navItem('equipment','อุปกรณ์','truck')+navItem('iot','ระบบน้ำ','droplet')+navItem('prices','ราคาตลาด','chart'))}</div>
       <div class="cn-footer"><div class="cn-footer-links"><button onclick="Concept.go('settings')">${ic('gear')} ตั้งค่า</button><button onclick="Concept.go('guide')">${ic('info')} คู่มือ</button></div><button class="cn-account" aria-label="จัดการบัญชี" aria-controls="profilePanel" onclick="Concept.openAccount(event)"><span class="cn-avatar">${ic('user')}</span><span><strong>${esc(Auth.session?.name||'บัญชีของฉัน')}</strong><small>จัดการบัญชี</small></span>${ic('chevron')}</button></div>`;
