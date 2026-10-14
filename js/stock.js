@@ -27,6 +27,30 @@ function stockActiveById(id) {
 function stockListValue(list) {
   return (list || []).reduce((a, x) => a + ((Number(x.qty) || 0) + (Number(x.openQty) || 0)) * (Number(x.avgCost) || 0), 0);
 }
+function stockPriceCoverage(list) {
+  const held = (list || []).filter(x => (Number(x.qty) || 0) + (Number(x.openQty) || 0) > 0);
+  return { priced: held.filter(x => Number(x.avgCost) > 0).length, missing: held.filter(x => !(Number(x.avgCost) > 0)).length };
+}
+function stockDuplicateIds(list) {
+  const names = new Map(), codes = new Map(), ids = new Set();
+  for (const item of list || []) {
+    for (const [value, map] of [[item.name, names], [item.code, codes]]) {
+      const key = String(value || '').trim().toLocaleLowerCase('th').replace(/\s+/g, ' ');
+      if (!key) continue;
+      if (map.has(key)) { ids.add(map.get(key)); ids.add(item.id); }
+      else map.set(key, item.id);
+    }
+  }
+  return ids;
+}
+function stockBalanceHtml(x) {
+  const reserved = stockIsSharedView() ? 0 : stockReserved(S, x.id);
+  return `<dl class="stock-balance">
+    <div><dt>ยังไม่เปิด</dt><dd>${fmtNum(x.qty)} <small>${esc(x.unit)}</small></dd></div>
+    ${Number(x.openQty) > 0 ? `<div><dt>ของเปิดคงเหลือ</dt><dd>${esc(costOpenedAmount(x, x.openQty))}</dd></div>` : ''}
+    ${reserved > 0 ? `<div><dt>จองตามแผน</dt><dd>${esc(costOpenedAmount(x, reserved))}</dd></div><div><dt>พร้อมใช้หลังหักจอง</dt><dd>${esc(costOpenedAmount(x, stockAvailable(S, x.id)))}</dd></div>` : ''}
+  </dl>`;
+}
 function stockSourceLabel(email) {
   if (!email) return "สต็อกของฉัน";
   const src = (stockShareState().incoming || []).find(x => String(x.email || "").toLowerCase() === String(email).toLowerCase());
@@ -49,7 +73,7 @@ function stockSourceSelectHtml() {
         ${options.join("")}
       </select>
       ${stockIsSharedView() ? `<span class="stock-readonly">${ic("eye")} อ่านอย่างเดียว</span>` : ""}
-      <button class="btn btn-sm btn-ghost" onclick="App.stockShareRefresh()">${ic("refresh")} รีเฟรช</button>
+      <button class="btn btn-sm btn-ghost icon-action" title="รีเฟรชสต็อก" aria-label="รีเฟรชสต็อก" onclick="App.stockShareRefresh()">${ic("refresh")}</button>
     </div>`;
 }
 function stockPhotoError(img) {
@@ -65,7 +89,7 @@ function stockPriceShort(v) {
   return Number(v) > 0 ? fmtMoney(v) : "ยังไม่ตั้ง";
 }
 function stockPriceSummaryHtml(x) {
-  return `<div class="muted stock-meta-line stock-price-line">ทุน ${stockPriceShort(x.avgCost)} · ทั่วไป ${stockPriceShort(x.salePrice)} · ประจำ ${stockPriceShort(x.memberPrice)}</div>`;
+  return `<div class="muted stock-meta-line stock-price-line">ต้นทุน ${stockPriceShort(x.avgCost)}${Number(x.avgCost)>0 ? ' บาท/'+esc(x.unit || 'หน่วย') : ''}${stockDensity === 'detail' ? ` · ราคาขาย ${stockPriceShort(x.salePrice)} · ลูกค้าประจำ ${stockPriceShort(x.memberPrice)}` : ''}</div>`;
 }
 function stockPriceRow(label, value, unit) {
   return `<div class="sd-row"><span class="k">${label}</span><span class="bold">${Number(value) > 0 ? `${fmtMoney(value)} บาท/${esc(unit)}` : `<span class="muted">ยังไม่ตั้งราคา</span>`}</span></div>`;
@@ -77,12 +101,13 @@ function stockHasPhoto(x) {
 function stockListHtml() {
   const q = stockQuery.trim().toLowerCase();
   const readonly = stockIsSharedView();
+  const duplicates = stockDuplicateIds(stockActiveList());
   const list = stockActiveList().filter(x => {
     const open = Number(x.openQty) || 0;
     const avail = (Number(x.qty) || 0) + open;
     if (stockFilter === "has" && avail <= 0) return false;
     if (stockFilter === "out" && avail > 0) return false;
-    if (stockFilter === "sealed" && open > 0) return false;
+    if (stockFilter === "sealed" && !(Number(x.qty) > 0)) return false;
     if (stockFilter === "opened" && open <= 0) return false;
     if (stockCat === "__none__" && x.category) return false;
     if (stockCat && stockCat !== "__none__" && x.category !== stockCat) return false;
@@ -92,9 +117,10 @@ function stockListHtml() {
     if (q && !(x.name.toLowerCase().includes(q) || (x.code || "").toLowerCase().includes(q) || x.unit.toLowerCase().includes(q) || (x.category || "").toLowerCase().includes(q) || (x.generic || "").toLowerCase().includes(q) || (x.supplier || "").toLowerCase().includes(q))) return false;
     return true;
   });
-  const emptyTitle = q ? "ไม่พบรายการที่ค้นหา" : (stockPhotoFilter === "missing" ? "ทุกรายการมีรูปแล้ว" : (stockPhotoFilter === "with" ? "ยังไม่มีรายการที่มีรูป" : (stockCat ? "ไม่มีของในหมวดนี้" : (stockFilter === "has" ? "ยังไม่มีของในสต็อก" : (stockFilter === "out" ? "ไม่มีของที่หมด" : (stockFilter === "sealed" ? "ไม่มีของที่ยังไม่เปิดใช้" : "ไม่มีของที่เปิดใช้แล้ว"))))));
-  const emptySub = q ? "ลองค้นด้วยชื่อ หรือรหัสสินค้า (เช่น 00-0000-269)" : (stockPhotoFilter === "missing" ? "พร้อมใช้งานครบเรื่องรูปสินค้าแล้ว" : (stockPhotoFilter === "with" ? "กดเพิ่มรูปในรายละเอียดสินค้าเพื่อเริ่มเก็บรูป" : (stockCat ? "ลองเลือกหมวดอื่น หรือกด 'ทุกหมวดสินค้า'" : (stockFilter === "has" ? "กด รับของเข้า เพื่อเพิ่มของเข้าสต็อก" : (stockFilter === "opened" ? "เมื่อใช้ของไม่หมด จะมีของเหลือจากการเปิดใช้ที่นี่" : "")))));
-  const emptyHtml = list.length === 0 ? `<div class="card"><div class="empty"><div class="e-ico">${ic("box")}</div><div class="e-title">${emptyTitle}</div>${emptySub ? `<div class="muted">${emptySub}</div>` : ""}</div></div>` : "";
+  const noFilters = !q && stockFilter === "all" && !stockCat && stockPhotoFilter === "all";
+  const emptyTitle = q ? "ไม่พบรายการที่ค้นหา" : (noFilters ? "ยังไม่มีสินค้าในสต็อก" : (stockPhotoFilter === "missing" ? "ทุกรายการมีรูปแล้ว" : (stockPhotoFilter === "with" ? "ยังไม่มีรายการที่มีรูป" : (stockCat ? "ไม่มีของในหมวดนี้" : (stockFilter === "has" ? "ยังไม่มีของในสต็อก" : (stockFilter === "out" ? "ไม่มีของที่หมด" : (stockFilter === "sealed" ? "ไม่มีของที่ยังไม่เปิดใช้" : "ไม่มีของที่เปิดใช้แล้ว")))))));
+  const emptySub = q ? "ลองค้นด้วยชื่อ หรือรหัสสินค้า (เช่น 00-0000-269)" : (noFilters ? "เพิ่มยา ปุ๋ย เมล็ดพันธุ์ หรือวัสดุที่มีอยู่ก่อน แล้วเลือกใช้ตอนบันทึกกิจกรรม" : (stockPhotoFilter === "missing" ? "พร้อมใช้งานครบเรื่องรูปสินค้าแล้ว" : (stockPhotoFilter === "with" ? "กดเพิ่มรูปในรายละเอียดสินค้าเพื่อเริ่มเก็บรูป" : (stockCat ? "ลองเลือกหมวดอื่น หรือกด 'ทุกหมวดสินค้า'" : (stockFilter === "has" ? "กด รับของเข้า เพื่อเพิ่มของเข้าสต็อก" : (stockFilter === "opened" ? "เมื่อใช้ของไม่หมด จะมีของเหลือจากการเปิดใช้ที่นี่" : ""))))));
+  const emptyHtml = list.length === 0 ? `<div class="card"><div class="empty"><div class="e-ico">${ic("box")}</div><div class="e-title">${emptyTitle}</div>${emptySub ? `<div class="muted">${emptySub}</div>` : ""}${noFilters ? `<button class="btn btn-primary mt-12" onclick="App.modalStock()">${ic("plus")} เพิ่มสินค้า</button>` : ""}</div></div>` : "";
   const grid = `<div class="card-grid stock-grid stock-grid-${stockDensity}">
     ${list.map(x => {
       const open = Number(x.openQty) || 0;
@@ -103,25 +129,25 @@ function stockListHtml() {
       return `
       <div class="card stock-card stock-card-${stockDensity} ${out ? "stock-card-out" : ""} ${hasPhoto ? "has-photo" : "missing-photo"}">
         <div class="row">
-          <div class="stock-thumb" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${stockThumbHtml(x)}</div>
+          <button class="stock-thumb" onclick="App.stockDetail('${x.id}')" aria-label="รูป ${esc(x.name)}" title="ดูรายละเอียดสินค้า">${stockThumbHtml(x)}</button>
           <div class="grow">
-            <div class="plot-name" onclick="App.stockDetail('${x.id}')" title="กดดูรายละเอียดสินค้า">${esc(x.name)} ${out ? `<span class="stock-out-badge">${ic("alert")} ยาหมด</span>` : `<span class="stock-detail-hint">${ic("info")}</span>`} ${hasPhoto ? "" : `<span class="stock-photo-missing">${ic("image")} ไม่มีรูป</span>`} ${x.category ? `<span class="stock-cat">${esc(x.category)}</span>` : ""} ${x.size ? `<span class="stock-size">${esc(x.size)}</span>` : ""}</div>
+            <button class="plot-name card-open" onclick="App.stockDetail('${x.id}')" title="ดูรายละเอียดสินค้า">${esc(x.name)} ${out ? `<span class="stock-out-badge">${ic("alert")} ของหมด</span>` : `<span class="stock-detail-hint">${ic("info")}</span>`} ${x.category ? `<span class="stock-cat">${esc(x.category)}</span>` : ""} ${x.size ? `<span class="stock-size">${esc(x.size)}</span>` : ""}</button>
             ${x.code ? `<div class="muted stock-meta-line">รหัส: <b>${esc(x.code)}</b></div>` : ""}
+            ${duplicates.has(x.id) ? '<div class="stock-duplicate-note">ชื่อหรือรหัสซ้ำ · ตรวจขนาดบรรจุก่อนเลือกใช้</div>' : ''}
             ${x.generic ? `<div class="muted stock-meta-line stock-meta-secondary">ชื่อสามัญ: ${esc(x.generic)}</div>` : ""}
             ${x.supplier ? `<div class="muted stock-meta-line stock-meta-secondary">บริษัทจำหน่าย: ${esc(x.supplier)}</div>` : ""}
             ${stockPriceSummaryHtml(x)}
-            ${out ? `<div class="stock-out">${ic("alert")} ยาหมด — ไม่มีของในสต็อก</div>` : (open > 0 ? `<div class="stock-open">${ic("unlock")} เหลือจากการเปิดใช้ ${fmtNum(open)} ${esc(x.unit)} — ใช้ได้ก่อน</div>` : `<div class="stock-sealed">${ic("lock")} ยังไม่เปิดใช้</div>`)}
+            ${out ? `<div class="stock-out">${ic("alert")} ไม่มีของในสต็อก</div>` : ''}
           </div>
-          <div class="stock-qty ${out ? "out" : ""}">${out ? "0" : fmtNum(x.qty)} <small>${esc(x.unit)}</small></div>
         </div>
+        ${stockBalanceHtml(x)}
         <div class="mt-8">
-          <div class="muted stock-value">มูลค่ารวม <span class="bold">${fmtMoney((x.qty + open) * x.avgCost)} บาท</span>${open > 0 ? ` <span class="muted">(รวมของเปิดใช้แล้ว)</span>` : ""}</div>
+          <div class="muted stock-value">มูลค่ารวม <span class="bold">${Number(x.avgCost) > 0 ? fmtMoney((Number(x.qty) + open) * x.avgCost) + ' บาท' : 'ยังไม่ระบุต้นทุน'}</span></div>
           <div class="stock-actions">
             ${readonly ? `<span class="stock-readonly">${ic("eye")} ดูจาก ${esc(stockSourceLabel(stockViewOwnerEmail()))}</span>` : `
               <button class="btn btn-sm btn-primary" onclick="App.modalReceive('${x.id}')">${ic("down")} รับของเข้า</button>
-              <button class="btn btn-sm btn-outline" onclick="App.modalDeduct('${x.id}')">${ic("minus")} ตัดสต็อก</button>
+              <button class="btn btn-sm btn-outline" onclick="App.useStockInPlot('${x.id}')">${ic("leaf")} ใช้ในแปลง</button>
               <button class="btn btn-sm btn-ghost stock-secondary-action" onclick="App.stockDetail('${x.id}')">${ic("info")} รายละเอียด</button>
-              <button class="btn btn-sm btn-ghost stock-secondary-action" onclick="App.modalStock('${x.id}')" title="แก้ไขรายการ">${ic("pencil")} แก้ไข</button>
             `}
           </div>
         </div>
@@ -133,13 +159,13 @@ function stockListHtml() {
 function stockFilterOptionsHtml() {
   const data = stockActiveList();
   const openedCount = data.filter(x => (Number(x.openQty) || 0) > 0).length;
-  const sealedCount = data.length - openedCount;
+  const sealedCount = data.filter(x => Number(x.qty) > 0).length;
   const hasCount = data.filter(x => (Number(x.qty) || 0) + (Number(x.openQty) || 0) > 0).length;
   const outCount = data.length - hasCount;
   const rows = [
     ["all", "ทั้งหมด", data.length],
     ["has", "มีของ", hasCount],
-    ["out", "ยาหมด", outCount],
+    ["out", "ของหมด", outCount],
     ["sealed", "ยังไม่เปิดใช้", sealedCount],
     ["opened", "เปิดใช้แล้ว", openedCount]
   ];
@@ -157,7 +183,7 @@ function stockPhotoOptionsHtml() {
   return rows.map(([key, label, count]) => `<option value="${key}" ${stockPhotoFilter === key ? "selected" : ""}>${label} (${fmtNum(count)})</option>`).join("");
 }
 function stockFilterLabel() {
-  const map = { all: "ทั้งหมด", has: "มีของ", out: "ยาหมด", sealed: "ยังไม่เปิดใช้", opened: "เปิดใช้แล้ว" };
+  const map = { all: "ทั้งหมด", has: "มีของ", out: "ของหมด", sealed: "ยังไม่เปิดใช้", opened: "เปิดใช้แล้ว" };
   return map[stockFilter] || "ทั้งหมด";
 }
 function stockPhotoLabel() {
@@ -196,22 +222,16 @@ function renderStock() {
   const data = stockActiveList();
   const readonly = stockIsSharedView();
   const total = stockListValue(data);
+  const coverage = stockPriceCoverage(data);
   const filterCount = stockActiveFilterCount();
   /* นับจำนวนต่อหมวด (ใช้ใน dropdown กรอง) */
   const catCounts = {};
   data.forEach(x => { const c = x.category || "__none__"; catCounts[c] = (catCounts[c] || 0) + 1; });
   return `
-    <div class="card stock-value-card">
-      <div class="row row-between">
-        <div>
-          <div style="font-size:.76rem;opacity:.85">มูลค่าสต็อกทั้งหมด</div>
-          <div class="bold" style="font-size:1.5rem">${fmtMoney(total)} บาท</div>
-          ${readonly ? `<div style="font-size:.72rem;opacity:.9;margin-top:2px">กำลังดู: ${esc(stockSourceLabel(stockViewOwnerEmail()))}</div>` : ""}
-        </div>
-        <span style="font-size:2rem;color:#fff">${ic("box")}</span>
-      </div>
+    <div class="stock-overview">
+      ${stockSourceSelectHtml()}
+      <div class="stock-overview-value"><span>${coverage.missing ? 'มูลค่าเฉพาะรายการที่มีต้นทุน' : 'มูลค่าคงคลัง'}</span><b>${coverage.missing && !coverage.priced ? 'ยังคำนวณไม่ได้' : fmtMoney(total) + ' บาท'}</b>${coverage.missing ? `<small>ยังขาดต้นทุน ${coverage.missing} รายการที่มีของ</small>` : ''}</div>
     </div>
-    ${stockSourceSelectHtml()}
     <div class="row row-between section-title stock-title-row" data-tkey="stockTitle">
       <span>${readonly ? "สต็อกที่แชร์มา" : T("stockTitle")} (${data.length})</span>
       <div class="row stock-toolbar">
@@ -224,9 +244,14 @@ function renderStock() {
           <button class="btn btn-sm btn-ghost stock-toolbar-secondary stock-desktop-extra" onclick="App.stockDensityToggle()">${ic("menu")} ${stockDensity === "compact" ? "ละเอียด" : "ย่อ"}</button>
           <button class="btn btn-sm btn-ghost stock-filter-mobile-btn stock-desktop-extra" onclick="App.stockFilterOpen()">${ic("search")} กรอง${filterCount ? ` (${filterCount})` : ""}</button>
           <button class="btn btn-sm btn-ghost stock-toolbar-secondary stock-desktop-extra" onclick="App.stockToolsOpen()">${ic("menu")} จัดการสต็อก</button>
-          <button class="btn btn-sm btn-ghost stock-mobile-options-btn" onclick="App.stockQuickOptionsOpen()">${ic("menu")} ตัวเลือก${filterCount ? ` (${filterCount})` : ""}</button>
+          <button class="btn btn-sm btn-ghost stock-mobile-options-btn icon-action" aria-label="ตัวเลือกสต็อก${filterCount ? ` (${filterCount})` : ''}" title="ตัวเลือกสต็อก" onclick="App.stockQuickOptionsOpen()">${ic("menu")}${filterCount ? `<small>${filterCount}</small>` : ''}</button>
         `}
       </div>
+    </div>
+    <div class="stock-search">
+      ${ic("search")}
+      <input type="text" id="stockSearchInput" aria-label="ค้นหาสินค้า" placeholder="ค้นหาชื่อหรือรหัสสินค้า..." value="${esc(stockQuery)}" oninput="App.stockSearch(this.value)">
+      <button class="stock-search-clear" aria-label="ล้างคำค้นหา" title="ล้างคำค้นหา" onclick="App.stockSearch('')" style="${stockQuery ? "" : "display:none"}">✕</button>
     </div>
     <div class="stock-filter-panel">
       <label class="stock-filter-field">
@@ -249,13 +274,8 @@ function renderStock() {
       </label>
     </div>
     ${stockFilterStatusHtml()}
-    <div class="stock-search">
-      ${ic("search")}
-      <input type="text" id="stockSearchInput" placeholder="ค้นหาปุ๋ย/ยา/เมล็ดพันธุ์..." value="${esc(stockQuery)}" oninput="App.stockSearch(this.value)">
-      <button class="stock-search-clear" aria-label="ล้างคำค้นหา" title="ล้างคำค้นหา" onclick="App.stockSearch('')" style="${stockQuery ? "" : "display:none"}">✕</button>
-    </div>
     <div id="stockListWrap">${stockListHtml()}</div>
-    <div class="muted" style="font-size:.72rem;text-align:center;padding:6px">${ic("info")} สต็อกหลักเก็บเป็นหน่วยเต็ม · เมื่อใช้ของไม่หมด ของที่เหลือจากการเปิดใช้จะนำไปใช้ก่อนเสมอ · วิธีคิดต้นทุนแบบถัวเฉลี่ยถ่วงน้ำหนัก (Weighted Average)</div>`;
+    <div class="muted stock-accounting-note">${ic("info")} สต็อกหลักเก็บเป็นหน่วยเต็ม · ของเปิดแยกเป็นปริมาณคงเหลือ · ตัดตามวิธีที่เลือกในกิจกรรม · ต้นทุนถัวเฉลี่ย</div>`;
 }
 App.stockFilter = function (key) {
   stockFilter = key;
@@ -515,6 +535,7 @@ App.stockViewSet = async function (value) {
 };
 App.deleteStock = function (id) {
   if (stockIsSharedView()) { toast("สต็อกที่แชร์มาเป็นโหมดอ่านอย่างเดียว"); return; }
+  if (stockReserved(S, id) > 0) { toast("สินค้านี้มีงานจองอยู่ กรุณาแก้ไขหรือยกเลิกแผนก่อนลบ"); return; }
   App.confirm("ลบรายการวัสดุ?", "", () => {
     S.stock = S.stock.filter(x => x.id !== id);
     saveState(S);
@@ -561,6 +582,8 @@ App.stockDetail = function (id) {
       ${row("หน่วยนับ", x.unit)}
       ${row("บริษัทจำหน่าย", x.supplier)}
       <div class="sd-row"><span class="k">ในสต็อก</span><span class="bold">${fmtNum(x.qty)} ${esc(x.unit)}${open > 0 ? ` <span class="stock-open" style="display:inline">+ เปิดใช้แล้ว ${fmtNum(open)} ${esc(x.unit)}</span>` : ""}</span></div>
+      ${readonly ? "" : `<div class="sd-row"><span class="k">จองตามแผน</span><span class="bold">${fmtNum(stockReserved(S, x.id))} ${esc(x.unit)}</span></div>
+      <div class="sd-row"><span class="k">พร้อมใช้</span><span class="bold">${fmtNum(stockAvailable(S, x.id))} ${esc(x.unit)}</span></div>`}
       ${stockPriceRow("ราคาต้นทุน", x.avgCost, x.unit)}
       ${stockPriceRow("ราคาทั่วไป", x.salePrice, x.unit)}
       ${stockPriceRow("ราคาลูกค้าประจำ", x.memberPrice, x.unit)}
@@ -568,6 +591,7 @@ App.stockDetail = function (id) {
       ${x.memberPrice ? `<div class="sd-row"><span class="k">กำไรลูกค้าประจำ/หน่วย</span><span class="bold ${x.memberPrice - x.avgCost >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(x.memberPrice - x.avgCost)} บาท/${esc(x.unit)}</span></div>` : ""}
       <div class="sd-row"><span class="k">มูลค่ารวม</span><span class="bold">${fmtMoney((x.qty + open) * x.avgCost)} บาท</span></div>
     </div>
+    ${x.adjustments?.length ? `<details><summary>ประวัติปรับยอด (${x.adjustments.length})</summary>${x.adjustments.slice().reverse().map(a=>`<p>${esc(dateLabel(a.date))} · ${fmtNum(a.qty)} ${esc(x.unit)} · ${esc(a.reason)}</p>`).join('')}</details>`:''}
     ${readonly ? "" : `<div class="sd-danger-zone">
       <div>
         <b>โซนอันตราย</b>
@@ -578,7 +602,7 @@ App.stockDetail = function (id) {
     <div class="modal-actions sd-actions" style="margin-top:14px">
       ${readonly ? `<button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>` : `
         <button class="btn btn-primary" onclick="App.modalReceive('${x.id}')">${ic("down")} รับของเข้า</button>
-        <button class="btn btn-outline" onclick="App.modalDeduct('${x.id}')">${ic("minus")} ตัดสต็อก</button>
+        <button class="btn btn-outline" onclick="App.modalDeduct('${x.id}')">${ic("minus")} ปรับลดสต็อก</button>
         <button class="btn btn-ghost" onclick="App.modalStock('${x.id}')">${ic("pencil")} แก้ไข</button>
       `}
     </div>`);

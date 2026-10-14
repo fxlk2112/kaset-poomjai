@@ -1,0 +1,200 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const path=require('node:path');
+const read=name=>fs.readFileSync(path.join(__dirname,'..',name),'utf8');
+const app=read('js/app.js');
+const section=(a,b)=>app.slice(app.indexOf(a),app.indexOf(b,app.indexOf(a)));
+test('beginner setup follows plots, crop cycles and recorded work without requiring stock',()=>{
+  const ctx=vm.createContext({S:{plots:[],cycles:[],stock:[],tasks:[]},today:'2026-09-24'});
+  const code=section('  const setupSteps = [','  const welcome =');
+  const steps=()=>vm.runInContext('(()=>{'+code+'return setupSteps;})()',ctx);
+  assert.deepEqual(Array.from(steps(),s=>s.label),['เพิ่มแปลง','เริ่มรอบปลูก','บันทึกงานแรก']);
+  assert.equal(steps().filter(s=>s.done).length,0);
+  ctx.S.plots.push({id:'p'});ctx.S.cycles.push({id:'c'});ctx.S.tasks.push({status:'planned'});
+  assert.equal(steps().filter(s=>s.done).length,2);
+  ctx.S.tasks.push({status:'failed'});assert.equal(steps().every(s=>s.done),true);assert.equal(ctx.S.stock.length,0);
+  assert.match(steps()[2].action,/status:'done'/);
+});
+function client(fields={}) {
+  let id=0;
+  const context=vm.createContext({App:{},document:{getElementById:key=>fields[key] || null,querySelectorAll:()=>[]},
+    uid:()=>`ux-${++id}`,S:{plots:[],tasks:[],stock:[],cycles:[],water:{systems:[{id:'pump',lastWatered:'2026-09-10'}],logs:[]}},
+    saveState(){},closeModal(){},render(){},toast(){},setTimeout(){},setModalFieldError(input,message){input.error=message;},todayISO:()=> '2026-09-11'});
+  return {c:context,run:s=>vm.runInContext(s,context)};
+}
+
+test('financial summaries distinguish missing records from explicit zero-cost finance entries',()=>{
+  const c=vm.createContext({});vm.runInContext(section('function hasRecordedFinance(', 'function renderHome()'),c);
+  const check=rows=>vm.runInContext('hasRecordedFinance('+JSON.stringify(rows)+')',c);
+  assert.equal(check([]),false);
+  assert.equal(check([{status:'done',type:'inspect',cost:0,revenue:0}]),false);
+  assert.equal(check([{status:'planned',type:'expense',cost:100}]),false);
+  assert.equal(check([{status:'done',type:'expense',cost:0}]),true);
+  assert.equal(check([{status:'done',type:'work',cost:100,revenue:100}]),true);
+});
+test('home finance labels show the currency and do not use a dollar glyph as the primary summary icon',()=>{
+  const home=section('function renderHome()', '/* ---------------- Plots & cycles ---------------- */');
+  assert.match(home,/home-money-unit/);
+  assert.match(home,/ic\("chart"\)/);
+  assert.match(home,/รายได้ \$\{fmtMoney\(fin\.revenue\)\} บาท/);
+});
+test('activity scope requires an intentional plot choice and reserves whole-farm work for general activities',()=>{
+  const form=section('App.modalTask = function', '/* เมื่อเปลี่ยนแปลง -> โหลดเฉพาะพืช');
+  const submit=section('App.submitTask = function', '  let savedTaskId =');
+  assert.match(form,/บันทึกให้กับ/);
+  assert.match(form,/งานส่วนกลาง/);
+  assert.match(form,/t_scope_plot/);
+  assert.match(submit,/เลือกแปลง หรือเลือกงานส่วนกลาง/);
+  assert.match(app,/function taskMustBelongToPlot/);
+});
+test('home prioritizes updating scheduled work and gives a next step after setup is complete',()=>{
+  const home=section('function renderHome()', '/* ---------------- Plots & cycles ---------------- */');
+  assert.match(home,/อัปเดตงานที่วางไว้/);
+  assert.match(home,/App\.openPlannerFilter\('\$\{priorityTaskMode\}'\)/);
+  assert.match(home,/ฟาร์มพร้อมเริ่มติดตาม/);
+  assert.match(home,/วางแผนงานแรกของ/);
+});
+test('crop work remains attributed to a plot while general work can use a single active crop cycle',()=>{
+  const form=section('App.modalTask = function', '/* เมื่อเปลี่ยนแปลง -> โหลดเฉพาะพืช');
+  assert.match(form,/const forceFarmScope = preset\.scope === "farm"/);
+  assert.match(form,/!forceFarmScope && \(preset\.scope === "plot" \|\| preset\.plotId \|\| suggestedCycleId\)/);
+  assert.match(form,/activeCycles\.length === 1/);
+  assert.match(form,/taskScopeChangeButton/);
+  assert.match(app,/App\.taskScopeToggle/);
+  assert.match(app,/if \(changeButton\) changeButton\.hidden = mustUsePlot/);
+});
+test('whole-farm activities can retain their own cost and remain findable in the activity planner',()=>{
+  const submit=section('App.submitTask = function', '  let savedTaskId =');
+  assert.match(submit,/scope,\s*\n\s*cycleId: tCycle/);
+  assert.doesNotMatch(submit,/ต้องเลือกแปลงก่อน — ต้นทุน/);
+  assert.match(app,/task-farm/);
+  assert.match(app,/option value="farm" \$\{plannerSearch\.scope==='farm'/);
+  const context=vm.createContext({});
+  const planner=section('const plannerSearch =', 'App.setPlannerSearch =');
+  vm.runInContext(`${planner}; globalThis.matches=plannerMatches; globalThis.filters=plannerSearch;`,context);
+  vm.runInContext(`filters.scope='farm'`,context);
+  assert.equal(vm.runInContext(`matches({title:'ซ่อมรั้ว',plotId:null})`,context),true);
+  assert.equal(vm.runInContext(`matches({title:'ใส่ปุ๋ย',plotId:'p-1'})`,context),false);
+});
+test('typed external materials keep their exact price without creating or deducting stock',()=>{
+  const source=section('function costStockMode(', 'function costEditableAvail(');
+  const data=fs.readFileSync(path.join(__dirname,'..','js/data.js'),'utf8');
+  const c=vm.createContext({App:{}});
+  vm.runInContext(data.slice(data.indexOf('function externalMaterialCost('),data.indexOf('function taskMaterialCost(')),c);
+  vm.runInContext(source,c);
+  assert.equal(vm.runInContext('costChargeQty({qty:.5,unitCost:120})',c),.5);
+  assert.equal(vm.runInContext('costTotal({qty:.5,unitCost:120})',c),60);
+  assert.equal(vm.runInContext('costChargeQty({stockId:"medicine",stockMode:"package",qty:.5,unitCost:120})',c),1);
+  const costUi=section('function costStockPickerHtml(', 'App.costShowStock = function');
+  assert.match(costUi,/พิมพ์เอง · ไม่ตัดสต็อก/);
+  assert.match(costUi,/App\.costUseExternal/);
+});
+test('farm-wide activities have a dedicated overview and can start a task explicitly scoped to the farm',()=>{
+  const farm=section('function renderFarmOverview()', '/* ---------------- Equipment ---------------- */');
+  const more=section('function renderMore()', '/* ---------------- Modals ---------------- */');
+  const nav=section('const NAV_ALL =', 'function visibleNav()');
+  const form=section('App.modalTask = function', '/* เมื่อเปลี่ยนแปลง -> โหลดเฉพาะพืช');
+  assert.match(farm,/ข้อมูลงานส่วนกลาง/);
+  assert.match(farm,/App\.farmTab\('analytics'\)/);
+  assert.match(farm,/renderAnalytics\(true\)/);
+  assert.match(farm,/!t\.plotId/);
+  assert.match(farm,/App\.modalTask\('\$\{todayISO\(\)\}', \{scope:'farm'\}\)/);
+  assert.match(farm,/App\.openFarmActivities/);
+  assert.match(nav,/\{ key: "farm", label: "ฟาร์ม", ico: "briefcase" \}/);
+  assert.doesNotMatch(nav,/key: "analytics"/);
+  assert.doesNotMatch(more,/ข้อมูลทั้งฟาร์ม/);
+  assert.match(form,/preset\.scope === "plot"/);
+});
+test('home keeps team review after today work and limits the quick menu to the current workspace',()=>{
+  const home=section('function renderHome()', '/* ---------------- Plots & cycles ---------------- */');
+  assert.ok(home.indexOf('${todayPanel}') < home.indexOf('id="teamHomeInbox"'));
+  const renderSource=section('function render() {', 'App.nav = function');
+  assert.match(renderSource,/navKey === "stock" \? \["stock", "sale"\]/);
+  assert.match(renderSource,/navKey === "planner" \? \["task"\]/);
+  assert.match(renderSource,/button\.hidden = !fabActions\.includes/);
+  assert.match(app,/จะแสดงคำสั่งที่เกี่ยวกับหน้าที่กำลังใช้อยู่/);
+});
+test('cycle deletion is visible, removes only unrecorded work, and protects recorded history',()=>{
+  const source=section('App.deleteCycle = function', 'App.deletePlot = function');
+  const actions=section('function renderCycleDetail()', '/* ตั้งค่าตัวกรอง/เรียง');
+  assert.match(actions,/ลบรอบปลูก/);
+  const prompts=[];
+  const c=vm.createContext({
+    S:{plots:[{id:'p',name:'แปลงเหนือ'}],cycles:[{id:'empty',plotId:'p'},{id:'kept',plotId:'p'}],tasks:[{id:'planned',cycleId:'empty',status:'planned'},{id:'done',cycleId:'kept',status:'done'}]},
+    App:{confirm:(title,text,onOk)=>prompts.push({title,text,onOk}),openPlot:id=>c.opened=id},
+    cycleById:(s,id)=>s.cycles.find(x=>x.id===id),plotById:(s,id)=>s.plots.find(x=>x.id===id),saveState:()=>c.saved=true,toast:message=>c.toast=message
+  });
+  vm.runInContext(source,c);
+  vm.runInContext("App.deleteCycle('empty')",c);
+  assert.equal(prompts[0].title,'ลบรอบปลูกนี้?');
+  prompts[0].onOk();
+  assert.deepEqual(Array.from(c.S.cycles,x=>x.id),['kept']);
+  assert.deepEqual(Array.from(c.S.tasks,x=>x.id),['done']);
+  assert.equal(c.opened,'p');assert.equal(c.saved,true);
+  vm.runInContext("App.deleteCycle('kept')",c);
+  assert.equal(prompts[1].title,'ลบรอบนี้ไม่ได้');
+  assert.equal(c.S.cycles.length,1);
+});
+test('new general activity defaults to the only active crop cycle, while multiple cycles still require a deliberate choice',()=>{
+  const form=section('App.modalTask = function', '/* เมื่อเปลี่ยนแปลง -> โหลดเฉพาะพืช');
+  assert.match(form,/const activeCycles = !editing/);
+  assert.match(form,/const suggestedCycleId = activeCycles\.length === 1/);
+  assert.match(form,/preset\.cycleId \|\| suggestedCycleId/);
+  assert.match(form,/บันทึกเข้ารอบ/);
+});
+test('expired sessions offer a re-login action and a blank stock list explains how to begin',()=>{
+  const auth=read('js/auth.js'),stock=read('js/stock.js'),team=read('js/team.js');
+  assert.match(auth,/state === "reauth" \? \(\) => Auth\.reauthenticate\(\)/);
+  assert.match(auth,/Auth\.reauthenticate = function/);
+  assert.match(auth,/if \(Auth\._reauthenticating\) \{ Auth\.hideGate\(\); return; \}/);
+  assert.match(auth,/Auth\.setSyncStatus\("reauth", "เซสชันหมดอายุ · กดเพื่อเข้าสู่ระบบใหม่"\)/);
+  assert.match(team,/เข้าสู่ระบบใหม่/);
+  assert.match(stock,/ยังไม่มีสินค้าในสต็อก/);
+  assert.match(stock,/เพิ่มยา ปุ๋ย เมล็ดพันธุ์/);
+  assert.match(stock,/onclick="App\.modalStock\(\)"/);
+});
+test('sale row totals and grand total update together, including custom price',()=>{
+  const fields={saleTotal:{},saleGrandTotal:{},sale_discount:{value:'30'},saleLineTotal_0:{},saleLineTotal_1:{}};
+  const {c,run}=client(fields);c.fmtMoney=String;
+  const source=read('js/sales.js');
+  run(source.slice(source.indexOf('function saleLineTotal('),source.indexOf('function saleLimitInfo(')));
+  run(source.slice(source.indexOf('App.saleSum ='),source.indexOf('App.saleRender =')));
+  run('let saleItems=[{qty:2,price:290},{qty:3,price:10}]; App.saleSum();');
+  assert.equal(fields.saleLineTotal_0.textContent,'580 บาท');assert.equal(fields.saleLineTotal_1.textContent,'30 บาท');assert.equal(fields.saleGrandTotal.value,'580 บาท');
+  run('saleItems[0].price=100;App.saleSum();');assert.equal(fields.saleLineTotal_0.textContent,'200 บาท');assert.equal(fields.saleTotal.textContent,'230 บาท');assert.equal(fields.saleGrandTotal.value,'200 บาท');
+});
+test('quarter-rai plot saves without fabricated GPS; zero coordinates remain valid',()=>{
+  const fields=Object.fromEntries(Object.entries({f_name:'Test',f_size:'0.25',f_status:'active',f_lat:'',f_lng:''}).map(([k,value])=>[k,{value}]));
+  const {run}=client(fields);run(section('App.submitPlot =','let plotWaterZoneDraft'));
+  run('App.submitPlot({preventDefault(){}},"")');
+  assert.equal(run('S.plots[0].sizeRai'),.25);assert.equal(run('S.plots[0].lat'),null);assert.equal(run('S.plots[0].lng'),null);
+  fields.f_lat.value='0';fields.f_lng.value='0';run('App.submitPlot({preventDefault(){}},"")');assert.equal(run('S.plots[1].lat'),0);
+  fields.f_lat.value='91';run('App.submitPlot({preventDefault(){}},"")');assert.equal(run('S.plots.length'),2);assert.ok(fields.f_lat.error);
+  fields.f_lat.value='';run('App.submitPlot({preventDefault(){}},"")');assert.equal(run('S.plots.length'),2);
+});
+test('new plot form keeps optional location behind a clear disclosure',()=>{
+  const plotForm=section('App.modalPlot = function', '/* ---- แผนที่ปักหมุด');
+  assert.match(plotForm,/เพิ่มตำแหน่งเพื่อดูสภาพอากาศ/);
+  assert.match(plotForm,/ไม่บังคับ/);
+  assert.match(plotForm,/plotLocationDetails/);
+});
+test('watering accepts past dates, rejects future/negative inputs, and preserves latest watered date',()=>{
+  const fields=Object.fromEntries(Object.entries({wn_date:'2026-09-01',wn_time:'08:30',wn_min:'30',wn_m3:'2',wn_note:'Test'}).map(([k,value])=>[k,{value}]));
+  const {run}=client(fields);run(section('function trialValidDate(','function trialDateInRange('));run(section('App.saveWaterNow =','App.delWaterLog ='));
+  run('App.saveWaterNow("pump")');assert.equal(run('S.water.logs[0].date'),'2026-09-01');assert.equal(run('S.water.systems[0].lastWatered'),'2026-09-10');
+  fields.wn_date.value='2026-09-12';run('App.saveWaterNow("pump")');assert.equal(run('S.water.logs.length'),1);
+  fields.wn_date.value='2026-09-11';fields.wn_min.value='-1';run('App.saveWaterNow("pump")');assert.equal(run('S.water.logs.length'),1);
+});
+test('chemical quantities keep units separate rather than adding bottles to litres',()=>{
+  const {c,run}=client();c.localStorage={getItem:()=>null,setItem(){}};run(read('js/data.js'));
+  run(`S.plots=[{id:'p',name:'Plot'}];S.tasks=[{status:'done',date:'2026-09-10',plotId:'p',costItems:[{name:'A',category:'chemical',qty:.5,unit:'ขวด',totalCost:20},{name:'A',category:'chemical',qty:2,unit:'ลิตร',totalCost:30}]}]`);
+  assert.equal(run('plotChemUse(S,"2026")[0].items.length'),2);assert.equal(run('plotChemUse(S,"2026")[0].cost'),50);
+});
+test('price recording retains source dates and never re-dates static data as today',async()=>{
+  const source=read('worker/src/lark.js');const rows=[];
+  const c=vm.createContext({Date,MARKET_DATA:{date:'2026-08-27',products:[{product:'Corn',min:10,max:12,markets:[{market:'Market',price:11}]}]},env:{DB:{prepare(){return {first:async()=>1,bind(...values){return {values,run:async()=>{}};}};},batch:async statements=>rows.push(...statements)}}});
+  vm.runInContext(source.slice(source.indexOf('async function doRecordPrices('),source.indexOf('function bkkDateAgo(')),c);
+  await vm.runInContext('doRecordPrices(env)',c);assert.equal(rows[0].values[2],'2026-08-27');
+});

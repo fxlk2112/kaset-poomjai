@@ -2,6 +2,7 @@
 .netlify
 .wrangler
 .freebuff
+tools/.wallet-private/
 
 # temp files from xlsx analysis (tools/xlsx_to_import.js reads tmp_xlsx)
 tmp_xlsx/

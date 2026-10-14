@@ -2,8 +2,88 @@
 let saleItems = [];      // รายการขายชั่วคราว: {stockId, name, unit, qty, price}
 let saleQueries = {};    // คำค้นหาสต็อกต่อแถว
 let saleEditingId = "";
+const SALE_TEMPLATE_FIELDS = [
+  { key: 'layout', label: 'รูปแบบกระดาษ', max: 16, options: [['modern', 'แบบเรียบง่าย'], ['fus', 'แบบตาราง FUS (19 แถว)']] },
+  { key: 'brand', label: 'ชื่อร้าน / ฟาร์ม', max: 100 },
+  { key: 'address', label: 'ที่อยู่ / เบอร์ติดต่อ', max: 300, optional: true, multiline: true },
+  { key: 'title', label: 'ชื่อเอกสาร', max: 60 },
+  { key: 'customer', label: 'หัวข้อชื่อลูกค้า', max: 30 },
+  { key: 'date', label: 'หัวข้อวันที่', max: 30 },
+  { key: 'receiver', label: 'ช่องลงชื่อฝั่งซ้าย', max: 50 },
+  { key: 'sender', label: 'ช่องลงชื่อฝั่งขวา', max: 50 },
+  { key: 'footer', label: 'ข้อความท้ายกระดาษ', max: 300, optional: true, multiline: true },
+  ...['ลำดับ', 'รหัส', 'รายการ', 'จำนวน', 'หน่วย/ชิ้น', 'ราคาต่อหน่วย', 'ราคารวม'].map((label, i) => ({ key: 'col' + i, label, max: 30, column: true }))
+];
+function saleTemplateDefaults() {
+  return { layout: 'modern', brand: T('brandName'), address: '', title: 'ใบส่งสินค้า', customer: 'ชื่อ', date: 'วันที่', receiver: 'ผู้รับของ', sender: 'ผู้ส่งของ', footer: T('brandSub'), col0: 'ลำดับ', col1: 'รหัส', col2: 'รายการ', col3: 'จำนวน', col4: 'หน่วย/ชิ้น', col5: 'ราคาต่อหน่วย', col6: 'ราคารวม' };
+}
+function saleTemplate(raw = S.saleTemplate) {
+  const defaults = saleTemplateDefaults();
+  return Object.fromEntries(SALE_TEMPLATE_FIELDS.map(f => {
+    const value = raw && typeof raw[f.key] === 'string' ? raw[f.key].trim().slice(0, f.max) : defaults[f.key];
+    if (f.options) return [f.key, f.options.some(([key]) => key === value) ? value : defaults[f.key]];
+    return [f.key, value || (f.optional ? '' : defaults[f.key])];
+  }));
+}
+function saleTemplateFormValue() {
+  return Object.fromEntries(SALE_TEMPLATE_FIELDS.map(f => [f.key, document.getElementById('saleTpl_' + f.key).value.trim()]));
+}
+function saleTemplatePreviewSale(id) {
+  return (S.sales || []).find(s => s.id === id) || { no: 'ตัวอย่าง', date: todayISO(), customer: 'ลูกค้าตัวอย่าง', items: [{ name: 'สินค้าตัวอย่าง', code: '001', qty: 1, unit: 'ขวด', price: 380, total: 380 }], discount: 0, payMethod: 'cash' };
+}
+App.saleTemplatePreview = function (id) {
+  const el = document.getElementById('saleTemplatePreview');
+  if (el) el.innerHTML = saleReceiptHtml(saleTemplatePreviewSale(id), saleTemplate(saleTemplateFormValue()));
+};
+App.saleTemplateBack = function (id) {
+  if (id) App.viewSale(id); else App.saleHistory();
+};
+App.editSaleTemplate = function (id = '') {
+  const tpl = saleTemplate();
+  const field = f => `<div class="field"><label for="saleTpl_${f.key}">${esc(f.label)}</label>${f.options
+    ? `<select id="saleTpl_${f.key}">${f.options.map(([value, label]) => `<option value="${value}" ${tpl[f.key] === value ? 'selected' : ''}>${label}</option>`).join('')}</select>` : f.multiline
+    ? `<textarea id="saleTpl_${f.key}" rows="2" maxlength="${f.max}">${esc(tpl[f.key])}</textarea>`
+    : `<input id="saleTpl_${f.key}" value="${esc(tpl[f.key])}" maxlength="${f.max}" ${f.optional ? '' : 'required'}>`}</div>`;
+  openModal(`<button class="modal-x" onclick="App.saleTemplateBack('${id}')" aria-label="กลับ">✕</button>
+    <h3>${ic('pencil')} ปรับแบบเอกสาร</h3>
+    <div class="modal-sub">ค่าเริ่มต้นของบัญชี · ใบใหม่และการพิมพ์ซ้ำ</div>
+    <form id="saleTemplateForm" onsubmit="return App.saveSaleTemplate(event, '${id}')" oninput="App.saleTemplatePreview('${id}')">
+      <div class="sale-template-toolbar"><button type="button" class="btn btn-outline btn-sm" onclick="App.useFusSaleTemplate('${id}')">${ic('copy')} ใช้แบบต้นฉบับ FUS</button></div>
+      <div class="form-row-2">${SALE_TEMPLATE_FIELDS.filter(f => !f.column).map(field).join('')}</div>
+      <details class="sale-template-columns"><summary>หัวตารางสินค้า</summary><div class="form-row-2">${SALE_TEMPLATE_FIELDS.filter(f => f.column).map(field).join('')}</div></details>
+      <details open class="sale-template-preview"><summary>ตัวอย่างก่อนบันทึก</summary><div id="saleTemplatePreview" class="receipt-scroll" tabindex="0" role="region" aria-label="ตัวอย่างเอกสาร">${saleReceiptHtml(saleTemplatePreviewSale(id), tpl)}</div></details>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="App.resetSaleTemplate('${id}')">${ic('refresh')} คืนแบบเริ่มต้น</button>
+        <button type="button" class="btn btn-ghost" onclick="App.saleTemplateBack('${id}')">ยกเลิก</button>
+        <button type="submit" class="btn btn-primary">${ic('save')} บันทึกเป็นแบบประจำ</button>
+      </div>
+    </form>`);
+};
+App.useFusSaleTemplate = function (id) {
+  const preset = { layout: 'fus', brand: 'FUS', title: 'รายการเบิก/ขายสินค้า', receiver: 'ผู้รับของ', sender: 'ผู้ส่งของ', footer: '' };
+  Object.entries(preset).forEach(([key, value]) => { document.getElementById('saleTpl_' + key).value = value; });
+  App.saleTemplatePreview(id);
+};
+App.resetSaleTemplate = function (id) {
+  const defaults = saleTemplateDefaults();
+  SALE_TEMPLATE_FIELDS.forEach(f => { document.getElementById('saleTpl_' + f.key).value = defaults[f.key]; });
+  App.saleTemplatePreview(id);
+};
+App.saveSaleTemplate = function (e, id) {
+  e.preventDefault();
+  const raw = saleTemplateFormValue();
+  const invalid = SALE_TEMPLATE_FIELDS.find(f => (!f.optional && !raw[f.key]) || raw[f.key].length > f.max);
+  if (invalid) { toast('ตรวจสอบช่อง ' + invalid.label); document.getElementById('saleTpl_' + invalid.key).focus(); return false; }
+  const previous = S.saleTemplate;
+  S.saleTemplate = saleTemplate(raw);
+  saveState(S);
+  if (storageSaveFailed) { S.saleTemplate = previous; return false; }
+  App.saleTemplateBack(id);
+  toast('บันทึกแบบประจำแล้ว');
+  return false;
+};
 /* ขายจากสต็อกหลัก (หน่วยเต็ม) เท่านั้น — ไม่นับของที่เปิดใช้แล้ว */
-function saleAvail(x) { return Math.floor(Number(x.qty) || 0); }
+function saleAvail(x) { return stockSealedAvailable(S, x.id); }
 function salePriceFromMode(st, mode) {
   if (!st) return 0;
   if (mode === "member") return Number(st.memberPrice) || 0;
@@ -131,6 +211,10 @@ App.saleCheckLimit = function (i) {
   return !msg;
 };
 App.saleSum = function () {
+  saleItems.forEach((it, i) => {
+    const line = document.getElementById('saleLineTotal_' + i);
+    if (line) line.textContent = fmtMoney(saleLineTotal(it)) + ' บาท';
+  });
   const el = document.getElementById("saleTotal");
   if (!el) return;
   const sum = saleItems.reduce((a, it) => a + saleLineTotal(it), 0);
@@ -145,7 +229,7 @@ App.saleRender = function () {
   if (!list) return;
   list.innerHTML = saleItems.map((it, i) => {
     const st = it.stockId ? stockById(S, it.stockId) : null;
-    const max = st ? saleAvail(st) : 0;
+    const max = st ? saleLimitInfo(it).max : 0;
     const priceMode = it.priceMode || salePriceModeOf(st, it.price);
     return `
     <div class="usage-row">
@@ -170,12 +254,13 @@ App.saleRender = function () {
             ${st.memberPrice ? `<option value="member" ${priceMode === "member" ? "selected" : ""}>ลูกค้าประจำ (${fmtMoney(st.memberPrice)} บาท)</option>` : ""}
             <option value="custom" ${priceMode === "custom" ? "selected" : ""}>พิมพ์เอง</option>
           </select>` : ""}
-          <input type="number" min="0" step="0.5" value="${it.price || ""}" ${st && priceMode !== "custom" ? "readonly" : ""} oninput="App.saleSet(${i}, 'price', this.value)">
+          <input type="number" aria-label="ราคาต่อหน่วย รายการที่ ${i + 1}" min="0" step="0.5" value="${it.price || ""}" ${st && priceMode !== "custom" ? "readonly" : ""} oninput="App.saleSet(${i}, 'price', this.value)">
         </div>
       </div>
-      <div class="row row-between muted" style="font-size:.78rem;padding:2px 2px 0"><span>รวมรายการนี้</span><b>${fmtMoney(saleLineTotal(it))} บาท</b></div>` : ""}
+      <div class="row row-between muted" style="font-size:.78rem;padding:2px 2px 0"><span>รวมรายการนี้</span><b id="saleLineTotal_${i}" aria-live="polite">${fmtMoney(saleLineTotal(it))} บาท</b></div>` : ""}
     </div>`;
   }).join("");
+  labelFormFields(list);
   App.saleSum();
   saleItems.forEach((_, i) => App.saleCheckLimit(i));
 };
@@ -191,6 +276,7 @@ App.salePriceMode = function (i, mode) {
 /* เปิดฟอร์มขายสินค้า — ใส่ saleId เพื่อแก้ไขใบเสร็จเดิม */
 App.modalSale = function (saleId) {
   const editing = saleId ? (S.sales || []).find(x => x.id === saleId) : null;
+  if (saleId && (!editing || editing.status === "void")) { toast("ใบเสร็จนี้ไม่มีอยู่หรือยกเลิกแล้ว"); return; }
   saleEditingId = editing ? editing.id : "";
   saleItems = editing
     ? editing.items.map(it => ({ stockId: it.stockId, name: it.name, unit: it.unit, qty: it.qty, price: it.price, priceMode: it.priceMode || salePriceModeOf(stockById(S, it.stockId), it.price) }))
@@ -284,7 +370,9 @@ App.submitSale = function (e, saleId) {
     payMethod: (document.querySelector("input[name='sale_pay']:checked") || {}).value,
     account: document.getElementById("sale_acct").value
   };
-  const sale = editing ? updateSale(S, editing.id, data) : addSale(S, data);
+  let sale;
+  try { sale = editing ? updateSale(S, editing.id, data) : addSale(S, data); }
+  catch (err) { toast(err.message); return false; }
   saveState(S);
   closeModal();
   render();
@@ -292,20 +380,17 @@ App.submitSale = function (e, saleId) {
   App.viewSale(sale.id);
   return false;
 };
-/* เติมแถวว่างให้ตารางใบส่งสินค้าไม่ต่ำกว่า 8 แถว (เหมือนไฟล์ตัวอย่าง) */
-function emptyRowsHtml(n) {
-  let h = "";
-  for (let i = n; i < 8; i++) h += `<tr class="receipt-empty-row"><td colspan="7"></td></tr>`;
-  return h;
-}
 function saleShareText(sale) {
+  const tpl = saleTemplate();
   const total = saleTotal(sale);
   const disc = Number(sale.discount) || 0;
   const grand = saleGrandTotal(sale);
   const payTxt = sale.payMethod === "transfer" ? `โอนเงิน${sale.account ? ` (${sale.account})` : ""}` : "เงินสด";
   const lines = [
-    `${T("brandName")} - ใบส่งสินค้า #${sale.no}`,
-    `วันที่ ${dateLabel(sale.date)}${sale.customer ? ` | ลูกค้า ${sale.customer}` : ""}`,
+    `${tpl.brand} - ${tpl.title} #${sale.no}`,
+    tpl.address,
+    sale.status === "void" ? "ยกเลิกแล้ว - ไม่ใช่ยอดขายที่ใช้งาน" : "",
+    `${tpl.date} ${dateLabel(sale.date)}${sale.customer ? ` | ${tpl.customer} ${sale.customer}` : ""}`,
     "",
     ...(sale.items || []).map((it, i) => `${i + 1}. ${it.name}${it.code ? ` (${it.code})` : ""} ${fmtNum(it.qty)} ${it.unit || ""} x ${fmtMoney(it.price)} = ${fmtMoney(it.total)} บาท`),
     "",
@@ -313,7 +398,8 @@ function saleShareText(sale) {
     disc > 0 ? `ส่วนลด ${fmtMoney(disc)} บาท` : "",
     `ยอดสุทธิ ${fmtMoney(grand)} บาท`,
     `ชำระโดย ${payTxt}`,
-    sale.note ? `หมายเหตุ: ${sale.note}` : ""
+    sale.note ? `หมายเหตุ: ${sale.note}` : "",
+    tpl.footer
   ];
   return lines.filter((line, idx, arr) => line || (arr[idx - 1] && arr[idx + 1])).join("\n");
 }
@@ -334,7 +420,7 @@ App.shareSaleSummary = async function (id) {
   const sale = (S.sales || []).find(x => x.id === id);
   if (!sale) return;
   const text = saleShareText(sale);
-  const title = `ใบส่งสินค้า #${sale.no}`;
+  const title = `${saleTemplate().title} #${sale.no}`;
   try {
     if (navigator.share) {
       await navigator.share({ title, text });
@@ -349,9 +435,63 @@ App.shareSaleSummary = async function (id) {
   toast("เปิด LINE สำหรับส่งใบสินค้าแล้ว");
 };
 /* ใบส่งสินค้า (A4) — รูปแบบตามไฟล์ตัวอย่าง */
-App.viewSale = function (id) {
-  const sale = (S.sales || []).find(x => x.id === id);
-  if (!sale) return;
+// Scoped styles travel with the receipt so preview and the print window match.
+const SALE_FUS_STYLES = `
+  .receipt.receipt-fus { padding:0; border:1px solid #111; border-radius:0; background:#fff; color:#111; font-family:Tahoma,sans-serif; font-size:12px; overflow-wrap:anywhere; }
+  .receipt-fus .fus-brand { font:700 58px/1.1 'Times New Roman',serif; text-align:center; padding:10px 8px 0; }
+  .receipt-fus .fus-title { text-align:center; font-size:16px; font-weight:700; padding:6px; }
+  .receipt-fus .fus-address { white-space:pre-line; text-align:center; padding:4px 8px; }
+  .receipt-fus .fus-customer { padding:8px; }
+  .receipt-fus .fus-date { text-align:center; padding:10px 8px; }
+  .receipt-fus .fus-number { font-size:11px; text-align:right; padding:3px 8px; }
+  .receipt-fus .fus-items { width:100%; table-layout:fixed; border-collapse:collapse; }
+  .receipt-fus .fus-items th, .receipt-fus .fus-items td { border:1px solid #111; padding:3px 4px; font-size:11px; line-height:1.3; height:23px; box-sizing:border-box; }
+  .receipt-fus .fus-items th { background:#f1f1f1; text-align:center; }
+  .receipt-fus .fus-products td:first-child, .receipt-fus .fus-products td:nth-child(2), .receipt-fus .fus-products td:nth-child(4), .receipt-fus .fus-products td:nth-child(5) { text-align:center; }
+  .receipt-fus .fus-products td:nth-child(6), .receipt-fus .fus-products td:nth-child(7) { text-align:right; }
+  .receipt-fus .fus-bottom { break-inside:avoid; }
+  .receipt-fus .fus-total-title { text-align:center; font-family:'Times New Roman',serif; font-weight:700; padding:12px 4px; }
+  .receipt-fus .fus-notes { min-height:50px; padding:4px 8px; white-space:pre-line; }
+  .receipt-fus .fus-notes strong { display:block; text-align:center; color:#ba2525; }
+  .receipt-fus .fus-items .fus-sign { padding:6px 4px; text-align:center; }
+  .receipt-fus .fus-sign-line { margin:28px 0 8px; border-bottom:1px dotted #555; height:1px; }
+  .receipt-fus .fus-bottom th, .receipt-fus .fus-bottom td { background:#fff; padding:4px; font-size:10px; }
+  .receipt-fus .fus-bottom th { text-align:left; }
+  .receipt-fus .fus-amount { text-align:right; }
+  .receipt-fus .fus-items .fus-baht { font-size:10px; padding:8px 4px; vertical-align:top; }
+  .receipt-fus .fus-foot { padding:6px 8px; border-top:1px solid #111; font-size:10px; white-space:pre-line; }
+  .receipt-fus .fus-items thead { display:table-header-group; }
+  .receipt-fus .fus-items tr { break-inside:avoid; }
+  @media print { .receipt.receipt-fus { min-width:0; } }
+`;
+function saleFusReceiptHtml(sale, tpl) {
+  const items = sale.items || [];
+  const rows = Array.from({ length: Math.max(19, items.length) }, (_, i) => {
+    const it = items[i];
+    const cells = it ? [i + 1, it.code || '', it.name, fmtNum(it.qty), it.unit, fmtMoney(it.price), fmtMoney(it.total)] : [i + 1, '', '', '', '', '-', '-'];
+    return `<tr>${cells.map(value => `<td>${esc(String(value ?? ''))}</td>`).join('')}</tr>`;
+  }).join('');
+  const grand = saleGrandTotal(sale);
+  const amounts = [['รวมเป็นเงิน', saleTotal(sale)], ['ส่วนลด', Number(sale.discount) || 0], ['ยอดหลังหักส่วนลด', grand], ['จำนวนเงินทั้งสิ้น', grand]];
+  return `<div class="receipt receipt-fus" id="receiptArea"><style>${SALE_FUS_STYLES}</style>
+    ${sale.status === 'void' ? '<h2 class="receipt-void">ยกเลิกแล้ว</h2>' : ''}
+    <div class="fus-brand">${esc(tpl.brand)}</div>
+    <div class="fus-title">${esc(tpl.title)}</div>
+    ${tpl.address ? `<div class="fus-address">${esc(tpl.address)}</div>` : ''}
+    <div class="fus-customer"><b>${esc(tpl.customer)}:</b> ${esc(sale.customer || '—')}</div>
+    <div class="fus-date">${esc(tpl.date)}: ${dateLabel(sale.date)}</div>
+    <div class="fus-number">เลขที่ ${esc(String(sale.no))}</div>
+    <table class="fus-items"><colgroup>${[7, 15, 34, 10, 8, 13, 13].map(n => `<col style="width:${n}%">`).join('')}</colgroup>
+      <thead><tr>${Array.from({ length: 7 }, (_, i) => `<th>${esc(tpl['col' + i])}</th>`).join('')}</tr></thead><tbody class="fus-products">${rows}</tbody>
+      <tbody class="fus-bottom">${amounts.map(([label, value], i) => `<tr>${i === 0 ? '<td colspan="4" rowspan="2"><div class="fus-total-title">Total</div></td>' : i === 2 ? `<td colspan="4" rowspan="2"><div class="fus-notes"><strong>หมายเหตุ</strong>${esc(sale.note || '')}</div></td>` : ''}<th colspan="2">${label}</th><td class="fus-amount">${fmtMoney(value)}</td></tr>`).join('')}
+        <tr>${[tpl.receiver, tpl.sender].map(label => `<td colspan="2" class="fus-sign"><b>${esc(label)}</b><div class="fus-sign-line"></div><div>....../......../..........</div></td>`).join('')}<td colspan="3" class="fus-baht">${esc(thaiBahtText(grand))}</td></tr>
+      </tbody>
+    </table>
+    <div class="fus-foot">ชำระโดย ${sale.payMethod === 'transfer' ? `โอนเงิน${sale.account ? ' เข้าบัญชี ' + esc(sale.account) : ''}` : 'เงินสด'}${tpl.footer ? '\n' + esc(tpl.footer) : ''}</div>
+  </div>`;
+}
+function saleReceiptHtml(sale, tpl = saleTemplate()) {
+  if (tpl.layout === 'fus') return saleFusReceiptHtml(sale, tpl);
   const rows = sale.items.map((it, i) => `
     <tr>
       <td style="text-align:center">${i + 1}</td>
@@ -368,24 +508,24 @@ App.viewSale = function (id) {
   const payTxt = sale.payMethod === "transfer" ? `โอนเงิน${sale.account ? ` เข้าบัญชี ${esc(sale.account)}` : ""}` : "เงินสด";
   let grandTxt = "";
   try { grandTxt = thaiBahtText(grand); } catch (e) { grandTxt = ""; }
-  openModal(`
-    <button class="modal-x" onclick="App.closeModal()">✕</button>
-    <h3>${ic("box")} ใบส่งสินค้า เลขที่ ${sale.no}</h3>
-    <div class="receipt" id="receiptArea">
+  return `<div class="receipt" id="receiptArea">
+      ${sale.status === "void" ? `<h2 class="receipt-void">ยกเลิกแล้ว</h2>` : ""}
       <div class="receipt-head">
-        <div class="receipt-brand">${esc(T("brandName"))}</div>
-        <div class="receipt-no">ใบส่งสินค้า เลขที่ ${sale.no}</div>
+        <div class="receipt-brand">${esc(tpl.brand)}</div>
+        ${tpl.address ? `<div class="receipt-address">${esc(tpl.address)}</div>` : ''}
+        <div class="receipt-no">${esc(tpl.title)} เลขที่ ${esc(String(sale.no))}</div>
       </div>
       <div class="receipt-meta">
-        <div class="receipt-cust"><span>ชื่อ</span><b>${sale.customer ? esc(sale.customer) : "—"}</b></div>
-        <div class="receipt-date"><span>วันที่</span><b>${dateLabel(sale.date)} (${sale.date})</b></div>
+        <div class="receipt-cust"><span>${esc(tpl.customer)}</span><b>${sale.customer ? esc(sale.customer) : "—"}</b></div>
+        <div class="receipt-date"><span>${esc(tpl.date)}</span><b>${dateLabel(sale.date)}</b></div>
       </div>
+      <div class="receipt-items">
       <table class="receipt-table">
-        <thead><tr><th style="width:36px">ลำดับ</th><th style="width:80px">รหัส</th><th>รายการ</th><th style="width:52px">จำนวน</th><th style="width:70px">หน่วย/ชิ้น</th><th style="width:86px">ราคาต่อหน่วย</th><th style="width:90px">ราคารวม</th></tr></thead>
-        <tbody>${rows}
-        ${emptyRowsHtml(sale.items.length)}
-        </tbody>
+        <thead><tr>${[48, 80, 0, 52, 70, 86, 90].map((width, i) => `<th${width ? ` style="width:${width}px"` : ''}>${esc(tpl['col' + i])}</th>`).join('')}</tr></thead>
+        <tbody>${rows || '<tr><td colspan="7" style="text-align:center">ไม่มีรายการสินค้า</td></tr>'}</tbody>
       </table>
+      </div>
+      <div class="receipt-closing">
       <div class="receipt-total">
         <div class="row row-between"><span>รวมเป็นเงิน</span><b>${fmtMoney(total)} บาท</b></div>
         ${disc > 0 ? `<div class="row row-between"><span>ส่วนลด</span><b>${fmtMoney(disc)} บาท</b></div>` : ""}
@@ -395,17 +535,27 @@ App.viewSale = function (id) {
       </div>
       ${sale.note ? `<div class="receipt-note"><span>หมายเหตุ</span> ${esc(sale.note)}</div>` : ""}
       <div class="receipt-sign">
-        <div><div class="receipt-sign-label">ผู้รับของ</div><div class="receipt-sign-line">(......................................)</div><div class="receipt-sign-date">....../......../..........</div></div>
-        <div><div class="receipt-sign-label">ผู้ส่งของ</div><div class="receipt-sign-line">(......................................)</div><div class="receipt-sign-date">....../......../..........</div></div>
+        <div><div class="receipt-sign-label">${esc(tpl.receiver)}</div><div class="receipt-sign-line">(......................................)</div><div class="receipt-sign-date">....../......../..........</div></div>
+        <div><div class="receipt-sign-label">${esc(tpl.sender)}</div><div class="receipt-sign-line">(......................................)</div><div class="receipt-sign-date">....../......../..........</div></div>
       </div>
-      <div class="receipt-foot">ชำระโดย ${payTxt} · ${esc(T("brandSub"))}</div>
-    </div>
+      <div class="receipt-foot">ชำระโดย ${payTxt}${tpl.footer ? `<div class="receipt-footer-text">${esc(tpl.footer)}</div>` : ''}</div>
+      </div>
+    </div>`;
+}
+App.viewSale = function (id) {
+  const sale = (S.sales || []).find(x => x.id === id);
+  if (!sale) return;
+  openModal(`
+    <button class="modal-x" onclick="App.closeModal()">✕</button>
+    <h3>${ic('box')} ${esc(saleTemplate().title)} เลขที่ ${esc(String(sale.no))}</h3>
+    <div class="sale-template-toolbar"><button class="btn btn-outline btn-sm" onclick="App.editSaleTemplate('${sale.id}')">${ic('pencil')} ปรับแบบเอกสาร</button></div>
+    <div class="receipt-scroll" tabindex="0" role="region" aria-label="ใบสินค้า">${saleReceiptHtml(sale)}</div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
       <button class="btn btn-primary" onclick="App.shareSaleSummary('${sale.id}')">${ic("share")} แชร์</button>
       <button class="btn btn-outline" onclick="App.copySaleSummary('${sale.id}')">${ic("copy")} คัดลอกส่งลูกค้า</button>
-      <button class="btn btn-outline" onclick="App.modalSale('${sale.id}')">${ic("pencil")} แก้ไข</button>
-      <button class="btn btn-danger-soft" onclick="App.voidSale('${sale.id}')">${ic("trash")} ยกเลิกใบ</button>
+      ${sale.status !== "void" ? `<button class="btn btn-outline" onclick="App.modalSale('${sale.id}')">${ic("pencil")} แก้ไข</button>
+      <button class="btn btn-danger-soft" onclick="App.voidSale('${sale.id}')">${ic("trash")} ยกเลิกใบ</button>` : ""}
       <button class="btn btn-outline" onclick="App.printSale()">${ic("save")} พิมพ์ A4</button>
     </div>`);
 };
@@ -453,11 +603,18 @@ App.printSale = function () {
   const html = area.outerHTML;
   const w = window.open("", "_blank", "width=800,height=1100");
   if (!w) { toast("เบราว์เซอร์บล็อกหน้าต่างพิมพ์ — อนุญาตป๊อปอัปแล้วลองใหม่"); return; }
-  w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ใบส่งสินค้า</title>
+  w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>${esc(saleTemplate().title)}</title>
   <style>
     @page { size: A4; margin: 14mm; }
     body { font-family: Sarabun, Tahoma, sans-serif; color: #111; margin: 0; font-size: 13px; }
     .receipt { padding: 0; }
+    .receipt { overflow-wrap: anywhere; }
+    .receipt-address, .receipt-footer-text { white-space: pre-line; margin-top: 6px; }
+    .receipt-address { font-size: .85rem; }
+    .receipt-sign > div { max-width: 45%; }
+    .receipt-meta { flex-wrap: wrap; gap: 8px; }
+    .receipt-meta > div { max-width: 60%; }
+    .receipt-table { table-layout: fixed; }
     .receipt-head { text-align: center; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 10px; }
     .receipt-brand { font-size: 1.4rem; font-weight: 800; color: #111; }
     .receipt-no { font-size: .95rem; font-weight: 700; margin-top: 4px; }
@@ -466,8 +623,11 @@ App.printSale = function () {
     .receipt-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     .receipt-table th { border: 1px solid #111; background: #f1f5f4; text-align: center; padding: 5px 4px; font-size: .8rem; }
     .receipt-table td { border: 1px solid #999; padding: 5px 4px; }
-    .receipt-empty-row td { border-color: #ccc; height: 20px; }
-    .receipt-total { margin-top: 8px; font-size: .9rem; width: 45%; margin-left: auto; }
+    .receipt-items { min-height: 40mm; }
+    .receipt-closing { break-inside: avoid; }
+    .receipt-table thead { display: table-header-group; }
+    .receipt-table tr { break-inside: avoid; }
+    .receipt-total { margin-top: 16px; font-size: .9rem; width: 45%; margin-left: auto; }
     .receipt-total .row { display: flex; justify-content: space-between; padding: 3px 6px; }
     .receipt-total .receipt-grand { border-top: 2px solid #111; font-weight: 800; font-size: 1rem; margin-top: 4px; }
     .receipt-baht { font-size: .8rem; padding: 2px 6px; }
@@ -483,10 +643,10 @@ App.printSale = function () {
   w.focus();
   setTimeout(() => { w.print(); }, 250);
 };
-/* ยกเลิกใบเสร็จ — คืนสต็อก + ลบใบ */
+/* ยกเลิกใบเสร็จ: เก็บประวัติพร้อมสถานะ */
 App.voidSale = function (id) {
-  App.confirm("ยกเลิกใบเสร็จนี้?", "สต็อกที่ขายไปจะถูกคืนกลับ", () => {
-    voidSale(S, id);
+  App.confirm("ยกเลิกใบเสร็จนี้?", "คืนสต็อกและตัดออกจากยอดขาย โดยเก็บใบเดิมไว้ในประวัติ", () => {
+    if (!voidSale(S, id)) { toast("ใบเสร็จนี้ยกเลิกไปแล้ว"); return; }
     saveState(S);
     closeModal();
     render();
@@ -499,17 +659,18 @@ App.saleHistory = function () {
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${ic("box")} ประวัติการขาย (${sales.length})</h3>
+    <div class="sale-template-toolbar"><button class="btn btn-outline btn-sm" onclick="App.editSaleTemplate()">${ic('pencil')} ปรับแบบเอกสาร</button></div>
     <div class="modal-sub">${sales.length ? "กดใบเสร็จเพื่อดู/พิมพ์ซ้ำ" : "ยังไม่มีการขาย — กด ขายสินค้า เพื่อออกใบเสร็จใบแรก"}</div>
     ${sales.length === 0 ? `<div class="empty"><div class="e-ico">${ic("dollar")}</div><div class="e-title">ยังไม่มีใบเสร็จ</div></div>` : ""}
     ${sales.map(s => `
-      <div class="row-line" onclick="App.viewSale('${s.id}')" role="button" style="cursor:pointer">
+      <button type="button" class="row-line sale-history-row" onclick="App.viewSale('${s.id}')">
         <span class="task-ico" style="background:var(--green-soft);color:var(--green-dark)">${ic("dollar")}</span>
         <div class="grow">
-          <div class="bold" style="font-size:.85rem">ใบเสร็จ #${s.no} ${s.customer ? `— ${esc(s.customer)}` : ""}</div>
+          <div class="bold" style="font-size:.85rem">ใบเสร็จ #${s.no} ${s.customer ? `— ${esc(s.customer)}` : ""} ${s.status === "void" ? `<span class="badge">ยกเลิกแล้ว</span>` : ""}</div>
           <div class="muted" style="font-size:.7rem">${dateLabel(s.date)} · ${s.items.length} รายการ · ${s.payMethod === "transfer" ? "โอนเงิน" : "เงินสด"}</div>
         </div>
-        <b class="price-trend-up" style="font-size:.9rem">${fmtMoney(saleGrandTotal(s))}</b>
-      </div>`).join("")}
+        <b class="${s.status === "void" ? "muted" : "price-trend-up"}" style="font-size:.9rem">${fmtMoney(saleGrandTotal(s))}</b>
+      </button>`).join("")}
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
       <button class="btn btn-primary" onclick="App.modalSale()">${ic("dollar")} ขายสินค้า</button>
@@ -542,7 +703,7 @@ App.customerHistory = function () {
 };
 /* ประวัติการซื้อของลูกค้ารายคน — ดูทุกใบเสร็จ + รายการสินค้าที่ซื้อ */
 App.customerDetail = function (name) {
-  const sales = (S.sales || [])
+  const sales = activeSales(S)
     .filter(s => String(s.customer || "").trim() === name)
     .sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || 0) - (a.createdAt || 0));
   const total = sales.reduce((a, s) => a + saleGrandTotal(s), 0);
