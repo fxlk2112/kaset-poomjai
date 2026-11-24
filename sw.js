@@ -1,7 +1,7 @@
 /* Cache only the app shell and public same-origin assets, never authenticated APIs. */
-const CACHE = "farmult-v185-multiplot";
-const SHELL = ["/", "/guide.html", "/logo.jpg", "/css/style.css","/css/workspace.css", "/css/landing.css", "/js/data.js", "/js/application-rate.js", "/js/charts.js", "/js/notify.js", "/js/stock.js", "/js/lucide.min.js",
-  "/js/sales.js", "/js/lark.js", "/js/recovery.js", "/js/landing.js", "/js/auth.js", "/js/inspection.js", "/js/app.js", "/js/team.js","/js/workspace.js","/js/workspace-flows.js", "/js/task-wizard.js", "/js/private-photos.js", "/collector", "/css/collector.css", "/js/collector.js"];
+const CACHE = "farmult-v196-projects";
+const SHELL = ["/", "/guide.html", "/images/brand/farmultimate-mark.png", "/css/style.css", "/css/projects.css", "/css/stock-issue.css", "/css/ledger-preview.css", "/css/workspace.css", "/css/landing.css", "/js/data.js", "/js/ledger-preview.js", "/js/application-rate.js", "/js/charts.js", "/js/notify.js", "/js/stock.js", "/js/stock-issue.js", "/js/lucide.min.js",
+  "/js/sales.js", "/js/lark.js", "/js/recovery.js", "/js/landing.js", "/js/auth.js", "/js/inspection.js", "/js/projects.js", "/js/app.js", "/js/team.js","/js/workspace.js","/js/workspace-flows.js", "/js/task-wizard.js", "/js/private-photos.js", "/collector", "/css/collector.css", "/js/collector.js"];
 
 self.addEventListener("install", event => {
   event.waitUntil((async () => {
@@ -34,7 +34,7 @@ self.addEventListener("fetch", event => {
     return;
   }
   const navigation = req.mode === "navigate" && ["/", "/collector"].includes(url.pathname);
-  const asset = SHELL.includes(url.pathname) || /^\/(icons|images)\//.test(url.pathname) || ["/logo.jpg", "/manifest.json"].includes(url.pathname);
+  const asset = SHELL.includes(url.pathname) || /^\/(icons|images)\//.test(url.pathname) || ["/manifest.json"].includes(url.pathname);
   if (!navigation && !asset) return;
   const key = url.pathname;
   const network = fetch(req).then(async res => {

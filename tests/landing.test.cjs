@@ -35,14 +35,14 @@ function gateHarness() {
   return {Auth, document, nodes, landing, box, close, hint, opener, toggle, flush: () => { while(timers.length) timers.shift()(); }};
 }
 
-test('landing keeps existing branding and real product proof without fictional plans', () => {
+test('landing uses current branding and real product proof without fictional plans', () => {
   const page = html.slice(html.indexOf('class="landing-page"'), html.indexOf('<div class="auth-box"'));
-  assert.match(page, /src="logo.jpg"/);
+  assert.match(page, /src="images\/brand\/farmultimate-mark\.png"/);
   assert.match(page, /images\/landing-workspace.png/);
   assert.match(page, /ข้อมูลตัวอย่าง/);
   assert.match(page, /id="trials"/);
   assert.doesNotMatch(page, /price-card|landing-pricing|lp-window|24\/7|เริ่มใช้ฟรี/);
-  for (const match of page.matchAll(/(?:src|srcset)="((?:images\/|logo\.jpg)[^"]+)"/g)) {
+  for (const match of page.matchAll(/(?:src|srcset)="(images\/[^"?]+)"/g)) {
     assert.ok(fs.existsSync(path.join(root, match[1])), match[1]);
   }
 });

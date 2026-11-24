@@ -8,8 +8,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="FarmUltimate">
     <meta name="description" content="FARMULTIMATE SOLUTIONS — ระบบจัดการฟาร์มอัจฉริยะ: บันทึกแปลง/รอบปลูก/งาน/เก็บเกี่ยว, สต็อกวัสดุ, ขายพร้อมใบส่งสินค้า, สภาพอากาศรายแปลง — ใช้ได้ทั้งออนไลน์และออฟไลน์">
-  <link rel="manifest" href="manifest.json?v=20260907googleauth3">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=20260907googleauth3">
+  <link rel="manifest" href="manifest.json?v=20261102brand1">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=20261102brand1">
   <script>try{var _u0=new URL(location.href);var _shareToken=_u0.searchParams.get("share");var _landingPreview=_u0.searchParams.get("landing")==="1";if(_landingPreview||(!_shareToken&&!localStorage.getItem("farmult-session-v1")))document.documentElement.className+=" auth-locked";}catch(e){}</script>
   <style>
     html.auth-locked #app { visibility: hidden; }
@@ -21,7 +21,7 @@
     .auth-box { position: relative; z-index: 1; width: min(410px, calc(100vw - 36px)); max-width: 100%; background: rgba(255,255,255,.92); backdrop-filter: blur(10px); border-radius: 24px; padding: 28px 24px 22px; box-shadow: 0 30px 70px rgba(4,32,17,.5); max-height: calc(100vh - 36px); overflow-y: auto; border: 1px solid rgba(255,255,255,.6); box-sizing: border-box; }
     #authGate .auth-box { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); animation: none; }
     .auth-brand { text-align: center; margin-bottom: 16px; }
-    .auth-brand img { width: 68px; height: 68px; border-radius: 16px; object-fit: cover; box-shadow: 0 8px 22px rgba(20,83,45,.35), 0 0 0 3px rgba(255,255,255,.85); }
+    .auth-brand img { width: 68px; height: 68px; border-radius: 16px; object-fit: contain; background: #fff; padding: 4px; box-shadow: 0 8px 22px rgba(20,83,45,.35), 0 0 0 3px rgba(255,255,255,.85); }
     .auth-brand-name { font-weight: 800; font-size: 1.05rem; color: #123f23; letter-spacing: .4px; margin-top: 10px; }
     .auth-brand-sub { font-size: .78rem; color: #6b8f79; margin-top: 3px; }
     .auth-tabs { display: flex; gap: 6px; background: #eef7f0; border-radius: 12px; padding: 4px; margin-bottom: 14px; }
@@ -76,10 +76,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script>try{var _ft=localStorage.getItem("farmult-theme")||"system";var _fd=_ft==="dark"||(_ft==="system"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);if(_fd)document.documentElement.setAttribute("data-theme","dark");}catch(e){}</script>
-  <link rel="stylesheet" href="css/style.css?v=20261013taskwizard1">
+  <link rel="stylesheet" href="css/style.css?v=20261118projects1">
+  <link rel="stylesheet" href="css/projects.css?v=20261118projects1">
+  <link rel="stylesheet" href="css/stock-issue.css?v=20261025issue2">
+  <link rel="stylesheet" href="css/ledger-preview.css?v=20261102ledger3">
   <link rel="stylesheet" href="css/workspace.css?v=20261013multiplot1">
   <link rel="stylesheet" href="css/landing.css?v=20260907landingsoft1">
-  <link rel="icon" href="logo.jpg">
+  <link rel="icon" type="image/png" href="images/brand/farmultimate-mark.png?v=20261102brand1">
 </head>
 <body>
   <!-- ====== หน้าโปรโมท + บังคับล็อกอิน (static — ไม่พึ่ง JS ภายนอก) ====== -->
@@ -89,7 +92,7 @@
       <header class="landing-nav">
         <div class="landing-container landing-nav-inner">
           <a class="landing-brand" href="#landing-top" aria-label="FARMULTIMATE SOLUTIONS หน้าแรก">
-            <img src="logo.jpg" width="44" height="44" alt="">
+            <img src="images/brand/farmultimate-mark.png" width="44" height="44" alt="">
             <span>FARMULTIMATE SOLUTIONS<small>ระบบจัดการฟาร์ม จากแปลงถึงต้นทุน</small></span>
           </a>
           <nav class="landing-links" id="landing-menu" aria-label="เมนูหน้าแนะนำ">
@@ -189,7 +192,7 @@
       </main>
       <footer class="landing-footer">
         <div class="landing-container landing-footer-inner">
-          <a class="landing-brand" href="#landing-top"><img src="logo.jpg" width="40" height="40" alt=""><span>FARMULTIMATE SOLUTIONS<small>ระบบจัดการฟาร์ม จากแปลงถึงต้นทุน</small></span></a>
+          <a class="landing-brand" href="#landing-top"><img src="images/brand/farmultimate-mark.png" width="40" height="40" alt=""><span>FARMULTIMATE SOLUTIONS<small>ระบบจัดการฟาร์ม จากแปลงถึงต้นทุน</small></span></a>
           <nav aria-label="ข้อมูลเว็บไซต์"><a href="#privacy">นโยบายความเป็นส่วนตัว</a><a href="#terms">ข้อกำหนดการใช้งาน</a></nav>
         </div>
       </footer>
@@ -211,7 +214,7 @@
     <div class="auth-box" role="dialog" aria-modal="true" aria-labelledby="ag_dialog_title" tabindex="-1">
       <button type="button" class="auth-close" onclick="Auth.closeGateForm()" aria-label="ปิด" title="ปิด"><img src="images/landing-icons/x.svg" width="20" height="20" alt=""></button>
       <div class="auth-brand">
-        <img src="logo.jpg?v=20260907googleauth3" alt="" onerror="this.style.display='none'">
+        <img src="images/brand/farmultimate-mark.png" alt="" onerror="this.style.display='none'">
         <div class="auth-brand-name" id="ag_dialog_title">FARMULTIMATE SOLUTIONS</div>
         <div class="auth-brand-sub">ระบบจัดการฟาร์มอัจฉริยะ</div>
       </div>
@@ -243,7 +246,7 @@
     <header class="topbar">
       <div class="topbar-row">
         <div class="brand">
-          <img class="brand-logo" id="brandLogo" src="logo.jpg?v=20260907googleauth3" alt="FARMULTIMATE SOLUTIONS" onerror="this.style.display='none';document.getElementById('brandLogoFallback').style.display='inline'">
+          <img class="brand-logo" id="brandLogo" src="images/brand/farmultimate-mark.png" alt="FARMULTIMATE SOLUTIONS" onerror="this.style.display='none';document.getElementById('brandLogoFallback').style.display='inline'">
           <span class="brand-logo" id="brandLogoFallback" style="display:none">FUS</span>
           <div class="brand-text">
             <div class="brand-name"><span id="brandNameTxt">FARMULTIMATE SOLUTIONS</span> <span class="v-badge">v54</span></div>
@@ -295,7 +298,8 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/data.js?v=20261013multiplot1"></script>
+  <script src="js/data.js?v=20261118projects1"></script>
+  <script src="js/projects.js?v=20261118projects1"></script>
   <script src="js/charts.js?v=20261013taskwizard1"></script>
   <script src="js/notify.js?v=20260826ao"></script>
   <script src="js/stock.js?v=20261013taskwizard1"></script>
@@ -306,17 +310,19 @@
   <script src="js/auth.js?v=20261013taskwizard1"></script>
   <script src="js/inspection.js?v=20261013taskwizard1"></script>
   <script src="js/application-rate.js?v=20260930ownerusage2"></script>
-  <script src="js/app.js?v=20261013multiplot1"></script>
+  <script src="js/ledger-preview.js?v=20261102ledger3"></script>
+  <script src="js/app.js?v=20261118projects1"></script>
+  <script src="js/stock-issue.js?v=20261025issue2"></script>
   <script src="js/private-photos.js?v=20261013taskwizard1"></script>
   <script src="js/team.js?v=20261013taskwizard1"></script>
-  <script src="js/workspace.js?v=20261013taskwizard1"></script>
+  <script src="js/workspace.js?v=20261118projects1"></script>
   <script src="js/workspace-flows.js?v=20261013multiplot1"></script>
-  <script src="js/task-wizard.js?v=20261013multiplot1"></script>
+  <script src="js/task-wizard.js?v=20261118projects1"></script>
   <!-- ลงทะเบียน Service Worker — เปิดใช้แบบออฟไลน์/ติดตั้งเป็นแอพบนมือถือ (ต้องใช้ผ่าน HTTPS หรือ localhost) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js?v=20261013multiplot1').catch(function () { /* ไม่บังคับ — ถ้าลงทะเบียนไม่ได้ก็ใช้เว็บปกติ */ });
+        navigator.serviceWorker.register('sw.js?v=20261118projects1').catch(function () { /* ไม่บังคับ — ถ้าลงทะเบียนไม่ได้ก็ใช้เว็บปกติ */ });
       });
     }
   </script>

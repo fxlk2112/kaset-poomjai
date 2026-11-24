@@ -306,6 +306,7 @@ function seed() {
     equipment: [],            // อุปกรณ์/เครื่องจักร
     cycles: [],               // รอบการปลูก
     tasks: [],                // งาน/กิจกรรม
+    projects: [],             // โครงการที่รวมกิจกรรมหลายแปลงเป็นช่วงงาน
     trials: [],               // แปลงทดลอง / งานวิจัยภาคสนาม
     sales: [],                // ใบเสร็จขายสินค้า
     valves: [],               // วาล์วน้ำ IoT (โครงเดิม)
@@ -567,6 +568,7 @@ function ensureDefaults(s) {
   /* ประวัติการขายสินค้า (ใบเสร็จรับเงิน) */
   s.sales = s.sales || [];
   s.saleSequence = lastSaleNumber(s);
+  s.projects = Array.isArray(s.projects) ? s.projects : [];
   /* แปลงทดลอง / งานวิจัยภาคสนาม */
   s.trials = Array.isArray(s.trials) ? s.trials : [];
   s.trials.forEach(tr => {
@@ -1178,6 +1180,57 @@ function addTask(s, t) {
   closeCycleForTask(s, t);
   return t;
 }
+/* งานประจำสร้างแผนครั้งถัดไปเมื่อปิดผลครั้งปัจจุบันเท่านั้น
+   จึงไม่ตัดสต็อกหรือคิดต้นทุนจากข้อมูลของครั้งก่อนโดยอัตโนมัติ */
+function repeatingTaskNextDate(t, afterDate) {
+  const rule = t && t.repeat;
+  if (!rule || !rule.active || !/^(day|week|month)$/.test(rule.unit) ||
+      !Number.isInteger(Number(rule.every)) || Number(rule.every) < 1 || Number(rule.every) > 90) return null;
+  const anchor = rule.anchorDate || t.date;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(anchor)) return null;
+  const every = Number(rule.every);
+  const dateAt = index => {
+    if (rule.unit !== "month") return addDaysISO(anchor, index * every * (rule.unit === "week" ? 7 : 1));
+    const base = new Date(anchor + "T12:00:00");
+    const first = new Date(base.getFullYear(), base.getMonth() + index * every, 1, 12);
+    const last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    first.setDate(Math.min(base.getDate(), last));
+    return first.getFullYear() + "-" + String(first.getMonth() + 1).padStart(2, "0") + "-" + String(first.getDate()).padStart(2, "0");
+  };
+  let index = Math.max(0, Number(rule.index) || 0);
+  const threshold = [afterDate || todayISO(), t.date || anchor, todayISO()].sort().pop();
+  for (let tries = 0; tries < 5000; tries++) {
+    index++;
+    const date = dateAt(index);
+    if (date > threshold) return { date, index };
+  }
+  return null;
+}
+function scheduleNextRepeatingTask(s, t, afterDate) {
+  if (!t || !["done", "failed"].includes(t.status) || !t.repeat?.active) return null;
+  const seriesId = t.repeat.seriesId;
+  if (!seriesId) return null;
+  if (t.cycleId && cycleById(s, t.cycleId)?.status !== "active") return null;
+  const pending = s.tasks.find(x => x.repeat?.seriesId === seriesId && x.status === "planned");
+  if (pending) return pending;
+  const next = repeatingTaskNextDate(t, afterDate);
+  if (!next) return null;
+  const reusableNote = String(t.note || "").split("\n").filter(line => !/\sไร่\s×\s.*\/ไร่\s=/.test(line)).join("\n");
+  const activeProject = (s.projects || []).find(p => p.id === t.projectId && p.status !== "done" && p.stages?.some(stage => stage.id === t.projectStageId));
+  return addTask(s, {
+    title: t.title, type: t.type, date: next.date, status: "planned",
+    scope: t.scope, plotId: t.plotId || null, cycleId: t.cycleId || null,
+    note: reusableNote, cost: 0, costItems: [], stockId: null, qty: 0,
+    projectId: activeProject ? t.projectId : null, projectStageId: activeProject ? t.projectStageId : null,
+    repeat: { ...t.repeat, index: next.index, generatedFrom: t.id }
+  });
+}
+function stopRepeatingTaskSeries(s, seriesId) {
+  if (!seriesId) return;
+  s.tasks.forEach(t => {
+    if (t.repeat?.seriesId === seriesId) t.repeat.active = false;
+  });
+}
 function taskAllocationCostKey(ci) {
   return JSON.stringify([ci.stockId || null, taskStockMode(ci), Number(ci.qty)||0, ci.unit||'', Number(ci.usageQty)||0, ci.usageUnit, ci.packageSize, Number(ci.unitCost)||0,
     ci.externalPriceMode, Number(ci.externalPackQty)||0, ci.externalPackUnit, Number(ci.externalPackPrice)||0, Number(ci.externalTotal)||0]);
@@ -1244,7 +1297,8 @@ function addTasksForPlots(s, data, selections) {
     });
   }
   const staged = {...s, stock: s.stock.map(x => ({...x})), tasks: s.tasks.slice()};
-  const created = tasks.map(task => addTask(staged, {...task, batchId}));
+  const created = tasks.map(task => addTask(staged, {...task, batchId,
+    ...(task.repeat ? { repeat: {...task.repeat, seriesId: uid(), anchorDate: task.date, index: 0} } : {})}));
   // Publish only after every plot and combined inventory requirement succeeds.
   staged.stock.forEach(item => Object.assign(stockById(s, item.id), item));
   s.tasks.push(...created);

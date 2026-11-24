@@ -4,7 +4,8 @@ Auth.applyTheme();
 const Concept = {
   enabled() { return !!Auth.session && !Auth.shareMode && !Auth.landingMode; },
   walletUrl() {
-    return this.enabled() && window.location.origin === 'http://127.0.0.1:4207' ? 'http://127.0.0.1:4208/wallet-preview.html' : '';
+    return this.enabled() && ['https://farmultimate-solutions.pages.dev', 'http://127.0.0.1:4207'].includes(window.location.origin)
+      ? 'https://farmultimate-wallet.carfork123.workers.dev/wallet-preview.html?mode=lark' : '';
   },
   taskFilter: 'auto',
   groups: { team: false, tools: false },
@@ -30,6 +31,8 @@ const Concept = {
     if (route.view === 'team') return Team.section==='members'?'members':'team';
     if (route.view === 'planner') return 'tasks';
     if (route.view === 'farm') return route.tab==='analytics'?'reports':'farm';
+    if (route.view === 'ledgerPreview') return 'reports';
+    if (route.view === 'projectDetail') return 'projects';
     if (route.view === 'plots') return route.tab === 'trials' ? 'trials' : 'plots';
     if (['plotDetail','cycleDetail'].includes(route.view)) return 'plots';
     return route.view;
@@ -87,16 +90,16 @@ const Concept = {
     const navItem=(key,label,icon,count)=>`<button class="cn-link ${active===key?'active':''}" ${active===key?'aria-current="page"':''} onclick="Concept.go('${key}')">${ic(icon)}<span>${label}</span>${count?`<span class="cn-count">${count}</span>`:''}</button>`;
     const group=(key,label,icon,items)=>`<section class="cn-group"><button class="cn-heading" aria-expanded="${this.groups[key]}" aria-controls="cn-${key}" onclick="Concept.toggleGroup('${key}')">${ic(icon)}<span>${label}</span>${ic('chevron','cn-arrow')}</button><div id="cn-${key}" class="cn-links" ${this.groups[key]?'':'hidden'}>${items}</div></section>`;
     document.getElementById('conceptSidebar').innerHTML=`
-      <button class="cn-brand" onclick="Concept.go('home')"><img src="logo.jpg" alt=""><span>${esc(T('brandName'))}</span></button>
+      <button class="cn-brand" onclick="Concept.go('home')"><img src="images/brand/farmultimate-mark.png" alt=""><span>${esc(T('brandName'))}</span></button>
       <div class="cn-scroll">${navItem('home','ภาพรวมฟาร์ม','home')}
       <div class="cn-section-label">งานในฟาร์ม</div>
-      ${navItem('tasks','กิจกรรม','calendar',pending)}${navItem('plots','แปลงและรอบปลูก','map')}${navItem('trials','งานทดลอง','leaf')}${navItem('farm','งานส่วนกลาง','briefcase')}
+      ${navItem('tasks','กิจกรรม','calendar',pending)}${navItem('plots','แปลงและรอบปลูก','map')}${navItem('trials','งานทดลอง','leaf')}${navItem('projects','โครงการ','briefcase')}${navItem('farm','งานส่วนกลาง','briefcase')}
       <div class="cn-section-label">คลังและธุรกิจ</div>
-      ${navItem('stock','คลังวัสดุและยา','box')}${this.walletUrl()?navItem('wallet','กระเป๋าเงิน (ทดลอง)','briefcase'):''}${navItem('sales','ขายสินค้าและเอกสาร','briefcase')}${navItem('reports','รายงานและวิเคราะห์','chart')}
+      ${navItem('stock','คลังวัสดุและยา','box')}${this.walletUrl()?navItem('wallet','กระเป๋าเงิน','briefcase'):''}${navItem('sales','ขายสินค้าและเอกสาร','briefcase')}${navItem('reports','รายงานและวิเคราะห์','chart')}
       ${group('team','ทีมบันทึกข้อมูล','user',navItem('team','ตรวจรับข้อมูล','check')+navItem('members','สมาชิกและสิทธิ์','user'))}
       ${group('tools','เครื่องมือฟาร์ม','gear',navItem('weather','สภาพอากาศ','cloud')+navItem('equipment','อุปกรณ์','truck')+navItem('iot','ระบบน้ำ','droplet')+navItem('prices','ราคาตลาด','chart'))}</div>
       <div class="cn-footer"><div class="cn-footer-links"><button onclick="Concept.go('settings')">${ic('gear')} ตั้งค่า</button><button onclick="Concept.go('guide')">${ic('info')} คู่มือ</button></div><button class="cn-account" aria-label="จัดการบัญชี" aria-controls="profilePanel" onclick="Concept.openAccount(event)"><span class="cn-avatar">${ic('user')}</span><span><strong>${esc(Auth.session?.name||'บัญชีของฉัน')}</strong><small>จัดการบัญชี</small></span>${ic('chevron')}</button></div>`;
-    const titles={home:'ภาพรวมฟาร์ม',team:'ทีมบันทึกข้อมูล',tasks:'กิจกรรม',plots:'แปลงและรอบปลูก',trials:'งานทดลอง',stock:'คลังวัสดุและยา',sales:'ขายสินค้าและเอกสาร',farm:'งานส่วนกลาง',reports:'รายงานและวิเคราะห์',more:'เครื่องมือเพิ่มเติม',settings:'ตั้งค่า',equipment:'อุปกรณ์',iot:'ระบบน้ำ',weather:'สภาพอากาศ',prices:'ราคาตลาด'};
+    const titles={home:'ภาพรวมฟาร์ม',team:'ทีมบันทึกข้อมูล',tasks:'กิจกรรม',plots:'แปลงและรอบปลูก',trials:'งานทดลอง',projects:'โครงการ',stock:'คลังวัสดุและยา',sales:'ขายสินค้าและเอกสาร',farm:'งานส่วนกลาง',reports:'รายงานและวิเคราะห์',more:'เครื่องมือเพิ่มเติม',settings:'ตั้งค่า',equipment:'อุปกรณ์',iot:'ระบบน้ำ',weather:'สภาพอากาศ',prices:'ราคาตลาด'};
     document.getElementById('conceptCrumb').innerHTML=`<span>${esc(T('brandName'))}</span>${ic('chevron')}<strong>${titles[active]||'รายละเอียด'}</strong>`;
     if(active==='members')document.getElementById('conceptCrumb').querySelector('strong').textContent='สมาชิกและสิทธิ์';
     this.syncNav();

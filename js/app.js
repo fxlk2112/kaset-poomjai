@@ -7,7 +7,7 @@
 
 /* ---------------- state & bootstrap ----------------
    (S ประกาศใน data.js — ให้ระบบบัญชี (auth.js) สลับ slot ข้อมูลรายบัญชีได้ก่อน render) */
-const APP_BUILD_VERSION = "20261013multiplot1";
+const APP_BUILD_VERSION = "20261118projects1";
 window.APP_BUILD_VERSION = APP_BUILD_VERSION;
 function ensureFreshAppBuild() {
   try {
@@ -28,6 +28,7 @@ function saveRoute() {
     const o = { view: route.view, tab: route.tab, year: route.year };
     if (route.analyticsTab) o.analyticsTab = route.analyticsTab;
     if (route.plotId) o.plotId = route.plotId;
+    if (route.projectId) o.projectId = route.projectId;
     if (route.cycleId) o.cycleId = route.cycleId;
     if (route.trialId) o.trialId = route.trialId;
     if (route.trialMetricId) o.trialMetricId = route.trialMetricId;
@@ -318,6 +319,7 @@ function taskRowHtml(t, opts) {
       meta.push(`<span class="task-farm">${ic("briefcase")} งานส่วนกลาง</span>`);
     }
   }
+  if (t.repeat?.active) meta.push(`<span class="task-repeat-tag">${ic("refresh")} ${esc(taskRepeatLabel(t.repeat))}</span>`);
   /* วัสดุที่ใช้: แสดงชื่อ+จำนวน+หน่วย (เช่น "ใช้ ปุ๋ยเคมี 46-0-0 14 ถุง") — รู้ทันทีว่างานนี้ใช้อะไรไปเท่าไร
      (เดิมขึ้นแค่ "จำนวน 14" ไม่รู้ว่า 14 อะไร) */
   if (t.stockId && t.qty && !taskMaterialItems(t).length) {
@@ -366,6 +368,11 @@ function taskRowHtml(t, opts) {
           <button class="btn btn-sm btn-ghost icon-action" onclick="App.editTask('${t.id}')" title="แก้ไขกิจกรรม" aria-label="แก้ไข: ${esc(t.title)}">${ic("pencil")}</button>`}
       </div>
     </div>`;
+}
+function taskRepeatLabel(rule) {
+  if (!rule?.active) return "";
+  const n = Number(rule.every) || 1;
+  return `ซ้ำทุก ${n} ${rule.unit === "week" ? "สัปดาห์" : rule.unit === "month" ? "เดือน" : "วัน"}`;
 }
 function cycleDurationLabel(c) {
   if (c.status === "active") return `อายุ ${ageDays(c.startDate)} วัน`;
@@ -501,6 +508,9 @@ function render() {
     settings: "more",
     prices: "more",
     weather: route.weatherFrom === "more" ? "more" : "plots",
+    ledgerPreview: "farm",
+    projects: "more",
+    projectDetail: "more",
     plotDetail: "plots",
     cycleDetail: "plots"
   };
@@ -538,9 +548,11 @@ function render() {
     sales: typeof renderConceptSales === 'function' ? renderConceptSales : renderStock,
     home: renderHome, plots: renderPlots, stock: renderStock,
     planner: renderPlanner, analytics: renderAnalytics, more: renderMore,
+    projects: renderProjects, projectDetail: renderProjects,
     farm: renderFarmOverview, equipment: renderEquipment, iot: renderIoT, settings: renderSettings,
     plotDetail: renderPlotDetail, cycleDetail: renderCycleDetail,
-    prices: renderPrices, weather: renderWeather
+    prices: renderPrices, weather: renderWeather,
+    ledgerPreview: () => LedgerPreview.render(S)
   };
   const viewChanged = lastView !== route.view;
   lastView = route.view;
@@ -549,6 +561,7 @@ function render() {
   v.classList.toggle("no-anim", !viewChanged);
   v.innerHTML = Auth.syncStatusHtml() + (views[route.view] || renderHome)();
   v.dataset.view = route.view;
+  if (route.view === 'ledgerPreview') LedgerPreview.apply();
   // Only show the team-review prompt when there is actually something waiting.
   if (route.view === "home" && typeof Team !== "undefined" && typeof Team.renderHomeInbox === "function") Team.renderHomeInbox();
   v.querySelectorAll('.tabs button, .quick-filter, .planner-filter, .chip').forEach(btn => {
@@ -588,6 +601,11 @@ function render() {
 }
 
 App.nav = function (key) {
+  if (key !== 'ledgerPreview' && new URLSearchParams(location.search).has('ledgerPreview')) {
+    const url = new URL(location.href);
+    url.searchParams.delete('ledgerPreview');
+    history.replaceState(null, '', url);
+  }
   if (key === "analytics") {
     route.view = "farm";
     route.tab = "analytics";
@@ -2016,11 +2034,25 @@ function trialPlanPanel(tr) {
     (trialSampling(tr) ? '' : '<button class="btn btn-ghost" ' + ((tr.observations || []).length ? 'disabled title="มีค่าวัดแล้ว จึงไม่สามารถสุ่มผังใหม่"' : '') + ' onclick="App.randomizeTrial(\'' + tr.id + '\')">' + ic("refresh") + ' สุ่มผังใหม่</button>') +
     '<button class="btn btn-danger-soft" onclick="App.deleteTrial(\'' + tr.id + '\')">' + ic("trash") + ' ลบงานทดลอง</button></div></details>';
 }
+function trialJourneyHtml(tr) {
+  const progress = trialCoverage(tr);
+  const measured = progress.done > 0;
+  const complete = progress.total > 0 && progress.done >= progress.total;
+  const steps = [
+    {label:"ตั้งแผนทดลอง", detail:`${(tr.treatments || []).length} สูตร / วิธี`, complete:true},
+    {label:"จัดแปลงย่อย", detail:`${(tr.units || []).length} แปลงย่อย`, complete:(tr.units || []).length > 0},
+    {label:"เก็บค่าวัด", detail:`${progress.done}/${progress.total} ช่องที่มีค่าล่าสุด`, complete},
+    {label:"สรุปและปิดงาน", detail:tr.status === "done" ? "ปิดงานทดลองแล้ว" : measured ? "ดูผลที่บันทึกไว้ได้" : "รอข้อมูลค่าวัด", complete:tr.status === "done"}
+  ];
+  return `<section class="card work-journey trial-journey" aria-label="ขั้นตอนงานทดลอง"><div class="work-journey-head"><div><h2>เส้นทางงานทดลอง</h2><p>ความครบของค่าวัดดูจากค่าล่าสุดของแต่ละจุด ซึ่งอาจบันทึกคนละวัน</p></div></div>
+    <ol class="work-journey-steps">${steps.map((step,i) => `<li class="${step.complete ? "complete" : "waiting"}"><span class="work-journey-mark">${step.complete ? ic("check") : i+1}</span><span><b>${step.label}</b><small>${esc(step.detail)}</small></span></li>`).join("")}</ol>
+    ${tr.status !== "done" ? `<button class="work-journey-next" onclick="App.setTrialSection('${measured ? "compare" : "record"}')"><span><b>${measured ? "ดูผลที่บันทึก" : "เริ่มกรอกค่าวัด"}</b><small>${measured ? "ตรวจแนวโน้มและความครบของข้อมูล" : "บันทึกหลายแปลงได้ในครั้งเดียว"}</small></span>${ic("chevron")}</button>` : ""}</section>`;
+}
 function renderTrialDetail(tr) {
   const section = ['record','compare','history','plan'].includes(route.trialSection) ? route.trialSection : 'record';
   const date = trialMeasurementDate(tr);
   return '<div class="trial-workspace"><button class="btn btn-ghost trial-back" onclick="App.closeTrial()">' + ic("chevron") + ' งานทดลองทั้งหมด</button>' +
-    '<header class="trial-work-header"><div><div class="trial-work-eyebrow">' + esc(trialPlotName(tr)) + (tr.crop ? ' · ' + esc(tr.crop) : '') + '</div><h1>' + esc(tr.name) + '</h1><p>' + (tr.treatments || []).length + ' สูตร / วิธี · ' + (tr.units || []).length + ' แปลงย่อย' + (tr.startDate ? ' · เริ่ม ' + esc(dateLabel(tr.startDate)) : '') + '</p></div>' + trialStatusBadge(tr) + '</header>' +
+    '<header class="trial-work-header"><div><div class="trial-work-eyebrow">' + esc(trialPlotName(tr)) + (tr.crop ? ' · ' + esc(tr.crop) : '') + '</div><h1>' + esc(tr.name) + '</h1><p>' + (tr.treatments || []).length + ' สูตร / วิธี · ' + (tr.units || []).length + ' แปลงย่อย' + (tr.startDate ? ' · เริ่ม ' + esc(dateLabel(tr.startDate)) : '') + '</p></div>' + trialStatusBadge(tr) + '</header>' + trialJourneyHtml(tr) +
     '<div class="trial-work-tabs" role="tablist" aria-label="งานทดลอง">' +
     [['compare','ผลการทดลอง','chart'],['record','กรอกค่าวัด','pencil'],['history','ประวัติ','clock'],['plan','ตั้งค่าการทดลอง','map']].map(([key,label,icon]) => '<button id="trialTab_' + key + '" role="tab" aria-selected="' + (section===key) + '" aria-controls="trialWorkPanel" tabindex="' + (section===key ? '0' : '-1') + '" onkeydown="App.trialTabKey(event,\'' + key + '\')" onclick="App.setTrialSection(\'' + key + '\')">' + ic(icon) + ' ' + label + '</button>').join('') +
     '</div><div id="trialWorkPanel" role="tabpanel" aria-labelledby="trialTab_' + section + '">' +
@@ -3902,6 +3934,22 @@ App.cycleCalToday = function () {
   cycleCal = { y: now.getFullYear(), m: now.getMonth(), sel: todayISO() };
   rerender();
 };
+function cycleJourneyHtml(c, tasks) {
+  const done = tasks.filter(t => t.status === "done");
+  const pending = tasks.filter(t => t.status === "planned").sort((a,b) => a.date.localeCompare(b.date));
+  const care = done.filter(t => t.type !== "harvest");
+  const harvest = done.filter(t => t.type === "harvest");
+  const steps = [
+    { label: "เริ่มรอบปลูก", detail: dateLabel(c.startDate), complete: true },
+    { label: "ดูแลแปลง", detail: care.length ? `${fmtNum(care.length)} งานที่ทำแล้ว` : pending.length ? `${fmtNum(pending.length)} งานที่วางแผน` : "ยังไม่มีบันทึกงานดูแล", complete: care.length > 0 },
+    { label: "เก็บเกี่ยว", detail: harvest.length ? `${fmtNum(harvest.length)} ครั้ง` : "ยังไม่มีบันทึกเก็บเกี่ยว", complete: harvest.length > 0 },
+    { label: "ปิดรอบ", detail: c.status === "done" ? (c.endDate ? dateLabel(c.endDate) : "ปิดรอบแล้ว") : "ยังเปิดรอบอยู่", complete: c.status === "done" }
+  ];
+  const next = pending[0];
+  return `<section class="card work-journey" aria-label="ขั้นตอนรอบปลูก"><div class="work-journey-head"><div><h2>เส้นทางรอบปลูก</h2><p>อ้างอิงจากกิจกรรมที่บันทึกจริง · ${fmtNum(done.length)} งานทำแล้ว · ${fmtNum(pending.length)} งานรอทำ</p></div></div>
+    <ol class="work-journey-steps">${steps.map((step,i) => `<li class="${step.complete ? "complete" : "waiting"}"><span class="work-journey-mark">${step.complete ? ic("check") : i+1}</span><span><b>${step.label}</b><small>${esc(step.detail)}</small></span></li>`).join("")}</ol>
+    ${next ? `<button class="work-journey-next" onclick="App.viewTask('${next.id}')"><span><b>งานถัดไป · ${esc(next.title)}</b><small>${esc(dateLabel(next.date))}</small></span>${ic("chevron")}</button>` : c.status === "active" ? `<button class="work-journey-next" onclick="App.modalTask(todayISO(), {cycleId:'${c.id}'})"><span><b>เพิ่มงานในรอบนี้</b><small>วางแผนหรือบันทึกงานที่ทำแล้ว</small></span>${ic("plus")}</button>` : ""}</section>`;
+}
 function renderCycleDetail() {
   const c = cycleById(S, route.cycleId);
   if (!c) { route.view = "plots"; return renderPlots(); }
@@ -3953,6 +4001,7 @@ function renderCycleDetail() {
     </button>`;
   const overviewHtml = `
     <div class="section-title">ภาพรวมรอบนี้</div>
+    ${cycleJourneyHtml(c, allTasks)}
     <div class="card cycle-overview-card">
       <div class="meta-grid">
         <div class="meta-box"><div class="lb">แปลง</div><div class="vl" style="font-size:.78rem">${p ? esc(p.name) : "แปลงถูกลบ"}</div></div>
@@ -4111,6 +4160,10 @@ App.toggleTask = function (id) {
     return;
   }
   toggleTaskDone(S, id);
+  if (t.status === "planned" && t.repeat?.seriesId) {
+    const next = S.tasks.find(x => x.repeat?.generatedFrom === id && x.status === "planned" && !x.updatedAt);
+    if (next) S.tasks = S.tasks.filter(x => x !== next);
+  }
   saveState(S);
   rerender();
   toast(`ยกเลิก: ${t.title}`);
@@ -4133,6 +4186,7 @@ App.resetTaskPlanned = function (id) {
   }
   t.updatedAt = Date.now();
   if (S.notifDismissed) delete S.notifDismissed[id];
+  if (t.repeat?.seriesId) S.tasks = S.tasks.filter(x => !(x.repeat?.generatedFrom === id && x.status === "planned" && !x.updatedAt));
   saveState(S);
   closeModal();
   rerender();
@@ -4251,6 +4305,7 @@ App.finishTask = async function (id, allowNoPhoto) {
   }
   t.updatedAt = Date.now();
   if (S.notifDismissed) delete S.notifDismissed[id];
+  if (t.repeat?.active) scheduleNextRepeatingTask(S, t, doneDate);
   saveState(S);
   closeModal();
   rerender();
@@ -4292,6 +4347,7 @@ App.failTask = async function (id) {
   t.doneTime = doneTime;
   t.updatedAt = Date.now();
   if (S.notifDismissed) delete S.notifDismissed[id];
+  if (t.repeat?.active) scheduleNextRepeatingTask(S, t, doneDate);
   saveState(S);
   closeModal();
   rerender();
@@ -4546,10 +4602,12 @@ App.deleteTask = function (id) {
   const usedStock = hasTaskStockUse(t);
   const doDelete = (restock) => {
     if (restock && t) restockTask(S, t);
+    const stoppedRepeat = t?.status === "planned" && t.repeat?.active;
+    if (stoppedRepeat) stopRepeatingTaskSeries(S, t.repeat.seriesId);
     S.tasks = S.tasks.filter(x => x.id !== id);
     saveState(S);
     rerender();
-    toast(restock ? "ลบงานแล้ว · คืนสต็อกที่ยังไม่ได้ใช้" : "ลบงานแล้ว");
+    toast(stoppedRepeat ? "ลบงานแล้ว · หยุดงานซ้ำชุดนี้" : restock ? "ลบงานแล้ว · คืนสต็อกที่ยังไม่ได้ใช้" : "ลบงานแล้ว");
   };
   if (usedStock) {
     confirmChoice("ได้ใช้ของจากสต็อกแล้วหรือยัง?",
@@ -4561,7 +4619,7 @@ App.deleteTask = function (id) {
       ],
       v => { if (v !== "cancel") doDelete(v === "restock"); });
   } else {
-    App.confirm("ลบงานนี้?", "ต้องการลบงานนี้หรือไม่?", () => doDelete(false));
+    App.confirm("ลบงานนี้?", t?.status === "planned" && t.repeat?.active ? "งานนี้เป็นงานซ้ำ การลบจะหยุดสร้างงานครั้งถัดไปในชุดนี้ด้วย" : "ต้องการลบงานนี้หรือไม่?", () => doDelete(false));
   }
 };
 
@@ -4764,6 +4822,7 @@ function renderAnalytics(embedded) {
     </div>`;
   return `
     ${embedded ? yearNav : `<div class="analytics-heading"><h1>วิเคราะห์</h1>${yearNav}</div>`}
+    ${tab === 'farm' ? `<div class="ledger-entry"><div><b>อยากดูรายการทีละแถว?</b><span>เปิดสมุดฟาร์มแบบตารางจากกิจกรรมที่บันทึกแล้ว</span></div><button class="btn btn-outline" onclick="App.openLedgerPreview()">ดูแบบตาราง</button></div>` : ''}
     <div class="tabs">
       <button class="${tab === "farm" ? "active" : ""}" onclick="App.analyticsTab('farm')">${ic("leaf")} ทุกแปลงและงานส่วนกลาง</button>
       <button class="${tab === "shop" ? "active" : ""}" onclick="App.analyticsTab('shop')">${ic("dollar")} ร้านค้า</button>
@@ -4772,6 +4831,13 @@ function renderAnalytics(embedded) {
     <details class="analytics-context"><summary>สถานะงานปัจจุบันและข้อสังเกต</summary>${analyticsBrief}</details>`;
 }
 App.analyticsTab = function (tab) { route.analyticsTab = tab; route.view = "farm"; route.tab = "analytics"; render(); };
+App.openLedgerPreview = function () {
+  const url = new URL(location.href);
+  url.searchParams.set('ledgerPreview', '1');
+  history.replaceState(null, '', url);
+  route.view = 'ledgerPreview';
+  render();
+};
 App.goShopAnalytics = function () { route.analyticsTab = "shop"; route.view = "farm"; route.tab = "analytics"; render(); };
 /* สลับปีที่วิเคราะห์ — เก็บใน route.year (CE) แสดงเป็น พ.ศ. */
 App.analyticsYear = function (ceYr) {
@@ -8059,12 +8125,14 @@ App.viewTask = function (id) {
   if (!t) return;
   const p = t.plotId ? plotById(S, t.plotId) : null;
   const c = t.cycleId ? cycleById(S, t.cycleId) : null;
+  const project = t.projectId ? projectById(t.projectId) : null;
   const st = t.stockId ? stockById(S, t.stockId) : null;
   const rows = [
     { k: "วันที่", v: `${dateLabel(t.date)} (${t.date})` },
     ...(t.status === "done" || t.status === "failed" ? [{ k: t.status === "failed" ? "บันทึกผล" : "ทำจริง", v: `${dateLabel(taskDoneDate(t))}${t.doneTime || (t.weatherSnapshot && t.weatherSnapshot.targetTime) ? " " + (t.doneTime || t.weatherSnapshot.targetTime) : ""}` }] : []),
     { k: "บันทึกให้กับ", v: p ? `แปลง ${p.name}` : "งานส่วนกลาง" },
     { k: "รอบการปลูก", v: c ? c.plant : "—" },
+    ...(project ? [{ k: "โครงการ / ช่วง", v: project.name + " · " + (projectStageById(project, t.projectStageId)?.name || "ไม่ระบุช่วง") }] : []),
     { k: "ต้นทุน", v: t.cost ? fmtMoney(t.cost) + " บาท" : "—" },
     { k: "รายรับ", v: t.revenue ? fmtMoney(t.revenue) + " บาท" : "—" },
   ];
@@ -8117,9 +8185,11 @@ App.viewTask = function (id) {
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${esc(t.title)}</h3>
     <div class="modal-sub">${typeTag(t)} ${statusTag(taskStatusOf(t))}</div>
+    ${project ? `<button class="btn btn-sm btn-ghost" onclick="App.closeModal();App.projectOpen('${project.id}')">${ic("briefcase")} ดูโครงการ</button>` : ""}
     <div class="td-list">
       ${rows.map(r => `<div class="td-row"><span class="td-k">${r.k}</span><span class="td-v">${esc(r.v)}</span></div>`).join("")}
     </div>
+    ${t.repeat?.active ? `<div class="task-repeat-detail">${ic("refresh")} <span>${esc(taskRepeatLabel(t.repeat))}<small>งานครั้งถัดไปสร้างเมื่อบันทึกผล และไม่ใช้วัสดุจากครั้งก่อนอัตโนมัติ</small></span><button class="btn btn-sm btn-ghost" onclick="App.stopTaskRepeat('${t.id}')">หยุดซ้ำ</button></div>` : ""}
     ${taskMaterialItems(t).length ? `<section class="task-material-detail"><h4>ยาและวัสดุ${t.status === "planned" ? "ที่วางแผนใช้" : "ที่บันทึก"}</h4>${taskMaterialsHtml(t)}</section>` : ""}
     ${costListHtml}
     ${t.applicationWork?`<div class="td-cost-title">ปริมาณงานจากผู้บันทึก</div><p>${esc(ApplicationRate.workText(t.applicationWork))}</p>`:''}
@@ -8145,6 +8215,17 @@ App.viewTask = function (id) {
            <button class="btn btn-sm btn-primary" onclick="App.modalTaskComplete('${t.id}', true)">${ic("check")} ทำเสร็จ</button>`}
       <button class="btn btn-sm btn-ghost" onclick="App.gotoCalendar('${t.date}')">${ic("calendar")} ไปดูในปฏิทิน</button>
     </div>`);
+};
+App.stopTaskRepeat = function (id) {
+  const t = S.tasks.find(x => x.id === id);
+  if (!t?.repeat?.seriesId) return;
+  App.confirm("หยุดงานประจำ?", "ระบบจะไม่สร้างงานครั้งใหม่หลังจากนี้ งานที่วางแผนไว้แล้วจะยังอยู่และแก้ไขหรือลบได้", () => {
+    stopRepeatingTaskSeries(S, t.repeat.seriesId);
+    saveState(S);
+    closeModal();
+    rerender();
+    toast("หยุดสร้างงานครั้งถัดไปแล้ว");
+  });
 };
 /* กระโดดไปที่ปฏิทิน (หน้า Planner) แล้วเลือกวันที่ของงานนั้นทันที */
 App.gotoCalendar = function (iso) {
@@ -9169,6 +9250,15 @@ App.taskModeChange = function (status) {
   App.costRateRefresh();
   taskCostItems.forEach((it,i)=>checkStockWarn(i,it,document.querySelector(`[data-ci="${i}"]`)));
 };
+App.taskRepeatToggle = function () {
+  const enabled = !!document.getElementById("t_repeat")?.checked;
+  const fields = document.getElementById("taskRepeatFields");
+  if (fields) fields.hidden = !enabled;
+  ["t_repeat_every", "t_repeat_unit"].forEach(id => {
+    const input = document.getElementById(id);
+    if (input) input.disabled = !enabled;
+  });
+};
 App.modalTask = function (date, preset) {
   preset = preset || {};
   const editing = preset.taskId ? S.tasks.find(x => x.id === preset.taskId) : null;
@@ -9228,6 +9318,20 @@ App.modalTask = function (date, preset) {
         <div class="field"><label>แปลง</label><select id="t_plot" onchange="App.taskPlotChange()"></select></div>
         <div class="field"><label>พืช / รอบ</label><select id="t_cycle" disabled onchange="Inspection.contextRefresh()"></select></div>
       </div>
+      ${(S.projects || []).some(p => p.status !== "done" || p.id === editing?.projectId) ? `<details class="task-project-setup" ${(editing?.projectId || preset.projectId) ? "open" : ""}>
+        <summary>${ic("briefcase")} โครงการ (ไม่บังคับ)</summary>
+        <div class="field"><label for="t_project">รวมงานนี้ในโครงการ</label><select id="t_project" onchange="App.taskProjectChange()"><option value="">ไม่อยู่ในโครงการ</option>${S.projects.filter(p => p.status !== "done" || p.id === editing?.projectId).map(p => `<option value="${p.id}" ${p.id === (editing?.projectId || preset.projectId) ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
+        <div class="field" id="taskProjectStageWrap" hidden><label for="t_project_stage">ช่วงงาน</label><select id="t_project_stage" disabled></select></div>
+      </details>` : ""}
+      ${editing && editing.status !== "planned" ? (editing.repeat?.active ? `<p class="task-repeat-edit-note">${ic("refresh")} ${esc(taskRepeatLabel(editing.repeat))} · เปลี่ยนรอบซ้ำที่งานครั้งถัดไป</p>` : "") : `<details class="task-repeat-setup" ${editing?.repeat?.active ? "open" : ""}>
+        <summary>${ic("refresh")} ตั้งงานซ้ำ (ไม่บังคับ)</summary>
+        <label class="task-repeat-check"><input id="t_repeat" type="checkbox" onchange="App.taskRepeatToggle()" ${editing?.repeat?.active ? "checked" : ""}> สร้างแผนครั้งถัดไปเมื่อบันทึกผลครั้งนี้</label>
+        <div id="taskRepeatFields" class="task-repeat-fields" ${editing?.repeat?.active ? "" : "hidden"}>
+          <div class="field"><label for="t_repeat_every">ทำซ้ำทุก</label><input id="t_repeat_every" type="number" min="1" max="90" step="1" value="${editing?.repeat?.every || 7}" ${editing?.repeat?.active ? "" : "disabled"}></div>
+          <div class="field"><label for="t_repeat_unit">หน่วยเวลา</label><select id="t_repeat_unit" ${editing?.repeat?.active ? "" : "disabled"}><option value="day" ${editing?.repeat?.unit === "day" || !editing?.repeat ? "selected" : ""}>วัน</option><option value="week" ${editing?.repeat?.unit === "week" ? "selected" : ""}>สัปดาห์</option><option value="month" ${editing?.repeat?.unit === "month" ? "selected" : ""}>เดือน</option></select></div>
+        </div>
+        <p class="hint">ครั้งถัดไปเป็นแผนงานใหม่ ข้ามวันที่ที่ผ่านไปแล้ว และให้กรอกปริมาณวัสดุกับค่าใช้จ่ายจริงอีกครั้ง</p>
+      </details>`}
       </section><section data-task-step="1">
       ${Inspection.begin(editing)}
 
@@ -9336,6 +9440,7 @@ App.modalTask = function (date, preset) {
     }
   };
   initTaskPlotCycle();
+  App.taskProjectChange(editing?.projectStageId || preset.projectStageId || "");
   App.taskScopeAvailability();
   App.costAreaSetPlot(!!editing && (Object.hasOwn(editing, "materialAreaRai") || Number(editing.applicationWork?.areaRai) > 0));
   Inspection.contextRefresh();
@@ -9481,6 +9586,28 @@ App.submitTask = function (e, editId, validateOnly) {
   const tCycle = tCycleRaw === "__none__" ? null : (tCycleRaw || null);
   const tRevenue = useHarvest ? Math.round(hqty * hprice) || 0 : 0;
   const existing = editId ? S.tasks.find(x => x.id === editId) : null;
+  const repeatInput = document.getElementById("t_repeat");
+  const repeatEveryInput = document.getElementById("t_repeat_every");
+  const repeatEvery = Number(repeatEveryInput?.value || 0);
+  if (repeatInput?.checked && (!Number.isInteger(repeatEvery) || repeatEvery < 1 || repeatEvery > 90)) {
+    setModalFieldError(repeatEveryInput, "ระบุจำนวนเต็ม 1–90");
+    return false;
+  }
+  const repeatUnit = document.getElementById("t_repeat_unit")?.value;
+  const sameRepeat = !!existing?.repeat && existing.repeat.every === repeatEvery && existing.repeat.unit === repeatUnit;
+  const repeat = !repeatInput ? (existing?.repeat || null) : repeatInput.checked ? {
+    seriesId: existing?.repeat?.seriesId || uid(), active: true,
+    every: repeatEvery, unit: repeatUnit,
+    anchorDate: sameRepeat ? (existing.repeat.anchorDate || existing.date) : document.getElementById("t_date").value,
+    index: sameRepeat ? (Number(existing.repeat.index) || 0) : 0,
+    ...(existing?.repeat?.generatedFrom ? {generatedFrom: existing.repeat.generatedFrom} : {})
+  } : null;
+  const projectId = document.getElementById("t_project")?.value || null;
+  const projectStageId = projectId ? document.getElementById("t_project_stage")?.value || null : null;
+  if (projectId && !projectStageById(projectById(projectId), projectStageId)) {
+    setModalFieldError(document.getElementById("t_project_stage"), "เลือกช่วงงานของโครงการ");
+    return false;
+  }
   if (scope === "plot" && !tPlot) {
     setModalFieldError(document.getElementById("t_plot"), "เลือกแปลง หรือเลือกงานส่วนกลาง");
     return false;
@@ -9521,6 +9648,9 @@ App.submitTask = function (e, editId, validateOnly) {
     date: existing && document.getElementById("t_status").value !== "planned" ? existing.date : document.getElementById("t_date").value,
     manualDate: existing ? !!existing.manualDate || (document.getElementById("t_status").value === "planned" && existing.date !== document.getElementById("t_date").value) : false,
     status: document.getElementById("t_status").value,
+    repeat,
+    projectId,
+    projectStageId,
     scope,
     cycleId: tCycle,
     plotId: tPlot,
@@ -9602,8 +9732,11 @@ App.submitTask = function (e, editId, validateOnly) {
     const newUsed = data.costItems.some(it => it.stockId && it.qty > 0) || (data.stockId && data.qty > 0);
     /* กรณีแก้ไขงานที่เคยใช้สต็อก (หรือเพิ่มการใช้ใหม่) → ถามว่าของใช้จริงหรือยัง */
     const saveEdit = stockAction => {
+      const oldSeries = existing.repeat?.seriesId;
       try { updateTask(S, existing.id, data, stockAction); }
       catch (e) { toast(e.message); return; }
+      if (oldSeries && !data.repeat?.active) stopRepeatingTaskSeries(S, oldSeries);
+      if (["done", "failed"].includes(existing.status) && existing.repeat?.active) scheduleNextRepeatingTask(S, existing, taskDoneDate(existing));
       delete S.notifDismissed[existing.id];
       toast(data.status === "planned" && existing.stockState === "reserved" ? "บันทึกแผนแล้ว · จองสต็อกไว้ ยังไม่ตัดของ" : "บันทึกการแก้ไขแล้ว");
       commit();
@@ -9646,12 +9779,14 @@ App.submitTask = function (e, editId, validateOnly) {
     saveEdit(oldUsed ? "keep" : "replace");
   } else {
     let created;
+    let createdTasks;
     let createdCount = 1;
     try {
       if (typeof TaskWizard !== 'undefined' && TaskWizard.active() && TaskWizard.usesPlots()) {
         const batch = addTasksForPlots(S, data, TaskWizard.selections());
-        created = batch[0]; createdCount = batch.length;
-      } else created = addTask(S, data);
+        createdTasks = batch; created = batch[0]; createdCount = batch.length;
+      } else { created = addTask(S, data); createdTasks = [created]; }
+      createdTasks.forEach(task => scheduleNextRepeatingTask(S, task, taskDoneDate(task)));
     } catch (e) { toast(e.message); return false; }
     savedTaskId = created ? created.id : "";
     const msg = data.status === "planned" ? "บันทึกแผนแล้ว · ยังไม่ตัดสต็อก"
@@ -9927,6 +10062,7 @@ try {
     if (saved.tab) route.tab = saved.tab;
     if (saved.analyticsTab) route.analyticsTab = saved.analyticsTab;
     if (saved.plotId) route.plotId = saved.plotId;
+    if (saved.projectId) route.projectId = saved.projectId;
     if (saved.cycleId) route.cycleId = saved.cycleId;
     if (saved.trialId) route.trialId = saved.trialId;
     if (saved.trialMetricId) route.trialMetricId = saved.trialMetricId;
@@ -9944,4 +10080,6 @@ try {
     if (saved.year) route.year = saved.year;
   }
 } catch (e) {}
+if (new URLSearchParams(location.search).get('ledgerPreview') === '1') route.view = 'ledgerPreview';
+else if (route.view === 'ledgerPreview') route.view = 'home';
 render();

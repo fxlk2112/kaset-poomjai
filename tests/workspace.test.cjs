@@ -5,13 +5,23 @@ const path=require('node:path');
 const vm=require('node:vm');
 const read=file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8');
 const ui=read('js/workspace.js'),flows=read('js/workspace-flows.js');
-test('wallet entry stays on the local owner workspace, never production or shared pages',()=>{
+test('wallet entry opens the hosted Lark wallet from production owner navigation only',()=>{
   const body=ui.match(/walletUrl\(\) \{([^}]+)\}/)[1];
   const url=(origin,enabled)=>vm.runInNewContext('(function(){'+body+'}).call({enabled:()=>enabled})',{window:{location:{origin}},enabled});
-  assert.equal(url('http://127.0.0.1:4207',true),'http://127.0.0.1:4208/wallet-preview.html');
-  assert.equal(url('http://127.0.0.1:4207',false),'');
-  for(const origin of ['https://farmultimate-solutions.pages.dev','http://127.0.0.1:4208','http://localhost:4207','https://example.com'])assert.equal(url(origin,true),'');
+  const hosted='https://farmultimate-wallet.carfork123.workers.dev/wallet-preview.html?mode=lark';
+  for(const origin of ['http://127.0.0.1:4207','https://farmultimate-solutions.pages.dev']){
+    assert.equal(url(origin,true),hosted);
+    assert.equal(url(origin,false),'');
+  }
+  for(const origin of ['http://127.0.0.1:4208','http://localhost:4207','https://example.com'])assert.equal(url(origin,true),'');
   assert.match(ui,/this.walletUrl\(\)\?navItem\('wallet'/);
+  assert.match(ui,/navItem\('wallet','กระเป๋าเงิน','briefcase'\)/);
+  assert.doesNotMatch(ui,/127\.0\.0\.1:4208/);
+  const go=ui.slice(ui.indexOf('  go(key) {'),ui.indexOf("    if(typeof ConceptWorkflows"));
+  let destination;
+  const navigate=target=>vm.runInNewContext('({'+go+'}}).go.call({walletUrl:()=>target},"wallet")',{window:{location:{assign:value=>destination=value}},target});
+  navigate(hosted);assert.equal(destination,hosted);
+  destination=undefined;navigate('');assert.equal(destination,undefined);
   assert.match(read('wallet-preview.html'),/href="http:\/\/127.0.0.1:4207\/"/);
 });
 

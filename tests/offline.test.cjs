@@ -37,7 +37,7 @@ test('first installation precaches every local script and stylesheet before taki
   const scripts=[...html.matchAll(/src="(js\/[^?]+)\?/g)].map(m=>'/'+m[1]);
   const styles=[...html.matchAll(/href="(css\/[^?]+)\?/g)].map(m=>'/'+m[1]);
   const cache=[...w.stores.values()][0];
-  for(const file of ['/','/guide.html','/logo.jpg',...styles,...scripts])assert.ok(cache.has(file),file);
+  for(const file of ['/','/guide.html','/images/brand/farmultimate-mark.png',...styles,...scripts])assert.ok(cache.has(file),file);
 });
 
 test('every deployment path ships the public guide page',()=>{

@@ -241,6 +241,7 @@ function renderStock() {
         ` : `
           <button class="btn btn-sm btn-primary" onclick="App.modalStock()">${ic("plus")} เพิ่มสินค้า</button>
           <button class="btn btn-sm btn-outline" onclick="App.modalSale()">${ic("dollar")} ขายสินค้า</button>
+          <button class="btn btn-sm btn-outline stock-issue-trigger" onclick="App.stockIssueOpen()">${ic("calendar")} ใบเบิกย้อนหลัง</button>
           <button class="btn btn-sm btn-ghost stock-toolbar-secondary stock-desktop-extra" onclick="App.stockDensityToggle()">${ic("menu")} ${stockDensity === "compact" ? "ละเอียด" : "ย่อ"}</button>
           <button class="btn btn-sm btn-ghost stock-filter-mobile-btn stock-desktop-extra" onclick="App.stockFilterOpen()">${ic("search")} กรอง${filterCount ? ` (${filterCount})` : ""}</button>
           <button class="btn btn-sm btn-ghost stock-toolbar-secondary stock-desktop-extra" onclick="App.stockToolsOpen()">${ic("menu")} จัดการสต็อก</button>
@@ -312,6 +313,10 @@ App.stockQuickOptionsOpen = function () {
         <span class="action-ico">${ic("box")}</span>
         <span><b>จัดการสต็อก</b><small>Lark, Excel, แชร์, ประวัติ</small></span>
       </button>
+      <button class="action-item" onclick="App.stockIssueOpen()">
+        <span class="action-ico">${ic("calendar")}</span>
+        <span><b>ใบเบิกย้อนหลัง</b><small>ดูของที่ตัดจริงตามวันและพิมพ์สรุป</small></span>
+      </button>
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
@@ -355,6 +360,10 @@ App.stockToolsOpen = function () {
     <h3>${ic("box")} จัดการสต็อก</h3>
     <div class="modal-sub">คำสั่งเสริมสำหรับนำเข้า ซิงก์ แชร์ และดูประวัติ แยกไว้ตรงนี้เพื่อให้หน้าสต็อกหลักอ่านง่ายขึ้น</div>
     <div class="action-list">
+      <button class="action-item" onclick="App.stockIssueOpen()">
+        <span class="action-ico">${ic("calendar")}</span>
+        <span><b>ใบเบิกย้อนหลัง</b><small>สรุปการเบิกและใช้จากกิจกรรมที่ตัดสต็อกแล้ว</small></span>
+      </button>
       <button class="action-item" onclick="App.closeModal();App.stockShareOpen()">
         <span class="action-ico">${ic("user")}</span>
         <span><b>แชร์สต็อก</b><small>ให้บัญชีอื่นดูสต็อกของคุณ</small></span>

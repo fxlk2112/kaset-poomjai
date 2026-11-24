@@ -97,6 +97,7 @@ html.auth-locked #app { display: none; }
 .landing-footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 30px; }
 .landing-footer .landing-brand > span { font-size: 13px; font-weight: 500; }
 .landing-footer .landing-brand small { font-size: 11px; color: #b8ccbf; }
+.landing-footer .landing-brand > img { background: #fff; border-radius: 8px; padding: 2px; }
 .landing-footer nav { display: flex; gap: 28px; flex-wrap: wrap; }
 .landing-footer nav a { font-size: 13px; color: #d0ded5 !important; text-decoration: none; padding-block: 12px; }
 .landing-footer nav a:hover { text-decoration: underline; }

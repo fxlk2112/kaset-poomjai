@@ -96,6 +96,7 @@ const TaskWizard = {
   restore(d) {
     this.ready=false;
     for(const [id,entry] of Object.entries(d.fields)){
+      if(id==='t_project_stage')continue;
       if(!/^t_[a-z_]+$/.test(id))continue;
       const el=this.form.querySelector('#'+id);if(!el)continue;
       if(el.tagName==='SELECT' && ![...el.options].some(o=>o.value===entry.value))continue;
@@ -105,7 +106,7 @@ const TaskWizard = {
     this.multiPlot=!!d.multiPlot;this.plotSelections=Array.isArray(d.plotSelections)?d.plotSelections:[];
     document.getElementById('t_title').dataset.autoTitle=d.autoTitle || 'false';
     document.getElementById('inspectionBox').outerHTML=Inspection.begin({inspection:d.inspection});
-    App.taskTypeChange();App.taskToggleCost();App.taskToggleHarvest();App.waterSessionsRender();App.costRender();
+    App.taskTypeChange();App.taskToggleCost();App.taskToggleHarvest();App.taskRepeatToggle();App.taskProjectChange(d.fields.t_project_stage?.value);App.waterSessionsRender();App.costRender();
     renderTaskPhotoPreview('form');Inspection.contextRefresh();Inspection.pointsRender();
     labelFormFields(this.form);ConceptWorkflows.formSummary();
     this.renderPlots();
@@ -228,7 +229,11 @@ const TaskWizard = {
     ConceptWorkflows.formSummary();
     const type=document.getElementById('t_type').value;
     const note=document.getElementById('t_note').value.trim();
-    document.getElementById('taskReviewContext').innerHTML=`<dl><div><dt>กิจกรรม</dt><dd>${esc(document.getElementById('t_title').value)}</dd></div><div><dt>วันที่</dt><dd>${esc(dateLabel(document.getElementById('t_date').value))}</dd></div></dl>${type==='water'?'<p>'+esc(waterSessionTotalText(taskWaterSessions))+'</p>':''}${type==='inspect'?'<p>'+esc(inspectionSummary(Inspection.draft))+' · '+fmtNum(Inspection.draft.points.length)+' จุดสำรวจ</p>':''}${note?'<p>'+esc(note)+'</p>':''}<p class="muted">รูปประกอบ ${taskFormPhotos.length} รูป</p>`;
+    const repeat=document.getElementById('t_repeat')?.checked;
+    const repeatText=repeat?`<div><dt>งานซ้ำ</dt><dd>ทุก ${esc(document.getElementById('t_repeat_every').value)} ${esc(({day:'วัน',week:'สัปดาห์',month:'เดือน'})[document.getElementById('t_repeat_unit').value] || 'วัน')} · สร้างแผนใหม่หลังบันทึกผล</dd></div>`:'';
+    const project=projectById(document.getElementById('t_project')?.value);
+    const projectText=project?`<div><dt>โครงการ / ช่วง</dt><dd>${esc(project.name)} · ${esc(projectStageById(project,document.getElementById('t_project_stage')?.value)?.name || 'ไม่ระบุช่วง')}</dd></div>`:'';
+    document.getElementById('taskReviewContext').innerHTML=`<dl><div><dt>กิจกรรม</dt><dd>${esc(document.getElementById('t_title').value)}</dd></div><div><dt>วันที่</dt><dd>${esc(dateLabel(document.getElementById('t_date').value))}</dd></div>${projectText}${repeatText}</dl>${type==='water'?'<p>'+esc(waterSessionTotalText(taskWaterSessions))+'</p>':''}${type==='inspect'?'<p>'+esc(inspectionSummary(Inspection.draft))+' · '+fmtNum(Inspection.draft.points.length)+' จุดสำรวจ</p>':''}${note?'<p>'+esc(note)+'</p>':''}<p class="muted">รูปประกอบ ${taskFormPhotos.length} รูป</p>`;
     if(this.usesPlots()){
       const section=document.createElement('section');section.className='task-plot-allocation';
       const tasks=taskPlotAllocations(S,this.batchData(),this.selections());
