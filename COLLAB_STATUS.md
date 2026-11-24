@@ -44,6 +44,19 @@
 
 ## Ownership and Locks
 
+### Active task: PROJECTS-TRIALS-20261124
+
+- Owner: Codex for Folk, explicitly requested in the current chat on 2026-11-24.
+- Branch: `codex/projects-trials-v1` (isolated managed worktree).
+- Base: `origin/develop` at `40721b5`.
+- Incoming UI source: `origin/codex/release-multiplot-20261013` at `3f8d208`.
+- Scope / lock: reconcile the current UI with develop safeguards; projects, trial links, activity reuse, crop-cycle cost views, report draft, their tests and local preview.
+- Shared files in this task: `index.html`, `js/app.js`, `js/data.js`, `js/auth.js`, `js/lark.js`, `css/style.css`, `sw.js`; preserve same-origin API and DATA_ONLY / SAFE_OFF. Integration review remains with SUCHA.
+- No production mutation, hardware action, remote branch rewrite, push or deployment.
+- Existing untracked `docs/rnd/` in the original checkout is preserved.
+- Status: LOCAL_VALIDATED; 610 tests passed plus desktop/mobile browser evidence. See `docs/PROJECTS_TRIALS_HANDOFF.md` and `design-qa.md`.
+- Baseline reconciliation also covers `js/workspace.js`, `js/recovery.js`, the Worker merge and migration naming; SUCHA retains integration ownership.
+
 | Area | Owner | Current lock |
 |---|---|---|
 | Farm / Map / Planner / Analytics / Water / Telemetry | Pick + SUCHA | `AVAILABLE_BY_TASK_LOCK` |
@@ -66,4 +79,4 @@ The one-time development approval authorizes publication of this reviewed baseli
 
 ## Next Action
 
-Give Folk exactly one source-pinned Commerce task from `origin/develop` at `0ac5b826b5cf8b16b5b2b9ec81194273f27bd11a`; do not resume the superseded direct-link setup.
+Review the PROJECTS-TRIALS-20261124 local preview with the user before SUCHA integrates it into develop.

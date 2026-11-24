@@ -1,7 +1,7 @@
 /* ---------------- ซิงก์ข้อมูลกับ Lark Base (ผ่าน Cloudflare Worker) ----------------
    App Secret เก็บไว้ฝั่ง Worker เท่านั้น ไม่หลุดมาเบราว์เซอร์
    ใช้ในหน้าตั้งค่า: ทดสอบการเชื่อมต่อ / อัปโหลด (push) / ดาวน์โหลด (pull) */
-const LARK_FN = "https://farmbackup.carfork123.workers.dev";
+const LARK_FN = "/api";
 const LARK_STOCK_SOURCE_KEY = "farmult-lark-stock-source-v1";
 const LARK_PHOTO_POLICY_KEY = "farmult-lark-photo-policy-v1";
 let larkStockSyncTimer = null;
@@ -250,7 +250,7 @@ function larkStockSummaryCardsHtml(summary) {
   return `
     <div class="lark-sync-results">
       ${card("รายการทั้งหมด", fmtNum(s.total || 0), "อ่านจาก Lark", "green")}
-      ${card("เพิ่มใหม่", fmtNum(s.added || 0), "ยังไม่เคยมีในเว็บ", "")}
+      ${card("เพิ่มใหม่", fmtNum(s.added || 0), s.addedItems?.length ? "ยังไม่เคยมีในเว็บ · ดูรายชื่อด้านล่าง" : "ยังไม่เคยมีในเว็บ", "")}
       ${card("อัปเดต", fmtNum(s.updated || 0), "ข้อมูลเดิมที่เปลี่ยน", "blue")}
       ${card("ไม่เปลี่ยน", fmtNum(s.skipped || 0), "ข้อมูลตรงกันอยู่แล้ว", "")}
       ${card("รูปที่ดึงได้", `${fmtNum(s.photosDone || 0)}/${fmtNum(s.photosTotal || 0)}`, s.photoDeferred ? `ยังเหลือ ${fmtNum(s.photoDeferred)} รูป` : "ครบตามรอบนี้", "amber")}
@@ -259,12 +259,25 @@ function larkStockSummaryCardsHtml(summary) {
     </div>`;
 }
 
+function larkStockAddedItemsHtml(summary) {
+  const items = Array.isArray(summary && summary.addedItems) ? summary.addedItems : [];
+  if (!items.length) return "";
+  return `<details class="lark-sync-added" ${items.length <= 5 ? "open" : ""}>
+    <summary>เพิ่มใหม่ ${fmtNum(items.length)} รายการ</summary>
+    <ul>${items.map(item => {
+      const detail = [item.code ? `รหัส ${item.code}` : "", item.category, item.size, item.unit].filter(Boolean).join(" · ");
+      return `<li><strong>${esc(item.name)}</strong>${detail ? `<small>${esc(detail)}</small>` : ""}</li>`;
+    }).join("")}</ul>
+  </details>`;
+}
+
 function larkStockSummaryModalHtml(summary) {
   return `
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${ic("check")} ซิงก์ Lark เสร็จแล้ว</h3>
     <div class="modal-sub">สรุปผลรอบล่าสุด เพื่อให้เห็นชัดว่าเพิ่ม อัปเดต หรือข้ามอะไรไปบ้าง</div>
     ${larkStockSummaryCardsHtml(summary)}
+    ${larkStockAddedItemsHtml(summary)}
     ${summary && summary.photoDeferred ? `
       <div class="lark-sync-summary-note">${ic("info")} ยังมีรูปที่รอดึงต่อ เพราะจำกัดจำนวนต่อรอบเพื่อไม่ให้โหลดค้าง กดซิงก์ Lark อีกครั้งเพื่อเก็บรูปต่อ</div>` : ""}
     <div class="modal-actions">
@@ -310,6 +323,7 @@ function larkStockConflictModalHtml() {
     <h3>${ic("image")} เจอรูปที่ไม่ตรงกัน</h3>
     <div class="modal-sub">ข้อมูลและจำนวนซิงก์เสร็จแล้ว เลือกรูปที่จะเก็บไว้สำหรับ ${fmtNum(conflicts.length)} รายการ</div>
     ${pending.summary ? larkStockSummaryCardsHtml(pending.summary) : ""}
+    ${pending.summary ? larkStockAddedItemsHtml(pending.summary) : ""}
     <div class="lpc-tools">
       <div class="stock-search lpc-search">
         ${ic("search")}
@@ -365,7 +379,7 @@ function larkSerializeState() {
   push("equipment", S.equipment);
   /* ข้อมูลระบบที่ไม่ใช่รายการ (คำที่แก้ หมวดต้นทุน เมนู ลำดับหน้าแรก โหมด) */
   const misc = {};
-  ["texts", "customCostCats", "customMenus", "homeOrder", "role", "version", "stockReplacedV1"].forEach(k => {
+  ["texts", "customCostCats", "customMenus", "homeOrder", "role", "version", "stockReplacedV1", "saleSequence"].forEach(k => {
     if (S[k] !== undefined) misc[k] = S[k];
   });
   out.push({ type: "state", id: "state", json: JSON.stringify(misc), updated_at: Date.now() });
@@ -523,6 +537,9 @@ App.larkStockRun = async function () {
     const syncedProducts = [...synced.values()];
     const split = larkStockSplitPhotoConflicts(syncedProducts);
     const mergeProducts = photoPolicy === "lark" ? syncedProducts : split.clean;
+    const addedItems = stockImportPlan(S, mergeProducts).rows
+      .filter(row => row.action === "add")
+      .map(row => ({ name: row.item.name, code: row.item.code, category: row.item.category, size: row.item.size, unit: row.item.unit }));
     const totalResult = mergeStockProducts(S, mergeProducts);
     saveState(S);
     if (typeof Auth !== "undefined" && Auth.session) Auth.saveNow();
@@ -533,6 +550,7 @@ App.larkStockRun = async function () {
     const summary = {
       total: syncedProducts.length,
       added: totalResult.added,
+      addedItems,
       updated: totalResult.updated,
       skipped: totalResult.skipped || 0,
       photosDone: donePhotos,

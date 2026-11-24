@@ -1,69 +1,35 @@
-# Master Farm Map Design QA
+# Projects and trials implementation QA
 
-## Verified target
+final result: PASS — local preview, synthetic data only, 2026-11-24.
 
-- Map revision: `OWNER_LAYOUT_2026_09_01_C`
-- Source artwork: `images/farm-map/pixel-art-farm-master-v1.png`
-- Source SHA256: `D65676108F678AF7D21EFEE2F88B38ED2E5AF6FCF872C4ED6D2EE487DD4F13D3`
-- Desktop evidence: `qa/implementation-master-map-desktop.png` (`1280 x 720`)
-- Mobile evidence: `qa/implementation-master-map-mobile.png` (`390 x 844` viewport)
-- Safety state: `DATA_ONLY`, `SAFE_OFF`, `output control = disabled`
+Base: develop `40721b5`; current UI source: `3f8d208`; branch: `codex/projects-trials-v1`.
 
-## Owner-confirmed layout
+## Browser checks
 
-- E1-E4 retain their four central plots.
-- E5 is a compact strip beside the head of E4/E1. Its height follows E4 plus E1,
-  while its usable width is approximately half of an E plot.
-- The E5 automation overlay excludes the pond edge and staff accommodation.
-- G and J use their corrected physical locations.
-- The main pond is selectable and hands off to the existing read-only level,
-  estimated-volume, and history view.
+- Desktop 1440 × 960 and mobile 390 × 844, using the existing teal/white workspace shell.
+- Brief → editable draft → plot/cycle selection → confirmation created PRJ-2569-001 and seven planned canonical activities. No costs or stock were posted by project creation.
+- Linked an existing synthetic trial, selected a task, entered 42.5 cm and attached a local sample image through the native file picker. Duplicate same-day observation and future date were rejected. A valid date saved successfully.
+- Edited the observation to 43 cm; one prior revision remained. Refresh retained the task link, measurement, image and caption.
+- Saved report version 1. Browser print preview rendered a 16-page report with headings, activities, raw measurements, images and conclusion. Cancelled before printing; no physical print or production write.
+- Reused material rows in the cycle activity form. No previous result/photo was copied. Review displayed current price and the stock change before confirmation.
+- Recorded a synthetic 90-baht activity: cycle cost changed from 2,465 to 2,555; the same project showed 90. No second ledger entry.
+- Report version 1 retained its earlier zero cost while the latest report reflected the new activity.
+- Mobile width check: document width 390 / viewport 390, no page overflow. Forms and confirmation controls remained usable. Browser error log was empty.
 
-This overlay is an owner-confirmed operational diagram, not a surveyed GIS
-boundary. Keep the polygon as schematic until measured coordinates or a survey
-drawing are approved.
+## Evidence
 
-## Visual review
+- `qa/projects-trials/desktop-project.jpg`
+- `qa/projects-trials/mobile-project.jpg`
+- `qa/projects-trials/mobile-measurement.jpg`
+- `qa/projects-trials/mobile-materials.jpg`
+- `qa/projects-trials/cycle-notebook.jpg`
 
-- Desktop preserves the map-left/detail-right hierarchy and keeps the farm artwork
-  sharp at the target viewport.
-- E5 and pond labels are visually separated; the compact E5 boundary follows the
-  usable strip without covering staff buildings.
-- E1-E5, the pond, G, and J are readable without changing the source raster.
-- Mobile collapses to map-then-detail with no visible horizontal overflow.
-- The cyan automation outline, pond outline, dark-teal surface, and safety badges
-  match the existing FARMULTIMATE visual system.
-- Every mapped area remains keyboard-focusable and has an accessible name.
+## Automated validation
 
-## Functional and safety review
+`npm run check`: 610 passed, 0 failed; relay validation passed (9 messages).
+The 12 added tests cover validation-before-mutation, failed-write rollback/retry, project codes, actual costs, immutable report versions, material reuse, account draft isolation and closed-project trial links.
+An additional merge regression test verifies that logout reopens the account gate, clears account data from memory and retains the saved account slot.
 
-- Selecting E1-E5 shows `PRE-COMMISSIONING`, `SAFE_OFF`, and `UNASSIGNED`.
-- Selecting the pond opens the existing telemetry view and provides a return action
-  to the Master Map.
-- No pump, valve, relay, Modbus, or other actuator command is rendered.
-- Raspberry Pi 5 remains the sole eventual output writer; the dashboard is a
-  supervisory/read-only surface.
-- The multi-model weather snapshot is marked forecast-only and cannot authorize
-  irrigation output.
+## Limits
 
-## Validation
-
-- `npm run check`: `56/56 PASS`
-- Map coverage tests include E1-E5 and the corrected G/J locations.
-- E5 geometry test locks the compact revision-C polygon.
-- Direct-open regression tests confirm there is no blocking login page while
-  owner-only cloud data remains protected by its API session boundary.
-- Screenshot review completed for the committed desktop and mobile evidence.
-
-## Held local evidence
-
-The following working files are useful for local comparison but are not required
-in the shared baseline and remain outside the baseline commit:
-
-- `qa/comparison-reference-vs-master-map.png`
-- `qa/e5-geometry-preview.png`
-- `qa/e5-source-crop.png`
-- `qa/reference-booking-desktop-normalized.png`
-- `qa/reference-booking-desktop.png`
-
-final result: passed
+The task suggester uses editable templates. No model API has been configured. Reports use browser print / Save as PDF; no Word export. Local preview deliberately does not contact the real API. Live account synchronization, backend migrations, service bindings and production deployment were not performed.
