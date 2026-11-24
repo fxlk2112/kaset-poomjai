@@ -104,6 +104,13 @@ const Concept = {
     if(active==='members')document.getElementById('conceptCrumb').querySelector('strong').textContent='สมาชิกและสิทธิ์';
     this.syncNav();
     const view=document.getElementById('view');
+    const notebook=route.view==='cycleDetail' && !!view.querySelector('.nb-page');
+    document.body.classList.toggle('nb-view',notebook);
+    if(notebook){
+      const cycle=cycleById(S,route.cycleId);
+      document.getElementById('conceptCrumb').innerHTML+=`${ic('chevron')}<strong>รอบปลูก ${esc(cycle?.round || '—')}</strong>`;
+      App.cycleNotebookLoadPending(route.cycleId);
+    }
     view.classList.toggle('cn-trials-view',active==='trials');
     const farmTitle=view.querySelector('.farm-heading h1');
     if(farmTitle){farmTitle.textContent=titles[active];view.querySelector('.farm-main-tabs button').innerHTML=ic('briefcase')+' งานส่วนกลาง';}

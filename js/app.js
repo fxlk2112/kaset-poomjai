@@ -3994,6 +3994,7 @@ function cycleJourneyHtml(c, tasks) {
 function renderCycleDetail() {
   const c = cycleById(S, route.cycleId);
   if (!c) { route.view = "plots"; return renderPlots(); }
+  if (typeof renderCycleNotebook === 'function') return renderCycleNotebook(c);
   const p = plotById(S, c.plotId);
   const cf = cycleFinance(S, c.id);
   /* ต้นทุนรวมของงานเดียว (costItems หลายรายการ หรือ cost เดี่ยว) — ใช้เรียง/กรอง */
@@ -4141,7 +4142,7 @@ App.openCycle = function (id) {
   render();
 };
 App.cycleDetailTab = function (tab) {
-  cycleDetailTab = ["overview", "calendar", "costs", "tasks", "materials"].includes(tab) ? tab : "overview";
+  cycleDetailTab = ["overview", "calendar", "costs", "tasks", "materials", "yield", "projects", "report"].includes(tab) ? tab : "overview";
   rerender();
 };
 App.completeCycle = function (id) {

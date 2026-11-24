@@ -1,5 +1,7 @@
 # Projects, trial evidence and crop-cycle notebook
 
+The later notebook visual correction is documented in `CYCLE_NOTEBOOK_HANDOFF.md`. Original validation below is preserved in `qa/projects-trials/validation.md`; the current `design-qa.md` covers the corrected notebook.
+
 - **Owner:** Codex for Folk; shared integration review: SUCHA.
 - **Branch:** `codex/projects-trials-v1`, managed worktree `farm-projects-trials/WebFarm`.
 - **Task / Scope:** Integrate the selected current workspace design with editable suggested project tasks, project codes/objectives, canonical activities, task-linked trial measurements/photos/history, crop-cycle material costs and versioned report preview/print.

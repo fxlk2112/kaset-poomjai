@@ -34,7 +34,7 @@ const ConceptWorkflows = {
       const photoFilter=view.querySelector('#stockPhotoSelect')?.value;
       this.disclosure(photo,'กรองตามรูปภาพ',!!photoFilter&&photoFilter!=='all');
     }
-    if(route.view==='cycleDetail'){
+    if(route.view==='cycleDetail' && !view.querySelector('.nb-page')){
       const remove=view.querySelector('button[onclick^="App.deleteCycle("]');
       this.disclosure(remove,'จัดการรอบปลูก');
     }
@@ -74,7 +74,7 @@ const ConceptWorkflows = {
     if(route.view==='home')text=`ยอดเงิน: ทุกแปลงและงานส่วนกลาง · เฉพาะกิจกรรมที่เสร็จแล้ว · ปี ${Number(todayISO().slice(0,4))+543} · ไม่รวมการขายสินค้า`;
     else if(route.view==='farm')text=route.tab==='analytics'?(route.analyticsTab==='shop'?`การขายสินค้า · ปี ${year+543} · ไม่รวมกิจกรรมในแปลง`:`ทุกแปลงและงานส่วนกลาง · กิจกรรมที่เสร็จแล้ว · ปี ${year+543} · ไม่รวมการขายสินค้า`):`เฉพาะงานที่ไม่ผูกแปลง · ปี ${year+543}`;
     else if(route.view==='plotDetail')text=`${plotById(S,route.plotId)?.name||'แปลงนี้'} · รวมทุกรอบและทุกช่วงเวลา · ยอดเงินเฉพาะงานที่เสร็จแล้ว`;
-    else if(route.view==='cycleDetail'){const c=cycleById(S,route.cycleId);if(c)text=`${plotById(S,c.plotId)?.name||'แปลงนี้'} · ${c.plant} รอบ ${c.round||'-'} · ${dateLabel(c.startDate)} ถึง ${c.endDate?dateLabel(c.endDate):'ปัจจุบัน'} · ยอดเงินเฉพาะงานที่เสร็จแล้ว`;}
+    else if(route.view==='cycleDetail' && !view.querySelector('.nb-page')){const c=cycleById(S,route.cycleId);if(c)text=`${plotById(S,c.plotId)?.name||'แปลงนี้'} · ${c.plant} รอบ ${c.round||'-'} · ${dateLabel(c.startDate)} ถึง ${c.endDate?dateLabel(c.endDate):'ปัจจุบัน'} · ยอดเงินเฉพาะงานที่เสร็จแล้ว`;}
     if(text){const band=document.createElement('details');band.className='cw-scope';const label=document.createElement('summary');label.textContent='ขอบเขตข้อมูล';const detail=document.createElement('p');detail.textContent=text;band.append(label,detail);const metrics=view.querySelector('.ch-metrics');if(metrics)metrics.before(band);else view.prepend(band);}
     if(route.view==='plots'&&route.tab==='trials'&&route.trialId&&route.trialSection==='compare'){
       const title=[...view.querySelectorAll('#trialWorkPanel h2')].find(h=>h.textContent==='ผลตลอดการทดลอง');

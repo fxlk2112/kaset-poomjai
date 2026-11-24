@@ -25,6 +25,7 @@ createServer(async(req,res)=>{
     if(rel==='index.html' && url.searchParams.get('projectPreview')==='1'){
       let html=data.toString().replace('  <script src="js/auth.js','  <script src="/__project_demo.js"></script>\n  <script src="js/auth.js');
       html=html.replace('</body>',`<script>document.addEventListener('DOMContentLoaded',()=>{Auth.session.name='บัญชีตัวอย่าง';route.view='projects';render();const banner=document.createElement('div');banner.textContent='รุ่นทดลองในเครื่อง • ข้อมูลตัวอย่าง • ไม่เชื่อมข้อมูลจริง';banner.style.cssText='position:fixed;bottom:4px;left:4px;z-index:9999;background:#e8f4ee;color:#14624d;font:11px Sarabun,sans-serif;padding:4px 8px;border:1px solid #bad7ca;border-radius:4px;pointer-events:none';document.body.append(banner);});</script></body>`);
+      html=html.replace("route.view='projects';render();", "const params=new URL(location.href).searchParams,cycle=params.get('cycle');if(cycle && cycleById(S,cycle)){route.view='cycleDetail';route.cycleId=cycle;cycleDetailTab=['overview','tasks','materials','costs','yield','projects'].includes(params.get('tab'))?params.get('tab'):'materials';}else route.view='projects';render();");
       data=Buffer.from(html);
     }
     res.writeHead(200,{'Content-Type':types[path.extname(file)] || 'application/octet-stream','Cache-Control':'no-store'});res.end(data);

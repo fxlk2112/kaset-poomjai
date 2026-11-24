@@ -54,7 +54,7 @@
 - Shared files in this task: `index.html`, `js/app.js`, `js/data.js`, `js/auth.js`, `js/lark.js`, `css/style.css`, `sw.js`; preserve same-origin API and DATA_ONLY / SAFE_OFF. Integration review remains with SUCHA.
 - No production mutation, hardware action, remote branch rewrite, push or deployment.
 - Existing untracked `docs/rnd/` in the original checkout is preserved.
-- Status: LOCAL_VALIDATED; 610 tests passed plus desktop/mobile browser evidence. See `docs/PROJECTS_TRIALS_HANDOFF.md` and `design-qa.md`.
+- Status: LOCAL_VISUAL_VALIDATED; crop notebook revised against the user's 2026-11-24 reference. `npm run check`: 620/620, relay 9/9. Desktop 1674 × 940 and mobile 390 × 844 browser evidence in `qa/cycle-notebook/`; see `design-qa.md` and `docs/CYCLE_NOTEBOOK_HANDOFF.md`. Lock includes `js/cycle-notebook.js`, `css/cycle-notebook.css`, cycle wiring in `js/app.js`, `js/workspace.js`, `js/workspace-flows.js`, preview, tests and QA. Existing records and canonical cost calculations preserved. NOT_DEPLOYED.
 - Baseline reconciliation also covers `js/workspace.js`, `js/recovery.js`, the Worker merge and migration naming; SUCHA retains integration ownership.
 
 | Area | Owner | Current lock |
