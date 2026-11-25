@@ -492,6 +492,13 @@ html[data-theme="dark"] .cost-price-warning { background:#392c20; color:#f2cfaa;
 .cw-secondary[open] > summary { color:var(--green); margin-bottom:8px; }
 .cw-secondary .field { margin-bottom:8px; }
 .ch-workspace > .ch-fields { margin:0; padding:0; border:0; }
+.ch-task-row { display:grid; grid-template-columns:44px minmax(0,1fr); align-items:center; gap:0; border-bottom:1px solid var(--line); }
+.ch-task-row > .ch-task { min-width:0; border-bottom:0; }
+@media(max-width:600px){
+  .concept .ch-task-row > .ch-task { grid-template-columns:minmax(0,1fr) auto; }
+  .concept .ch-task-row .ch-task-date { grid-column:1; grid-row:2; }
+  .concept .ch-task-row .ch-status { grid-column:2; grid-row:1/3; }
+}
 .ch-workspace .ch-field-grid { grid-template-columns:minmax(0,1fr); }
 .ch-workspace .ch-field { min-width:0; width:100%; }
 .water-command-details { max-width:320px; }

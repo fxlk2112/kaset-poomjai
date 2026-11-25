@@ -28,6 +28,7 @@ const TaskWizard = {
   persist() {
     clearTimeout(this.timer);
     if(!this.active())return false;
+    this.compactTotal();
     const status=document.getElementById('taskDraftStatus');
     try { localStorage.setItem(this.owner,JSON.stringify(this.capture()));if(status)status.textContent='เก็บฉบับร่างในเครื่องนี้แล้ว';return true; }
     catch (_) { if(status)status.textContent='เก็บฉบับร่างไม่ได้ พื้นที่เครื่องอาจเต็ม อย่าเพิ่งปิดหน้านี้';return false; }
@@ -44,7 +45,7 @@ const TaskWizard = {
     clearTimeout(this.timer);this.ready=false;this.form=null;
     if(taskEditingId)return;
     const form=document.querySelector('.task-form');if(!form)return;
-    this.form=form;this.owner=this.key();this.step=0;
+    this.form=form;this.owner=this.key();this.step=0;this.compact=window.matchMedia('(max-width:899px)').matches;
     this.multiPlot=false;this.plotSelections=[];this.lastMultiActive=false;
     form.classList.add('task-wizard');form.noValidate=true;
     const first=form.querySelector('[data-task-step="0"]');
@@ -70,9 +71,10 @@ const TaskWizard = {
     const actions=document.getElementById('taskSubmitButton').closest('.modal-actions');actions.classList.add('task-wizard-actions');
     actions.querySelector('button[type="button"]').textContent='เก็บร่างและปิด';
     const back=document.createElement('button');back.type='button';back.id='taskStepBack';back.className='btn btn-outline';back.setAttribute('aria-label','ย้อนกลับ');back.title='ย้อนกลับ';back.innerHTML=ic('chevron');back.onclick=()=>this.go(this.step-1);actions.prepend(back);
-    const next=document.createElement('button');next.type='button';next.id='taskStepNext';next.className='btn btn-primary';next.innerHTML='ถัดไป '+ic('chevron');next.onclick=()=>this.go(this.step+1);actions.append(next);
+    const next=document.createElement('button');next.type='button';next.id='taskStepNext';next.className='btn btn-primary';next.innerHTML=(this.compact?'ตรวจรายการ':'ถัดไป')+' '+ic('chevron');next.onclick=()=>this.go(this.compact?2:this.step+1);actions.append(next);
     const status=document.createElement('p');status.id='taskDraftStatus';status.className='task-draft-status';status.setAttribute('role','status');form.append(status);
-    form.addEventListener('submit',e=>{e.preventDefault();e.stopImmediatePropagation();if(this.step<2){this.go(this.step+1);return;}if(this.validate(0)&&this.validate(1)){this.show(2);wizardSubmitTask(e,'');}},true);
+    if(this.compact)this.compactLayout();
+    form.addEventListener('submit',e=>{e.preventDefault();e.stopImmediatePropagation();if(this.step<2){this.go(this.compact?2:this.step+1);return;}if(this.validate(0)&&this.validate(1)){this.show(2);wizardSubmitTask(e,'');}},true);
     this.ready=true;this.renderPlots();this.show(0,false);
     const draft=preset._wizardDraft || this.read();
     if(preset._wizardDraft){this.restore(draft);return;}
@@ -95,6 +97,8 @@ const TaskWizard = {
   },
   restore(d) {
     this.ready=false;
+    const projectSetup=document.getElementById('taskProjectSetup');
+    if(projectSetup){projectSetup.dataset.all='true';App.taskProjectRefresh(true);projectSetup.dataset.ready='false';}
     for(const [id,entry] of Object.entries(d.fields)){
       if(id==='t_project_stage')continue;
       if(!/^t_[a-z_]+$/.test(id))continue;
@@ -110,7 +114,7 @@ const TaskWizard = {
     renderTaskPhotoPreview('form');Inspection.contextRefresh();Inspection.pointsRender();
     labelFormFields(this.form);ConceptWorkflows.formSummary();
     this.renderPlots();
-    this.ready=true;this.show(0,false);
+    this.ready=true;if(projectSetup)projectSetup.dataset.all='false';App.taskProjectRefresh(true);this.show(0,false);
     const step=Number.isInteger(d.step)?Math.max(0,Math.min(2,d.step)):0;
     if(step)this.go(step);else this.persist();
   },
@@ -137,7 +141,7 @@ const TaskWizard = {
     document.getElementById('taskPlotCycleFields').hidden=enabled;
     const area=document.getElementById('t_material_area');area.readOnly=enabled;
     document.querySelector('label[for="t_material_area"]').textContent=enabled?'พื้นที่ทำจริงรวมทุกแปลง (ไร่)':'พื้นที่ใช้ยา/ปุ๋ย (ไร่)';
-    if(!enabled){if(this.lastMultiActive){this.form.querySelectorAll('.ci-area').forEach(input=>{input.readOnly=false;});App.costAreaSetPlot();App.taskScopeChange();}this.lastMultiActive=false;return;}
+    if(!enabled){if(this.lastMultiActive){this.form.querySelectorAll('.ci-area').forEach(input=>{input.readOnly=false;});App.costAreaSetPlot();App.taskScopeChange();}this.lastMultiActive=false;App.taskProjectRefresh();return;}
     this.lastMultiActive=true;
     rows.innerHTML=S.plots.map((plot,i)=>{
       const row=this.plotSelections.find(r=>r.plotId===plot.id);
@@ -170,21 +174,61 @@ const TaskWizard = {
     document.getElementById('taskScopeSummary').textContent=`${rows.length} แปลง`;
     document.getElementById('taskScopeSummaryDetail').textContent='แบ่งยอดตามพื้นที่ทำจริง · ประวัติแยกแต่ละแปลง';
     App.costRateRefresh();ConceptWorkflows.formSummary();
+    App.taskProjectRefresh();
   },
   batchData() {
     return {type:document.getElementById('t_type').value,status:document.getElementById('t_status').value,
       costItems:document.getElementById('t_usecost').checked?taskCostItems.filter(it=>String(it.name||'').trim() || it.stockId || Number(it.qty)>0 || Number(it.unitCost)>0 || Number(it.totalCost)>0):[]};
   },
+  compactLayout() {
+    const form=this.form;form.classList.add('task-compact');form.closest('.modal').classList.add('task-compact-modal');
+    const first=form.querySelector('[data-task-step="0"]'),second=form.querySelector('[data-task-step="1"]');
+    const scope=form.querySelector('.task-scope');first.prepend(scope);
+    const type=document.getElementById('t_type').closest('.field');type.hidden=false;
+    const date=document.getElementById('t_date').closest('.form-row-2');date.prepend(type);
+    const title=document.getElementById('t_title').closest('.field'),more=document.createElement('details');more.className='task-compact-more';more.innerHTML='<summary>ชื่องาน / วางแผน / ตั้งงานซ้ำ</summary>';more.append(title);const mode=form.querySelector('.task-mode');if(mode)more.append(mode);const repeat=form.querySelector('.task-repeat-setup');if(repeat)more.append(repeat);second.append(more);
+    const plotFields=document.getElementById('taskPlotCycleFields'),plots=document.getElementById('taskMultiPlot'),plotSettings=document.createElement('details');plotSettings.className='task-compact-plots';plotSettings.innerHTML='<summary>เปลี่ยนแปลง / รอบปลูก / พื้นที่ทำจริง</summary>';scope.append(plotSettings);plotSettings.append(plots,plotFields);const area=document.getElementById('materialAreaFields');if(area)plotSettings.append(area);if(!document.getElementById('t_plot').value)plotSettings.open=true;
+    const extra=form.querySelector('.task-extras'),photo=extra?.querySelector('.task-photo-panel');if(photo){extra.before(photo);extra.querySelector('summary').textContent='หมายเหตุ';photo.querySelector('.task-photo-head button').innerHTML=ic('camera')+' ถ่ายรูป / แนบรูป';}
+    const project=form.querySelector('.task-project-setup');if(project)scope.after(project);
+    const total=document.createElement('div');total.className='task-compact-total';total.innerHTML='<div>รวมค่าใช้จ่าย<strong id="taskCompactTotal">0 บาท</strong></div><small>ยังไม่ยืนยันหรือตัดสต็อก</small>';document.querySelector('.task-wizard-actions').before(total);
+    this.compactTotal();
+  },
+  compactTotal() {
+    if(!this.compact)return;
+    const el=document.getElementById('taskCompactTotal');if(!el)return;
+    el.textContent=document.getElementById('t_usecost')?.checked?document.getElementById('costSum')?.textContent || '0 บาท':'0 บาท';
+    if(!this.usesPlots()){
+      const p=plotById(S,document.getElementById('t_plot')?.value),c=cycleById(S,document.getElementById('t_cycle')?.value),farm=document.getElementById('t_scope_farm')?.checked;
+      document.getElementById('taskScopeSummary').textContent=farm?'งานส่วนกลาง':p?.name || 'เลือกแปลง';
+      document.getElementById('taskScopeSummaryDetail').textContent=farm?'งานทั่วไปที่ไม่ผูกแปลง':c?c.plant+' · รอบ '+c.round+' · '+fmtNum(p.sizeRai)+' ไร่':'ต้นทุนรวมแปลง';
+    }
+  },
+  compactCosts() {
+    if(!this.compact || !this.form?.isConnected || !this.form.classList.contains('task-compact'))return;
+    this.form.querySelectorAll('.usage-row:not([data-compact])').forEach(row=>{
+      row.dataset.compact='1';
+      const extra=document.createElement('details');extra.className='task-cost-extra';extra.innerHTML='<summary>แหล่งวัสดุ / วิธีคิดราคา / รายละเอียด</summary>';
+      const source=row.querySelector('.cost-source-fields');if(source)extra.append(source);
+      const measured=row.querySelector('button[onclick^="App.costUseMeasured"]');if(measured)extra.append(measured);
+      for(const el of [...row.children])if(el.tagName==='DETAILS' || el.matches('.cost-external-note,.hint,.cost-auto-rate') || el.matches('.field:has(.cost-auto-rate)'))extra.append(el);
+      const stock=row.querySelector('.stock-action');if(stock){const mode=document.createElement('details');mode.className='task-stock-mode';const summary=document.createElement('summary');summary.textContent='สต็อก: '+(stock.querySelector('[aria-pressed="true"]')?.textContent || 'ตรวจวิธีตัดสต็อก');mode.append(summary);stock.before(mode);mode.append(stock);}
+      row.append(extra);
+      if(row.querySelector('.stock-pick-list'))extra.open=true;
+    });
+    this.compactTotal();
+  },
   show(step,focus=true) {
     this.step=Math.max(0,Math.min(2,step));
-    this.form.querySelectorAll('[data-task-step]').forEach(el=>el.hidden=Number(el.dataset.taskStep)!==this.step);
+    this.form.querySelectorAll('[data-task-step]').forEach(el=>el.hidden=this.compact && this.step<2?Number(el.dataset.taskStep)===2:Number(el.dataset.taskStep)!==this.step);
     this.form.querySelectorAll('[data-wizard-step]').forEach(el=>el.setAttribute('aria-current',Number(el.dataset.wizardStep)===this.step?'step':'false'));
     this.form.querySelectorAll('[data-wizard-type]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.wizardType===document.getElementById('t_type').value)));
-    document.getElementById('taskStepBack').hidden=this.step===0;
+    document.getElementById('taskStepBack').hidden=this.compact?this.step<2:this.step===0;
     document.getElementById('taskStepNext').hidden=this.step===2;
     document.getElementById('taskSubmitButton').hidden=this.step!==2;
     if(this.step===2)this.review();
-    if(focus){const current=this.form.querySelector(`[data-wizard-step="${this.step}"]`);current.focus();current.scrollIntoView({block:'nearest'});}
+    this.compactTotal();
+    this.compactCosts();
+    if(focus){const current=this.compact?this.form.querySelector(this.step===2?'#taskReviewContext':'[data-task-step="0"]'):this.form.querySelector(`[data-wizard-step="${this.step}"]`);current?.focus();current?.scrollIntoView({block:'nearest'});}
   },
   error(id,message,step) { this.show(step);const input=document.getElementById(id);setModalFieldError(input,message);input?.focus();return false; },
   validate(step) {
@@ -232,7 +276,7 @@ const TaskWizard = {
     const repeat=document.getElementById('t_repeat')?.checked;
     const repeatText=repeat?`<div><dt>งานซ้ำ</dt><dd>ทุก ${esc(document.getElementById('t_repeat_every').value)} ${esc(({day:'วัน',week:'สัปดาห์',month:'เดือน'})[document.getElementById('t_repeat_unit').value] || 'วัน')} · สร้างแผนใหม่หลังบันทึกผล</dd></div>`:'';
     const project=projectById(document.getElementById('t_project')?.value);
-    const projectText=project?`<div><dt>โครงการ / ช่วง</dt><dd>${esc(project.name)} · ${esc(projectStageById(project,document.getElementById('t_project_stage')?.value)?.name || 'ไม่ระบุช่วง')}</dd></div>`:'';
+    const projectText=`<div><dt>โครงการ / ช่วง</dt><dd>${project?esc(projectCode(project)+' · '+project.name)+' · '+esc(projectStageById(project,document.getElementById('t_project_stage')?.value)?.name || 'ไม่ระบุช่วง'):'ไม่อยู่ในโครงการ'}</dd></div>`;
     document.getElementById('taskReviewContext').innerHTML=`<dl><div><dt>กิจกรรม</dt><dd>${esc(document.getElementById('t_title').value)}</dd></div><div><dt>วันที่</dt><dd>${esc(dateLabel(document.getElementById('t_date').value))}</dd></div>${projectText}${repeatText}</dl>${type==='water'?'<p>'+esc(waterSessionTotalText(taskWaterSessions))+'</p>':''}${type==='inspect'?'<p>'+esc(inspectionSummary(Inspection.draft))+' · '+fmtNum(Inspection.draft.points.length)+' จุดสำรวจ</p>':''}${note?'<p>'+esc(note)+'</p>':''}<p class="muted">รูปประกอบ ${taskFormPhotos.length} รูป</p>`;
     if(this.usesPlots()){
       const section=document.createElement('section');section.className='task-plot-allocation';
@@ -245,6 +289,8 @@ const TaskWizard = {
   }
 };
 const wizardModalTask=App.modalTask;
+const wizardCostRender=App.costRender;
+App.costRender=function(...args){const result=wizardCostRender.apply(this,args);TaskWizard.compactCosts();return result;};
 App.modalTask=function(date,preset){wizardModalTask.call(this,date,preset);TaskWizard.init(preset);};
 const wizardSubmitTask=App.submitTask;
 const wizardCloseModal=App.closeModal;

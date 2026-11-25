@@ -4,13 +4,18 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
 const source=name=>fs.readFileSync(path.join(__dirname,'..',name),'utf8');
-function harness(){
+test('harvest weight conversion avoids a misleading cost per kg for mixed units',()=>{
+  const h=harness();assert.equal(h.run(`notebookHarvestKg([{harvestQty:2,harvestUnit:'kg'},{harvestQty:500,harvestUnit:'กรัม'}])`),2.5);
+  assert.equal(h.run(`notebookHarvestKg([{harvestQty:2,harvestUnit:'kg'},{harvestQty:8,harvestUnit:'ลูก'}])`),null);
+  assert.equal(h.run('notebookHarvestKg([])'),0);
+});
+function harness({notebook=true}={}){
   const count={textContent:'',isConnected:true},note={textContent:''};
   const ctx=vm.createContext({console,Date,localStorage:{getItem:()=>null,setItem(){}},App:{},Auth:{session:{email:'demo@example.invalid',token:'synthetic'}},
     document:{getElementById:id=>id==='nbPendingCount'?count:note},Team:{},setTimeout(){},route:{cycleId:'c'},
     taskAllPhotos:t=>[...(t.photos || []),...(t.donePhotos || [])],fmtNum:n=>String(n),esc:s=>String(s).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]))});
   const run=s=>vm.runInContext(s,ctx);
-  run(source('js/data.js'));run(source('js/projects.js'));run(source('js/cycle-notebook.js'));
+  run(source('js/data.js'));run(source('js/projects.js'));if(notebook)run(source('js/cycle-notebook.js'));
   run(`S.tasks=[];S.projects=[];S.plots=[{id:'p',sizeRai:2}];S.cycles=[{id:'c',plotId:'p',status:'active'}];`);
   return {run,ctx,count,note};
 }
@@ -63,4 +68,64 @@ test('new notebook activity retains the plot and cycle scope and cannot target c
   const h=harness();h.run("let captured=null;App.modalTask=(date,preset)=>{captured=preset;};App.cycleNotebookAdd('c');");
   assert.equal(h.run('captured.plotId'),'p');assert.equal(h.run('captured.cycleId'),'c');assert.equal(h.run('captured.scope'),'plot');
   h.run("captured=null;S.cycles[0].status='done';App.cycleNotebookAdd('c','harvest');");assert.equal(h.run('captured'),null);
+});
+
+test('history defaults to recorded outcomes and groups by actual date without moving planned work or mutating tasks',()=>{
+  const h=harness();h.run(`const historyTasks=[
+    {id:'done',status:'done',date:'2026-11-20',doneDate:'2026-11-24',cost:30},
+    {id:'fail',status:'failed',date:'2026-11-21',doneDate:'2026-11-24',cost:999},
+    {id:'plan',status:'planned',date:'2026-12-01',cost:500},
+    {id:'old',status:'done',date:'2026-11-18',cost:0}];const before=JSON.stringify(historyTasks);const history=notebookHistoryModel(historyTasks);`);
+  assert.equal(h.run('history.mode'),'recorded');assert.equal(h.run('history.recorded'),3);assert.equal(h.run('history.planned'),1);
+  assert.equal(h.run('history.groups[0].date'),'2026-11-24');assert.equal(h.run('history.groups[0].tasks.length'),2);
+  assert.equal(h.run('history.groups.some(g=>g.tasks.some(t=>t.id==="plan"))'),false);
+  assert.equal(h.run('JSON.stringify(historyTasks)===before'),true);
+});
+
+test('plans use due-date order with undated work last, while history falls back to recorded weather date',()=>{
+  const h=harness();h.run(`const tasks=[{id:'later',status:'planned',date:'2026-12-01'},{id:'blank',status:'planned',date:''},{id:'early',status:'planned',date:'2026-11-20'},{id:'actual',status:'done',date:'2026-11-01',weatherSnapshot:{targetDate:'2026-11-25'}}];const plan=notebookHistoryModel(tasks,{mode:'planned'});`);
+  assert.equal(h.run('plan.groups.map(g=>g.tasks[0].id).join(",")'),'early,later,blank');
+  assert.equal(h.run('notebookHistoryModel(tasks).groups[0].date'),'2026-11-25');
+  assert.equal(h.run('notebookHistoryModel(tasks,{mode:"planned",sort:"new"}).groups.map(g=>g.tasks[0].id).join(",")'),'later,early,blank');
+});
+
+test('type and failure filters keep overall category counts and do not affect cost totals',()=>{
+  const h=harness();h.run(`S.tasks=[{id:'d',cycleId:'c',status:'done',type:'spray',cost:50,date:'2026-11-24'},{id:'f',cycleId:'c',status:'failed',type:'spray',cost:900,date:'2026-11-23'},{id:'p',cycleId:'c',status:'planned',type:'spray',cost:1000,date:'2026-12-01'}];const view=notebookHistoryModel(S.tasks,{type:'spray',outcome:'failed'});`);
+  assert.equal(h.run('view.count'),1);assert.equal(h.run('view.recorded'),2);assert.equal(h.run('view.planned'),1);
+  assert.equal(h.run('cycleFinance(S,"c").cost'),50);
+  assert.equal(h.run('notebookHistoryModel(S.tasks,{type:"harvest"}).groups.length'),0);
+});
+
+test('compact history row uses saved material quantities and canonical cost, escapes content, and opens full details',()=>{
+  const h=harness();h.run(`notebookIcon=()=>'';function projectCode(p){return p.code;}S.projects=[{id:'pr',code:'PRJ-001',name:'Project'}];const row=notebookHistoryRow({id:'t',title:'<unsafe>',status:'done',type:'spray',cost:0,projectId:'pr',note:'Long note is only in detail',photos:['a'],donePhotos:['a','b'],costItems:[{name:'Material',category:'chemical',usageQty:50,usageUnit:'ml',totalCost:999}]});`);
+  const html=h.run('row');assert.match(html,/&lt;unsafe&gt;/);assert.match(html,/Material · ใช้ 50 มล\./);
+  assert.match(html,/ต้นทุน 0 บาท/);assert.doesNotMatch(html,/999 บาท|Long note/);assert.match(html,/2 รูป/);assert.match(html,/PRJ-001 · Project/);
+  assert.match(html,/App\.viewTask/);assert.doesNotMatch(html,/App\.toggleTask|App\.editTask/);
+});
+
+test('planned rows retain completion/reschedule actions and label amounts as budgets; failures have no actual-cost claim',()=>{
+  const h=harness();h.run(`notebookIcon=()=>'';const plan=notebookHistoryRow({id:'p',title:'Plan',status:'planned',type:'spray',date:'',cost:650});const failed=notebookHistoryRow({id:'f',title:'Failed',status:'failed',date:'2026-11-20',cost:900});`);
+  assert.match(h.run('plan'),/งบประมาณ 650 บาท/);assert.match(h.run('plan'),/App\.completeTaskFromCircle/);assert.match(h.run('plan'),/App\.rescheduleTask/);
+  assert.doesNotMatch(h.run('plan'),/เลยกำหนด|ต้นทุน 650/);assert.match(h.run('failed'),/ไม่สำเร็จ/);assert.doesNotMatch(h.run('failed'),/ต้นทุน 900|App\.toggleTask/);
+});
+
+test('history mode and filters are isolated by plot/cycle and preserve UI state without saving farm data',()=>{
+  const h=harness();h.run(`let renders=0;function rerender(){renders++;}App.notebookHistoryFilter('cycle:c','type','spray');App.notebookHistoryFilter('cycle:c','outcome','failed');App.notebookHistoryFilter('cycle:c','mode','planned');`);
+  assert.equal(h.run('notebookHistoryFilters.get("cycle:c").outcome'),'');assert.equal(h.run('notebookHistoryFilters.get("cycle:c").sort'),'old');
+  assert.equal(h.run('notebookHistoryFilters.get("cycle:c").type'),'spray');assert.equal(h.run('notebookHistoryFilters.has("plot:p:")'),false);
+  assert.equal(h.run('renders'),3);assert.equal(h.run('S.tasks.length'),0);
+});
+
+test('restored plot history renders safely before notebook loading and refreshes when the module is ready',()=>{
+  const h=harness({notebook:false}),app=source('js/app.js');
+  h.run(`route.view='plotDetail';route.plotId='p';let plotDetailTab='tasks',plotTaskCycle='',rendered='';
+    S.cycles[0].startDate='2026-11-01';S.cycles[0].round=1;S.cycles[0].plant='Corn';
+    S.tasks=[{id:'done',plotId:'p',cycleId:'c',title:'Recorded work',date:'2026-11-24',status:'done',cost:30}];
+    const ic=()=>'',cropEmoji=()=>'',cycleDurationLabel=()=>'',plotCoordinatesHtml=()=>'',plotWeatherCard=()=>'',plotPhotoCard=()=>'',plotWaterZonesCard=()=>'',plotWaterCard=()=>'',taskRowHtml=()=>'',dateLabel=date=>date,lucide={icons:{},createElement:()=>({outerHTML:''})};
+    function render(){rendered=renderPlotDetail();}`);
+  h.run(app.slice(app.indexOf('function renderPlotDetail()'),app.indexOf('App.openPlot =')));
+  h.run('render()');assert.match(h.run('rendered'),/กำลังโหลดประวัติงาน/);
+  h.run(source('js/cycle-notebook.js'));
+  assert.match(h.run('rendered'),/งานที่ทำแล้ว/);assert.match(h.run('rendered'),/Recorded work/);
+  assert.doesNotMatch(h.run('rendered'),/กำลังโหลดประวัติงาน/);assert.equal(h.run('S.tasks[0].cost'),30);
 });

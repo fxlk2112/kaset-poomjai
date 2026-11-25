@@ -1193,15 +1193,16 @@ async function doPhotoPut(env, payload, request) {
   if (!env.PHOTOS) throw new Error("R2 ยังไม่พร้อม — ต้องเปิด R2 และสร้าง bucket farmultimate-photos ก่อน");
   const key = "u/" + u.user_id + "/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "." + ext;
   await env.PHOTOS.put(key, bytes, { httpMetadata: { contentType: ct } });
-  const origin = request ? new URL(request.url).origin : "https://farmbackup.carfork123.workers.dev";
-  return { url: origin + "/photo/" + key, key, size: bytes.length };
+  const requestUrl = new URL(request.url);
+  const photoPrefix = requestUrl.pathname === "/api" || requestUrl.pathname.startsWith("/api/") ? "/api/photo/" : "/photo/";
+  return { url: requestUrl.origin + photoPrefix + key, key, size: bytes.length };
 }
 /* ลบรูป: ต้องเป็นรูปของตัวเองเท่านั้น (prefix u/<userId>/) */
 async function doPhotoDel(env, payload) {
   const u = await authUser(env, payload.token);
   let key = String(payload.key || "");
   if (!key && payload.url) {
-    try { key = decodeURIComponent(new URL(payload.url).pathname.slice("/photo/".length)); } catch (e) {}
+    try { key = decodeURIComponent(new URL(payload.url).pathname.match(/^\/(?:api\/)?photo\/(.+)$/)?.[1] || ""); } catch (e) {}
   }
   if (!key || !key.startsWith("u/" + u.user_id + "/")) throw new Error("ไม่อนุญาต (ไม่ใช่รูปของคุณ)");
   if (env.PHOTOS) await env.PHOTOS.delete(key);
@@ -1214,9 +1215,10 @@ export default {
     /* GET /photo/<key> — เสิร์ฟรูปจาก R2 (อ่านสาธารณะ เพราะ key เดายาก + แชร์/QR ต้องโชว์รูปได้) */
     if (request.method === "GET") {
       const url = new URL(request.url);
-      if (url.pathname.startsWith("/photo/")) {
+      const photoPrefix = url.pathname.startsWith("/api/photo/") ? "/api/photo/" : "/photo/";
+      if (url.pathname.startsWith(photoPrefix)) {
         try {
-          const key = decodeURIComponent(url.pathname.slice("/photo/".length));
+          const key = decodeURIComponent(url.pathname.slice(photoPrefix.length));
           if (!key || key.includes("..")) return new Response("bad key", { status: 400 });
           if (key.startsWith('team-private/')) return new Response('Authentication required', {status:403,headers:{'Cache-Control':'no-store'}});
           if (!env.PHOTOS) return new Response("R2 ยังไม่พร้อม", { status: 503 });

@@ -11,7 +11,7 @@ function harness(){
     document:{getElementById:id=>fields[id]||null,querySelector:()=>null},setTimeout(){},
     trialUnitDescription:(_tr,u)=>u?.name||'sample'});
   const run=s=>vm.runInContext(s,ctx);
-  run(source('js/data.js'));run(source('js/projects.js'));run(source('js/project-workspace.js'));
+  run(source('js/data.js'));run(source('js/projects.js'));run(source('js/project-workspace.js'));run(source('js/project-records.js'));run(source('js/project-report.js'));
   const app=source('js/app.js');
   run(app.slice(app.indexOf('function trialById('),app.indexOf('function trialSamplingNotice(')));
   run(app.slice(app.indexOf('function trialValidDate('),app.indexOf('function trialDateInRange(')));
@@ -21,6 +21,58 @@ function harness(){
   return {run,ctx,fields,storage,quota:v=>{fail=v;}};
 }
 const draft='projectSuggest("ทดลองปุ๋ยข้าวโพด","2026-11-24")';
+test('ordinary plot work with fertilizer or yield does not create experiment setup',()=>{
+  const h=harness();h.run(`const d=projectSuggest('ดูแลแปลง A ใส่ปุ๋ย ตัดหญ้า และเก็บเกี่ยวผลผลิต','');`);
+  assert.equal(h.run('d.kind'),'work');assert.equal(h.run('d.schema.length+d.groups.length'),0);
+  assert.equal(h.run('d.stages.flatMap(s=>s.tasks).map(t=>t.title).join(",")'),'ใส่ปุ๋ย,ตัดหญ้า,เก็บเกี่ยว');
+  assert.equal(h.run(`projectSuggest('ใส่ปุ๋ย ไม่มีการทดลอง','').kind`),'work');
+  assert.equal(h.run(`projectSuggest('พัฒนาเว็บและทดสอบระบบ','').kind`),'software');
+});
+test('simple project creation needs no tasks, trial, samples or actual spending',()=>{
+  const h=harness();h.run(source('js/project-planner.js'));h.run(`const p=projectCreateSimple('ดูแลแปลงนี้','p','c');`);
+  assert.equal(h.run('S.projects.length'),1);assert.equal(h.run('S.tasks.length+S.trials.length'),0);assert.equal(h.run('S.stock[0].qty'),10);
+  assert.equal(h.run('p.plotId+":"+p.cycleId'),'p:c');assert.equal(h.run('projectHasExperiment(p)'),false);
+  assert.throws(()=>h.run(`projectCreateSimple('   ','p','c')`));assert.equal(h.run('S.projects.length'),1);
+});
+test('rewriting an experiment as ordinary work clears hidden sample setup',()=>{
+  const h=harness();h.run(source('js/project-planner.js'));h.fields.pdBriefEdit={value:'ดูแลแปลง ใส่ปุ๋ยและตัดหญ้า'};
+  h.run(`projectDraft=projectSuggest('ทดลองปุ๋ย','');projectDraft.sampleCount=2;App.projectResuggest({preventDefault(){}});const p=projectCreateFromDraft(projectDraft);`);
+  assert.equal(h.run('projectDraft.kind'),'work');assert.equal(h.run('projectDraft.sampleCount'),'');assert.equal(h.run('S.trials.length'),0);assert.equal(h.run('projectHasExperiment(p)'),false);
+});
+test('simple tasks inherit project plot and cycle and remain planned without costs',()=>{
+  const h=harness();h.run(source('js/project-planner.js'));h.run(`const p=projectCreateSimple('ดูแลแปลงนี้','p','c');const t=projectAddSimpleTask(p,'ใส่ปุ๋ย');`);
+  assert.equal(h.run('t.plotId+":"+t.cycleId'),'p:c');assert.equal(h.run('t.status'),'planned');assert.equal(h.run('t.date'),'');
+  assert.equal(h.run('projectCosts(p).cost'),0);assert.equal(h.run('S.stock[0].qty'),10);
+  h.quota(true);assert.equal(h.run(`projectTransaction(()=>projectAddSimpleTask(p,'ตัดหญ้า')).ok`),false);assert.equal(h.run('S.tasks.length'),1);
+});
+test('legacy projects without a kind are ordinary work until an experiment is linked',()=>{
+  const h=harness();h.run(`const p={id:'old',stages:[]};`);assert.equal(h.run('projectHasExperiment(p)'),false);
+  h.run(`p.trialIds=['tr1'];S.trials.push({id:'tr1'});`);assert.equal(h.run('projectHasExperiment(p)'),true);
+});
+test('undated planned work is not overdue and does not produce a due notification',()=>{
+  const h=harness();h.run(`S.tasks=[{id:'u',date:'',status:'planned'},{id:'v',status:'planned'}];`);
+  assert.equal(h.run('taskStatusOf(S.tasks[0])'),'planned');assert.equal(h.run('taskStatusOf(S.tasks[1])'),'planned');
+  assert.equal(h.run('notifList(S).overdue.length+notifList(S).dueToday.length'),0);
+});
+test('ordinary project reports include work and documents without experiment chapters',async()=>{
+  const h=harness();h.run(source('js/project-planner.js'));h.run(`const p=projectCreateSimple('ดูแลแปลงนี้','p','c');const t=projectAddSimpleTask(p,'ตัดหญ้า');t.status='done';t.doneNote='ตัดหญ้าเรียบร้อย';const snap=projectReportSnapshot(p);`);
+  assert.equal(h.run('projectReportOrder(snap).includes("results")'),false);assert.equal(h.run('projectReportTitle(snap,"raw")'),'เอกสารประกอบ');
+  h.ctx.TextEncoder=TextEncoder;h.ctx.Blob=Blob;h.run(source('js/project-docx.js'));const blob=await h.run('projectDocx(snap)'),xml=new TextDecoder().decode(await blob.arrayBuffer());
+  assert.ok(xml.includes('ตัดหญ้าเรียบร้อย'));assert.ok(!xml.includes('ผลการทดลอง'));assert.ok(!xml.includes('ค่าวัด'));
+});
+test('invalid sample setup cannot leave a partial project or consume a code',()=>{
+  const h=harness();assert.throws(()=>h.run(`const invalid=${draft};invalid.sampleCount='201';projectCreateFromDraft(invalid);`));
+  assert.equal(h.run('S.projects.length+S.tasks.length+S.trials.length'),0);
+});
+test('editing report text persists without changing raw data or saved versions',()=>{
+  const h=harness();h.run(`const p=projectCreateFromDraft(${draft});route.projectId=p.id;projectReportChapter='conclusion';App.projectReportText('ข้อสรุปแรก');App.projectSaveReport(p.id);projectReportVersion='';App.projectReportText('ข้อสรุปแก้ไข');`);
+  assert.equal(h.run('p.reportConfig.texts.conclusion'),'ข้อสรุปแก้ไข');assert.equal(h.run('p.reportVersions[0].config.texts.conclusion'),'ข้อสรุปแรก');assert.equal(h.run('p.conclusion'),undefined);
+  h.quota(true);h.run(`App.projectReportText('ไม่ควรบันทึก');`);assert.equal(h.run('projectById(p.id).reportConfig.texts.conclusion'),'ข้อสรุปแก้ไข');
+});
+test('report date scope filters results and record photos without altering source data',()=>{
+  const h=prepared();h.run(`record.rows[0].values[tr.metrics[0].id]='2';projectRecordCommit(p,task,tr,record);p.reportConfig={from:'2099-01-01'};const filtered=projectReportSnapshot(p);`);
+  assert.equal(h.run('filtered.results.length+filtered.records.length'),0);assert.equal(h.run('tr.observations.length'),1);assert.equal(h.run('p.records.length'),1);
+});
 test('drafts create canonical planned activities without stock or actual costs',()=>{
   const h=harness();h.run(`const d=${draft};d.plotId='p';d.cycleId='c';d.stages[0].tasks[0].include=false;const p=projectCreateFromDraft(d);`);
   assert.equal(h.run('S.tasks.length'),6);assert.equal(h.run('S.stock[0].qty'),10);
@@ -87,4 +139,91 @@ test('switching accounts cannot create a project from the previous account draft
 test('closed projects reject trial attachment without altering links',()=>{
   const h=harness();h.run(`const p=projectCreateFromDraft(${draft});p.status='done';S.trials=[{id:'tr'}];App.projectAttachTrial(p.id,'tr');`);
   assert.equal(h.run('p.trialIds.length'),0);
+});
+
+test('four-week brief creates weekly tasks and both metrics without inventing a start date',()=>{
+  const h=harness();h.run(`const d=projectSuggest('ทดลองปุ๋ย A เทียบวิธีเดิม 4 สัปดาห์ วัดความสูงและจำนวนใบทุกสัปดาห์','');`);
+  assert.equal(h.run('d.stages[1].tasks.length'),4);
+  assert.equal(h.run('d.stages[1].tasks[3].title'),'เก็บข้อมูลสัปดาห์ที่ 4');
+  assert.equal(h.run('d.stages.flatMap(s=>s.tasks).every(t=>t.date==="")'),true);
+  assert.equal(h.run('d.schema.map(m=>m.name).join(",")'),'ความสูง,จำนวนใบ');
+  assert.equal(h.run('d.groups[0]'),'ปุ๋ย A');
+  h.run('const p=projectCreateFromDraft(d)');assert.equal(h.run('S.tasks.every(t=>t.date==="")'),true);
+});
+test('weekly scheduling crosses month boundaries and manual dates are preserved',()=>{
+  const h=harness();h.run(source('js/project-planner.js'));
+  h.run(`projectDraft=projectSuggest('ทดลอง 4 สัปดาห์ ความสูง','');projectDraft.stages[1].tasks[1].manualDate=true;projectDraft.stages[1].tasks[1].date='2026-12-04';App.projectDraftStart('2026-11-24');`);
+  assert.equal(h.run('projectDraft.stages[1].tasks[0].date'),'2026-12-01');
+  assert.equal(h.run('projectDraft.stages[1].tasks[1].date'),'2026-12-04');
+  assert.equal(h.run('projectDraft.stages[1].tasks[3].date'),'2026-12-22');
+});
+function prepared(){const h=harness();h.run(`const d=projectSuggest('ทดลองปุ๋ย A เทียบวิธีเดิม 4 สัปดาห์ วัดความสูงและจำนวนใบ','');d.sampleCount=2;const p=projectCreateFromDraft(d),task=projectTaskList(p)[2],tr=projectLinkedTrials(p)[0];const record=projectRecordLoad(p,task,tr);`);return h;}
+test('a failed multi-photo upload leaves no hidden partial evidence in the draft',async()=>{
+  const h=prepared();let reads=0;
+  h.ctx.readTaskPhotoFile=async()=>{if(++reads===2)throw new Error('unreadable image');return 'data:image/jpeg;base64,AA==';};
+  await h.run(`App.projectAddPhotos([{type:'image/jpeg',size:10},{type:'image/jpeg',size:10}])`);
+  assert.equal(reads,2);assert.equal(h.run('record.photos.length'),0);assert.equal(h.run('projectRecordUploading'),false);
+  reads=0;await h.run(`App.projectAddPhotos([{type:'image/jpeg',size:10},{type:'text/plain',size:10}])`);
+  assert.equal(reads,0);assert.equal(h.run('record.photos.length'),0);
+});
+test('project documents validate type and size and remain frozen in report versions',async()=>{
+  const h=prepared();h.run(`p.attachments=[{id:'f1',name:'samples.csv',size:12,data:'data:text/csv;base64,YSxi',caption:'sample readings'}];const snap=projectReportSnapshot(p);p.attachments[0].caption='changed';p.attachments=[];`);
+  assert.equal(h.run('snap.attachments[0].caption'),'sample readings');
+  assert.equal(h.run('projectFileDownloadData(snap.attachments[0])'),'data:application/octet-stream;base64,YSxi');
+  assert.equal(h.run(`projectFileDownloadData({data:'javascript:alert(1)'})`),'');
+  assert.throws(()=>h.run(`projectValidateFiles([],[{name:'run.exe',size:12}])`));
+  assert.throws(()=>h.run(`projectValidateFiles([],[{name:'large.pdf',size:3000000}])`));
+  h.ctx.TextEncoder=TextEncoder;h.ctx.Blob=Blob;h.run(source('js/project-docx.js'));
+  const blob=await h.run('projectDocx(snap)'),xml=new TextDecoder().decode(await blob.arrayBuffer());
+  assert.ok(xml.includes('samples.csv'));assert.ok(xml.includes('sample readings'));assert.ok(!xml.includes('changed'));
+});
+test('one record stores several plants and metrics, preserving missing vs zero and task status',()=>{
+  const h=prepared();h.run(`record.rows[0].values[tr.metrics[0].id]='0';record.rows[0].values[tr.metrics[1].id]='12';record.rows[1].values[tr.metrics[0].id]='37.6';projectRecordCommit(p,task,tr,record);`);
+  assert.equal(h.run('tr.observations.length'),3);assert.equal(h.run('tr.observations[0].value'),0);
+  assert.equal(h.run('task.status'),'planned');assert.equal(h.run('projectCosts(p).cost'),0);
+  assert.equal(h.run('p.records[0].rows[1].values[tr.metrics[1].id]'),'');
+});
+test('record validation is atomic on fractional counts and duplicate dates',()=>{
+  const h=prepared();h.run(`record.rows[0].values[tr.metrics[0].id]='32';record.rows[1].values[tr.metrics[1].id]='3.2';`);
+  assert.throws(()=>h.run('projectRecordCommit(p,task,tr,record)'));
+  assert.equal(h.run('tr.observations.length+p.records.length'),0);
+  h.run(`record.rows[1].values[tr.metrics[1].id]='3';tr.observations.push({id:'other',unitId:record.rows[0].unitId,metricId:tr.metrics[0].id,date:record.date,value:1});`);
+  assert.throws(()=>h.run('projectRecordCommit(p,task,tr,record)'));
+  assert.equal(h.run('tr.observations.length'),1);assert.equal(h.run('p.records.length'),0);
+});
+test('record edit retains prior actor, time, caption, photo linkage and missing-value history',()=>{
+  const h=prepared();h.run(`record.rows[0].values[tr.metrics[0].id]='31';record.photos=[{id:'ph',src:'data:image/png;base64,AA==',caption:'before',unitId:record.rows[0].unitId,includeInReport:true}];record.workNote='measured';const first=projectRecordCommit(p,task,tr,record);record.baseUpdatedAt=first.updatedAt;record.rows[0].values[tr.metrics[0].id]='';record.photos[0].caption='after';projectRecordCommit(p,task,tr,record);`);
+  assert.equal(h.run('tr.observations.length'),0);
+  assert.equal(h.run('p.records[0].revisions[0].rows[0].values[tr.metrics[0].id]'),'31');
+  assert.equal(h.run('p.records[0].revisions[0].photos[0].caption'),'before');
+  assert.ok(h.run('p.records[0].revisions[0].createdBy'));
+});
+test('failed record persistence rolls back trials and project records together, retry is not duplicated',()=>{
+  const h=prepared();h.run(`record.rows[0].values[tr.metrics[0].id]='38.2';`);h.quota(true);
+  h.run(`projectTransaction(()=>projectRecordCommit(projectById(p.id),task,trialById(S,tr.id),record));`);
+  assert.equal(h.run('S.trials[0].observations.length+S.projects[0].records.length'),0);
+  h.quota(false);h.run('App.projectSaveRecord()');assert.equal(h.run('S.trials[0].observations.length'),1);assert.equal(h.run('S.projects[0].records.length'),1);
+  h.run('App.projectSaveRecord()');assert.equal(h.run('S.trials[0].observations.length'),1);
+});
+test('stale drafts cannot overwrite a newer saved record',()=>{
+  const h=prepared();h.run(`record.workNote='first';projectRecordCommit(p,task,tr,record);`);
+  assert.throws(()=>h.run(`projectRecordCommit(p,task,tr,record)`),/ถูกแก้ไข/);
+});
+test('report includes completion evidence and individually selected record photos without duplicate observations',()=>{
+  const h=prepared();h.run(`task.status='done';task.doneNote='completed work';task.note='planned';task.donePhotos=['completion.jpg'];record.rows[0].values[tr.metrics[0].id]='38';record.photos=[{id:'yes',src:'yes.jpg',caption:'keep',unitId:record.rows[0].unitId,includeInReport:true},{id:'no',src:'no.jpg',caption:'exclude',includeInReport:false}];projectRecordCommit(p,task,tr,record);const snap=projectReportSnapshot(p);`);
+  assert.equal(h.run('snap.tasks.find(t=>t.id===task.id).note'),'completed work');
+  assert.equal(h.run('snap.photos.map(ph=>ph.src).join(",")'),'yes.jpg,completion.jpg');
+});
+test('report excludes unlinked historical values unless explicitly included and freezes source edits',()=>{
+  const h=prepared();h.run(`tr.observations.push({id:'legacy',unitId:tr.units[0].id,metricId:tr.metrics[0].id,value:7,date:todayISO()});const first=projectReportSnapshot(p);p.reportConfig={includeUnlinked:true};const second=projectReportSnapshot(p);tr.observations[0].value=100;`);
+  assert.equal(h.run('first.results.length'),0);assert.equal(h.run('second.results[0].value'),7);
+});
+test('reschedule preserves original due date and reason and rolls back on storage failure',()=>{
+  const h=prepared(),src=source('js/app.js');h.ctx.rerender=()=>{};h.run(src.slice(src.indexOf('App.saveTaskDate ='),src.indexOf('/* ปฏิทินงาน')));
+  h.fields.rescheduleDate={value:'2026-12-10'};h.fields.rescheduleReason={value:'rain'};
+  h.run('S.notifDismissed={};task.date="2026-12-09";App.saveTaskDate({preventDefault(){}},task.id)');
+  assert.equal(h.run('task.scheduleHistory[0].oldDate'),'2026-12-09');assert.equal(h.run('p.events[0].reason'),'rain');
+  h.quota(true);h.fields.rescheduleDate.value='2026-12-11';h.run('App.saveTaskDate({preventDefault(){}},task.id)');
+  assert.equal(h.run('S.tasks.find(t=>t.id===task.id).date'),'2026-12-10');
+  assert.equal(h.run('S.projects[0].events.length'),1);
 });

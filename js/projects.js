@@ -4,9 +4,26 @@
 let projectListFilter = "active";
 function projectById(id) { return (S.projects || []).find(p => p.id === id); }
 function projectStageById(p, id) { return (p?.stages || []).find(stage => stage.id === id); }
+function taskNeedsMaterialReview(t) {
+  return ['spray','fertilize'].includes(t.type) || ['chemical','fertilizer'].includes(t.costCat) ||
+    (t.costItems || []).some(item=>['chemical','fertilizer'].includes(item.category));
+}
+function taskCompletionCircleHtml(t,{project=false,locked=false}={}) {
+  const done=t.status==='done',failed=t.status==='failed',disabled=done || failed || locked;
+  const label=(done?'ทำแล้ว: ':failed?'ไม่สำเร็จ: ':locked?'โครงการปิดแล้ว: ':'ทำเสร็จ: ')+t.title;
+  const action='App.'+(project?'projectTaskComplete':'completeTaskFromCircle')+'('+JSON.stringify(t.id)+')';
+  return `<button type="button" class="task-complete-circle${done?' is-done':failed?' is-failed':''}" aria-label="${esc(label)}" title="${esc(label)}" ${disabled?'disabled':`onclick="${esc(action)}"`}><span aria-hidden="true">${done?'✓':failed?'×':''}</span></button>`;
+}
+App.completeTaskFromCircle=function(id) {
+  const task=S.tasks.find(t=>t.id===id);
+  if(!task || ['done','failed'].includes(task.status) || projectById(task.projectId)?.status==='done')return;
+  const notifications=document.getElementById('notifPanel');if(notifications)notifications.hidden=true;
+  if(taskNeedsMaterialReview(task))App.reviewTaskCompletion(id);
+  else App.modalTaskComplete(id);
+};
 function projectTaskList(p, stageId) {
   return (S.tasks || []).filter(t => t.projectId === p.id && (!stageId || t.projectStageId === stageId))
-    .sort((a, b) => (a.status === "planned" ? 0 : 1) - (b.status === "planned" ? 0 : 1) || String(a.date).localeCompare(String(b.date)));
+    .sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999) || String(a.date).localeCompare(String(b.date)));
 }
 function projectCounts(p) {
   const tasks = projectTaskList(p);
@@ -118,7 +135,7 @@ App.projectRemoveStage = function (projectId, stageId) {
 App.projectNewTask = function (projectId, stageId) {
   const p = projectById(projectId); if (!p || !projectStageById(p, stageId)) return;
   if (p.status === "done") { toast("เปิดโครงการอีกครั้งก่อนเพิ่มงาน"); return; }
-  App.modalTask(todayISO(), { projectId, projectStageId: stageId });
+  App.modalTask(todayISO(), { projectId, projectStageId: stageId, plotId:p.plotId || '', cycleId:p.cycleId || '' });
 };
 App.projectLinkModal = function (projectId, stageId) {
   const p = projectById(projectId); if (!p || !projectStageById(p, stageId)) return;
@@ -150,9 +167,70 @@ App.taskProjectChange = function (selectedStage) {
   const select = document.getElementById("t_project"), stageSelect = document.getElementById("t_project_stage"), wrap = document.getElementById("taskProjectStageWrap");
   if (!select || !stageSelect || !wrap) return;
   const p = projectById(select.value);
-  wrap.hidden = !p;
+  wrap.hidden = !p || p.stages.length === 1;
   stageSelect.disabled = !p;
   if (!p) { stageSelect.innerHTML = ""; return; }
   const preferred = selectedStage || stageSelect.value;
   stageSelect.innerHTML = p.stages.map(stage => `<option value="${stage.id}" ${stage.id === preferred ? "selected" : ""}>${esc(stage.name)}</option>`).join("");
+};
+
+// Match every selected plot, so a multi-plot application never inherits the first plot's suggestion.
+function taskProjectMatch(state, project, contexts) {
+  if (!contexts.length || contexts.some(c => !c.plotId)) return '';
+  const scopes = project.plotId || project.cycleId
+    ? [{plotId:project.plotId || state.cycles.find(c => c.id === project.cycleId)?.plotId, cycleId:project.cycleId}]
+    : (state.tasks || []).filter(t => t.projectId === project.id).map(t => ({plotId:t.plotId, cycleId:t.cycleId}));
+  const ranks = contexts.map(c => {
+    if (c.cycleId && c.cycleId !== '__none__' && scopes.some(s => s.plotId === c.plotId && s.cycleId === c.cycleId)) return 2;
+    if (scopes.some(s => s.plotId === c.plotId && (!s.cycleId || s.cycleId === '__none__'))) return 1;
+    return 0;
+  });
+  return ranks.every(Boolean) ? (ranks.every(n => n === 2) ? 'cycle' : 'plot') : '';
+}
+function taskProjectChoices(state, contexts, {selectedId='', contextChanged=false, editingProjectId=''}={}) {
+  const available = (state.projects || []).filter(p => p.status !== 'done' || p.id === editingProjectId);
+  const recommended = available.filter(p => p.status !== 'done').map(project => ({project, match:taskProjectMatch(state,project,contexts)})).filter(row => row.match);
+  recommended.sort((a,b) => (a.match === 'cycle' ? 0 : 1) - (b.match === 'cycle' ? 0 : 1) || a.project.name.localeCompare(b.project.name,'th'));
+  const selected = available.find(p => p.id === selectedId);
+  const cleared = !!selectedId && (!selected || (contextChanged && !taskProjectMatch(state,selected,contexts)));
+  return {recommended, available, selectedId:cleared ? '' : selectedId, cleared};
+}
+App.taskProjectRefresh = function (initialize=false) {
+  const box=document.getElementById('taskProjectSetup'),select=document.getElementById('t_project');
+  if (!box || !select || (!initialize && box.dataset.ready !== 'true')) return;
+  const multiple=typeof TaskWizard !== 'undefined' && TaskWizard.active() && TaskWizard.usesPlots();
+  const contexts=multiple ? TaskWizard.selections().map(r=>({plotId:r.plotId,cycleId:r.cycleId}))
+    : document.getElementById('t_scope_plot')?.checked ? [{plotId:document.getElementById('t_plot')?.value || '',cycleId:document.getElementById('t_cycle')?.value || ''}] : [];
+  const key=JSON.stringify(contexts.slice().sort((a,b)=>a.plotId.localeCompare(b.plotId)));
+  const contextChanged=!initialize && box.dataset.context !== key;
+  const previous=select.value,stage=document.getElementById('t_project_stage')?.value;
+  const editingProjectId=(S.tasks || []).find(t=>t.id === taskEditingId)?.projectId || '';
+  const choices=taskProjectChoices(S,contexts,{selectedId:previous,contextChanged,editingProjectId});
+  if (contextChanged) box.dataset.all='false';
+  box.dataset.context=key;box.dataset.ready='true';
+  const option=p=>`<option value="${esc(p.id)}" ${p.id === choices.selectedId ? 'selected' : ''}>${esc(typeof projectCode === 'function' ? projectCode(p)+' · '+p.name : p.name)}</option>`;
+  let html='<option value="">ไม่อยู่ในโครงการ</option>';
+  for (const [match,label] of [['cycle','ตรงกับแปลงและรอบปลูก'],['plot','โครงการของแปลง (ไม่จำกัดรอบ)']]) {
+    const rows=choices.recommended.filter(r=>r.match === match);
+    if (rows.length) html+=`<optgroup label="${label}">${rows.map(r=>option(r.project)).join('')}</optgroup>`;
+  }
+  const others=choices.available.filter(p=>!choices.recommended.some(r=>r.project.id === p.id));
+  const shown=box.dataset.all === 'true' ? others : others.filter(p=>p.id === choices.selectedId);
+  if (shown.length) html+=`<optgroup label="${box.dataset.all === 'true' ? 'โครงการอื่น' : 'โครงการที่เลือกไว้'}">${shown.map(option).join('')}</optgroup>`;
+  select.innerHTML=html;select.value=choices.selectedId;
+  if (previous !== choices.selectedId) document.getElementById('t_project_stage').value='';
+  App.taskProjectChange(previous === choices.selectedId ? stage : '');
+  const hint=document.getElementById('taskProjectHint');
+  hint.textContent=choices.cleared ? 'แปลงหรือรอบปลูกเปลี่ยนแล้ว เลือกโครงการให้ตรงกับรายการนี้อีกครั้ง'
+    : choices.recommended.length ? `แนะนำ ${choices.recommended.length} โครงการที่เกี่ยวข้อง เลือกได้ก่อนบันทึก`
+    : contexts.some(c=>c.plotId) ? 'ยังไม่มีโครงการที่ตรงกับแปลงและรอบนี้ บันทึกโดยไม่ผูกโครงการได้'
+    : 'เลือกแปลงและรอบปลูก เพื่อดูโครงการที่เกี่ยวข้อง';
+  if (multiple) hint.textContent+=' · โครงการที่เลือกจะใช้กับทุกแปลงในรายการนี้';
+  const toggle=document.getElementById('taskProjectShowAll');
+  toggle.hidden=!others.length;toggle.textContent=box.dataset.all === 'true' ? 'แสดงเฉพาะที่แนะนำ' : 'เลือกโครงการอื่น';
+  toggle.setAttribute('aria-expanded',String(box.dataset.all === 'true'));
+};
+App.taskProjectShowAll = function () {
+  const box=document.getElementById('taskProjectSetup');if (!box) return;
+  box.dataset.all=box.dataset.all === 'true' ? 'false' : 'true';App.taskProjectRefresh();
 };

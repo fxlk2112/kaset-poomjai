@@ -666,6 +666,7 @@ function loadAppMethod(c, name) {
 
 function taskResultClient(type = 'fertilize', status = 'planned') {
   const c = inventoryClient();
+  c.run(source('js/projects.js'));
   c.c.plan(2, {id:'task',type,status});
   if(type==='water') c.state.tasks[0].wateringSessions=[{period:'Morning',status:'done'},{period:'Evening',status:'done'}];
   c.run(`let taskCompleteReturnToDetail=false, taskDonePhotos=[], taskDoneWaterSessions=[], taskFinishSaving=false;
@@ -724,8 +725,9 @@ test('editing a failed result preserves its status, photos and note',async()=>{
   assert.deepEqual(copied(t.donePhotos),['photo.png']);
 });
 
-test('normal completion still offers completion and photo-free completion',()=>{
-  const c=taskResultClient();
+test('normal non-material completion still offers completion and photo-free completion',()=>{
+  const c=taskResultClient('water');
+  c.state.tasks[0].costItems=[];c.state.tasks[0].costCat='labor';
   c.run('App.modalTaskComplete(S.tasks[0].id,false)');
   assert.match(c.c.modalHtml,/App\.finishTask\('[^']+', true\)/);
   assert.match(c.c.modalHtml,/App\.finishTask\('[^']+', false\)/);
@@ -792,12 +794,14 @@ test('home calendar interactions do not expand the planner calendar',()=>{
   assert.equal(c.run('plannerCalendarOpen'),false);
 });
 
-test('rescheduling changes only the date and preserves stock and recorded costs',()=>{
+test('rescheduling records a reason and preserves stock and recorded costs',()=>{
   const c=client();
   c.run('S.tasks=[{id:"task",date:"2026-09-01",status:"planned",cost:750,stockLog:[{stockId:"stock",qty:1}]}];S.stock=[{id:"stock",qty:9}];S.notifDismissed={task:true};');
-  c.c.document.getElementById=id=>id==='rescheduleDate'?{value:'2026-09-08'}:null;
+  c.c.document.getElementById=id=>id==='rescheduleDate'?{value:'2026-09-08'}:id==='rescheduleReason'?{value:'ฝนตก'}:null;
   c.c.closeModal=()=>{};c.c.rerender=()=>{};
   const app=source('js/app.js');
+  c.run(source('js/projects.js'));c.run(source('js/project-workspace.js'));c.run(source('js/project-records.js'));
+  c.run(app.slice(app.indexOf('function trialValidDate('),app.indexOf('function trialDateInRange(')));
   const start=app.indexOf('App.saveTaskDate = function');
   const end=app.indexOf('\n};',start)+3;
   c.run(app.slice(start,end));
@@ -808,4 +812,6 @@ test('rescheduling changes only the date and preserves stock and recorded costs'
   assert.equal(c.state.stock[0].qty,9);
   assert.equal(c.state.tasks[0].stockLog[0].qty,1);
   assert.equal(c.state.notifDismissed.task,undefined);
+  assert.equal(c.state.tasks[0].scheduleHistory[0].oldDate,'2026-09-01');
+  assert.equal(c.state.tasks[0].scheduleHistory[0].reason,'ฝนตก');
 });

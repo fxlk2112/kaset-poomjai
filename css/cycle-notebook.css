@@ -151,3 +151,36 @@ html[data-theme="dark"] .nb-page :is(.nb-material-table th,.nb-material-table tf
 html[data-theme="dark"] .nb-page :is(.nb-task-title,.nb-header p,.nb-material-name){color:var(--text)}
 html[data-theme="dark"] .nb-page .btn-outline{background:var(--card);color:var(--text)}
 @media print{.nb-page .pw-report-document{font-size:12pt}.nb-page .pw-report-document img{max-height:200px;object-fit:contain}}
+
+/* One date-grouped history for both the plot and crop-cycle surfaces. */
+.nb-activity-history{--nb-ink:var(--text,#172725);--nb-muted:var(--muted,#64706f);--nb-line:var(--line,#dbe4e6);--nb-green:var(--green,#00866d);color:var(--nb-ink)}
+.nb-activity-history .nb-history-heading{margin-bottom:14px}.nb-activity-history h2{font-size:22px;margin:0}
+.nb-work-toolbar{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}
+.nb-work-tabs{display:flex;gap:4px;padding:4px;background:var(--bg,#f4f7f6);border:1px solid var(--nb-line);border-radius:8px}
+.nb-work-tabs button{display:flex;align-items:center;justify-content:center;gap:9px;font:inherit;font-weight:600;color:var(--nb-muted);padding:9px 14px;min-height:44px;border:0;background:none;border-radius:5px;cursor:pointer}
+.nb-work-tabs button[aria-pressed="true"]{background:#e1f2ea;color:#006e56}.nb-work-tabs b{font-size:13px;background:var(--card,#fff);padding:1px 7px;border-radius:10px}
+.nb-work-filters{gap:8px}.nb-work-filters select{min-width:0;min-height:40px;font-size:13px}
+.nb-activity-history .nb-work-hint{font-size:13px;color:var(--nb-muted);margin:12px 0 20px;line-height:1.6}
+.nb-work-day+.nb-work-day{margin-top:24px}.nb-work-day h3{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:700;margin:0 0 10px}.nb-work-day h3 small{font-size:12px;font-weight:400;color:var(--nb-muted);margin-left:5px}
+.nb-work-day h3>.ic{width:18px;height:18px;color:var(--nb-green)}
+.nb-work-day-items{border:1px solid var(--nb-line);border-radius:8px;overflow:hidden;background:var(--card,#fff)}
+.nb-work-item{display:flex;align-items:center;min-width:0}.nb-work-item+.nb-work-item{border-top:1px solid var(--nb-line)}
+.nb-work-open{display:flex;align-items:center;gap:14px;flex:1;min-width:0;width:100%;padding:17px 18px;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.nb-work-open:hover{background:var(--bg,#f5faf7)}.nb-work-open:focus-visible,.nb-work-tabs button:focus-visible,.nb-work-filters select:focus-visible{outline:2px solid var(--nb-green);outline-offset:-3px}
+.nb-work-icon{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;background:#eaf5ef;color:#00765e;border-radius:8px;align-self:flex-start}
+.nb-work-icon .ic{width:20px;height:20px}.nb-work-content{display:grid;gap:7px;flex:1;min-width:0}
+.nb-work-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.nb-work-title strong{font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.nb-work-status{display:inline-flex;gap:4px;align-items:center;flex-shrink:0;font-size:11px;font-weight:600;border-radius:14px;padding:3px 9px;background:#edf1f0;color:#51635e}.nb-work-status .ic{width:12px;height:12px}
+.nb-work-done{background:#e0f3ea;color:#087555}.nb-work-failed{background:#fff0ee;color:#aa3831}.nb-work-overdue{background:#fff1dc;color:#9a620b}
+.nb-work-material{font-size:14px;line-height:1.6;overflow-wrap:anywhere}.nb-work-facts{display:flex;align-items:center;gap:8px 18px;flex-wrap:wrap;color:var(--nb-muted);font-size:13px}.nb-work-facts>span{display:inline-flex;gap:5px;align-items:center}.nb-work-facts .ic{width:15px;height:15px}.nb-work-cost{font-weight:600;color:var(--nb-ink)}
+.nb-work-project{display:flex;align-items:baseline;gap:6px;font-size:12px;color:var(--nb-green);overflow-wrap:anywhere}.nb-work-project .ic{width:14px;height:14px;flex-shrink:0}
+.nb-work-detail{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--nb-muted);flex-shrink:0}.nb-work-detail .ic{width:16px;height:16px}
+.nb-work-actions{display:flex;gap:8px;flex-shrink:0;padding:12px 16px 12px 0}.nb-work-actions .btn{min-height:40px;font-size:13px;padding:7px 10px}.nb-work-actions .ic{width:16px;height:16px}
+@media(max-width:1100px){.nb-work-toolbar{align-items:stretch}.nb-work-filters{width:auto;flex-wrap:wrap}.nb-work-filters>select{flex:1}.nb-work-detail{font-size:0;gap:0}.nb-work-item{flex-wrap:wrap}.nb-work-open{flex-basis:100%}.nb-work-actions{padding:0 16px 14px;margin-left:auto}}
+@media(max-width:600px){.nb-activity-history{padding:14px}.nb-work-toolbar{gap:12px}.nb-work-tabs{width:100%}.nb-work-tabs button{flex:1;font-size:14px;padding:8px 7px}.nb-work-filters{width:100%;display:grid;grid-template-columns:1fr 1fr}.nb-work-filters select{width:100%;min-height:44px}.nb-work-filters select:last-child:nth-child(3){grid-column:1/-1}.nb-work-open{padding:14px 12px;gap:10px}.nb-work-icon{width:30px;height:30px;flex-basis:30px}.nb-work-icon .ic{width:17px;height:17px}.nb-work-title{gap:6px}.nb-work-title strong{font-size:15px}.nb-work-material{font-size:13px}.nb-work-facts{font-size:12px;gap:6px 12px}.nb-work-status{font-size:10px}.nb-work-actions .btn{min-height:44px}.nb-work-day+.nb-work-day{margin-top:20px}}
+html[data-theme="dark"] .nb-activity-history{background:var(--card);color:var(--text)}
+html[data-theme="dark"] .nb-work-tabs button[aria-pressed="true"],html[data-theme="dark"] .nb-work-icon{background:#244336;color:#a0e4c6}
+html[data-theme="dark"] .nb-work-done{background:#244336;color:#a0e4c6}html[data-theme="dark"] .nb-work-failed{background:#4a2928;color:#ffb6ae}html[data-theme="dark"] .nb-work-overdue{background:#45381e;color:#f5d18b}
+.nb-work-item{display:grid;grid-template-columns:44px minmax(0,1fr) auto;padding-left:8px;gap:0}
+.nb-work-item>.task-complete-circle{align-self:start;margin-top:15px}.nb-work-open{padding-left:10px}.nb-work-actions{margin:0}
+@media(max-width:700px){.nb-work-item{grid-template-columns:44px minmax(0,1fr);padding-left:4px}.nb-work-item>.task-complete-circle{margin-top:8px}.nb-work-open{padding-left:4px}.nb-work-actions{grid-column:2;justify-self:end;padding:0 12px 10px}.nb-work-actions .btn{min-height:44px}}

@@ -104,6 +104,8 @@ const Concept = {
     if(active==='members')document.getElementById('conceptCrumb').querySelector('strong').textContent='สมาชิกและสิทธิ์';
     this.syncNav();
     const view=document.getElementById('view');
+    document.body.classList.toggle('pw-view',!!view.querySelector('.pw-page'));
+    if(['projectDraft','projectDetail'].includes(route.view))document.getElementById('conceptCrumb').innerHTML+=`${ic('chevron')}<strong>${route.view==='projectDraft'?'ร่างโครงการ':esc(projectById(route.projectId)?projectCode(projectById(route.projectId)):'โครงการ')}</strong>`;
     const notebook=route.view==='cycleDetail' && !!view.querySelector('.nb-page');
     document.body.classList.toggle('nb-view',notebook);
     if(notebook){
@@ -161,8 +163,8 @@ renderHome = function () {
   const dayLabel=thaiDateStr(new Date(today+'T12:00:00'));
   const taskRows=list.slice(0,5).map(t=>{
     const plot=plotById(S,t.plotId),status=taskStatusOf(t),done=t.status==='done';
-    const icon=({water:'droplet',spray:'spray',fertilize:'leaf',inspect:'map'})[t.type]||'calendar';
-    return `<button class="ch-task" onclick="App.viewTask('${t.id}')"><span class="ch-task-icon ${t.type==='water'?'blue':'green'}">${ic(icon)}</span><span class="ch-task-name"><strong>${esc(t.title)}</strong><small>${esc(plot?.name||'งานส่วนกลาง')} · ${TYPE_LABELS[t.type]||'กิจกรรม'}</small></span><span class="ch-task-date">${t.date===today?'วันนี้':dateLabel(t.date)}</span><span class="ch-status ${status==='overdue'?'late':done?'done':''}">${status==='overdue'?'เลยกำหนด':done?'เสร็จแล้ว':t.status==='failed'?'ไม่สำเร็จ':'รอดำเนินการ'}</span>${ic('chevron')}</button>`;
+    const taskLabel=t.title+' · '+(plot?.name||'งานส่วนกลาง');
+    return `<article class="ch-task-row">${taskCompletionCircleHtml({...t,title:taskLabel},{locked:projectById(t.projectId)?.status==='done'})}<button class="ch-task" aria-label="${esc('ดูรายละเอียด: '+taskLabel)}" onclick="${esc('App.viewTask('+JSON.stringify(t.id)+')')}"><span class="ch-task-name"><strong>${esc(t.title)}</strong><small>${esc(plot?.name||'งานส่วนกลาง')} · ${TYPE_LABELS[t.type]||'กิจกรรม'}</small></span><span class="ch-task-date">${t.date===today?'วันนี้':dateLabel(t.date)}</span><span class="ch-status ${status==='overdue'?'late':done?'done':''}">${status==='overdue'?'เลยกำหนด':done?'เสร็จแล้ว':t.status==='failed'?'ไม่สำเร็จ':'รอดำเนินการ'}</span>${ic('chevron')}</button></article>`;
   }).join('');
   const highest=Math.max(1,...plots.flatMap(p=>{const f=taskFinance(S,t=>t.plotId===p.id&&taskRecordDate(t).startsWith(year));return [f.revenue,f.cost];}));
   return `<div class="ch-heading"><div><p class="ch-eyebrow">${esc(T('brandName'))} / ภาพรวม</p><h1>ภาพรวมฟาร์ม</h1><p class="ch-subtitle">${dayLabel} <span class="ch-dot"></span> ${plots.length} แปลงกำลังดูแล</p></div><div class="ch-heading-actions"><button class="btn btn-outline" onclick="Concept.go('calendar')">${ic('calendar')} ปฏิทินงาน</button><button class="btn btn-primary" onclick="App.modalTask('${today}',{status:'done'})">${ic('plus')} บันทึกกิจกรรม</button></div></div>

@@ -1692,7 +1692,7 @@ function restockTask(s, t) {
 function taskStatusOf(t) {
   if (t.status === "done") return "done";
   if (t.status === "failed") return "failed";
-  if (t.date < todayISO()) return "overdue";
+  if (t.date && t.date < todayISO()) return "overdue";
   return "planned";
 }
 /* รายการแจ้งเตือน: งานที่ครบกำหนดวันนี้ + งานที่เลยกำหนด (ยังไม่เสร็จ, ยังไม่กดปิด)
@@ -1702,7 +1702,7 @@ function notifList(s) {
   const dis = s.notifDismissed || {};
   const overdue = [], dueToday = [];
   (s.tasks || []).forEach(t => {
-    if (t.status === "done" || t.status === "failed" || dis[t.id]) return;
+    if (t.status === "done" || t.status === "failed" || dis[t.id] || !t.date) return;
     if (t.date < today) overdue.push(t);
     else if (t.date === today) dueToday.push(t);
   });

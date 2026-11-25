@@ -217,7 +217,7 @@ const Inspection = {
     const heading=document.querySelector('#modalRoot [data-default-title]');
     if(heading)heading.textContent=inspect ? (status==='done'?'บันทึกผลตรวจแปลง':status==='planned'?'วางแผนตรวจแปลง':'บันทึกการตรวจไม่สำเร็จ') : heading.dataset.defaultTitle;
     const submit=document.getElementById('taskSubmitButton');
-    if(submit)submit.textContent=inspect ? (status==='done'?'บันทึกผลตรวจ':status==='planned'?'บันทึกแผนตรวจ':'บันทึกไม่สำเร็จ') : this.taskId ? 'บันทึกการแก้ไข' : status==='planned'?'บันทึกแผนงาน':'บันทึกงานที่ทำแล้ว';
+    if(submit)submit.textContent=document.querySelector('.task-form[data-completion-review="true"]') ? 'ยืนยันและทำเสร็จ' : inspect ? (status==='done'?'บันทึกผลตรวจ':status==='planned'?'บันทึกแผนตรวจ':'บันทึกไม่สำเร็จ') : this.taskId ? 'บันทึกการแก้ไข' : status==='planned'?'บันทึกแผนงาน':'บันทึกงานที่ทำแล้ว';
     const noteLabel=document.querySelector('label[for="t_note"]');
     if(noteLabel)noteLabel.textContent=inspect?'หมายเหตุเพิ่มเติม':'สิ่งที่ต้องทำ / รายละเอียดเพิ่มเติม';
     const options=document.querySelector('.inspection-task-options');if(options && !inspect)options.open=true;

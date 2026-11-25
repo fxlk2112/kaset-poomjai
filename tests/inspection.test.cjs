@@ -9,6 +9,7 @@ const clone=x=>JSON.parse(JSON.stringify(x));
 function client() {
   const c=vm.createContext({console,localStorage:{getItem(){return null;},setItem(){}},document:{getElementById(){return null;},querySelector(){return null;}},App:{}});
   vm.runInContext(read('js/data.js'),c);
+  vm.runInContext(read('js/projects.js'),c);
   vm.runInContext(app.slice(app.indexOf('function esc('),app.indexOf('function toast(')),c);
   vm.runInContext(app.slice(app.indexOf('function trialValidDate('),app.indexOf('function trialDateInRange(')),c);
   vm.runInContext(read('js/inspection.js'),c);

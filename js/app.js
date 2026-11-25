@@ -305,6 +305,7 @@ function taskRowHtml(t, opts) {
   opts = opts || {};
   const done = t.status === "done";
   const st = taskStatusOf(t);
+  const taskLabel=t.title+(opts.showPlot?' · '+(plotById(S,t.plotId)?.name || 'งานส่วนกลาง'):'');
   const meta = [];
   /* แสดงวันที่เสมอ (เป็นไทย พร้อมไอคอนปฏิทิน) — รู้ทันทีว่างานนี้วันไหน */
   if (opts.showDate || opts.alwaysDate) {
@@ -353,8 +354,9 @@ function taskRowHtml(t, opts) {
           ${opts.cycleOptions.map(c => `<option value="${c.id}">${esc(c.plant)}</option>`).join("")}
         </select>` : "";
   return `
-    <div class="task-row task-row-actionable ${done ? "done" : ""} ${st === "failed" ? "failed" : ""}">
-      <button class="task-open grow" onclick="App.viewTask('${t.id}')">
+    <div class="task-row task-row-actionable task-row-circles ${done ? "done" : ""} ${st === "failed" ? "failed" : ""}">
+      ${taskCompletionCircleHtml({...t,title:taskLabel},{locked:projectById(t.projectId)?.status==='done'})}
+      <button class="task-open grow" aria-label="${esc('ดูรายละเอียด: '+taskLabel)}" onclick="${esc('App.viewTask('+JSON.stringify(t.id)+')')}">
         <div class="task-title">${esc(t.title)}</div>
         ${meta.length ? `<div class="muted task-meta">${meta.join(" · ")}</div>` : ""}
         ${taskMaterialsHtml(t, true)}
@@ -362,7 +364,6 @@ function taskRowHtml(t, opts) {
       ${assignSel}
       <div class="task-row-actions">
         ${st !== "done" && st !== "failed" ? `
-          <button class="btn btn-sm btn-outline task-finish" onclick="App.toggleTask('${t.id}')" aria-label="ทำเสร็จ: ${esc(t.title)}">${ic("check")} ทำเสร็จ</button>
           <button class="btn btn-sm btn-ghost task-reschedule" onclick="App.rescheduleTask('${t.id}')" title="เลื่อนวัน" aria-label="เลื่อนวัน: ${esc(t.title)}">${ic("calendar")} <span>เลื่อน</span></button>` : `
           ${statusTag(st)}
           <button class="btn btn-sm btn-ghost icon-action" onclick="App.editTask('${t.id}')" title="แก้ไขกิจกรรม" aria-label="แก้ไข: ${esc(t.title)}">${ic("pencil")}</button>`}
@@ -386,6 +387,8 @@ App.rescheduleTask = function (id) {
     <h3>เลื่อนวันทำงาน</h3><p class="modal-sub">${esc(task.title)}</p>
     <form onsubmit="return App.saveTaskDate(event, '${id}')">
       <div class="field"><label for="rescheduleDate">วันที่ใหม่</label><input id="rescheduleDate" type="date" required value="${task.date < todayISO() ? todayISO() : task.date}"></div>
+      <p class="hint">กำหนดเดิม: ${esc(task.date || 'ยังไม่กำหนดวัน')} · เก็บไว้ในประวัติการปรับแผน</p>
+      <div class="field"><label for="rescheduleReason">เหตุผลและผลกระทบ</label><textarea id="rescheduleReason" rows="3" required placeholder="เช่น ฝนตก เลื่อนเก็บข้อมูล 1 วัน"></textarea></div>
       <div class="modal-actions"><button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button><button class="btn btn-primary" type="submit">บันทึกวันที่</button></div>
     </form>`);
 };
@@ -393,12 +396,19 @@ App.saveTaskDate = function (event, id) {
   event.preventDefault();
   const task = S.tasks.find(t => t.id === id);
   const date = document.getElementById("rescheduleDate").value;
-  if (!task || !date || task.status === "done" || task.status === "failed") return false;
+  const reason=document.getElementById('rescheduleReason')?.value.trim();
+  if (!task || !trialValidDate(date) || !reason || task.status === "done" || task.status === "failed") return false;
+  const result=projectTransaction(()=>{
+  const event={id:uid(),taskId:id,type:'reschedule',oldDate:task.date || '',newDate:date,reason,at:Date.now(),by:projectActor()};
+  task.scheduleHistory=[...(task.scheduleHistory || []),event];
+  const project=projectById(task.projectId);
+  if(project){project.events=project.events || [];project.events.push(event);}
   task.date = date;
   task.manualDate = true;
   task.updatedAt = Date.now();
   delete S.notifDismissed[id];
-  saveState(S);
+  });
+  if(!result.ok)return false;
   closeModal();
   rerender();
   toast("เลื่อนวันทำงานแล้ว");
@@ -3818,14 +3828,11 @@ function renderPlotDetail() {
     <div class="stock-cat-wrap">
       <select class="stock-cat-select" onchange="App.plotTaskFilter(this.value)" aria-label="กรองรอบการปลูก">
         <option value="" ${plotTaskCycle === "" ? "selected" : ""}>ทุกๆ รอบ (${tasks.length})</option>
-        ${cycles.map(c => `<option value="${c.id}" ${plotTaskCycle === c.id ? "selected" : ""}>${esc(c.plant)} (${tasks.filter(t => t.cycleId === c.id).length})</option>`).join("")}
+        ${cycles.map(c => `<option value="${c.id}" ${plotTaskCycle === c.id ? "selected" : ""}>${esc(c.plant)} · รอบ ${esc(c.round || '—')} (${tasks.filter(t => t.cycleId === c.id).length})</option>`).join("")}
         ${noCycleTasks.length ? `<option value="__none__" ${plotTaskCycle === "__none__" ? "selected" : ""}>ไม่มีรอบ (${noCycleTasks.length})</option>` : ""}
       </select>
     </div>
-    <div class="card">
-      ${shownTasks.length === 0 ? `<div class="muted" style="text-align:center;padding:8px">${plotTaskCycle === "__none__" ? "ไม่มีงานที่ยังไม่ผูกกับรอบการปลูก" : (plotTaskCycle ? "ยังไม่มีบันทึกงานในรอบนี้" : "ยังไม่มีบันทึกงาน — กด + เพิ่มกิจกรรม ได้เลย")}</div>` : ""}
-      ${shownTasks.map(t => taskRowHtml(t, { showDate: true, showNote: true, showDelete: true, cycleOptions: cycles })).join("")}
-    </div>`;
+    ${typeof notebookHistoryHtml === 'function' ? notebookHistoryHtml(shownTasks,'plot:'+p.id+':'+plotTaskCycle,{showCycle:true}) : '<p role="status">กำลังโหลดประวัติงาน...</p>'}`;
   const overviewHtml = `
     <section class="plot-current-cycles"><h2>รอบที่กำลังปลูก</h2>${cycles.filter(c=>c.status==='active').map(c=>`<button class="btn btn-outline" onclick="App.openCycle('${c.id}')">${esc(c.plant)} · รอบ ${c.round || '-'} · อายุ ${ageDays(c.startDate)} วัน</button>`).join('') || '<p class="muted">ยังไม่มีรอบที่กำลังปลูก</p>'}</section>
     <section class="plot-recent-work"><h2>งานที่ต้องทำ</h2>${tasks.filter(t=>!['done','failed'].includes(t.status)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3).map(t=>taskRowHtml(t,{showDate:true,showNote:false})).join('') || '<p class="muted">ไม่มีงานที่รอทำ</p>'}<button class="btn btn-ghost btn-sm" onclick="App.plotDetailTab('tasks')">${ic('calendar')} ดูกิจกรรมทั้งหมด</button></section>
@@ -4240,6 +4247,10 @@ App.resetTaskPlanned = function (id) {
 App.modalTaskComplete = function (id, returnToDetail, resultIntent) {
   const t = S.tasks.find(x => x.id === id);
   if (!t) return;
+  if (!['done','failed'].includes(t.status) && resultIntent !== 'failed' && taskNeedsMaterialReview(t)) {
+    App.reviewTaskCompletion(id,returnToDetail);
+    return;
+  }
   if (t.type === 'inspect' && resultIntent !== 'failed' && t.status !== 'failed' && typeof Inspection !== 'undefined') {
     taskEditReturnToDetail = !!returnToDetail;
     App.modalTask(todayISO(), {taskId:id, inspectionCompletion:true});
@@ -8201,7 +8212,7 @@ App.viewTask = function (id) {
   const project = t.projectId ? projectById(t.projectId) : null;
   const st = t.stockId ? stockById(S, t.stockId) : null;
   const rows = [
-    { k: "วันที่", v: `${dateLabel(t.date)} (${t.date})` },
+    { k: "วันที่", v: t.date ? `${dateLabel(t.date)} (${t.date})` : 'ยังไม่กำหนดวัน' },
     ...(t.status === "done" || t.status === "failed" ? [{ k: t.status === "failed" ? "บันทึกผล" : "ทำจริง", v: `${dateLabel(taskDoneDate(t))}${t.doneTime || (t.weatherSnapshot && t.weatherSnapshot.targetTime) ? " " + (t.doneTime || t.weatherSnapshot.targetTime) : ""}` }] : []),
     { k: "บันทึกให้กับ", v: p ? `แปลง ${p.name}` : "งานส่วนกลาง" },
     { k: "รอบการปลูก", v: c ? c.plant : "—" },
@@ -9232,6 +9243,7 @@ App.taskScopeChange = function () {
   const areaInput = document.getElementById("t_material_area");
   if (areaInput?.dataset.ready && areaInput.dataset.plotId !== (plotScope ? plot?.value || "" : "")) App.costAreaSetPlot();
   if (typeof Inspection !== "undefined") Inspection.contextRefresh();
+  App.taskProjectRefresh();
 };
 App.taskScopeToggle = function () {
   const choices = document.getElementById("taskScopeChoices");
@@ -9332,16 +9344,23 @@ App.taskRepeatToggle = function () {
     if (input) input.disabled = !enabled;
   });
 };
+App.reviewTaskCompletion = function (id, returnToDetail=false) {
+  const task=S.tasks.find(t=>t.id===id);
+  if(!task || ['done','failed'].includes(task.status) || projectById(task.projectId)?.status==='done')return;
+  taskEditReturnToDetail=!!returnToDetail;
+  App.modalTask(todayISO(),{taskId:id,completionReview:true});
+};
 App.modalTask = function (date, preset) {
   preset = preset || {};
   const editing = preset.taskId ? S.tasks.find(x => x.id === preset.taskId) : null;
+  const completionReview=!!(preset.completionReview && editing && !['done','failed'].includes(editing.status));
   taskEditingId = editing ? editing.id : "";
   if (!editing) taskEditReturnToDetail = false;
   const type = editing ? editing.type : (preset.type || "work");
   const title = editing ? editing.title : (preset.title || TYPE_LABELS[type] || "กิจกรรม");
-  const d = preset.inspectionCompletion && editing?.status === 'planned' ? todayISO() : editing ? taskRecordDate(editing) : (date || todayISO());
-  const status = preset.inspectionCompletion ? 'done' : editing ? (["done", "failed"].includes(editing.status) ? editing.status : "planned") : (preset.status === "done" ? "done" : "planned");
-  const hasCost = editing ? (editing.cost > 0 || !!editing.stockId || (editing.costItems || []).length > 0) : ["spray", "fertilize", "expense"].includes(type);
+  const d = completionReview || preset.inspectionCompletion && editing?.status === 'planned' ? todayISO() : editing ? taskRecordDate(editing) : (date || todayISO());
+  const status = completionReview || preset.inspectionCompletion ? 'done' : editing ? (["done", "failed"].includes(editing.status) ? editing.status : "planned") : (preset.status === "done" ? "done" : "planned");
+  const hasCost = completionReview || (editing ? (editing.cost > 0 || !!editing.stockId || (editing.costItems || []).length > 0) : ["spray", "fertilize", "expense"].includes(type));
   const hasHarvest = editing ? (editing.revenue > 0 || editing.harvestQty > 0 || !!editing.finishCycle) : type === "harvest";
   const activeCycles = !editing && !preset.plotId && !preset.cycleId && !taskMustBelongToPlot(type)
     ? (S.cycles || []).filter(c => c.status === "active" && S.plots.some(p => p.id === c.plotId && p.status !== "inactive")) : [];
@@ -9357,9 +9376,10 @@ App.modalTask = function (date, preset) {
   taskWaterSessions = editing ? normalizeTaskWaterSessions(editing.wateringSessions) : (type === "water" ? defaultWaterSessionsForPlot(preset.plotId || "") : []);
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
-    <h3 id="taskFormHeading" data-default-title="${editing ? 'แก้ไขกิจกรรม' : esc(preset.title || 'เพิ่มกิจกรรมใหม่')}">${editing ? "แก้ไขกิจกรรม" : (preset.title ? esc(preset.title) : "เพิ่มกิจกรรมใหม่")}</h3>
+    <h3 id="taskFormHeading" data-default-title="${completionReview ? 'ตรวจปริมาณและต้นทุน' : editing ? 'แก้ไขกิจกรรม' : esc(preset.title || 'เพิ่มกิจกรรมใหม่')}">${completionReview ? 'ตรวจปริมาณและต้นทุน' : editing ? "แก้ไขกิจกรรม" : (preset.title ? esc(preset.title) : "เพิ่มกิจกรรมใหม่")}</h3>
     <div class="modal-sub">${editing ? esc(title) : (suggestedCycle ? `บันทึกเข้ารอบ ${esc(suggestedCycle.plant)} · ${esc(plotById(S, suggestedCycle.plotId)?.name || "แปลง")}` : "กิจกรรมในฟาร์ม")}</div>
-    <form class="task-form" onsubmit="return App.submitTask(event, '${editing ? editing.id : ""}')">
+    ${completionReview?'<p class="task-completion-review-note">ตรวจวันที่ ปริมาณที่ใช้จริง และต้นทุนก่อนยืนยัน งานจะเปลี่ยนเป็นทำแล้วเมื่อบันทึก</p>':''}
+    <form class="task-form" ${completionReview?'data-completion-review="true"':''} onsubmit="return App.submitTask(event, '${editing ? editing.id : ""}')">
       <section data-task-step="0">
       ${!editing ? `<div class="task-mode" role="group" aria-label="รูปแบบการบันทึก">
         <button type="button" data-task-mode="planned" aria-pressed="${status === "planned"}" onclick="App.taskModeChange('planned')">${ic("calendar")} วางแผนงาน</button>
@@ -9370,7 +9390,7 @@ App.modalTask = function (date, preset) {
       </select></div>
       <div class="form-row-2">
         <div class="field"><label for="t_date">${status === "planned" ? "กำหนดทำงาน" : "วันที่ทำจริง"} *</label><input id="t_date" type="date" value="${d}" required onchange="Inspection.contextRefresh()" oninput="Inspection.contextRefresh()"></div>
-        <div class="field" ${!editing ? "hidden" : ""}><label for="t_status">สถานะ</label><select id="t_status" onchange="App.taskModeChange(this.value)">
+        <div class="field" ${!editing || completionReview ? "hidden" : ""}><label for="t_status">สถานะ</label><select id="t_status" onchange="App.taskModeChange(this.value)">
           <option value="planned" ${status === "planned" ? "selected" : ""}>วางแผนไว้</option>
           <option value="done" ${status === "done" ? "selected" : ""}>เสร็จสิ้น</option>
           <option value="failed" ${status === "failed" ? "selected" : ""}>ไม่สำเร็จ</option>
@@ -9389,13 +9409,15 @@ App.modalTask = function (date, preset) {
       </fieldset>
       <div class="form-row-2" id="taskPlotCycleFields">
         <div class="field"><label>แปลง</label><select id="t_plot" onchange="App.taskPlotChange()"></select></div>
-        <div class="field"><label>พืช / รอบ</label><select id="t_cycle" disabled onchange="Inspection.contextRefresh()"></select></div>
+        <div class="field"><label>พืช / รอบ</label><select id="t_cycle" disabled onchange="Inspection.contextRefresh();App.taskProjectRefresh()"></select></div>
       </div>
-      ${(S.projects || []).some(p => p.status !== "done" || p.id === editing?.projectId) ? `<details class="task-project-setup" ${(editing?.projectId || preset.projectId) ? "open" : ""}>
-        <summary>${ic("briefcase")} โครงการ (ไม่บังคับ)</summary>
+      <section class="task-project-setup" id="taskProjectSetup" aria-labelledby="taskProjectHeading">
+        <h4 id="taskProjectHeading">${ic("briefcase")} โครงการที่เกี่ยวข้อง <small>(ไม่บังคับ)</small></h4>
+        <p class="hint" id="taskProjectHint" role="status"></p>
         <div class="field"><label for="t_project">รวมงานนี้ในโครงการ</label><select id="t_project" onchange="App.taskProjectChange()"><option value="">ไม่อยู่ในโครงการ</option>${S.projects.filter(p => p.status !== "done" || p.id === editing?.projectId).map(p => `<option value="${p.id}" ${p.id === (editing?.projectId || preset.projectId) ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
         <div class="field" id="taskProjectStageWrap" hidden><label for="t_project_stage">ช่วงงาน</label><select id="t_project_stage" disabled></select></div>
-      </details>` : ""}
+        <button type="button" class="btn btn-ghost btn-sm" id="taskProjectShowAll" aria-controls="t_project" aria-expanded="false" onclick="App.taskProjectShowAll()">เลือกโครงการอื่น</button>
+      </section>
       ${editing && editing.status !== "planned" ? (editing.repeat?.active ? `<p class="task-repeat-edit-note">${ic("refresh")} ${esc(taskRepeatLabel(editing.repeat))} · เปลี่ยนรอบซ้ำที่งานครั้งถัดไป</p>` : "") : `<details class="task-repeat-setup" ${editing?.repeat?.active ? "open" : ""}>
         <summary>${ic("refresh")} ตั้งงานซ้ำ (ไม่บังคับ)</summary>
         <label class="task-repeat-check"><input id="t_repeat" type="checkbox" onchange="App.taskRepeatToggle()" ${editing?.repeat?.active ? "checked" : ""}> สร้างแผนครั้งถัดไปเมื่อบันทึกผลครั้งนี้</label>
@@ -9447,7 +9469,7 @@ App.modalTask = function (date, preset) {
       </section>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
-        <button type="submit" class="btn btn-primary" id="taskSubmitButton">${editing ? "บันทึกการแก้ไข" : (status === "planned" ? "บันทึกแผนงาน" : "บันทึกงานที่ทำแล้ว")}</button>
+        <button type="submit" class="btn btn-primary" id="taskSubmitButton">${completionReview ? "ยืนยันและทำเสร็จ" : editing ? "บันทึกการแก้ไข" : (status === "planned" ? "บันทึกแผนงาน" : "บันทึกงานที่ทำแล้ว")}</button>
       </div>
     </form>`);
   // ตั้งค่ารายการค่าใช้จ่ายเริ่มต้น (จากงานเดิม หรือ 1 รายการว่าง)
@@ -9514,6 +9536,7 @@ App.modalTask = function (date, preset) {
   };
   initTaskPlotCycle();
   App.taskProjectChange(editing?.projectStageId || preset.projectStageId || "");
+  App.taskProjectRefresh(true);
   App.taskScopeAvailability();
   App.costAreaSetPlot(!!editing && (Object.hasOwn(editing, "materialAreaRai") || Number(editing.applicationWork?.areaRai) > 0));
   Inspection.contextRefresh();
@@ -9532,6 +9555,7 @@ App.taskPlotChange = function () {
     cycSel.disabled = true;
     if ((document.getElementById("t_type") || {}).value === "water") App.waterSessionsRender();
     if (typeof Inspection !== 'undefined') Inspection.contextRefresh();
+    App.taskProjectRefresh();
     return;
   }
   const inspect = document.getElementById('t_type')?.value === 'inspect';
@@ -9549,9 +9573,12 @@ App.taskPlotChange = function () {
     App.waterSessionsRender();
   }
   if (typeof Inspection !== 'undefined') Inspection.contextRefresh();
+  App.taskProjectRefresh();
 };
 App.submitTask = function (e, editId, validateOnly) {
   e.preventDefault();
+  const completionReview=!!document.querySelector('.task-form[data-completion-review="true"]');
+  if(completionReview && S.tasks.find(t=>t.id===editId)?.status==='done'){toast('งานนี้บันทึกเสร็จแล้ว');return false;}
   const recordStatus = document.getElementById('t_status')?.value;
   const recordDateInput = document.getElementById('t_date');
   if (['done','failed'].includes(recordStatus) && recordDateInput?.value > todayISO()) {
@@ -9759,7 +9786,7 @@ App.submitTask = function (e, editId, validateOnly) {
     data.doneTime = data.doneTime || currentTimeHHMM();
   }
   let savedTaskId = existing ? existing.id : "";
-  const shouldOpenDoneFlow = data.type !== 'inspect' && data.status === "done" && existing && existing.status !== "done";
+  const shouldOpenDoneFlow = !completionReview && data.type !== 'inspect' && data.status === "done" && existing && existing.status !== "done";
   const doneFlowReturnToDetail = !!taskEditReturnToDetail;
   /* เขียนสรุปการคำนวณ (เช่น ฉีดยา 4 ไร่ × 100 ซีซี/ไร่ = 0.4 ขวด) ลงในบันทึกอัตโนมัติ */
   const calcLines = [];
