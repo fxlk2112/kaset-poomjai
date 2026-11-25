@@ -4,7 +4,14 @@ Date: 2026-11-25, Asia/Bangkok. This is the current readiness record; earlier QA
 
 ## Current result
 
-The local project workflow and application tests pass. The remaining task is a real staging deployment and a two-device walkthrough. The user confirmed on 2026-11-25 that no separate staging site or test account currently exists. **Live cloud synchronization: NOT_TESTED. Deployment: NOT_DEPLOYED.**
+The local project workflow and application tests pass. Feature commit `b132c6114d03756b8c940c30fd69322e04cbcf24` was published to `folk/projects-trials-v1`. The user confirmed on 2026-11-25 that no separate staging site or test account currently exists. **Live cloud synchronization: NOT_TESTED. Deployment: NOT_DEPLOYED (no successful deployment evidence).**
+
+## Publication result and external blockers
+
+- GitHub Actions `npm-check` passed for the published feature commit: [run 45576707306](https://github.com/fxlk2112/kaset-poomjai/actions/runs/45576707306).
+- A separate existing Cloudflare integration also triggered `Workers Builds: flytechfarm` for the feature branch and reported **failure**: [check result](https://github.com/fxlk2112/kaset-poomjai/runs/139076740841). Its API output provides no failure reason or build log. This is separate from the repository's master-only Pages workflow. Further pushes are paused until that external integration is understood; do not retry or change production configuration as part of this handoff.
+- Creating the draft PR through the GitHub connector returned **403 Resource not accessible by integration**. The fallback Edge browser is signed out. The comparison is prepared with base `develop` and head `folk/projects-trials-v1`; **no PR was created**. Prepared description: `qa/online-readiness/pr-body.md`.
+- No production deployment/configuration was manually invoked, and no successful deployment has been observed. Cloudflare runtime state has not been independently inspected.
 
 `projectPreview=1` on loopback intentionally disables authenticated synchronization. It is useful for UI QA but is not evidence of live cloud operation.
 
@@ -46,7 +53,7 @@ Use a dedicated non-production environment with these proposed resource names:
 
 Use a fresh staging database with the repository schemas required by the app. Do not copy production accounts, sessions, farm records, coordinates or credentials. Do not blindly run the optional Google ALTER migration against the fresh schema; it already contains `google_sub`. Leave optional Lark, telemetry and hardware connections unset and output control disabled.
 
-Keep this separate from the production-only deploy workflow. Before creating resources or changing Cloudflare bindings/configuration, obtain the repository-required authorization for that concrete setup. After authorization, verify the active Cloudflare account and resource targets, apply only staging configuration, and record deployed frontend/Worker commit identifiers. No Cloudflare configuration or schema migration has been executed by this follow-up.
+Keep this separate from the production-only deploy workflow and the existing external Workers Builds integration. The staging package must include the actual Pages Function under `functions/api/`; the current production copy command only assembles static assets and must not be assumed to package that proxy. Before creating resources or changing Cloudflare bindings/configuration, obtain the repository-required authorization for that concrete setup. After authorization, verify the active Cloudflare account and resource targets, apply only staging configuration, and record deployed frontend/Worker commit identifiers. No Cloudflare configuration or schema migration has been executed by this follow-up.
 
 ## Live acceptance walkthrough after staging exists
 
@@ -73,8 +80,8 @@ Use one disposable staging account on two separate browser profiles/devices. Use
 - **Branch:** Local `codex/projects-trials-v1`; publication `folk/projects-trials-v1`; target `develop`.
 - **Task / Scope:** Finish project workflow/circle changes, verify synchronization compatibility, fix same-origin evidence routes, package for integration review.
 - **Files changed:** Existing scoped project/activity/notebook modules and CSS, asset wiring, regression tests, QA and handoffs; readiness additions are `worker/src/lark.js`, `tests/project-sync-integration.test.cjs`, this document and `qa/online-readiness/`.
-- **Commit:** See the feature branch/PR for the commit containing this document; earlier uncommitted checkpoints remain historical records.
-- **Validation:** 669/669 tests; relay 9/9; existing desktop/mobile UI QA; source/handler integration and credential-pattern review described above.
-- **Blocked / Risks:** No live staging resources or test account yet; inherited shared baseline needs integration review; 0.9 MB snapshot limit remains.
+- **Commit:** Feature implementation `b132c6114d03756b8c940c30fd69322e04cbcf24`, published. This publication-status update and prepared PR description remain local; no further push after the external build failure.
+- **Validation:** 669/669 tests; relay 9/9; GitHub Actions npm-check passed; existing desktop/mobile UI QA; source/handler integration and credential-pattern review described above. The separate external Workers Build failed with no cause in its check output.
+- **Blocked / Risks:** PR creation requires an authenticated browser; external Worker integration needs inspection before another push; no live staging resources or test account; inherited shared baseline needs integration review; 0.9 MB snapshot limit remains.
 - **Deployment:** **NOT_DEPLOYED**.
-- **Next action:** Approve and provision the separate staging setup above so the real two-device acceptance walkthrough can run.
+- **Next action:** Sign in to GitHub in the prepared browser tab so the draft PR into develop can be created with these blockers documented.
