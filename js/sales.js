@@ -2,6 +2,88 @@
 let saleItems = [];      // รายการขายชั่วคราว: {stockId, name, unit, qty, price}
 let saleQueries = {};    // คำค้นหาสต็อกต่อแถว
 let saleEditingId = "";
+let saleSlipDraft = null;
+function saleSlipSession() { return typeof Auth === 'undefined' ? null : Auth.session; }
+function saleSlipCurrent(draft) {
+  return !!draft && draft === saleSlipDraft && draft.session === saleSlipSession() && draft.form && draft.form.isConnected && draft.form === document.getElementById('saleForm');
+}
+function saleSlipsOf(sale) {
+  try { return cleanSalePaymentSlips(sale?.paymentSlips); } catch (_) { return []; }
+}
+function saleSlipCards(slips, saleId, editable) {
+  return slips.map((slip,i)=>`<div class="sale-slip-card"><button type="button" class="sale-slip-open" onclick="App.saleViewSlip('${saleId}',${i})" aria-label="ดูสลิป ${i+1}">${slip.src ? `<img src="${esc(slip.src)}" alt="สลิป ${i+1}">` : `<span class="sale-slip-icon">${ic('image')}</span>`}<span><b>สลิป ${i+1}</b><small>${esc(slip.name)}</small><small>กดดูรูปใหญ่</small></span></button>${editable ? `<button type="button" class="btn btn-icon btn-ghost" aria-label="นำสลิป ${i+1} ออก" onclick="App.saleRemoveSlip(${i})">${ic('trash')}</button>` : ''}</div>`).join('');
+}
+function saleSlipFormHtml() {
+  return `<section class="sale-slips" aria-labelledby="saleSlipTitle"><div class="sale-slip-heading"><div><h4 id="saleSlipTitle">สลิปชำระเงิน <span class="muted">(ไม่บังคับ)</span></h4><p>แนบได้ 3 รูป · JPG, PNG หรือ WebP ไม่เกิน 5 MB ต่อรูป</p></div><label class="btn btn-outline sale-slip-picker">${ic('plus')} แนบสลิป<input id="saleSlipInput" type="file" accept="image/jpeg,image/png,image/webp" multiple aria-label="แนบสลิปชำระเงิน" onchange="App.saleAddSlips(this.files);this.value=''"></label></div><div id="saleSlipList" class="sale-slip-list"></div><p id="saleSlipStatus" role="status" aria-live="polite">ยังไม่ได้แนบสลิป</p></section>`;
+}
+function saleSlipRefresh(message) {
+  const d=saleSlipDraft;if(!saleSlipCurrent(d))return;
+  document.getElementById('saleSlipList').innerHTML=saleSlipCards(d.slips,'',true);
+  document.getElementById('saleSlipStatus').textContent=message || (d.slips.length ? `แนบแล้ว ${d.slips.length} รูป · จะบันทึกพร้อมรายการขาย` : 'ยังไม่ได้แนบสลิป');
+  document.getElementById('saleSlipInput').disabled=d.busy || d.slips.length>=3;
+  document.getElementById('saleSubmit').disabled=d.busy;
+  document.querySelectorAll('#saleSlipList button').forEach(b=>b.disabled=d.busy);
+}
+App.saleAddSlips = async function(files) {
+  const d=saleSlipDraft, selected=Array.from(files || []);if(!saleSlipCurrent(d) || d.busy || !selected.length)return;
+  if(d.slips.length+selected.length>3){saleSlipRefresh('แนบได้ไม่เกิน 3 รูปต่อรายการขาย');return;}
+  if(selected.some(f=>!['image/jpeg','image/png','image/webp'].includes(f.type) || !f.size || f.size>5*1024*1024)){saleSlipRefresh('ใช้รูป JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB ต่อรูป');return;}
+  d.busy=true;saleSlipRefresh('กำลังเตรียมสลิป…');
+  try {
+    const added=[];
+    for(const file of selected){
+      let src=await downscaleImage(file,1600,0.88);
+      if(!saleSlipCurrent(d))return;
+      let key;
+      if(d.session && !d.session.localPreview && navigator.onLine!==false){
+        const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
+        try{
+          const response=await fetch(AUTH_API,{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({action:'sale_slip_put',token:d.session.token,data:src.split(',')[1],contentType:'image/jpeg'})});
+          const result=await response.json();if(result.ok)key=result.data?.key;
+        }catch(_){}finally{clearTimeout(timer);}
+        if(!saleSlipCurrent(d))return;
+      }
+      if(!key){
+        if(src.length>180000)src=await downscaleImage(file,1280,0.72);
+        if(src.length>180000)throw new Error('รูปนี้ใหญ่เกินสำหรับบันทึกในเครื่อง กรุณาครอบรูปเฉพาะสลิปแล้วลองใหม่');
+      }
+      if(!saleSlipCurrent(d))return;
+      added.push(...cleanSalePaymentSlips([{id:uid(),name:file.name,...(key?{key}:{src})}]));
+    }
+    d.slips.push(...added);d.form.closest('.modal').dataset.dirty='true';
+    d.message=added.some(s=>s.src) ? 'เตรียมสลิปแล้ว · เก็บพร้อมรายการขายในเครื่อง และรอซิงก์เมื่อพร้อม' : 'เตรียมสลิปแล้ว · กดบันทึกรายการขายเพื่อแนบ';
+  }catch(error){d.message=error.message || 'อ่านรูปไม่ได้ กรุณาลองรูปอื่น';}
+  finally{d.busy=false;if(saleSlipCurrent(d))saleSlipRefresh(d.message);}
+};
+App.saleRemoveSlip = function(index) {
+  const d=saleSlipDraft;if(!saleSlipCurrent(d) || d.busy)return;
+  d.slips.splice(index,1);d.form.closest('.modal').dataset.dirty='true';saleSlipRefresh();
+};
+App.saleViewSlip = async function(id,index) {
+  if(typeof Auth!=='undefined' && Auth.shareMode)return;
+  const d=saleSlipDraft, sale=id ? (S.sales || []).find(s=>s.id===id) : null;
+  if(!id && !saleSlipCurrent(d))return;
+  const slip=(id?saleSlipsOf(sale):d.slips)[index];if(!slip)return;
+  const session=saleSlipSession(),modal=document.querySelector('#modalRoot .modal');
+  try{
+    let src=slip.src;
+    if(slip.key){
+      if(!session || session.localPreview)throw new Error('เข้าสู่ระบบออนไลน์เพื่อเปิดสลิปนี้');
+      toast('กำลังเปิดสลิป…');
+      const r=await authCall('sale_slip_get',{token:session.token,key:slip.key});
+      if(!r.ok)throw new Error(r.error || 'เปิดสลิปไม่ได้');src=r.data?.src;
+    }
+    if(session!==saleSlipSession() || modal!==document.querySelector('#modalRoot .modal') || (!id && !saleSlipCurrent(d)))return;
+    if(!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(src || ''))throw new Error('รูปสลิปไม่ถูกต้อง');
+    showTaskLightbox([src],0,()=> '');
+    const img=document.querySelector('#taskLightbox img');if(img)img.alt='สลิปชำระเงิน '+(index+1);
+  }catch(error){if(session===saleSlipSession())toast(error.message);}
+};
+function saleSlipDetailHtml(sale) {
+  if(typeof Auth!=='undefined' && Auth.shareMode)return '';
+  const slips=saleSlipsOf(sale);
+  return `<section class="sale-slips"><h4>สลิปชำระเงิน${slips.length?' · '+slips.length+' รูป':''}</h4>${slips.length?`<div class="sale-slip-list">${saleSlipCards(slips,sale.id,false)}</div>`:'<p class="muted">ยังไม่ได้แนบสลิป</p>'}</section>`;
+}
 const SALE_TEMPLATE_FIELDS = [
   { key: 'layout', label: 'รูปแบบกระดาษ', max: 16, options: [['modern', 'แบบเรียบง่าย'], ['fus', 'แบบตาราง FUS (19 แถว)']] },
   { key: 'brand', label: 'ชื่อร้าน / ฟาร์ม', max: 100 },
@@ -282,12 +364,13 @@ App.modalSale = function (saleId) {
     ? editing.items.map(it => ({ stockId: it.stockId, name: it.name, unit: it.unit, qty: it.qty, price: it.price, priceMode: it.priceMode || salePriceModeOf(stockById(S, it.stockId), it.price) }))
     : [{ stockId: "", name: "", unit: "", qty: 1, price: 0 }];
   saleQueries = {};
+  saleSlipDraft = {slips:saleSlipsOf(editing),session:saleSlipSession(),form:null,busy:false};
   const today = todayISO();
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${ic("dollar")} ${editing ? `แก้ไขใบเสร็จ #${editing.no}` : "ขายสินค้า / ออกใบเสร็จ"}</h3>
     <div class="modal-sub">${editing ? "แก้ไขรายการ — ระบบคืนสต็อกของเดิม แล้วตัดใหม่ตามที่แก้" : "เลือกสินค้า (หลายรายการได้) ระบบตัดสต็อกและออกใบเสร็จรับเงินให้อัตโนมัติ"}</div>
-    <form onsubmit="return App.submitSale(event, '${editing ? editing.id : ""}')">
+    <form id="saleForm" onsubmit="return App.submitSale(event, '${editing ? editing.id : ""}')">
       <div class="form-row-2">
         <div class="field"><label>ชื่อลูกค้า</label><input id="sale_customer" list="saleCustomerList" placeholder="พิมพ์หรือเลือกลูกค้าเดิม..." autocomplete="off" value="${editing ? esc(editing.customer || "") : ""}">
           <datalist id="saleCustomerList">${customerList(S).map(c => `<option value="${esc(c.name)}">`).join("")}</datalist>
@@ -312,11 +395,14 @@ App.modalSale = function (saleId) {
         </div>
       </div>
       <div class="field" id="saleAcctBox" ${editing && editing.payMethod === "transfer" ? "" : "hidden"}><label>เลขบัญชีร้าน (ให้ลูกค้าโอนมา)</label><input id="sale_acct" placeholder="เช่น 123-4-56789-0 (สาขา...)" autocomplete="off" value="${editing ? esc(editing.account || "") : ""}"></div>
+      ${saleSlipFormHtml()}
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
-        <button type="submit" class="btn btn-primary">${ic("check")} ${editing ? "บันทึกการแก้ไข" : "บันทึก + ออกใบเสร็จ"}</button>
+        <button id="saleSubmit" type="submit" class="btn btn-primary">${ic("check")} ${editing ? "บันทึกการแก้ไข" : "บันทึก + ออกใบเสร็จ"}</button>
       </div>
     </form>`);
+  saleSlipDraft.form=document.getElementById('saleForm');
+  saleSlipRefresh();
   App.saleRender();
 };
 /* กดลูกค้าเดิม -> ใส่ชื่อให้อัตโนมัติ */
@@ -333,6 +419,8 @@ App.salePayToggle = function () {
 /* บันทึกการขาย → ตัดสต็อก → เปิดใบเสร็จ (หรือแก้ไขใบเดิม: คืนสต็อกเดิมแล้วตัดใหม่) */
 App.submitSale = function (e, saleId) {
   e.preventDefault();
+  if(!saleSlipCurrent(saleSlipDraft)){toast('กรุณาเปิดฟอร์มขายใหม่');return false;}
+  if(saleSlipDraft.busy){toast('รอเตรียมสลิปให้เสร็จก่อน');return false;}
   const items = saleItems.filter(it => it.stockId && (Number(it.qty) || 0) > 0);
   if (!items.length) { toast("เลือกสินค้าและระบุจำนวนก่อน"); return false; }
   /* เช็คจำนวนเต็ม */
@@ -368,12 +456,21 @@ App.submitSale = function (e, saleId) {
     discount: document.getElementById("sale_discount").value,
     note: document.getElementById("sale_note").value,
     payMethod: (document.querySelector("input[name='sale_pay']:checked") || {}).value,
-    account: document.getElementById("sale_acct").value
+    account: document.getElementById("sale_acct").value,
+    paymentSlips: saleSlipDraft.slips
   };
   let sale;
-  try { sale = editing ? updateSale(S, editing.id, data) : addSale(S, data); }
+  const staged=JSON.parse(JSON.stringify(S));
+  try {
+    if(saleId && !editing)throw new Error('ไม่พบรายการขายเดิม กรุณาเปิดฟอร์มใหม่');
+    sale = editing ? updateSale(staged, editing.id, data) : addSale(staged, data);
+    if(data.paymentSlips.some(s=>s.src) && JSON.stringify(staged).length>900000)throw new Error('ข้อมูลรวมใหญ่เกินสำหรับซิงก์ กรุณาลองแนบสลิปขณะออนไลน์หรือลดขนาดรูป');
+  }
   catch (err) { toast(err.message); return false; }
-  saveState(S);
+  try{saveState(staged);}catch(error){toast('บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง');return false;}
+  if(storageSaveFailed){toast('บันทึกไม่สำเร็จ พื้นที่ในเครื่องไม่พอ · สลิปยังอยู่ในฟอร์ม');return false;}
+  S.stock=staged.stock;S.sales=staged.sales;S.saleSequence=staged.saleSequence;
+  saleSlipDraft=null;
   closeModal();
   render();
   toast(editing ? "บันทึกการแก้ไขใบเสร็จแล้ว · ปรับสต็อกแล้ว" : "บันทึกการขายแล้ว");
@@ -550,6 +647,7 @@ App.viewSale = function (id) {
     <h3>${ic('box')} ${esc(saleTemplate().title)} เลขที่ ${esc(String(sale.no))}</h3>
     <div class="sale-template-toolbar"><button class="btn btn-outline btn-sm" onclick="App.editSaleTemplate('${sale.id}')">${ic('pencil')} ปรับแบบเอกสาร</button></div>
     <div class="receipt-scroll" tabindex="0" role="region" aria-label="ใบสินค้า">${saleReceiptHtml(sale)}</div>
+    ${saleSlipDetailHtml(sale)}
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="App.closeModal()">ปิด</button>
       <button class="btn btn-primary" onclick="App.shareSaleSummary('${sale.id}')">${ic("share")} แชร์</button>

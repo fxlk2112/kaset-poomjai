@@ -1497,7 +1497,19 @@ function restockSaleItems(s, items) {
 function lastSaleNumber(s) {
   return (s.sales || []).reduce((max, sale) => Math.max(max, Number(sale.no) || 0), Number(s.saleSequence) || 0);
 }
+function cleanSalePaymentSlips(raw = []) {
+  if (!Array.isArray(raw) || raw.length > 3) throw new Error('แนบสลิปได้ไม่เกิน 3 รูปต่อรายการขาย');
+  return raw.map(slip => {
+    if (!slip || typeof slip !== 'object') throw new Error('ข้อมูลสลิปไม่ถูกต้อง');
+    const out = {id: String(slip.id || uid()).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80), name: String(slip.name || 'สลิปชำระเงิน').slice(0, 120)};
+    if (typeof slip.key === 'string' && /^sale-private\/[a-zA-Z0-9_-]+\/[a-f0-9-]{36}\.(jpg|png|webp)$/.test(slip.key)) out.key = slip.key;
+    else if (typeof slip.src === 'string' && slip.src.length <= 180000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(slip.src)) out.src = slip.src;
+    else throw new Error('สลิปไม่ถูกต้องหรือรูปใหญ่เกิน กรุณาแนบรูปใหม่');
+    return out;
+  });
+}
 function addSale(s, data) {
+  const paymentSlips = cleanSalePaymentSlips(data.paymentSlips);
   const items = buildSaleItems(s, data);
   const sale = {
     id: uid(),
@@ -1509,6 +1521,7 @@ function addSale(s, data) {
     note: String(data.note || "").trim(),
     payMethod: data.payMethod === "transfer" ? "transfer" : "cash",
     account: String(data.account || "").trim(),
+    paymentSlips,
     createdAt: Date.now()
   };
   deductSaleItems(s, items);
@@ -1521,6 +1534,7 @@ function addSale(s, data) {
 function updateSale(s, saleId, data) {
   const sale = (s.sales || []).find(x => x.id === saleId);
   if (!sale || sale.status === "void") throw new Error("ใบเสร็จนี้ไม่มีอยู่หรือยกเลิกแล้ว");
+  const paymentSlips = cleanSalePaymentSlips(data.paymentSlips === undefined ? sale.paymentSlips : data.paymentSlips);
   /* 1) คืนสต็อกของรายการเดิม */
   const staged = { ...s, stock: s.stock.map(x => ({ ...x })) };
   restockSaleItems(staged, sale.items);
@@ -1536,6 +1550,7 @@ function updateSale(s, saleId, data) {
   sale.note = String(data.note || "").trim();
   sale.payMethod = data.payMethod === "transfer" ? "transfer" : "cash";
   sale.account = String(data.account || "").trim();
+  sale.paymentSlips = paymentSlips;
   sale.updatedAt = Date.now();
   return sale;
 }

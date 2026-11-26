@@ -44,6 +44,14 @@
 
 ## Ownership and Locks
 
+### Active task: SALES-SLIPS-20261126
+
+- Owner: Codex for Folk, user-requested sales payment-slip attachments.
+- Branch: `codex/sales-payment-slips`; source `eb40888` (current app/project baseline, descendant of `origin/develop` at `40721b5`). Preserve pending project integration; no old-UI replacement.
+- Scope / lock: `js/sales.js`, sales evidence module/styles, sales data contract in `js/data.js`, private slip endpoints in `worker/src/lark.js`, scoped sales-list indicator in `js/workspace.js`, asset wiring in `index.html` / `sw.js`, tests and synthetic QA/handoff. SUCHA retains shared integration review.
+- Prior project implementation is committed; this task takes the same owner's local shared-file lock for the sales follow-up only. No other owner's active lock is present.
+- Status: LOCAL_COMPLETE; `npm run check` passed 676/676 with relay validation 9/9. Browser upload/save/reload/open/cancel verified with synthetic evidence; desktop 1440 x 940 and mobile 390 x 844 screenshots in `qa/sales-slips/`. Preserve DATA_ONLY / SAFE_OFF and same-origin API. External Workers Build remains unresolved: no remote push/configuration/deployment in this task. Handoff: `qa/sales-slips/README.md`.
+
 ### Active task: PROJECTS-TRIALS-20261124
 
 - Owner: Codex for Folk, explicitly requested in the current chat on 2026-11-24.

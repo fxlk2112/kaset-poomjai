@@ -1177,6 +1177,32 @@ async function doLoad(env, p) {
   return { data: parsed, updated_at: d.updated_at };
 }
 
+/* Payment evidence is owner-authenticated and never served by the public photo route. */
+async function saleSlipAction(env, p) {
+  const u = await authUser(env, p.token);
+  if (!env.PHOTOS) throw new Error('พื้นที่เก็บสลิปยังไม่พร้อม');
+  const prefix = 'sale-private/' + u.user_id + '/';
+  if (p.action === 'sale_slip_put') {
+    const ct = p.contentType, b64 = p.data;
+    if (!['image/jpeg','image/png','image/webp'].includes(ct) || typeof b64 !== 'string' || b64.length > 2000000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) throw new Error('รูปสลิปไม่ถูกต้องหรือใหญ่เกิน');
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const signature = ct === 'image/jpeg' ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 : ct === 'image/png' ? [137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v) : String.fromCharCode(...bytes.slice(0,4)) === 'RIFF' && String.fromCharCode(...bytes.slice(8,12)) === 'WEBP';
+    if (!signature) throw new Error('ไฟล์นี้ไม่ใช่รูปสลิปที่รองรับ');
+    const ext = ct === 'image/jpeg' ? 'jpg' : ct === 'image/png' ? 'png' : 'webp';
+    const key = prefix + crypto.randomUUID() + '.' + ext;
+    await env.PHOTOS.put(key, bytes, {httpMetadata:{contentType:ct}});
+    return {key};
+  }
+  const key = String(p.key || '');
+  if (!key.startsWith(prefix) || !/^[a-f0-9-]{36}\.(jpg|png|webp)$/.test(key.slice(prefix.length))) throw new Error('ไม่มีสิทธิ์ดูสลิปนี้');
+  const obj = await env.PHOTOS.get(key);
+  if (!obj || obj.size > 1500000) throw new Error('ไม่พบสลิป');
+  const bytes = new Uint8Array(await obj.arrayBuffer());
+  if (bytes.length > 1500000) throw new Error('รูปสลิปใหญ่เกิน');
+  let binary = '';for (let i=0;i<bytes.length;i+=8192) binary += String.fromCharCode(...bytes.slice(i,i+8192));
+  return {src:'data:' + obj.httpMetadata.contentType + ';base64,' + btoa(binary)};
+}
+
 /* ---------- รูปภาพ (R2) ---------- */
 /* อัปโหลดรูป: base64 (ไม่มี prefix data:) — จำกัดขนาด ~2MB base64 ≈ 1.5MB ไบต์จริง
    key = u/<userId>/<timestamp>-<rand>.jpg — แยกตามเจ้าของ เดายาก */
@@ -1220,7 +1246,7 @@ export default {
         try {
           const key = decodeURIComponent(url.pathname.slice(photoPrefix.length));
           if (!key || key.includes("..")) return new Response("bad key", { status: 400 });
-          if (key.startsWith('team-private/')) return new Response('Authentication required', {status:403,headers:{'Cache-Control':'no-store'}});
+          if (key.startsWith('team-private/') || key.startsWith('sale-private/')) return new Response('Authentication required', {status:403,headers:{'Cache-Control':'no-store'}});
           if (!env.PHOTOS) return new Response("R2 ยังไม่พร้อม", { status: 503 });
           const obj = await env.PHOTOS.get(key);
           if (!obj) return new Response("ไม่พบรูป", { status: 404 });
@@ -1286,6 +1312,12 @@ export default {
       else if (payload.action === "share_comment") data = await doShareComment(env, request, payload);
       else if (payload.action === "photo_put") data = await doPhotoPut(env, payload, request);
       else if (payload.action === "photo_del") data = await doPhotoDel(env, payload);
+      else if (['sale_slip_put','sale_slip_get'].includes(payload.action)) {
+        data = await saleSlipAction(env, payload);
+        const response = json({ok:true,data}, 200, request, env);
+        response.headers.set('Cache-Control', 'no-store');
+        return response;
+      }
       else throw new Error("ไม่รู้จัก action: " + payload.action);
       return json({ ok: true, data }, 200, request, env);
     } catch (e) {
