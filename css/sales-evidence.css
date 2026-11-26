@@ -1,0 +1,20 @@
+.sale-slips { margin:18px 0 4px; padding:16px; border:1px solid var(--card-border); border-radius:12px; background:var(--bg); }
+.sale-slips h4 { margin:0; font-size:.94rem; }
+.sale-slips p { margin:6px 0 0; font-size:.78rem; color:var(--muted); }
+.sale-slip-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.sale-slip-picker { position:relative; overflow:hidden; min-height:44px; flex-shrink:0; }
+.sale-slip-picker input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+.sale-slip-picker:focus-within { outline:2px solid var(--green); outline-offset:3px; }
+.sale-slip-picker:has(input:disabled) { opacity:.5; }
+.sale-slip-list { display:grid; gap:8px; margin-top:12px; }
+.sale-slip-list:empty { margin:0; }
+.sale-slip-card { display:flex; align-items:center; gap:8px; border:1px solid var(--card-border); border-radius:10px; padding:8px; background:var(--card); min-width:0; }
+.sale-slip-open { flex:1; min-width:0; display:flex; align-items:center; gap:12px; background:none; border:0; padding:0; color:var(--text); font:inherit; text-align:left; cursor:pointer; min-height:64px; }
+.sale-slip-open img,.sale-slip-icon { width:56px; height:68px; flex-shrink:0; object-fit:contain; border-radius:6px; background:var(--green-soft); }
+.sale-slip-icon { display:grid; place-items:center; color:var(--green-dark); }
+.sale-slip-open span:not(.sale-slip-icon) { display:grid; min-width:0; gap:3px; }
+.sale-slip-open b { font-size:.85rem; }
+.sale-slip-open small { font-size:.75rem; color:var(--muted); overflow-wrap:anywhere; }
+.sale-slip-card .btn { width:44px; min-width:44px; min-height:44px; }
+.sale-slip-badge { color:var(--green-dark); }
+@media(max-width:520px) { .sale-slips { padding:12px; } .sale-slip-heading { align-items:flex-start; } }
