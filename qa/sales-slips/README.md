@@ -18,3 +18,16 @@ Run `node qa/sales-slips/serve-audit.mjs` and open `http://127.0.0.1:4181/?proje
 The helper reuses the existing allowlisted, loopback-only project preview with an isolated origin and starts on Sales. It rejects API requests and seeds synthetic records only when the preview slot is empty. It does not touch the user's preview on port 4178.
 
 `sample-slip.png` is clearly marked TEST ONLY / NOT A PAYMENT and contains no bank details. Screenshots contain synthetic records only. The local `check.log` is ignored by Git.
+
+## Publication checkpoint — 2026-11-26
+
+- Owner: Codex for Folk; production approval remains with Pick.
+- Branch: local `codex/sales-payment-slips`; published `folk/sales-payment-slips`.
+- Task / Scope: User explicitly requested `gitpush deploy` after reviewing the Pages/Worker/API-binding release proposal.
+- Files changed: This checkpoint and `COLLAB_STATUS.md` only; feature code is unchanged.
+- Commit: Published feature `845ea5bc2181bffe7b6f8b4935cdde98e3bcffb8`; this checkpoint is local only.
+- Validation: GitHub npm-check passed for the exact feature head, run https://github.com/fxlk2112/kaset-poomjai/actions/runs/45735939839. Local Worker dry-run and Pages Function compilation passed. Existing 676-test and desktop/mobile evidence remains applicable.
+- Integration: Draft PR https://github.com/fxlk2112/kaset-poomjai/pull/18 targets `develop`; no merge or protected-branch push occurred. The GitHub connector returned 403 for PR creation; authenticated GitHub CLI successfully created the draft.
+- Blocked / Risks: Automatic approval review rejected `wrangler deploy --config worker/wrangler.toml --keep-vars` to production because the repository-required explicit `APPROVE_PRODUCTION_DEPLOY` confirmation was missing. The command did not run. No indirect deployment was attempted. Independent `Workers Builds: flytechfarm` failed again after the feature push, separate from passing npm-check. Pages production still requires `FARMULTIMATE_API` to `farmbackup`; that configuration was prepared locally only. Authenticated live synchronization is NOT_TESTED.
+- Deployment: **NOT_DEPLOYED**.
+- Next action: Obtain Pick's explicit `APPROVE_PRODUCTION_DEPLOY` for feature commit `845ea5b`, the existing Pages/Worker targets, and the necessary service binding.
