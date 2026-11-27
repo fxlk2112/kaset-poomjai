@@ -11,6 +11,15 @@ function projectOffsetDate(date,days) { const d=new Date(date+'T12:00:00');d.set
 function projectCode(p) { return p.code || `PRJ-${new Date(p.createdAt || Date.now()).getFullYear()+543}-${String(p.id).slice(-6).toUpperCase()}`; }
 function projectLinkedTrials(p) { return (S.trials || []).filter(tr => (p.trialIds || []).includes(tr.id)); }
 function projectHasExperiment(p) { return p.kind==='experiment' || projectLinkedTrials(p).length>0; }
+function projectTaskRecordKind(task,p) {
+  if(['work','measurement'].includes(task?.recordKind))return task.recordKind;
+  const title=(task?.title || '').trim();
+  // Legacy template tasks are classified without rewriting their data or observations.
+  if(/^(ยืนยัน|กำหนด|ตรวจความครบถ้วน|สรุปผล|รวมข้อมูล)/.test(title))return 'work';
+  if(/^(บันทึกค่าก่อนเริ่ม|เก็บค่าวัด|เก็บข้อมูลสัปดาห์ที่|วัด(?:ความสูง|จำนวนใบ|น้ำหนัก|ความหวาน))/.test(title))return 'measurement';
+  const recorded=p && (projectLinkedTrials(p).some(tr=>(tr.observations || []).some(o=>o.projectTaskId===task?.id)) || (p.records || []).some(r=>r.taskId===task?.id && (r.rows || []).some(row=>Object.values(row.values || {}).some(v=>v!=='' && v!=null))));
+  return recorded?'measurement':'work';
+}
 function projectCosts(p) { const ids = new Set(projectTaskList(p).map(t => t.id)); return taskFinance(S,t => ids.has(t.id)); }
 function projectDraftKey() { return 'farmult-project-draft-v1'+(typeof AUTH_NAMESPACE==='string'?AUTH_NAMESPACE:'')+'::'+String(typeof Auth !== 'undefined' ? Auth.session?.email || 'local' : 'local').toLowerCase(); }
 function projectStoreDraft() {
@@ -69,7 +78,7 @@ function projectSuggest(brief, date, mode) {
   const name=brief.split(/[\n。]/)[0].replace(/\s*(?:ติดตาม\s*)?\d+\s*สัปดาห์[\s\S]*/, '').slice(0,100);
   const groupA=brief.match(/(?:ทดลอง|ทดสอบ)\s*(.+?)\s*(?:เทียบ|เปรียบเทียบ)/)?.[1]?.trim() || 'กลุ่มทดลอง';
   return {version:1,brief,name,objective:experiment?'เปรียบเทียบการเจริญเติบโตระหว่างสองวิธี':'',plotId:'',cycleId:'',startDate:date || '',kind:experiment?'experiment':drone?'survey':software?'software':'work',schema,groups:experiment?[groupA,'วิธีเดิม']:[],sampleCount:'',assignee:'',
-    stages:stages.map(([name,titles],i)=>({id:uid(),name,tasks:titles.map((title,j)=>{const offset=experiment && weeks?(i===1?(j+1)*7:i===2?weeks*7:0):0;return {id:uid(),title,date:date?projectOffsetDate(date,offset):'',offset,assignee:'',include:true};})}))};
+    stages:stages.map(([name,titles],i)=>({id:uid(),name,tasks:titles.map((title,j)=>{const offset=experiment && weeks?(i===1?(j+1)*7:i===2?weeks*7:0):0;return {id:uid(),title,date:date?projectOffsetDate(date,offset):'',offset,assignee:'',include:true,...(experiment?{recordKind:projectTaskRecordKind({title})}:{})};})}))};
 }
 function projectCreateFromDraft(draft,{allowEmpty=false}={}) {
   if(typeof projectValidateProposal==='function')projectValidateProposal(draft);
@@ -90,7 +99,7 @@ function projectCreateFromDraft(draft,{allowEmpty=false}={}) {
     kind:draft.kind || 'work',startDate:draft.startDate,endDate:draft.endDate || '',assignee:draft.assignee || '',proposal:draft.proposal?JSON.parse(JSON.stringify(draft.proposal)):undefined,plotId:draft.plotId,cycleId:draft.cycleId,status:'active',createdAt:Date.now(),trialIds:[],reportVersions:[],
     measurementSchema:JSON.parse(JSON.stringify(draft.schema || [])),groups:(draft.groups || []).filter(Boolean),records:[],events:[],
     stages:draft.stages.map(({id,name})=>({id,name:name.trim()}))};
-  const tasks=selected.map(({stage,task},order)=>({id:uid(),title:task.title.trim(),date:task.date,time:task.time || '',type:task.type || 'work',status:'planned',order,assignee:task.assignee || draft.assignee || '',
+  const tasks=selected.map(({stage,task},order)=>({id:uid(),title:task.title.trim(),date:task.date,time:task.time || '',type:task.type || 'work',...(draft.kind==='experiment'?{recordKind:projectTaskRecordKind(task)}:{}),status:'planned',order,assignee:task.assignee || draft.assignee || '',
     plotId:draft.plotId || null,cycleId:draft.cycleId || null,projectId:p.id,projectStageId:stage.id,
     cost:0,revenue:0,costItems:[],photos:[],note:'',createdAt:Date.now(),source:'project-draft'}));
   S.projectSequences={...(S.projectSequences || {}),[year]:n};

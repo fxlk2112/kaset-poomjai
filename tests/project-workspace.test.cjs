@@ -21,6 +21,35 @@ function harness(){
   return {run,ctx,fields,storage,quota:v=>{fail=v;}};
 }
 const draft='projectSuggest("ทดลองปุ๋ยข้าวโพด","2026-11-24")';
+test('experimental projects distinguish preparation, measurement and summary tasks',()=>{
+  const h=harness();h.run(`const d=${draft};const p=projectCreateFromDraft(d);`);
+  assert.equal(h.run("projectTaskList(p).map(t=>t.recordKind).join(',')"),'work,work,measurement,work,measurement,work,work');
+  h.run("const weekly=projectSuggest('ทดลอง 4 สัปดาห์ วัดความสูง','');");
+  assert.equal(h.run("weekly.stages.flatMap(s=>s.tasks).filter(t=>t.recordKind==='measurement').length"),5);
+});
+test('legacy preparation remains work while existing custom observations stay accessible',()=>{
+  const h=harness();h.run(`const p=projectCreateFromDraft(${draft});p.groups=['A'];p.measurementSchema=[{id:'height',name:'ความสูง',unit:'ซม.'}];const tr=projectSetupSamples(p,1),task=projectTaskList(p)[0];delete task.recordKind;tr.observations=[{id:'old',projectTaskId:task.id,value:12}];const before=JSON.stringify(tr.observations);`);
+  assert.equal(h.run('projectTaskRecordKind(task,p)'),'work');
+  h.run("task.title='งานเดิมที่ตั้งชื่อเอง';");assert.equal(h.run('projectTaskRecordKind(task,p)'),'measurement');
+  assert.equal(h.run('JSON.stringify(tr.observations)===before'),true);
+  h.run("task.recordKind='work';");assert.equal(h.run('projectTaskRecordKind(task,p)'),'work');
+});
+test('preparation renders work evidence instead of plant-value inputs, baseline renders values',()=>{
+  const h=harness();h.run(`const p=projectCreateFromDraft(${draft});p.groups=['A'];p.measurementSchema=[{id:'height',name:'ความสูง',unit:'ซม.'}];projectSetupSamples(p,1);projectTaskTree=()=>'<aside></aside>';pwIcon=()=>'';trialPhotosHtml=()=>'';projectSelectedTask=projectTaskList(p)[0].id;`);
+  h.ctx.esc=String;h.ctx.dateLabel=String;const prep=h.run('projectWorkHtml(p)');assert.match(prep,/บันทึกการทำงาน/);assert.match(prep,/ดูวัตถุประสงค์และแผนโครงการ/);assert.doesNotMatch(prep,/pw-measure-table|projectRowCount|projectSaveRecord/);
+  h.run('projectSelectedTask=projectTaskList(p)[2].id;');const baseline=h.run('projectWorkHtml(p)');assert.match(baseline,/pw-measure-table/);assert.match(baseline,/ความสูง/);assert.match(baseline,/บันทึกผล/);
+});
+test('measurement commit rejects work tasks without writing results or changing costs',()=>{
+  const h=prepared();h.run("task.recordKind='work';record.rows[0].values[tr.metrics[0].id]='12';const before=JSON.stringify({records:p.records,observations:tr.observations,tasks:S.tasks});");
+  assert.throws(()=>h.run('projectRecordCommit(p,task,tr,record)'),/งานนี้ใช้บันทึกการทำงาน/);
+  assert.equal(h.run('JSON.stringify({records:p.records,observations:tr.observations,tasks:S.tasks})===before'),true);
+});
+test('switching task record kind preserves historical data and saved reports',()=>{
+  const h=prepared();h.run("record.rows[0].values[tr.metrics[0].id]='12';projectRecordCommit(p,task,tr,record);p.reportVersions=[projectReportSnapshot(p)];route.projectId=p.id;const before=JSON.stringify({records:p.records,observations:tr.observations,versions:p.reportVersions,cost:projectCosts(p)});App.projectSetRecordKind(task.id,'work');");
+  assert.equal(h.run('task.recordKind'),'work');assert.equal(h.run('JSON.stringify({records:p.records,observations:tr.observations,versions:p.reportVersions,cost:projectCosts(p)})===before'),true);
+  h.run("App.projectSetRecordKind(task.id,'measurement');task.title='ชื่อใหม่';");assert.equal(h.run('projectTaskRecordKind(task,p)'),'measurement');
+  h.run("p.status='done';App.projectSetRecordKind(task.id,'work');");assert.equal(h.run('task.recordKind'),'measurement');
+});
 test('ordinary plot work with fertilizer or yield does not create experiment setup',()=>{
   const h=harness();h.run(`const d=projectSuggest('ดูแลแปลง A ใส่ปุ๋ย ตัดหญ้า และเก็บเกี่ยวผลผลิต','');`);
   assert.equal(h.run('d.kind'),'work');assert.equal(h.run('d.schema.length+d.groups.length'),0);

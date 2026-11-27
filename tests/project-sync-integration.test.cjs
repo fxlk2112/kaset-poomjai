@@ -75,6 +75,7 @@ function createProject(c){
     const task=addTask(S,{title:'Synthetic material work',type:'spray',status:'done',date:todayISO(),doneDate:todayISO(),plotId:'plot',cycleId:'cycle',projectId:p.id,projectStageId:p.stages[0].id,
       costItems:[{category:'chemical',stockId:'stock',name:'Synthetic material',qty:0.5,unit:'bottle',stockMode:'open',unitCost:180,totalCost:90}]});
     p.groups=['Synthetic group'];p.measurementSchema=[{id:'height',name:'Height',unit:'cm',kind:'number'}];
+    task.recordKind='measurement';
     const trial=projectSetupSamples(p,1),record=projectRecordLoad(p,task,trial);
     record.rows[0].values.height='12.5';
     record.photos=[{id:'photo',unitId:trial.units[0].id,src:'data:image/png;base64,cGhvdG8=',caption:'Synthetic evidence'}];

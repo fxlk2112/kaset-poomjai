@@ -1,5 +1,17 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — PROJECT-TASK-RECORD-KIND-20261127
+
+- Owner: Codex for Folk, follow-up to the approved project workflow; SUCHA retains integration review.
+- Branch: `codex/project-task-record-kind`, source `23e9bf1`; fetched `origin/develop` verified as ancestor.
+- Task / Scope: Show work/evidence recording for preparation and summary tasks; show measurements only for measurement tasks inside an experimental project. Preserve legacy records and canonical accounting.
+- Files / lock: `js/project-workspace.js`, `js/project-records.js`, scoped project styles, `index.html`, `sw.js`, related tests and isolated QA. No conflicting active owner found.
+- Status: LOCAL_COMPLETE. DATA_ONLY / SAFE_OFF, API and production data unchanged.
+- Commit: Fix commit on `codex/project-task-record-kind` containing `qa/project-task-record-kind/HANDOFF.md`.
+- Validation: `npm run check` 721/721, relay 9/9; desktop 1560 x 1000 and mobile 390 x 844 screenshots/readback. Preparation completed without measurements; baseline values survived mode switches and reload; project cost stayed 0. Legacy records, closed-project guard and cost invariance covered by regression tests.
+- Deployment: NOT_DEPLOYED.
+- Next action: Review the corrected task forms in the local preview.
+
 ## Task lock — PROJECT-PROPOSAL-WORKFLOW-20261127
 
 - Owner: Codex for Folk, explicitly requested in this chat; SUCHA retains integration review.
