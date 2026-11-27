@@ -1,5 +1,18 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — PROJECT-SETUP-RELEASE-CHECKS-20261127
+
+- Owner: Codex for Folk, explicitly requested in this chat; SUCHA retains integration review.
+- Branch: `codex/project-setup-release-checks`, source `41b4ad4`; fetched `origin/develop` verified as ancestor.
+- Task / Scope: Unified experiment preparation (groups, sample count, metrics and review); project dark-mode contrast; end-to-end verification using shipped Pages/Worker handlers with isolated local SQLite/photo storage.
+- Files / lock: project modules/styles, new scoped setup module, asset wiring `index.html` / `sw.js`, related tests, synthetic local backend QA and this status file. No conflicting active owner found. No production auth or backend contract changes planned.
+- Status: LOCAL_IMPLEMENTED; PDF_FILE_CHECK_PENDING. DATA_ONLY / SAFE_OFF and same-origin API preserved.
+- Commit: Feature commit on this branch containing `qa/project-setup/HANDOFF.md`.
+- Validation: `npm run check` 733/733, relay 9/9. Desktop 1560 x 1000 and mobile 390 x 844 screenshots/readback. Shipped Pages/Worker handlers persisted synthetic projects, four measurements, one photo and one report edition; a second browser loaded them. Word file downloaded and inspected. Structure/ID/evidence/storage-failure/accounting regressions passed.
+- Blocked / Risks: Native PDF print window could not be controlled by the available UI tools; no saved-PDF pass claimed. Local SQLite/photo adapters were used, not live Cloudflare resources. Full details in `qa/project-setup/README.md`.
+- Deployment: NOT_DEPLOYED.
+- Next action: Verify a saved PDF from the tested report before release review.
+
 ## Task lock — PROJECT-GROUP-NAMES-20261127
 
 - Owner: Codex for Folk, explicitly requested in this chat; SUCHA retains integration review.

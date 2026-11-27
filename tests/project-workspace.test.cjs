@@ -11,7 +11,7 @@ function harness(){
     document:{getElementById:id=>fields[id]||null,querySelector:()=>null},setTimeout(){},
     trialUnitDescription:(_tr,u)=>u?.name||'sample'});
   const run=s=>vm.runInContext(s,ctx);
-  run(source('js/data.js'));run(source('js/projects.js'));run(source('js/project-workspace.js'));run(source('js/project-records.js'));run(source('js/project-report.js'));
+  run(source('js/data.js'));run(source('js/projects.js'));run(source('js/project-workspace.js'));run(source('js/project-records.js'));run(source('js/project-experiment-setup.js'));run(source('js/project-report.js'));
   const app=source('js/app.js');
   run(app.slice(app.indexOf('function trialById('),app.indexOf('function trialSamplingNotice(')));
   run(app.slice(app.indexOf('function trialValidDate('),app.indexOf('function trialDateInRange(')));
@@ -307,4 +307,27 @@ test('reschedule preserves original due date and reason and rolls back on storag
   h.quota(true);h.fields.rescheduleDate.value='2026-12-11';h.run('App.saveTaskDate({preventDefault(){}},task.id)');
   assert.equal(h.run('S.tasks.find(t=>t.id===task.id).date'),'2026-12-10');
   assert.equal(h.run('S.projects[0].events.length'),1);
+});
+
+function setupPlan(){const h=harness();h.run(`const p=projectCreateFromDraft(projectSuggest('ทดลองเปรียบเทียบ',''));p.groups=['สูตร A','สูตร B'];p.measurementSchema=[{id:'height',name:'ความสูง',unit:'ซม.',kind:'number'}];const tr=projectSetupSamples(p,2);const edit={signature:projectSetupSignature(p,tr),groups:tr.treatments.map(t=>({...t})),metrics:tr.metrics.map(m=>({...m})),count:3};`);return h;}
+test('preparation preserves existing sample ids, adds samples and does not create observations or costs',()=>{
+ const h=setupPlan();h.run("const ids=tr.units.map(u=>u.id),before=JSON.stringify({tasks:S.tasks,stock:S.stock,cost:projectCosts(p)});edit.groups[0].name='สูตรใหม่';projectApplySetup(p,tr,edit);");
+ assert.equal(h.run('tr.units.length'),6);assert.equal(h.run('ids.every(id=>tr.units.some(u=>u.id===id))'),true);assert.equal(h.run('tr.observations.length'),0);assert.equal(h.run('JSON.stringify({tasks:S.tasks,stock:S.stock,cost:projectCosts(p)})===before'),true);
+});
+test('preparation rejects ambiguous names, units and sample limits without changing state',()=>{
+ for(const mutation of ["edit.groups[1].name=edit.groups[0].name","edit.metrics[0].unit=''","edit.count=201","edit.count=1.5"]){const h=setupPlan();h.run('const before=JSON.stringify(S);'+mutation);assert.throws(()=>h.run('projectApplySetup(p,tr,edit)'));assert.equal(h.run('JSON.stringify(S)===before'),true);}
+});
+test('recorded, shared and legacy uneven experiments cannot be rebuilt',()=>{
+ for(const mutation of ["tr.observations.push({id:'evidence'})","S.projects.push({id:'other',trialIds:[tr.id]})","tr.units.pop()","tr.replications=2","S.tasks.push({id:'linked',trialId:tr.id})"]){const h=setupPlan();h.run(mutation+";edit.signature=projectSetupSignature(p,tr);const before=JSON.stringify(S);");assert.throws(()=>h.run('projectApplySetup(p,tr,edit)'),/มีข้อมูล/);assert.equal(h.run('JSON.stringify(S)===before'),true);}
+});
+test('local unsent measurements and photos also lock preparation',()=>{
+ const h=setupPlan();h.run("projectRecordDraft={trialId:tr.id,rows:[{values:{height:'0'}}],photos:[]};");assert.equal(h.run('projectSetupLocked(p,tr)'),true);
+ h.run("projectRecordDraft={trialId:tr.id,rows:[],photos:[{id:'photo'}]};");assert.equal(h.run('projectSetupLocked(p,tr)'),true);
+});
+test('stale setup and closed experiments reject writes',()=>{
+ const h=setupPlan();h.run("tr.treatments[0].name='เปลี่ยนแล้ว';");assert.throws(()=>h.run('projectApplySetup(p,tr,edit)'),/ถูกแก้ไข/);
+ h.run("edit.signature=projectSetupSignature(p,tr);p.status='done';");assert.throws(()=>h.run('projectApplySetup(p,tr,edit)'),/เปิดโครงการ/);
+});
+test('storage failure rolls back sample configuration and ids',()=>{
+ const h=setupPlan();h.run('const before=JSON.stringify(S);');h.quota(true);assert.equal(h.run('projectTransaction(()=>projectApplySetup(p,tr,edit)).ok'),false);assert.equal(h.run('JSON.stringify(S)===before'),true);
 });

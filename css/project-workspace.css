@@ -97,3 +97,23 @@ html[data-theme="dark"] .task-form .task-project-setup{background:#243b32;border
 .pw-record-kind{padding:12px 14px;margin:0 0 16px;background:var(--card,#fff);border:1px solid var(--line,#dce6e4);border-radius:8px}.pw-record-kind>label{display:flex;align-items:center;gap:12px;font-size:13px}.pw-record-kind select{max-width:100%;min-width:210px}.pw-record-kind p{font-size:12px;margin:7px 0 0}.pw-record-kind>.btn{margin-top:9px}
 @media(max-width:899px){.pw-record-kind>label{display:grid;gap:6px}.pw-record-kind select{width:100%;min-width:0;font-size:16px}.pw-record-kind .btn{width:100%}}
 .pw-group-editor{display:grid;gap:12px;margin:18px 0}.pw-group-edit-row{display:grid;grid-template-columns:90px minmax(0,1fr);align-items:center;gap:14px;padding:14px;border:1px solid var(--line,#dce6e4);border-radius:8px}.pw-group-edit-row small{display:block;color:var(--muted);font-size:12px}.pw-group-edit-row label{display:grid;gap:6px;min-width:0}.pw-group-edit-row input{width:100%;min-height:44px;min-width:0}.pw-record-kind>.btn+.btn{margin-left:8px}@media(max-width:899px){.pw-record-kind>.btn+.btn{margin-left:0}.pw-group-edit-row{grid-template-columns:65px minmax(0,1fr);gap:10px;padding:12px}.pw-group-edit-row input{font-size:16px}}
+/* Experiment preparation: one editor and a separate confirmation step. */
+.pw-setup fieldset{border:0;padding:0;margin:0;min-width:0}.pw-setup h4{margin:24px 0 12px}.pw-setup label{display:grid;gap:5px;font-size:14px;min-width:0}.pw-setup input,.pw-setup select{width:100%;min-width:0;min-height:44px;box-sizing:border-box}.pw-setup fieldset:disabled input,.pw-setup fieldset:disabled select{opacity:1;color:var(--text);-webkit-text-fill-color:var(--text)}.pw-setup-group{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:center;margin:12px 0}.pw-setup-metric{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1.4fr) auto;gap:10px;align-items:end;margin:12px 0}.pw-setup .btn{min-height:44px}.pw-setup .pw-error{color:#b53b32}.pw-setup .modal-actions{flex-wrap:wrap}.pw-setup .pw-notice{color:#654f1e}
+@media(max-width:599px){.pw-setup-metric{grid-template-columns:1fr 1fr}.pw-setup-metric>label:first-child{grid-column:1/-1}.pw-setup input,.pw-setup select{font-size:16px}.pw-setup .modal-actions .btn{flex:1}}
+/* Dark project surfaces share the app palette; report pages remain paper-white. */
+html[data-theme="dark"] .pw-page :is(.pw-badge,.pw-measure-table th,.pw-mobile-measure>label,.pw-chapter-row.active,.pw-steps,.pw-brief,.pw-stage-name,.pw-event-banner){background:#243c32;color:#e0f4e9;border-color:#466054}
+html[data-theme="dark"] .pw-page :is(.pw-draft-context h2,.field>label,.pw-plant-navigation,.pw-general-toolbar span,.pw-report-stamp){color:var(--text)}
+html[data-theme="dark"] .pw-page .pw-mobile-measure>.pw-mobile-row-note{background:transparent}
+html[data-theme="dark"] .pw-page :is(.pw-measure-table th,.pw-measure-table td,.pw-record-fields,.pw-book-settings,.pw-book-chapters){border-color:var(--line)}
+html[data-theme="dark"] .pw-page .pw-measure-table input::placeholder{color:#b4c1b9;opacity:1}
+html[data-theme="dark"] .pw-setup .pw-notice{background:#443d26;color:#f4e6bc;border-color:#675c33}
+html[data-theme="dark"] .pw-setup .pw-error{color:#ffb5ad}
+html[data-theme="dark"] body .pw-page .pw-report-preview,html[data-theme="dark"] body .pw-page .pw-report-document,body.pw-print #projectPrintOutput{background:#fff;color:#183d40}
+html[data-theme="dark"] body .pw-page :is(.pw-report-preview,.pw-report-document) :is(h1,h2,h3,h4,p,small,b,strong,span,div,td,th,footer,figcaption),body.pw-print #projectPrintOutput :is(h1,h2,h3,p,small,td,th,figcaption){color:#183d40}
+html[data-theme="dark"] body .pw-page :is(.pw-report-preview,.pw-report-document) th{background:#edf6f1}
+.pw-setup input,.pw-setup select{font:inherit;border:1px solid var(--line,#ccd9d7);border-radius:6px;background:var(--card,#fff);color:var(--text,#183d40);padding:9px 12px}.pw-setup fieldset:disabled :is(input,select){background:var(--bg,#f4f8f6)}
+html[data-theme="dark"] .pw-page :is(.pw-photo-empty,.pw-task-options>div,.pw-book-preview){background:var(--card);color:var(--muted);border-color:var(--line)}
+html[data-theme="dark"] .pw-page :is(.project-stage-number,.pw-task-tree h3>span){background:#315947;color:#e1f5eb}
+html[data-theme="dark"] .pw-page :is(.pw-tabs button.active,.pw-record-tabs button.active,.project-eyebrow){color:#81dfba;border-bottom-color:#65d1a8}
+html[data-theme="dark"] .pw-page .pw-error{background:#452b29;color:#ffb5ad}
+html[data-theme="dark"] .pw-page .pw-record-photo .pw-icon-button{background:var(--card);color:var(--text)}
