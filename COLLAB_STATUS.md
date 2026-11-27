@@ -1,5 +1,16 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — OPTIONAL-PLANNED-TIME-20261127
+
+- Owner: Codex for Folk, explicitly requested in this chat; SUCHA retains integration review.
+- Branch: `codex/optional-planned-time`, source `0e8f0dc`; refreshed `origin/develop` verified as ancestor.
+- Scope / files: Optional planned time in the canonical activity form, draft/review/edit flow, repeated plans and overview; `js/app.js`, `js/data.js`, `js/task-wizard.js`, `js/farm-overview.js`, `css/farm-overview.css`, asset versions in `index.html` / `sw.js`, synthetic overview fixture/preview cleanup, focused tests and QA evidence. No other active owner found for this scope.
+- Status: LOCAL_COMPLETE. Optional time saves/edits/clears and survives reload/drafts. Actual completion time and canonical cost/stock review preserved. Invented sample times removed only from isolated QA data.
+- Commit: HEAD of `codex/optional-planned-time`, feature commit containing `qa/farm-overview/planned-time-handoff.md`.
+- Validation: `npm run check` 696/696, relay 9/9; browser readback and screenshots at 1440, 1024, 390 and 360 px; empty-time, explicit-time, reload, clear, draft/resume, review and material-review/cancel checked. No horizontal overflow or observed console errors.
+- Deployment: NOT_DEPLOYED. DATA_ONLY / SAFE_OFF and same-origin API unchanged.
+- Next action: Review the updated local preview at `http://127.0.0.1:4185/?projectPreview=1`.
+
 ## Task lock — FARM-OVERVIEW-20261127
 
 - Owner: Codex for Folk, explicitly requested in this chat; SUCHA retains integration review.

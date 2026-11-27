@@ -2,6 +2,12 @@
 
 final result: passed
 
+## Optional planned-time follow-up — 2026-11-27
+
+Added the user-requested optional planned-time field, with blank default, draft/review/edit support and separate actual completion time. Removed fabricated planned/actual times from the overview fixture and one-time cleaned only matching known synthetic IDs in the local preview. No production migration. Overview shows entered times at narrow widths as well as desktop; no clock/time when blank.
+
+Browser evidence: [desktop form](qa/farm-overview/planned-time-desktop.jpg), [mobile form](qa/farm-overview/planned-time-mobile.jpg), [360 px entered time](qa/farm-overview/planned-time-360.jpg), [1024 px today/upcoming times](qa/farm-overview/planned-time-tablet.jpg), [desktop with no sample times](qa/farm-overview/planned-time-desktop-home.jpg), [mobile with no sample times](qa/farm-overview/planned-time-mobile-home.jpg). The 09:15 / 11:20 values in test captures were entered through the form during QA and cleared afterward. Final preview contains no fabricated or QA-entered times. 360/390/1024 px DOM widths matched viewport widths; no overflow. Full checks: **696 passed, 0 failed; relay 9/9**. [Current handoff and limits](qa/farm-overview/planned-time-handoff.md).
+
 Scope: implement the approved combined desktop overview and latest mobile adaptation inside the existing FARMULTIMATE app. Previous project QA is preserved in [previous-design-qa.md](qa/farm-overview/previous-design-qa.md).
 
 ## Visual evidence

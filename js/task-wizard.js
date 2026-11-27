@@ -274,10 +274,12 @@ const TaskWizard = {
     const type=document.getElementById('t_type').value;
     const note=document.getElementById('t_note').value.trim();
     const repeat=document.getElementById('t_repeat')?.checked;
+    const plannedTime=document.getElementById('t_status').value==='planned'?taskPlannedTime({time:document.getElementById('t_time')?.value}):'';
+    const timeText=plannedTime?`<div><dt>เวลาที่วางแผน</dt><dd>${esc(plannedTime)}</dd></div>`:'';
     const repeatText=repeat?`<div><dt>งานซ้ำ</dt><dd>ทุก ${esc(document.getElementById('t_repeat_every').value)} ${esc(({day:'วัน',week:'สัปดาห์',month:'เดือน'})[document.getElementById('t_repeat_unit').value] || 'วัน')} · สร้างแผนใหม่หลังบันทึกผล</dd></div>`:'';
     const project=projectById(document.getElementById('t_project')?.value);
     const projectText=`<div><dt>โครงการ / ช่วง</dt><dd>${project?esc(projectCode(project)+' · '+project.name)+' · '+esc(projectStageById(project,document.getElementById('t_project_stage')?.value)?.name || 'ไม่ระบุช่วง'):'ไม่อยู่ในโครงการ'}</dd></div>`;
-    document.getElementById('taskReviewContext').innerHTML=`<dl><div><dt>กิจกรรม</dt><dd>${esc(document.getElementById('t_title').value)}</dd></div><div><dt>วันที่</dt><dd>${esc(dateLabel(document.getElementById('t_date').value))}</dd></div>${projectText}${repeatText}</dl>${type==='water'?'<p>'+esc(waterSessionTotalText(taskWaterSessions))+'</p>':''}${type==='inspect'?'<p>'+esc(inspectionSummary(Inspection.draft))+' · '+fmtNum(Inspection.draft.points.length)+' จุดสำรวจ</p>':''}${note?'<p>'+esc(note)+'</p>':''}<p class="muted">รูปประกอบ ${taskFormPhotos.length} รูป</p>`;
+    document.getElementById('taskReviewContext').innerHTML=`<dl><div><dt>กิจกรรม</dt><dd>${esc(document.getElementById('t_title').value)}</dd></div><div><dt>วันที่</dt><dd>${esc(dateLabel(document.getElementById('t_date').value))}</dd></div>${timeText}${projectText}${repeatText}</dl>${type==='water'?'<p>'+esc(waterSessionTotalText(taskWaterSessions))+'</p>':''}${type==='inspect'?'<p>'+esc(inspectionSummary(Inspection.draft))+' · '+fmtNum(Inspection.draft.points.length)+' จุดสำรวจ</p>':''}${note?'<p>'+esc(note)+'</p>':''}<p class="muted">รูปประกอบ ${taskFormPhotos.length} รูป</p>`;
     if(this.usesPlots()){
       const section=document.createElement('section');section.className='task-plot-allocation';
       const tasks=taskPlotAllocations(S,this.batchData(),this.selections());

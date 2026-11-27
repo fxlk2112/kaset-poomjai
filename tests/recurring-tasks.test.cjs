@@ -23,20 +23,22 @@ function setup() {
       return created;
     }
   });
-  vm.runInContext(code, c);
+  vm.runInContext(source.slice(source.indexOf('function taskPlannedTime('),source.indexOf('function taskRecordDate(')) + code, c);
   return { s, run: expression => vm.runInContext(expression, c) };
 }
 
 test('completed repeating work schedules one future task without copying stock use or cost', () => {
   const { s, run } = setup();
   s.tasks.push({ id: 'old', title: 'ตรวจแปลง', type: 'inspect', date: '2026-11-01', status: 'done',
-    plotId: 'p1', cycleId: 'c1', projectId: 'project-1', projectStageId: 'stage-2',
+    plotId: 'p1', cycleId: 'c1', projectId: 'project-1', projectStageId: 'stage-2', time: '09:15', doneTime: '11:30',
     cost: 120, costItems: [{ stockId: 'spray', qty: 1 }], stockId: 'spray', qty: 1,
     note: 'เตรียมอุปกรณ์\nยา: 2 ไร่ × 50 ซีซี/ไร่ = 100 ซีซี',
     repeat: { seriesId: 'series', active: true, every: 7, unit: 'day', anchorDate: '2026-11-01', index: 0 } });
   const next = run('scheduleNextRepeatingTask').call(null, s, s.tasks[0], '2026-11-01');
   assert.equal(next.date, '2026-11-22');
   assert.equal(next.status, 'planned');
+  assert.equal(next.time, '09:15');
+  assert.equal(next.doneTime, undefined);
   assert.equal(next.cost, 0);
   assert.equal(next.costItems.length, 0);
   assert.equal(next.stockId, null);

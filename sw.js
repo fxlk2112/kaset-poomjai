@@ -1,5 +1,5 @@
 /* Cache only the app shell and public same-origin assets, never authenticated APIs. */
-const CACHE = "farmult-v212-farm-overview";
+const CACHE = "farmult-v213-optional-planned-time";
 const SHELL = ["/", "/guide.html", "/images/brand/farmultimate-mark.png", "/css/style.css", "/css/projects.css", "/css/stock-issue.css", "/css/ledger-preview.css", "/css/workspace.css", "/css/landing.css", "/js/runtime-config.js", "/js/sensors.js", "/js/farm-map.js", "/js/data.js", "/js/ledger-preview.js", "/js/application-rate.js", "/js/charts.js", "/js/notify.js", "/js/stock.js", "/js/stock-issue.js", "/js/lucide.min.js",
   "/js/sales.js", "/css/sales-evidence.css", "/js/lark.js", "/js/recovery.js", "/js/landing.js", "/js/auth.js", "/js/inspection.js", "/js/project-workspace.js", "/js/project-planner.js", "/js/project-records.js", "/js/project-report.js", "/js/project-docx.js", "/js/project-activity.js", "/css/project-workspace.css", "/js/cycle-notebook.js", "/css/cycle-notebook.css", "/js/projects.js", "/js/app.js", "/js/team.js","/js/workspace.js","/js/workspace-flows.js", "/js/task-wizard.js", "/js/private-photos.js", "/collector", "/css/collector.css", "/js/collector.js"];
 

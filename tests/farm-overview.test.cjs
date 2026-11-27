@@ -63,3 +63,24 @@ test('empty data, missing dates and special characters render safely without man
   assert.match(h.run('empty'),/ยังไม่มีงานในวันที่เลือก/);assert.match(h.run('empty'),/ยังไม่มีโครงการ/);assert.doesNotMatch(h.run('empty'),/class="fo-overdue"/);
   h.run(`const unsafe=overviewTaskRow({id:'x"',title:'<img src=x>',status:'planned'});`);assert.match(h.run('unsafe'),/&lt;img src=x&gt;/);assert.doesNotMatch(h.run('unsafe'),/<img src=x>/);
 });
+test('optional planned time survives edits and serialization, clears fully, and never falls back to actual completion time',()=>{
+  const h=harness();
+  h.run(`const t=S.tasks.find(t=>t.id==='overview-moisture');t.doneTime='17:45';const stockBefore=JSON.stringify(S.stock);`);
+  assert.doesNotMatch(h.run('overviewTaskRow(t)'),/17:45|fo-task-detail[^>]*><span>/);
+  h.run(`updateTask(S,t.id,{time:'09:15'},'keep');Object.assign(S,JSON.parse(JSON.stringify(S)));`);
+  assert.match(h.run(`overviewTaskRow(S.tasks.find(t=>t.id==='overview-moisture'))`),/09:15/);
+  h.run(`updateTask(S,'overview-moisture',{time:''},'keep');`);
+  assert.doesNotMatch(h.run(`overviewTaskRow(S.tasks.find(t=>t.id==='overview-moisture'))`),/09:15|17:45|fo-task-detail[^>]*><span>/);
+  for(const value of ['','24:00','12:60','9:15','09:15:00',null])assert.equal(h.run(`taskPlannedTime({time:${JSON.stringify(value)}})`),'');
+  assert.equal(h.run(`taskPlannedTime({time:'00:00'})`),'00:00');
+  assert.equal(h.run(`taskPlannedTime({time:'23:59'})`),'23:59');
+  assert.equal(h.run('JSON.stringify(S.stock)===stockBefore'),true);
+});
+test('overview fixture has no invented times and cleanup preserves user times, costs and unrelated tasks',()=>{
+  const fixture=require('../qa/farm-overview/fixture.cjs').buildOverviewDemo();
+  assert.ok(fixture.tasks.every(t=>!t.time&&!t.doneTime));
+  const {removeSampleTimes}=require('../qa/farm-overview/remove-sample-times.cjs');
+  const state={tasks:[{id:'overview-moisture',time:'08:30',cost:12},{id:'overview-fertilizer',time:'09:15',doneTime:'11:20'}, {id:'overview-done-a-0',doneTime:'07:00'}, {id:'real-task',time:'08:30',doneTime:'07:00'}]};
+  removeSampleTimes(state);removeSampleTimes(state);
+  assert.deepEqual(state.tasks,[{id:'overview-moisture',cost:12},{id:'overview-fertilizer',time:'09:15',doneTime:'11:20'},{id:'overview-done-a-0'},{id:'real-task',time:'08:30',doneTime:'07:00'}]);
+});

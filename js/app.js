@@ -8219,6 +8219,7 @@ App.viewTask = function (id) {
   const st = t.stockId ? stockById(S, t.stockId) : null;
   const rows = [
     { k: "วันที่", v: t.date ? `${dateLabel(t.date)} (${t.date})` : 'ยังไม่กำหนดวัน' },
+    ...(taskPlannedTime(t) ? [{ k: 'เวลาที่วางแผน', v: taskPlannedTime(t) }] : []),
     ...(t.status === "done" || t.status === "failed" ? [{ k: t.status === "failed" ? "บันทึกผล" : "ทำจริง", v: `${dateLabel(taskDoneDate(t))}${t.doneTime || (t.weatherSnapshot && t.weatherSnapshot.targetTime) ? " " + (t.doneTime || t.weatherSnapshot.targetTime) : ""}` }] : []),
     { k: "บันทึกให้กับ", v: p ? `แปลง ${p.name}` : "งานส่วนกลาง" },
     { k: "รอบการปลูก", v: c ? c.plant : "—" },
@@ -9335,6 +9336,8 @@ App.taskModeChange = function (status) {
   });
   const label = document.querySelector('label[for="t_date"]');
   if (label) label.textContent = status === "planned" ? "กำหนดทำงาน *" : "วันที่ทำจริง *";
+  const plannedTime = document.getElementById('t_time');
+  if (plannedTime) { plannedTime.disabled = status !== 'planned'; plannedTime.closest('.field').hidden = status !== 'planned'; }
   const submit = document.getElementById("taskSubmitButton");
   if (submit && !taskEditingId) submit.textContent = status === "planned" ? "บันทึกแผนงาน" : "บันทึกงานที่ทำแล้ว";
   if (typeof Inspection !== 'undefined') Inspection.contextRefresh();
@@ -9402,6 +9405,7 @@ App.modalTask = function (date, preset) {
           <option value="failed" ${status === "failed" ? "selected" : ""}>ไม่สำเร็จ</option>
         </select></div>
       </div>
+      <div class="field" ${status !== 'planned' ? 'hidden' : ''}><label for="t_time">เวลาที่วางแผน (ไม่บังคับ)</label><input id="t_time" type="time" step="60" value="${esc(taskPlannedTime(editing))}" ${status !== 'planned' ? 'disabled' : ''} aria-describedby="t_time_hint"><small id="t_time_hint" class="hint">เว้นว่างได้ หากยังไม่ได้กำหนดเวลา</small></div>
       <div class="field"><label for="t_title">ชื่องาน *</label><input id="t_title" data-auto-title="${!editing && !preset.title}" value="${esc(title)}" placeholder="เช่น ใส่ปุ๋ยครั้งที่ 2" oninput="this.dataset.autoTitle='false'" required></div>
       <fieldset class="task-scope">
         <legend>บันทึกให้กับ</legend>
@@ -9746,12 +9750,19 @@ App.submitTask = function (e, editId, validateOnly) {
     setModalFieldError(document.getElementById("t_cycle"), "เลือกรอบปลูก หรือเลือกต้นทุนรวมของแปลง");
     return false;
   }
+  const plannedTimeInput = document.getElementById('t_time');
+  const plannedTimeRaw = document.getElementById('t_status').value === 'planned' ? (plannedTimeInput?.value || '').trim() : taskPlannedTime(existing);
+  if (plannedTimeRaw && !taskPlannedTime({time:plannedTimeRaw})) {
+    setModalFieldError(plannedTimeInput, 'ระบุเวลาให้ถูกต้อง หรือเว้นว่าง');
+    return false;
+  }
   if (validateOnly) return true;
   const data = {
     title,
     ...(inspection ? {inspection} : {}),
     type: tType,
     date: existing && document.getElementById("t_status").value !== "planned" ? existing.date : document.getElementById("t_date").value,
+    time: plannedTimeRaw,
     manualDate: existing ? !!existing.manualDate || (document.getElementById("t_status").value === "planned" && existing.date !== document.getElementById("t_date").value) : false,
     status: document.getElementById("t_status").value,
     repeat,

@@ -43,7 +43,7 @@ function overviewContext(t,{compact=false}={}) {
   return `<div class="fo-context">${parts.join('<span aria-hidden="true">·</span>')}</div>`;
 }
 function overviewTaskRow(t,{future=false}={}) {
-  const time=['done','failed'].includes(t.status)?t.doneTime:t.time;
+  const time=['done','failed'].includes(t.status)?t.doneTime:taskPlannedTime(t);
   const review=t.status==='planned'&&taskNeedsMaterialReview(t);
   const label=t.title+' · '+(plotById(S,t.plotId)?.name||'งานส่วนกลาง');
   return `<article class="fo-task${future?' fo-task-future':''}" data-task-id="${esc(t.id)}">

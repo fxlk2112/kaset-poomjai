@@ -823,6 +823,10 @@ function totalStockValue(s) {
 function doneTasks(s) {
   return s.tasks.filter(t => t.status === "done");
 }
+function taskPlannedTime(t) {
+  const time = typeof t?.time === 'string' ? t.time.trim() : '';
+  return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time) ? time : '';
+}
 function taskRecordDate(t) {
   return String((t.status === "done" || t.status === "failed")
     ? (t.doneDate || t.weatherSnapshot?.targetDate || t.date || "") : (t.date || "")).slice(0, 10);
@@ -1220,7 +1224,7 @@ function scheduleNextRepeatingTask(s, t, afterDate) {
   const reusableNote = String(t.note || "").split("\n").filter(line => !/\sไร่\s×\s.*\/ไร่\s=/.test(line)).join("\n");
   const activeProject = (s.projects || []).find(p => p.id === t.projectId && p.status !== "done" && p.stages?.some(stage => stage.id === t.projectStageId));
   return addTask(s, {
-    title: t.title, type: t.type, date: next.date, status: "planned",
+    title: t.title, type: t.type, date: next.date, time: taskPlannedTime(t), status: "planned",
     scope: t.scope, plotId: t.plotId || null, cycleId: t.cycleId || null,
     note: reusableNote, cost: 0, costItems: [], stockId: null, qty: 0,
     projectId: activeProject ? t.projectId : null, projectStageId: activeProject ? t.projectStageId : null,
