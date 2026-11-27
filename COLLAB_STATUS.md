@@ -1,5 +1,17 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — FARM-OVERVIEW-20261127
+
+- Owner: Codex for Folk, explicitly requested in this chat; SUCHA retains integration review.
+- Branch: `codex/farm-overview-refresh` (preserves `9577530`; refreshed `origin/develop` is an ancestor).
+- Task / Scope: Approved desktop/mobile farm overview, date selection, today/upcoming work, project progress, collapsed farm finances and honest save feedback. Reuse canonical activities and material completion review.
+- Files: `js/farm-overview.js`, `css/farm-overview.css`, minimal `js/app.js` save notifications and `js/workspace-flows.js` financial scope placement, `index.html`, `sw.js`, tests, `qa/farm-overview/`, `design-qa.md`, this status file. No backend changes.
+- Status: LOCAL_COMPLETE. No active conflicting owner found for this scope; shared integration review retained by SUCHA.
+- Commit: HEAD of `codex/farm-overview-refresh`, feature commit containing `qa/farm-overview/handoff.md`.
+- Validation: `npm run check` 694/694; relay 9/9; desktop/mobile browser screenshots and readback, final visual comparison passed. Material use 25 kg / 325 baht added once to the same plot/cycle/project activity; reload and cancellation checked. Details: `qa/farm-overview/handoff.md`.
+- Deployment: NOT_DEPLOYED. DATA_ONLY / SAFE_OFF unchanged.
+- Next action: Review the local overview at `http://127.0.0.1:4185/?projectPreview=1`.
+
 ## Current production checkpoint — 2026-11-27
 
 - Owner: Codex for Folk; SUCHA retains shared integration review.

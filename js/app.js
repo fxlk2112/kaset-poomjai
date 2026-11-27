@@ -4365,6 +4365,7 @@ App.finishTask = async function (id, allowNoPhoto) {
   if (S.notifDismissed) delete S.notifDismissed[id];
   if (t.repeat?.active) scheduleNextRepeatingTask(S, t, doneDate);
   saveState(S);
+  if (typeof FarmOverview !== 'undefined') FarmOverview.recordSaved([id]);
   closeModal();
   rerender();
   if (taskCompleteReturnToDetail) App.viewTask(id);
@@ -4407,6 +4408,7 @@ App.failTask = async function (id) {
   if (S.notifDismissed) delete S.notifDismissed[id];
   if (t.repeat?.active) scheduleNextRepeatingTask(S, t, doneDate);
   saveState(S);
+  if (typeof FarmOverview !== 'undefined') FarmOverview.recordSaved([id]);
   closeModal();
   rerender();
   if (taskCompleteReturnToDetail) App.viewTask(id);
@@ -9790,6 +9792,7 @@ App.submitTask = function (e, editId, validateOnly) {
     data.doneTime = data.doneTime || currentTimeHHMM();
   }
   let savedTaskId = existing ? existing.id : "";
+  let overviewSavedIds = existing ? [existing.id] : [];
   const shouldOpenDoneFlow = !completionReview && data.type !== 'inspect' && data.status === "done" && existing && existing.status !== "done";
   const doneFlowReturnToDetail = !!taskEditReturnToDetail;
   /* เขียนสรุปการคำนวณ (เช่น ฉีดยา 4 ไร่ × 100 ซีซี/ไร่ = 0.4 ขวด) ลงในบันทึกอัตโนมัติ */
@@ -9812,6 +9815,7 @@ App.submitTask = function (e, editId, validateOnly) {
     if (saved) closeCycleForTask(S, saved);
     saveState(S);
     if (!editId && typeof TaskWizard !== 'undefined') TaskWizard.completed();
+    if (typeof FarmOverview !== 'undefined') FarmOverview.recordSaved(overviewSavedIds);
     if (saved && data.type === 'inspect') Inspection.weatherAfterSave(saved);
     closeModal();
     render();
@@ -9893,6 +9897,7 @@ App.submitTask = function (e, editId, validateOnly) {
       createdTasks.forEach(task => scheduleNextRepeatingTask(S, task, taskDoneDate(task)));
     } catch (e) { toast(e.message); return false; }
     savedTaskId = created ? created.id : "";
+    overviewSavedIds = createdTasks.map(task => task.id);
     const msg = data.status === "planned" ? "บันทึกแผนแล้ว · ยังไม่ตัดสต็อก"
       : data.revenue > 0 ? `บันทึกกิจกรรมแล้ว · รายรับ ${fmtMoney(data.revenue)} บาท`
       : data.cost > 0 ? `บันทึกกิจกรรมแล้ว · ต้นทุน ${fmtMoney(data.cost)} บาท`
