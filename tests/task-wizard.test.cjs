@@ -48,7 +48,8 @@ test('broken and unsupported drafts do not crash opening the form',()=>{
 test('review validation exits before task mutation and draft deletion follows save',()=>{
   const app=read('js/app.js');const submit=app.slice(app.indexOf('App.submitTask ='),app.indexOf('App.submitTask =')+19000);
   assert.ok(submit.indexOf('if (validateOnly) return true;')<submit.indexOf('const data ='));
-  assert.match(submit,/saveState\(S\);\s+if \(!editId && typeof TaskWizard !== 'undefined'\) TaskWizard.completed\(\)/);
+  const save=submit.indexOf('saveState(S);'), entryGuard=submit.indexOf("!projectEntrySaved(savedTaskId)"), completed=submit.indexOf('TaskWizard.completed()');
+  assert.ok(save>0 && entryGuard>save && completed>entryGuard,'draft cleanup follows persistence and the project-entry rollback guard');
   assert.match(read('js/task-wizard.js'),/if\(taskEditingId\)return;/);
   assert.match(read('sw.js'),/"\/js\/task-wizard.js"/);
 });

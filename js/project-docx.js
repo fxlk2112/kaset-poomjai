@@ -35,19 +35,20 @@ async function projectDocx(snap){
   const paragraph=(text,heading=false)=>String(text || '').split('\n').map(line=>`<w:p>${heading?'<w:pPr><w:pStyle w:val="Heading1"/></w:pPr>':''}<w:r><w:t xml:space="preserve">${projectXml(line)}</w:t></w:r></w:p>`).join('');
   const table=rows=>`<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders>${['top','left','bottom','right','insideH','insideV'].map(k=>`<w:${k} w:val="single" w:sz="4" w:color="DCE6E4"/>`).join('')}</w:tblBorders></w:tblPr>${rows.map(row=>`<w:tr>${row.map(cell=>`<w:tc>${paragraph(cell)}</w:tc>`).join('')}</w:tr>`).join('')}</w:tbl>`;
   let body='';
-  for(const key of projectReportOrder(snap)){
+  if(snap.proposalSections){body=paragraph('ข้อเสนอโครงการ · ฉบับร่าง',true)+paragraph(snap.name,true)+paragraph(snap.code);for(const [i,section] of snap.proposalSections.entries())body+=paragraph((i+1)+'. '+section.title,true)+paragraph(section.text);}
+  for(const key of snap.proposalSections?[]:projectReportOrder(snap)){
     const title=projectReportTitle(snap,key),text=snap.config.texts[key];
     if(body)body+='<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
     body+=paragraph(key==='cover'?snap.name:title,true);
-    if(key==='cover'){body+=paragraph('รายงานโครงการ · '+snap.code)+paragraph(snap.objective);if(snap.photos[0])body+=images.get(snap.photos[0].id);body+=paragraph('ข้อมูล ณ '+new Date(snap.createdAt).toLocaleDateString('th-TH'));}
+    if(key==='cover'){body+=paragraph('รายงานโครงการ · ฉบับร่าง · '+snap.code)+paragraph(snap.objective);if(snap.photos[0])body+=images.get(snap.photos[0].id);body+=paragraph('ข้อมูล ณ '+new Date(snap.createdAt).toLocaleDateString('th-TH'));}
     if(key==='objective')body+=paragraph(text ?? snap.objective);
     if(key==='conclusion')body+=paragraph(text ?? snap.conclusion);
-    if(key==='work'){body+=paragraph(text);for(const t of snap.tasks){body+=paragraph(t.title,true)+paragraph((t.date || 'ยังไม่กำหนดวัน')+' · '+t.status)+paragraph(t.note);for(const r of snap.records.filter(r=>r.taskId===t.id))body+=paragraph(r.workNote)+paragraph(r.note);}}
+    if(key==='work'){body+=paragraph(text ?? snap.summary);for(const t of snap.tasks){body+=paragraph(t.title,true)+paragraph((t.date || 'ยังไม่กำหนดวัน')+' · '+(t.status==='done'?'ทำแล้ว':t.status==='failed'?'ไม่สำเร็จ':'วางแผนไว้'))+paragraph(t.note);for(const r of snap.records.filter(r=>r.taskId===t.id))body+=paragraph(r.workNote)+paragraph(r.note);}}
     if(['results','raw'].includes(key) && snap.hasExperiment!==false)body+=paragraph(text)+table([['วันที่','ตัวอย่าง','ค่าวัด','ผล','หมายเหตุ'],...snap.results.map(o=>[o.date,o.unitLabel,o.metric,o.value+' '+o.unit,o.note || ''])]);
     if(key==='raw' && snap.hasExperiment===false)body+=paragraph(text);
     if(key==='raw' && snap.attachments?.length){body+=paragraph('เอกสารประกอบโครงการ',true);for(const file of snap.attachments)body+=paragraph(file.name+(file.caption?' — '+file.caption:''));body+=paragraph('ไฟล์ต้นฉบับเก็บในข้อมูลโครงการ');}
     if(key==='photos'){body+=paragraph(text);for(const ph of snap.photos)body+=images.get(ph.id)+paragraph((ph.unitLabel || '')+' · '+ph.caption);}
-    if(key==='costs')body+=paragraph(text)+paragraph('ต้นทุนรวม '+snap.cost+' บาท')+table([['กิจกรรม','ต้นทุน (บาท)'],...snap.tasks.filter(t=>t.status==='done').map(t=>[t.title,String(t.cost)])]);
+    if(key==='costs'){body+=paragraph(text)+paragraph('ต้นทุนรวม '+snap.cost+' บาท');body+=typeof ppExpenseRows==='function'?table([['รายการ','จำนวน / รายละเอียด','เป็นเงิน (บาท)'],...ppExpenseRows(snap).map(r=>[r.name,r.detail,String(r.amount)])]):table([['กิจกรรม','ต้นทุน (บาท)'],...snap.tasks.filter(t=>t.status==='done').map(t=>[t.title,String(t.cost)])]);if(snap.proposal?.budget!=='' && snap.proposal?.budget!=null)body+=paragraph('งบประมาณโครงการ '+snap.proposal.budget+' บาท');}
     if(key==='events'){body+=paragraph(text);for(const e of snap.events)body+=paragraph((e.oldDate?e.oldDate+' → '+e.newDate:e.date)+' · '+e.reason+' · '+e.by);}
   }
   files['[Content_Types].xml']='<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>';

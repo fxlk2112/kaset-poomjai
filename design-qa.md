@@ -1,46 +1,62 @@
-# Farm calendar design QA — 2026-11-27
+# Project proposal workflow — design QA, 2026-11-27
 
 final result: passed
 
-Scope: adapt the supplied calendar composition inside the existing green FARMULTIMATE application. User approved implementation with existing task/material-review behavior. Previous QA: [archive](qa/farm-calendar/previous-design-qa.md).
+Scope: the five approved green FARMULTIMATE screens implemented inside the existing app. Previous calendar QA is preserved in `qa/project-proposal/previous-design-qa.md`. This is a functional adaptation using the existing shell and accounting controls, not a claim of pixel-identical reproduction.
 
-## Findings and fixes
+## Visual truth and capture evidence
 
-- **Resolved P2 — future-day wording.** The add button originally said “วันนี้” on future dates. It now refers to the selected date, as do the empty state and date-picker action. UI readback confirmed 28 November, plot A, cycle 2 and the filtered project were prefilled, with planned time blank.
-- **Resolved P2 — tall mobile toolbar.** Moved Today alongside view modes/add, keeping date/navigation together. [Final mobile](qa/farm-calendar/mobile.jpg) shows the compact two-row toolbar.
-- **Resolved P2 — compressed tablet task names.** At 900–1199 px, cells now show dates/counts; the selected-day panel contains full task names. [Final tablet](qa/farm-calendar/tablet.jpg).
-- **Resolved P2 — excessive empty month-row height.** Reduced minimum heights, allowing busy rows to grow for three task chips and overflow. [Desktop](qa/farm-calendar/desktop.jpg), [large desktop](qa/farm-calendar/desktop-reference-size.jpg), [complete page](qa/farm-calendar/desktop-full.jpg).
+Source directory: `C:/Users/USER/.codex/generated_images/01a207c1-667e-7670-86ba-5df7a70aacb0/`.
 
-No remaining P0/P1/P2 findings in inspected states. This is a functional adaptation, not a pixel copy of the blue personal-planning example.
+| Screen | Approved source filename | Source pixels | Actual capture / CSS viewport |
+| --- | --- | --- | --- |
+| Proposal | `exec-6221ab14-8b3f-4220-ba44-0c173c21a436.png` | 1717 × 916 | `qa/project-proposal/proposal-desktop.png`, 1717 × 916 |
+| Task review | `exec-8a2385e3-907e-4c52-8270-fcdeb5a09321.png` | 1586 × 992 | `qa/project-proposal/tasks-desktop.png`, 1586 × 992 |
+| Workspace | `exec-201b487f-40b0-48a6-9a38-39c9a99ccc43.png` | 1561 × 1008 | `qa/project-proposal/project-desktop.png`, 1560 × 1000 |
+| Material entry | `exec-51bbdd38-f005-4a3d-bd1b-039753657179.png` | 1561 × 1008 | `qa/project-proposal/entry-desktop.png`, 1560 × 1000 |
+| Report | `exec-ad2a35a9-799f-4075-9d07-6e710efc654a.png` | 1536 × 1024 | `qa/project-proposal/report-desktop.png`, 1560 × 1000 |
 
-## Visual comparison
+Implementation: <http://127.0.0.1:4186/?projectPreview=1>. Light theme, isolated synthetic account; no production data. DPR observed as 1. Screenshots were read back after viewport changes. A capture immediately after resizing returned the prior surface dimensions; those incorrect captures were replaced using the settled native browser screenshot.
 
-Source [reference](qa/farm-calendar/reference.png): 1920×1097, October 2026, five rows, personal tasks/goals, no farm shell. Implementation: 1920×1097 CSS viewport, density 1; captured viewport pixels 1920×1068; full-page image 1920×1217. No scaling applied. The 29-pixel capture difference is blank-padded, not treated as a design defect.
+Each source and implementation was opened together in `qa/project-proposal/comparison-{proposal,tasks,project,entry,report}.jpg`. Each image is fit proportionally into a 780 × 530 panel, without stretching, with reference left and implementation right. Minor desktop dimension differences are recorded above. `compare.py` reproduces these comparison inputs. Readable material-form and report-editor crops are in `comparison-entry-focus.jpg` and `comparison-report-focus.jpg`; these were also opened together and reviewed.
 
-Opened and compared together: [full comparison](qa/farm-calendar/desktop-comparison.jpg), [toolbar](qa/farm-calendar/toolbar-comparison.jpg), [complete project card](qa/farm-calendar/project-comparison.jpg). Focused crops retain original pixel scale; blank space accommodates different region dimensions.
+State: proposal for plot A / round 2 with budget 5,000 and no invented dates; selected fertilizer task; project/report at 3 of 6 tasks, 800 total and two report photos. Entry capture uses an unconfirmed draft on synthetic plot B with the same 8 kg / 600 + 200 values. Its stock preview is 42 → 34 because plot A already consumed 8 kg; this is an intentional state difference, not duplicate posting. Task review has 6 selected tasks; the optional unselected spray task in the mock is not invented when absent from the brief.
 
-Intentional differences: existing farm sidebar/app bar/font/green palette; actual November 27 synthetic data and six calendar rows; Monday-first week consistent with the overview. Selected-day tasks replace personal goals. Projects derive from that day's work or project filter. Empty days are not filled with invented tasks/times.
+Mobile: 390 × 844. `entry-mobile.png`, `project-mobile.png`, `report-mobile.png` are final viewport captures. `proposal-mobile.png` and `tasks-mobile.png` are full-page captures from the same 390 CSS px responsive flow. Layout collapses to one column; measured document width equals viewport width. There is no separate approved mobile mock for these five screens, so mobile evidence validates usability and responsive continuity rather than an invented 1:1 target.
+
+## Findings, iteration history and fixes
+
+- **Resolved P0 — material-entry mount failed.** Replacing modal actions after moving the canonical form left a null target. The page now creates its own actions and mounts the existing form safely. Actual browser flow and final entry captures verify the working form.
+- **Resolved P1 — zero material quantity passed completion.** Entry now checks material identity, unit and finite positive quantity before canonical validation. UI zero-quantity attempt was blocked; the focused tests cover zero, negative, missing and non-finite values. Explicit zero price remains allowed.
+- **Resolved P2 — oversized desktop form hid evidence.** Initial material fields and spacing pushed notes/photos far below the useful work area. Kept quantity/unit/total visible, collapsed price/package/issue details, grouped actual date with materials and tightened desktop cards. Final entry full/focused comparisons show the evidence section and upload action within the first viewport. Long evidence naturally scrolls.
+- **Resolved P2 — mobile stock name wrapped into a narrow strip.** The change-material button shared a narrow grid cell with the name. Mobile selected stock now uses a vertical flex layout; `entry-mobile.png` shows the full name and its button without horizontal overflow.
+- **Resolved P2 — footer controls stacked and mobile metric columns overflowed.** Scoped the footer's row direction and used `minmax(0,1fr)` metric tracks. Final mobile workspace/report captures show contained totals and reachable controls.
+- **Resolved P2 — report chapter preview did not follow editing.** The preview now renders the selected chapter, and the work chapter shows the summary/costs/photos spread. Caption selection/order and edited narrative were checked in browser and exports.
+- **Resolved P2 — proposal/workspace/task-review density diverged.** The first comparison hid objectives, the fourth stage and the latest work below the fold. Tightened desktop fields, task rows and headers; reduced workspace summary-paper scale. Re-captured proposal at exactly 1717 × 916 and task review at 1586 × 992. Final comparison inputs show objective/sections, all six selected tasks, and the workspace's latest record in the intended hierarchy.
+- **Resolved P2 — report paper and editor spacing.** Reduced duplicate header spacing and paper typography, retained chapter selection and narrowed the paper. The final report spread exposes costs and photos together with editable prose and captions.
+
+No actionable P0/P1/P2 findings remain for this scope.
 
 ## Required fidelity surfaces
 
-- **Typography:** existing Thai font stack and weights retained. Desktop task titles 15 px, mobile 17 px. Full names wrap in the selected-day panel. Small calendar chips truncate with full titles on hover/click; tablet/mobile show counts instead.
-- **Layout:** calendar left, daily work/projects right; mobile stacks week/date controls, work and projects. Rounded white cards, subtle borders, consistent gutters. No horizontal overflow at 360/390/1024 px; completion controls measured 44×44 px. Dense months scroll vertically within the existing page.
-- **Colors:** existing emerald actions/selection, mint completion, pastel activity categories and amber overdue/material-review labels.
-- **Images/icons:** existing brand image and standard line-icon helpers reused. No rasterized UI or external image dependencies. Personal category icons intentionally become farm activity icons.
-- **Content:** Thai dates, canonical task counts/project codes, ordinary projects supported. No forced experiment or KPI. Blank times display no clock/time; completed work uses the actual recorded date.
+- **Fonts / typography:** reused the app's Sarabun stack and Thai line-height conventions. Clear heading/section/field hierarchy, 12–14 px desktop form labels, larger mobile inputs; no mobile text overflow. The raster mocks have heavier apparent strokes, and desktop IAB captures are softer than source artwork; these are not treated as exact font-weight or antialiasing measurements. Native mobile readback remains legible.
+- **Spacing / layout:** preserved left editor/right paper, green context/metrics bar, numbered task stages, explicit review totals and bottom actions. Existing 238 px sidebar and 60 px header differ from the mock's narrower shell by design; changing unrelated navigation was outside scope. Report body is a scrolling real document rather than fake page controls. The final dense desktop rows and one-column mobile layout were checked after fixes.
+- **Colors / tokens:** existing emerald primary, mint panels, pale neutral canvas, bordered white cards, amber pending/review and red delete states. No replacement brand palette or new design system.
+- **Images / icons:** retained actual FARMULTIMATE mark and the existing icon library. QA photos are the repository's farm/trial imagery, selected through the real upload control. Thumbnails use the existing activity attachment renderer; report captions/order are editable. Actual uploaded media replaces the mock's illustrative crop photos. No fabricated field evidence or hand-drawn replacement logo.
+- **Copy / content:** ordinary care project labels; no trial metrics forced into non-experimental work. Missing dates/time/owner/results stay unspecified. Prose is drafted from local templates/data and remains editable. Actual record totals are read-only in the report. No KPI scoring added.
 
-## Functional/accounting checks
+## Behavior and residual limits
 
-Month/week/day navigation, today, date jump to 3 December, search, plot/cycle/project filters and clear were exercised through UI. Mobile defaults to week. Evidence: [week](qa/farm-calendar/desktop-week.jpg), [mobile selected date](qa/farm-calendar/mobile-selected.jpg), [360 px month](qa/farm-calendar/mobile-month-360.jpg). Prefilled plan form left time blank; no plan was committed in the final preview.
+Verified proposal → task review → create → actual fertilizer/labor/photos → cost confirmation → report; drafts, cancellation, zero-quantity rejection, snapshot immutability, captions/order/selection, Word download, and browser PDF print preview. Canonical total is 800 in project, plot and cycle; stock changed once. Final browser error log was empty. `npm run check`: 716/716, relay 9/9. Details and limits: `qa/project-proposal/HANDOFF.md`.
 
-On isolated synthetic port 4183, circular completion opened canonical quantity/cost review. Editing then cancelling retained the original plan. Confirming 25 kg / 325 baht completed the same activity: [result](qa/farm-calendar/material-result.jpg). Project total 525, plot A total 525, farm total 625. Reload retained three completed tasks and 70% project progress; completed circles disabled. Regression tests also verify cycle total 525 and no duplicate mutation. Final preview port 4185 retains original synthetic tasks/costs.
+Expected adaptations: keep the established activity/stock validators, real browser date controls, original app navigation and canonical photo controls. The report uses a scrollable page and explicit saved-edition controls. Search reopens through “เปลี่ยนสินค้า” after a stock item is selected. Photo captions are edited in the report. Manual prose remains unchanged until the user requests a fresh draft; source totals still update.
 
-Seven focused calendar tests cover dates/leap years, actual completion dates, filters, ordinary projects, invalid dates, escaped names, absent times, navigation/default modes, form presets, material review and one canonical cost mutation. `npm run check`: **703 passed, 0 failed; relay 9/9**. Diff whitespace check passed. Error logs empty on inspected browser tabs.
+Follow-up P3 polish: tune exact desktop stroke/spacing against a future vector design if desired; evaluate more compact multi-photo thumbnails with large attachment sets. No cloud-sync/production or Microsoft Word visual rendering claim is made.
 
-## Completion checklist
+## Implementation checklist
 
-- [x] Existing green shell retained; desktop/mobile screenshots and readback inspected.
-- [x] Source/rendered combined comparison and focused regions inspected.
-- [x] Material review and canonical accounting verified; required checks passed.
-
-Live authenticated cloud synchronization and device-specific native browsers were not tested; no separate staging account exists. No production/backend/hardware changes or deployment. [Handoff](qa/farm-calendar/handoff.md).
+- [x] Source and actual images opened together, including focused regions.
+- [x] Fixed blocking/moderate findings and recaptured affected routes.
+- [x] Tested desktop/mobile core workflow and checked console.
+- [x] Verified totals, stock, draft behavior and saved report editions.
+- [x] Left a local preview open; deployment remains NOT_DEPLOYED.

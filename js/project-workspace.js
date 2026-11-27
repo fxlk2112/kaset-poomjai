@@ -72,6 +72,7 @@ function projectSuggest(brief, date, mode) {
     stages:stages.map(([name,titles],i)=>({id:uid(),name,tasks:titles.map((title,j)=>{const offset=experiment && weeks?(i===1?(j+1)*7:i===2?weeks*7:0):0;return {id:uid(),title,date:date?projectOffsetDate(date,offset):'',offset,assignee:'',include:true};})}))};
 }
 function projectCreateFromDraft(draft,{allowEmpty=false}={}) {
+  if(typeof projectValidateProposal==='function')projectValidateProposal(draft);
   if(!projectValidDraft(draft))throw new Error('ร่างงานไม่ครบ กรุณาร่างใหม่อีกครั้ง');
   if (!draft?.name?.trim() || !draft.stages?.length) throw new Error('ใส่ชื่อโครงการและขั้นตอนอย่างน้อยหนึ่งขั้น');
   const selected = draft.stages.flatMap(stage => stage.tasks.filter(t=>t.include).map(task=>({stage,task})));
@@ -86,10 +87,10 @@ function projectCreateFromDraft(draft,{allowEmpty=false}={}) {
   let n = Math.max(Number(S.projectSequences?.[year]) || 0,...(S.projects || []).map(p=>p.code?.startsWith(prefix) ? Number(p.code.slice(prefix.length)) || 0 : 0))+1;
   while ((S.projects || []).some(p=>p.code===prefix+String(n).padStart(3,'0'))) n++;
   const p={id:uid(),code:prefix+String(n).padStart(3,'0'),name:draft.name.trim(),objective:draft.objective.trim(),description:draft.brief,
-    kind:draft.kind || 'work',startDate:draft.startDate,plotId:draft.plotId,cycleId:draft.cycleId,status:'active',createdAt:Date.now(),trialIds:[],reportVersions:[],
+    kind:draft.kind || 'work',startDate:draft.startDate,endDate:draft.endDate || '',assignee:draft.assignee || '',proposal:draft.proposal?JSON.parse(JSON.stringify(draft.proposal)):undefined,plotId:draft.plotId,cycleId:draft.cycleId,status:'active',createdAt:Date.now(),trialIds:[],reportVersions:[],
     measurementSchema:JSON.parse(JSON.stringify(draft.schema || [])),groups:(draft.groups || []).filter(Boolean),records:[],events:[],
     stages:draft.stages.map(({id,name})=>({id,name:name.trim()}))};
-  const tasks=selected.map(({stage,task},order)=>({id:uid(),title:task.title.trim(),date:task.date,type:'work',status:'planned',order,assignee:task.assignee || draft.assignee || '',
+  const tasks=selected.map(({stage,task},order)=>({id:uid(),title:task.title.trim(),date:task.date,time:task.time || '',type:task.type || 'work',status:'planned',order,assignee:task.assignee || draft.assignee || '',
     plotId:draft.plotId || null,cycleId:draft.cycleId || null,projectId:p.id,projectStageId:stage.id,
     cost:0,revenue:0,costItems:[],photos:[],note:'',createdAt:Date.now(),source:'project-draft'}));
   S.projectSequences={...(S.projectSequences || {}),[year]:n};

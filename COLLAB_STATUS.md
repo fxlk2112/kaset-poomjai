@@ -1,5 +1,17 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — PROJECT-PROPOSAL-WORKFLOW-20261127
+
+- Owner: Codex for Folk, explicitly requested in this chat; SUCHA retains integration review.
+- Branch: `codex/project-proposal-workflow`, source `d3c9369`; refreshed `origin/develop` verified as ancestor.
+- Task / Scope: Implement the five approved green project screens: proposal draft, task review, ordinary project workspace, material work entry and editable report with Word/PDF export. Reuse canonical activities, costs and stock review.
+- Files / lock: project modules and styles, new scoped workflow module/style and tests; scoped hooks in `js/app.js`, asset wiring in `index.html` / `sw.js`, isolated synthetic QA, `design-qa.md`, this status file. No conflicting active owner found.
+- Status: LOCAL_COMPLETE. Existing experiments, DATA_ONLY / SAFE_OFF and same-origin API preserved. No new accounting ledger or production writes.
+- Commit: Feature commit on `codex/project-proposal-workflow` containing `qa/project-proposal/HANDOFF.md`.
+- Validation: `npm run check` 716/716, relay 9/9; desktop/mobile browser screenshots and actual proposal-to-report workflow. Material cost 600 + labor 200 = 800 once across project/plot/cycle; stock 50 → 42 kg, draft/cancel and return-to-plan/recomplete checked. Word downloaded and inspected; PDF print preview inspected. See `design-qa.md` and the handoff.
+- Deployment: NOT_DEPLOYED.
+- Next action: Review the local project workflow at `http://127.0.0.1:4186/?projectPreview=1`.
+
 ## Task lock — FARM-CALENDAR-20261127
 
 - Owner: Codex for Folk, explicitly requested in this chat; SUCHA retains integration review.

@@ -4,15 +4,16 @@ const PROJECT_REPORT_CHAPTERS=[['cover','ข้อมูลโครงการ
 let projectReportChapter='cover',projectReportDrag='';
 function projectReportConfig(p){return {order:PROJECT_REPORT_CHAPTERS.map(c=>c[0]),texts:{},excludedPhotos:[],includeUnlinked:false,includeEvents:true,from:'',to:'',...(p.reportConfig || {})};}
 function projectReportOrder(snap){return (snap.config?.order || PROJECT_REPORT_CHAPTERS.map(c=>c[0])).filter(k=>(k!=='events' || snap.config?.includeEvents!==false) && (k!=='results' || snap.hasExperiment!==false));}
-function projectReportTitle(snap,key){return snap.hasExperiment===false && key==='raw'?'เอกสารประกอบ':PROJECT_REPORT_CHAPTERS.find(c=>c[0]===key)?.[1] || key;}
+function projectReportTitle(snap,key){return snap.hasExperiment===false && key==='raw'?'เอกสารประกอบ':snap.hasExperiment===false && key==='work'?'ผลการดำเนินงาน':PROJECT_REPORT_CHAPTERS.find(c=>c[0]===key)?.[1] || key;}
 function projectReportSnapshot(p){
   const tasks=projectTaskList(p),costs=projectCosts(p),config=projectClone(projectReportConfig(p));
   const within=date=>(!config.from || date>=config.from) && (!config.to || date<=config.to);
   const results=projectLinkedTrials(p).flatMap(tr=>tr.observations.filter(o=>within(o.date) && o.includeInReport!==false && (tasks.some(t=>t.id===o.projectTaskId) || (config.includeUnlinked && !o.projectTaskId))).map(o=>({trial:tr.name,unitLabel:tr.units.find(u=>u.id===o.unitId)?.label || trialUnitDescription(tr,trialUnit(tr,o.unitId)),...projectClone(o),revisions:undefined})));
   const snap={id:uid(),createdAt:Date.now(),createdBy:projectActor(),code:projectCode(p),name:config.coverTitle || p.name,objective:config.texts.objective ?? p.objective ?? p.description ?? '',conclusion:p.conclusion || '',cost:costs.cost,config,records:projectClone((p.records || []).filter(r=>within(r.date))),events:projectClone(p.events || []),
-    tasks:tasks.map(t=>({id:t.id,title:t.title,date:taskRecordDate(t),status:t.status,cost:t.status==='done'?Number(t.cost)||0:0,note:t.status==='done'?(t.doneNote || t.note || ''):t.note || '',photos:projectClone([...(t.photos || []),...(t.donePhotos || [])])})),results};
+    tasks:tasks.map(t=>({id:t.id,title:t.title,date:taskRecordDate(t),status:t.status,cost:t.status==='done'?Number(t.cost)||0:0,costItems:projectClone(t.status==='done'?(t.costItems || []):[]),note:t.status==='done'?(t.doneNote || t.note || ''):t.note || '',photos:projectClone([...(t.photos || []),...(t.donePhotos || [])])})),results};
   snap.hasExperiment=projectHasExperiment(p);snap.attachments=projectClone(p.attachments || []);
   snap.photos=projectReportPhotos(snap).filter(ph=>!config.excludedPhotos.includes(ph.id));
+  if(typeof projectReportDecorate==='function')projectReportDecorate(snap,p);
   return snap;
 }
 function projectReportPhotos(snap){
@@ -30,12 +31,13 @@ function projectReportChapterBody(snap,key){
   let body='';
   if(key==='objective')body=`<p>${esc(text ?? snap.objective ?? '')}</p>`;
   if(key==='conclusion')body=`<p>${esc((text ?? snap.conclusion) || 'ยังไม่ได้เขียนข้อสรุป')}</p>`;
-  if(key==='work')body=`<p>${esc(text || '')}</p>${snap.tasks.map(t=>`<section><h3>${esc(t.title)}</h3><small>${esc(t.date || 'ยังไม่กำหนดวัน')} · ${t.status==='done'?'เสร็จแล้ว':t.status==='failed'?'ทำไม่ได้':'ยังไม่เสร็จ'}</small><p>${esc(t.note)}</p>${(snap.records || []).filter(r=>r.taskId===t.id).map(r=>`<p>${esc(r.workNote)}${r.note?'\nข้อสังเกต: '+esc(r.note):''}</p>`).join('')}</section>`).join('')}`;
+  if(key==='work')body=`<p>${esc(text ?? snap.summary ?? '')}</p>${snap.tasks.map(t=>`<section><h3>${esc(t.title)}</h3><small>${esc(t.date || 'ยังไม่กำหนดวัน')} · ${t.status==='done'?'เสร็จแล้ว':t.status==='failed'?'ทำไม่ได้':'ยังไม่เสร็จ'}</small><p>${esc(t.note)}</p>${(snap.records || []).filter(r=>r.taskId===t.id).map(r=>`<p>${esc(r.workNote)}${r.note?'\nข้อสังเกต: '+esc(r.note):''}</p>`).join('')}</section>`).join('')}`;
   if(key==='results' || key==='raw')body=`<p>${esc(text || '')}</p>${snap.results.length?`<div class="pw-table-scroll"><table><thead><tr><th>วันที่</th><th>ตัวอย่าง</th><th>ค่าวัด</th><th>ผล</th>${key==='raw'?'<th>หมายเหตุ / ผู้บันทึก</th>':''}</tr></thead><tbody>${snap.results.map(o=>`<tr><td>${esc(o.date)}</td><td>${esc(o.unitLabel)}</td><td>${esc(o.metric)}</td><td>${fmtNum(o.value)} ${esc(o.unit)}</td>${key==='raw'?`<td>${esc(o.note || '')}<small>${esc(o.updatedBy || o.createdBy || '')}</small></td>`:''}</tr>`).join('')}</tbody></table></div>`:'<p>ยังไม่มีค่าวัดที่ยืนยันแล้ว</p>'}`;
   if(key==='raw' && snap.hasExperiment===false)body=`<p>${esc(text || '')}</p>${snap.attachments?.length?'':'<p>ยังไม่มีเอกสารแนบ</p>'}`;
   if(key==='raw' && snap.attachments?.length)body+=`<h3>เอกสารประกอบโครงการ</h3><ul>${snap.attachments.map(f=>`<li>${esc(f.name)}${f.caption?' — '+esc(f.caption):''}</li>`).join('')}</ul><p>ไฟล์ต้นฉบับเก็บในข้อมูลโครงการ</p>`;
   if(key==='photos')body=`<p>${esc(text || '')}</p>${photos.map(ph=>`<figure><img src="${esc(ph.src)}" alt="${esc(ph.caption)}"><figcaption>${esc(ph.unitLabel || '')} · ${esc(ph.caption)}</figcaption></figure>`).join('') || '<p>ยังไม่ได้เลือกรูปเข้าเล่ม</p>'}`;
   if(key==='costs')body=`<p>${esc(text || '')}</p><p>ต้นทุนจากกิจกรรมที่ทำแล้ว ${fmtMoney(snap.cost)} บาท</p><table><thead><tr><th>กิจกรรม</th><th>ต้นทุน (บาท)</th></tr></thead><tbody>${snap.tasks.filter(t=>t.status==='done').map(t=>`<tr><td>${esc(t.title)}</td><td>${fmtMoney(t.cost)}</td></tr>`).join('')}</tbody></table>`;
+  if(key==='costs' && typeof ppReportCostsHtml==='function')body=`<p>${esc(text || '')}</p>${ppReportCostsHtml(snap)}`;
   if(key==='events')body=`<p>${esc(text || '')}</p>${(snap.events || []).map(e=>`<section><h3>${esc(snap.tasks.find(t=>t.id===e.taskId)?.title || 'โครงการ')}</h3><p>${esc(e.type==='reschedule'?(e.oldDate || 'ยังไม่กำหนด')+' → '+e.newDate:e.date)} · ${esc(e.reason)}</p><small>${esc(e.by)} · ${new Date(e.at).toLocaleString('th-TH')}</small></section>`).join('') || '<p>ไม่มีเหตุการณ์ที่บันทึกไว้</p>'}`;
   return `<section class="pw-report-chapter"><h2>${esc(title)}</h2>${body}</section>`;
 }
@@ -71,7 +73,7 @@ App.projectReportOption=function(key,value){if(['includeUnlinked','includeEvents
 App.projectReportMove=function(key,dir){projectReportChange(c=>{const i=c.order.indexOf(key),j=i+dir;if(j>=0 && j<c.order.length)[c.order[i],c.order[j]]=[c.order[j],c.order[i]];});};
 App.projectReportDrag=function(key){projectReportDrag=key;};
 App.projectReportDrop=function(e,key){e.preventDefault();projectReportChange(c=>{const i=c.order.indexOf(projectReportDrag),j=c.order.indexOf(key);if(i>=0 && j>=0){c.order.splice(i,1);c.order.splice(j,0,projectReportDrag);}});};
-App.projectReportVersions=function(){const p=projectById(route.projectId);openModal(`<h3>ประวัติเวอร์ชันรายงาน</h3><div class="project-task-choices"><button onclick="App.closeModal();App.projectReportVersion('')"><b>ร่างจากข้อมูลล่าสุด</b></button>${(p.reportVersions || []).map((v,i)=>`<button onclick="App.closeModal();App.projectReportVersion('${v.id}')"><b>ฉบับ ${i+1}</b><small>${new Date(v.createdAt).toLocaleString('th-TH')} · ${esc(v.createdBy || '')} · ${v.results.length} ค่าวัด</small></button>`).reverse().join('')}</div><button class="btn btn-outline" onclick="App.closeModal()">ปิด</button>`);};
+App.projectReportVersions=function(){const p=projectById(route.projectId);openModal(`<h3>ประวัติเวอร์ชันรายงาน</h3><div class="project-task-choices"><button onclick="App.closeModal();App.projectReportVersion('')"><b>ร่างจากข้อมูลล่าสุด</b></button>${(p.reportVersions || []).map((v,i)=>`<button onclick="App.closeModal();App.projectReportVersion('${v.id}')"><b>ฉบับ ${i+1}</b><small>${new Date(v.createdAt).toLocaleString('th-TH')} · ${esc(v.createdBy || '')} · ${v.hasExperiment===false?v.tasks.filter(t=>t.status==='done').length+' งานเสร็จ':v.results.length+' ค่าวัด'}</small></button>`).reverse().join('')}</div><button class="btn btn-outline" onclick="App.closeModal()">ปิด</button>`);};
 App.projectPrint=async function(){
   const source=document.getElementById('projectPrintDocument') || document.querySelector('.pw-report-document');if(!source)return;
   document.getElementById('projectPrintOutput')?.remove();

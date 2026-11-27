@@ -9788,7 +9788,7 @@ App.submitTask = function (e, editId, validateOnly) {
     donePhotos: existing ? taskDonePhotosOf(existing).slice() : [],
     doneNote: existing ? (existing.doneNote || "") : "",
     doneDate: document.getElementById("t_status").value !== "planned" ? document.getElementById("t_date").value : (existing?.doneDate || ""),
-    doneTime: existing ? (existing.doneTime || "") : "",
+    doneTime: document.getElementById('peActualTime')?.value ?? (existing ? (existing.doneTime || "") : ""),
     weatherSnapshot: existing ? (existing.weatherSnapshot || null) : null
   };
   if (data.type === "water" && data.wateringSessions.length && (data.status === "done" || data.status === "failed")) {
@@ -9819,12 +9819,14 @@ App.submitTask = function (e, editId, validateOnly) {
     calcLines.forEach(l => { if (!cur.includes(l)) cur.push(l); });
     data.note = cur.join("\n");
   }
+  if (typeof projectEntryPrepare === 'function') projectEntryPrepare(data, existing);
   /* บันทึกงาน (ใหม่ หรือแก้ไข) — คืนค่าและปิด modal */
   const commit = (restocked) => {
     // ถ้าติ๊ก "จบการปลูกรอบนี้" -> ปิดรอบทันที
     const saved = S.tasks.find(t => t.id === savedTaskId);
     if (saved) closeCycleForTask(S, saved);
     saveState(S);
+    if (typeof projectEntrySaved === 'function' && !projectEntrySaved(savedTaskId)) return;
     if (!editId && typeof TaskWizard !== 'undefined') TaskWizard.completed();
     if (typeof FarmOverview !== 'undefined') FarmOverview.recordSaved(overviewSavedIds);
     if (saved && data.type === 'inspect') Inspection.weatherAfterSave(saved);
