@@ -1,5 +1,17 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — FARM-CALENDAR-20261127
+
+- Owner: Codex for Folk, explicitly requested in this chat; SUCHA retains integration review.
+- Branch: `codex/farm-calendar-refresh`, source `5823f34`; refreshed `origin/develop` is an ancestor.
+- Task / Scope: Adapt the supplied calendar reference to the existing green farm app: month/week/day views, selected-day work, related projects, filters and mobile week-first layout. Read canonical tasks and reuse material completion review.
+- Files / lock: new `js/farm-calendar.js`, `css/farm-calendar.css`; scoped calendar link in `js/app.js`, asset wiring `index.html` / `sw.js`, isolated QA preview and tests, `design-qa.md`, this status file. No conflicting active owner found.
+- Status: LOCAL_COMPLETE. No new task, cost or stock ledger; retain DATA_ONLY / SAFE_OFF and same-origin API.
+- Commit: HEAD of `codex/farm-calendar-refresh`, feature commit containing `qa/farm-calendar/handoff.md`.
+- Validation: `npm run check` 703/703, relay 9/9; desktop/tablet/mobile screenshots and UI readback; navigation, filters, plan presets, material review/cancellation and one-time cost update verified. Details: `qa/farm-calendar/handoff.md`.
+- Deployment: NOT_DEPLOYED.
+- Next action: Review the local calendar at `http://127.0.0.1:4185/?projectPreview=1&view=calendar`.
+
 ## Task lock — OPTIONAL-PLANNED-TIME-20261127
 
 - Owner: Codex for Folk, explicitly requested in this chat; SUCHA retains integration review.

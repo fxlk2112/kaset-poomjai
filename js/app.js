@@ -8304,7 +8304,7 @@ App.viewTask = function (id) {
            <button class="btn btn-sm btn-outline" onclick="App.resetTaskPlanned('${t.id}')">${ic("refresh")} กลับเป็นแผน</button>`
         : `<button class="btn btn-sm btn-danger-soft" onclick="App.modalTaskComplete('${t.id}', true, 'failed')">${ic("alert")} งานไม่สำเร็จ</button>
            <button class="btn btn-sm btn-primary" onclick="App.modalTaskComplete('${t.id}', true)">${ic("check")} ทำเสร็จ</button>`}
-      <button class="btn btn-sm btn-ghost" onclick="App.gotoCalendar('${t.date}')">${ic("calendar")} ไปดูในปฏิทิน</button>
+      <button class="btn btn-sm btn-ghost" onclick="App.gotoCalendar('${taskRecordDate(t)}')">${ic("calendar")} ไปดูในปฏิทิน</button>
     </div>`);
 };
 App.stopTaskRepeat = function (id) {

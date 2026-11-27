@@ -11,7 +11,7 @@ const source=(await readFile(previewUrl,'utf8'))
   .replace("const {buildDemoState}=require('../tools/demo-state.cjs');","const {buildOverviewDemo:buildDemoState}=require('../qa/farm-overview/fixture.cjs');")
   .replace('if(!localStorage.getItem(k))localStorage.setItem(k,${JSON.stringify(JSON.stringify(demo))});}', 'if(!localStorage.getItem(k))localStorage.setItem(k,${JSON.stringify(JSON.stringify(demo))});'+cleanup+'}')
   .replaceAll('4178',port)
-  .replace("else route.view='projects';render();","else route.view='home';render();")
+  .replace("else route.view='projects';render();","else if(params.get('view')==='calendar'){route.view='planner';plannerCalendarOpen=true;}else route.view='home';render();")
   .replace('document.body.append(banner);','') // The app already labels synthetic data; keep mobile navigation unobstructed.
   .replace('Project preview','Farm overview QA');
 await import('data:text/javascript,'+encodeURIComponent(source));
