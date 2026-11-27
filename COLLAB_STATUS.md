@@ -59,6 +59,15 @@
 
 ## Ownership and Locks
 
+### Active task: PLOT-MATERIAL-HISTORY-20261127
+
+- Owner: Codex for Folk, explicitly requested in the current chat; SUCHA retains shared integration review.
+- Branch: `codex/plot-material-history`; source `9d08a11` (deployed runtime `845ea5b` plus handoff documentation), descendant of refreshed `origin/develop` at `40721b5`.
+- Task / Scope: Add date and product views for existing plot/crop-cycle material usage with a cycle selector. Read canonical tasks only; preserve saved quantities, accounting, stock and project links.
+- Scope / lock: new `js/plot-materials.js` and `css/plot-materials.css`; scoped plot-tab wiring in `js/app.js`, notebook material-panel wiring in `js/cycle-notebook.js`, asset wiring in `index.html` / `sw.js`, focused tests and synthetic QA/handoff. Prior same-owner sales/project work is committed and preserved; no other owner's active lock is present in this checkout.
+- Status: LOCAL_COMPLETE / VISUAL_VALIDATED. `npm run check`: 684 passed, 0 failed; relay 9/9. Desktop 1440 x 940 and mobile 390 x 844 browser readback/screenshot completed. Date/product views agree on synthetic material cost 690; canonical cycle cost remains 940 including labor 250. Legacy/unassigned/closed-cycle records, mixed units, zero/missing/mismatched costs, detail links and planned exclusions verified. See `qa/plot-materials/README.md`.
+- Deployment: NOT_DEPLOYED for this follow-up; production remains the prior approved `845ea5b` release. No backend/schema change, production data, remote push or hardware action. DATA_ONLY / SAFE_OFF retained.
+
 ### Active task: SALES-SLIPS-20261126
 
 - Owner: Codex for Folk, user-requested sales payment-slip attachments.

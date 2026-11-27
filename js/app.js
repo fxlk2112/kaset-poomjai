@@ -3787,7 +3787,7 @@ function renderPlotDetail() {
   const noCycleTasks = tasks.filter(t => !t.cycleId || !cycles.some(c => c.id === t.cycleId));
   const shownTasks = plotTaskCycle === "__none__" ? noCycleTasks
     : (plotTaskCycle ? tasks.filter(t => t.cycleId === plotTaskCycle) : tasks);
-  const tab = ["overview", "cycles", "tasks", "setup"].includes(plotDetailTab) ? plotDetailTab : "overview";
+  const tab = ["overview", "cycles", "tasks", "materials", "setup"].includes(plotDetailTab) ? plotDetailTab : "overview";
   const tabBtn = (key, icon, label, count) => `
     <button class="detail-tab ${tab === key ? "active" : ""}" onclick="App.plotDetailTab('${key}')">
       ${ic(icon)} <span>${label}</span>${count != null ? `<b>${fmtNum(count)}</b>` : ""}
@@ -3851,7 +3851,8 @@ function renderPlotDetail() {
     </div>
     <details class="plot-weather-details"><summary>${ic('cloud')} สภาพอากาศและพยากรณ์</summary>${plotWeatherCard(p)}</details>`;
   const setupHtml = `<div class="actions-row"><button class="btn btn-outline" onclick="App.modalPlot('${p.id}')">${ic('pencil')} แก้ไขแปลง</button><button class="btn btn-outline" onclick="App.modalShare('${p.id}')">${ic('user')} แชร์</button><button class="btn btn-outline" onclick="App.modalTrial('${p.id}')">${ic('search')} สร้างแปลงทดลอง</button></div>${plotPhotoCard(p)}${plotWaterZonesCard(p)}${plotWaterCard(p)}`;
-  const content = tab === "cycles" ? cyclesHtml : (tab === "tasks" ? tasksHtml : tab === 'setup' ? setupHtml : overviewHtml);
+  const materialsHtml = tab === 'materials' ? (typeof materialHistoryHtml === 'function' ? materialHistoryHtml(p.id) : '<p role="status">กำลังโหลดประวัติยาและปุ๋ย...</p>') : '';
+  const content = tab === 'materials' ? materialsHtml : tab === "cycles" ? cyclesHtml : (tab === "tasks" ? tasksHtml : tab === 'setup' ? setupHtml : overviewHtml);
   return `
     <div class="row" style="margin-bottom:10px">
       <button class="btn btn-sm btn-ghost" onclick="App.goPlots()">← กลับไปแปลงทั้งหมด</button>
@@ -3876,10 +3877,11 @@ function renderPlotDetail() {
         <button class="btn btn-sm btn-ghost" onclick="Inspection.history('${p.id}')">${ic('chart')} ผลตรวจย้อนหลัง</button>
       </div>
     </div>
-    <div class="detail-tabs">
+    <div class="detail-tabs plot-detail-tabs">
       ${tabBtn("overview", "chart", "ภาพรวม", null)}
       ${tabBtn("cycles", "leaf", "รอบปลูก", cycles.length)}
       ${tabBtn("tasks", "calendar", "กิจกรรม", tasks.length)}
+      ${tabBtn("materials", "leaf", "ยาและปุ๋ย", null)}
       ${tabBtn("setup", "gear", "ข้อมูลและระบบน้ำ", null)}
     </div>
     ${content}
@@ -3897,7 +3899,7 @@ App.openPlot = function (id) {
   render();
 };
 App.plotDetailTab = function (tab) {
-  plotDetailTab = ["overview", "cycles", "tasks", "setup"].includes(tab) ? tab : "overview";
+  plotDetailTab = ["overview", "cycles", "tasks", "materials", "setup"].includes(tab) ? tab : "overview";
   rerender();
 };
 App.plotTaskFilter = function (v) { plotTaskCycle = v; rerender(); };

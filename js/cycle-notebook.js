@@ -71,6 +71,7 @@ function notebookBridge(c, model) {
   return `<section class="nb-bridge"><h3>จากงานในแปลง สู่ผลทดลอง</h3><div class="nb-bridge-body">${photos.length?`<div class="nb-photos">${photos.map(photo=>`<img src="${esc(taskPhotoUrl(photo))}" alt="ภาพบันทึกจากงานและผลทดลองของ ${esc(projectCode(p))}" loading="lazy">`).join('')}</div>`:''}<div class="nb-bridge-copy"><strong>${esc(linked?.title || p.name)}${resultTask?' → '+esc(resultTask.title):''}</strong><p>เชื่อมกับ ${esc(projectCode(p))}</p><button class="btn btn-outline" onclick="${notebookAction('cycleNotebookOpenResult',p.id,resultTask?.id || linked?.id || '')}">ดูงานและผลทดลอง ${notebookIcon('ExternalLink')}</button></div></div></section>`;
 }
 function notebookMaterials(c, model) {
+  if(typeof materialHistoryHtml === 'function') return materialHistoryHtml(c.plotId,c.id);
   const filter=notebookFilters.get(c.id) || {category:'',month:''}, rows=notebookMaterialRows(c,filter);
   const months=[...new Set(model.materials.map(t=>taskRecordDate(t).slice(0,7)))].filter(Boolean).sort().reverse();
   const total=rows.reduce((sum,row)=>sum+row.items.reduce((n,ci)=>n+(Number(ci.totalCost)||0),0),0);
