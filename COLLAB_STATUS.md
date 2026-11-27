@@ -1,5 +1,17 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — PROJECT-GROUP-NAMES-20261127
+
+- Owner: Codex for Folk, explicitly requested in this chat; SUCHA retains integration review.
+- Branch: `codex/project-group-names`, source `e27796d`; fetched `origin/develop` verified as ancestor.
+- Task / Scope: Rename existing experimental groups from the project record screen, preserving sample IDs, measurements, photos, accounting and saved report editions. Show current names in live records and reports.
+- Files / lock: `js/project-records.js`, `js/project-report.js`, `js/project-docx.js`, scoped project CSS, asset versions in `index.html` / `sw.js`, project tests, synthetic QA and this status file. No conflicting active owner found.
+- Status: LOCAL_COMPLETE. DATA_ONLY / SAFE_OFF and same-origin API unchanged.
+- Commit: Feature commit on `codex/project-group-names` containing `qa/project-group-names/HANDOFF.md`.
+- Validation: `npm run check` 727/727, relay 9/9; browser screenshots/readback at 1560 x 1000 and 390 x 844. Rename, duplicate rejection, cancel, mobile save/reload and frozen-versus-live report names verified. Regression checks preserve IDs, measurements, photos, costs, stock and historical editions; Word output checked by test.
+- Deployment: NOT_DEPLOYED.
+- Next action: Review the new group-name editor in the local preview.
+
 ## Task lock — PROJECT-TASK-RECORD-KIND-20261127
 
 - Owner: Codex for Folk, follow-up to the approved project workflow; SUCHA retains integration review.

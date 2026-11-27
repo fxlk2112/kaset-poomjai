@@ -187,6 +187,58 @@ test('weekly scheduling crosses month boundaries and manual dates are preserved'
   assert.equal(h.run('projectDraft.stages[1].tasks[3].date'),'2026-12-22');
 });
 function prepared(){const h=harness();h.run(`const d=projectSuggest('ทดลองปุ๋ย A เทียบวิธีเดิม 4 สัปดาห์ วัดความสูงและจำนวนใบ','');d.sampleCount=2;const p=projectCreateFromDraft(d),task=projectTaskList(p)[2],tr=projectLinkedTrials(p)[0];const record=projectRecordLoad(p,task,tr);`);return h;}
+test('renaming experimental groups preserves samples, evidence, costs and frozen reports',()=>{
+  const h=prepared();h.run(`record.rows[0].values[tr.metrics[0].id]='12';record.photos=[{id:'photo',unitId:tr.units[0].id,src:'synthetic-photo',caption:'Evidence'}];projectRecordCommit(p,task,tr,record);p.reportVersions=[projectReportSnapshot(p)];const before=JSON.stringify({units:tr.units,observations:tr.observations,records:p.records,versions:p.reportVersions,tasks:S.tasks,stock:S.stock,cost:projectCosts(p)});const expected=projectGroupNames(tr),names=expected.map((t,i)=>({...t,name:'สูตร '+(i+1)}));projectRenameGroups(p,tr,names,expected);`);
+  assert.equal(h.run('tr.treatments.map(t=>t.name).join(",")'),'สูตร 1,สูตร 2');
+  assert.equal(h.run('p.groups.join(",")'),'สูตร 1,สูตร 2');
+  assert.equal(h.run('JSON.stringify({units:tr.units,observations:tr.observations,records:p.records,versions:p.reportVersions,tasks:S.tasks,stock:S.stock,cost:projectCosts(p)})===before'),true);
+  assert.equal(h.run('tr.groupNameHistory[0].changes.length'),2);
+  assert.equal(h.run('projectReportSnapshot(p).results[0].groupName'),'สูตร 1');
+  assert.equal(h.run('p.reportVersions[0].results[0].groupName===expected[0].name'),true);
+});
+test('current names refresh in memory, stored drafts and saved records without losing unsaved values',()=>{
+  const h=prepared();h.run(`record.rows[0].values[tr.metrics[0].id]='19';record.dirty=true;record.workNote='unsaved note';projectRecordStore();const names=projectGroupNames(tr).map((t,i)=>({...t,name:'ชื่อใหม่ '+i}));projectRenameGroups(p,tr,names,projectGroupNames(tr));`);
+  assert.equal(h.run('projectRecordLoad(p,task,tr).rows[0].group'),'ชื่อใหม่ 0');
+  h.run('projectRecordDraft=null;');
+  assert.equal(h.run('projectRecordLoad(p,task,tr).rows[0].group'),'ชื่อใหม่ 0');
+  assert.equal(h.run('projectRecordDraft.rows[0].values[tr.metrics[0].id]'),'19');
+  assert.equal(h.run('projectRecordDraft.workNote+":"+projectRecordDraft.dirty'),'unsaved note:true');
+  h.run('projectRecordCommit(p,task,tr,projectRecordDraft);localStorage.removeItem(projectRecordKey(p,task,tr));projectRecordDraft=null;');
+  assert.equal(h.run('projectRecordLoad(p,task,tr).rows[0].group'),'ชื่อใหม่ 0');
+});
+test('invalid, stale and closed group edits cannot partially rename or move samples',()=>{
+  const h=prepared();h.run('const names=projectGroupNames(tr),before=JSON.stringify(S);');
+  for(const expression of [
+    "names.map(t=>({...t,name:'ซ้ำ'}))",
+    "names.map((t,i)=>({...t,name:i?'ใหม่':'   '}))",
+    "names.map(t=>({...t,name:'x'.repeat(121)}))",
+    "names.slice(1)",
+    "names.map((t,i)=>({...t,id:i?t.id:'unrelated'}))"
+  ]){assert.throws(()=>h.run(`projectRenameGroups(p,tr,${expression},names)`));assert.equal(h.run('JSON.stringify(S)===before'),true);}
+  assert.throws(()=>h.run("projectRenameGroups(p,tr,names,[])"),/ถูกแก้ไขแล้ว/);
+  h.run("p.status='done';");assert.throws(()=>h.run('projectRenameGroups(p,tr,names,names)'),/เปิดโครงการ/);
+  h.run("p.status='active';tr.status='done';");assert.throws(()=>h.run('projectRenameGroups(p,tr,names,names)'),/เปิดโครงการ/);
+});
+test('failed group persistence rolls back and retry records one rename',()=>{
+  const h=prepared();h.run("const names=projectGroupNames(tr),next=names.map((t,i)=>({...t,name:'New '+i}));");h.quota(true);
+  assert.equal(h.run('projectTransaction(()=>projectRenameGroups(p,tr,next,names)).ok'),false);
+  assert.equal(h.run('JSON.stringify(projectGroupNames(S.trials[0]))===JSON.stringify(names)'),true);
+  assert.equal(h.run('S.trials[0].groupNameHistory'),undefined);
+  h.quota(false);assert.equal(h.run('projectTransaction(()=>projectRenameGroups(S.projects[0],S.trials[0],next,names)).ok'),true);
+  assert.equal(h.run('S.trials[0].groupNameHistory.length'),1);
+});
+test('renaming a linked trial leaves another trial and its project template alone',()=>{
+  const h=prepared();h.run("const other=projectSetupSamples(p,1),before=JSON.stringify(other),groupTemplate=JSON.stringify(p.groups);projectRenameGroups(p,tr,projectGroupNames(tr).map((t,i)=>({...t,name:'New '+i})),projectGroupNames(tr));");
+  assert.equal(h.run('JSON.stringify(other)===before && JSON.stringify(p.groups)===groupTemplate'),true);
+});
+test('live report and Word export show group names while saved editions keep original names',async()=>{
+  const h=prepared();h.run("record.rows[0].values[tr.metrics[0].id]='12';projectRecordCommit(p,task,tr,record);const saved=projectReportSnapshot(p);projectRenameGroups(p,tr,projectGroupNames(tr).map((t,i)=>({...t,name:'สูตรใหม่ '+i})),projectGroupNames(tr));const live=projectReportSnapshot(p);");
+  h.ctx.esc=String;h.ctx.fmtNum=String;h.ctx.fmtMoney=String;
+  assert.match(h.run("projectReportChapterBody(live,'results')"),/สูตรใหม่ 0/);
+  assert.doesNotMatch(h.run("projectReportChapterBody(saved,'results')"),/สูตรใหม่ 0/);
+  h.ctx.TextEncoder=TextEncoder;h.ctx.Blob=Blob;h.run(source('js/project-docx.js'));const blob=await h.run('projectDocx(live)');
+  assert.ok(new TextDecoder().decode(await blob.arrayBuffer()).includes('สูตรใหม่ 0'));
+});
 test('a failed multi-photo upload leaves no hidden partial evidence in the draft',async()=>{
   const h=prepared();let reads=0;
   h.ctx.readTaskPhotoFile=async()=>{if(++reads===2)throw new Error('unreadable image');return 'data:image/jpeg;base64,AA==';};

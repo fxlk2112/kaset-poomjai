@@ -44,7 +44,7 @@ async function projectDocx(snap){
     if(key==='objective')body+=paragraph(text ?? snap.objective);
     if(key==='conclusion')body+=paragraph(text ?? snap.conclusion);
     if(key==='work'){body+=paragraph(text ?? snap.summary);for(const t of snap.tasks){body+=paragraph(t.title,true)+paragraph((t.date || 'ยังไม่กำหนดวัน')+' · '+(t.status==='done'?'ทำแล้ว':t.status==='failed'?'ไม่สำเร็จ':'วางแผนไว้'))+paragraph(t.note);for(const r of snap.records.filter(r=>r.taskId===t.id))body+=paragraph(r.workNote)+paragraph(r.note);}}
-    if(['results','raw'].includes(key) && snap.hasExperiment!==false)body+=paragraph(text)+table([['วันที่','ตัวอย่าง','ค่าวัด','ผล','หมายเหตุ'],...snap.results.map(o=>[o.date,o.unitLabel,o.metric,o.value+' '+o.unit,o.note || ''])]);
+    if(['results','raw'].includes(key) && snap.hasExperiment!==false)body+=paragraph(text)+table([['วันที่','ตัวอย่าง','กลุ่มทดลอง','ค่าวัด','ผล','หมายเหตุ'],...snap.results.map(o=>[o.date,o.unitLabel,o.groupName ?? o.sampleGroup ?? '—',o.metric,o.value+' '+o.unit,o.note || ''])]);
     if(key==='raw' && snap.hasExperiment===false)body+=paragraph(text);
     if(key==='raw' && snap.attachments?.length){body+=paragraph('เอกสารประกอบโครงการ',true);for(const file of snap.attachments)body+=paragraph(file.name+(file.caption?' — '+file.caption:''));body+=paragraph('ไฟล์ต้นฉบับเก็บในข้อมูลโครงการ');}
     if(key==='photos'){body+=paragraph(text);for(const ph of snap.photos)body+=images.get(ph.id)+paragraph((ph.unitLabel || '')+' · '+ph.caption);}
