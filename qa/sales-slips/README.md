@@ -1,5 +1,7 @@
 # Sales payment-slip attachments — 2026-11-26
 
+**Current deployment (2026-11-27): DEPLOYED.** The user supplied `APPROVE_PRODUCTION_DEPLOY`; runtime `845ea5b` is live at https://farmultimate-solutions.pages.dev/ with its backend and same-origin API. See [production evidence](deployment-20261127.md). Earlier `NOT_DEPLOYED` checkpoints below are historical.
+
 - Owner: Codex for Folk; SUCHA retains shared integration review.
 - Branch: `codex/sales-payment-slips`, based on current app `eb40888`, a descendant of integration baseline `origin/develop` (`40721b5`).
 - Task / Scope: Attach payment evidence while creating or editing a product sale; open saved evidence from sale detail. Up to three JPG/PNG/WebP images, original file limit 5 MB each. Existing records require no migration. Attachments do not change payment status or totals.

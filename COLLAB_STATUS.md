@@ -1,5 +1,20 @@
 # FARMULTIMATE Collaboration Status
 
+## Current production checkpoint — 2026-11-27
+
+- Owner: Codex for Folk; SUCHA retains shared integration review.
+- Branch: local `codex/sales-payment-slips`; published runtime `folk/sales-payment-slips` at `845ea5bc2181bffe7b6f8b4935cdde98e3bcffb8`.
+- Task / Scope: User-approved latest web, backend and same-origin API release to `https://farmultimate-solutions.pages.dev/`, including projects/trials and private sales slips.
+- Files changed: Deployment evidence only in this checkpoint; runtime code unchanged from the tested feature commit.
+- Commit: Runtime `845ea5b`; the newer local commits contain documentation only.
+- Validation: 676 local checks passed, relay 9/9; exact runtime GitHub npm-check passed (run `45735939839`). Production web assets and sales-slip form verified. `POST /api` health returned 200, `output_control_allowed=false`; unauthenticated private-slip access was rejected and public private-object access returned 403. D1, private R2 and nine existing secret bindings retained.
+- Blocked / Risks: Live authenticated upload/save/reload was not exercised with a test account. Draft PR #18 remains unmerged; independent `Workers Builds: flytechfarm` failure remains separate and unresolved. Detailed limits are in `qa/sales-slips/deployment-20261127.md`.
+- Deployment: **DEPLOYED**, explicitly approved in this chat with `APPROVE_PRODUCTION_DEPLOY` on 2026-11-27. Pages `c4b571c9-e046-48df-b137-3c1d13694de4`; Worker `farmbackup` version `f493a6ec-71bc-4dbf-8dfc-36a8df6e0423`; `FARMULTIMATE_API` binding operational. No protected Git branch was pushed or merged.
+- Safety: `DATA_ONLY / SAFE_OFF / output_control_allowed=false`; no hardware action.
+- Next action: SUCHA review draft PR #18 for integration into `develop`, preserving this approved production revision.
+
+## Historical baseline checkpoint
+
 - Updated: `2026-09-05 Asia/Bangkok`
 - State: `BASELINE_READY`
 - Development approval: `APPROVE_FARMULTIMATE_DEV_SETUP_ONCE`
