@@ -1,4 +1,27 @@
 /* Read-only plot/cycle material history. Uses the app's light/dark theme tokens. */
+.plot-header-context,.plot-detail-header .plot-header-toggle{display:none}
+.plot-header-tools{display:flex;gap:8px;flex-wrap:wrap}
+.mh-entry-row{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.mh-search{display:flex;align-items:center;gap:8px;flex:1;min-width:0;min-height:46px;padding-left:12px;border:1px solid var(--card-border);border-radius:8px;background:var(--card);color:var(--muted)}
+.mh-search:focus-within{outline:2px solid var(--green-dark);outline-offset:2px}
+.mh-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:14px;padding:12px 0;box-shadow:none}
+.mh-search button{width:44px;height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.mh-search button[hidden]{display:none}
+@media(max-width:600px){
+  .cw-detail>.plot-detail-header{padding:12px 0}
+  .plot-detail-header .plot-top{margin-bottom:6px;gap:10px}
+  .plot-detail-header .plot-emoji{display:none}
+  .plot-detail-header .plot-name{font-size:20px;overflow-wrap:anywhere}
+  .plot-header-context{display:block;font-size:13px;color:var(--muted);margin:4px 0 12px;overflow-wrap:anywhere}
+  .plot-detail-header:not(.is-expanded) .meta-grid,.plot-detail-header:not(.is-expanded) .plot-header-tools{display:none}
+  .plot-detail-header .actions-row{margin-top:8px;gap:8px}
+  .plot-detail-header .actions-row>.btn{min-height:44px;flex:1}
+  .plot-detail-header .plot-header-toggle{display:flex;align-items:center;justify-content:center;min-height:44px;width:100%;font-size:13px;margin-top:4px}
+  .plot-header-tools{width:100%}
+  .mh-entry-row{flex-wrap:wrap;gap:10px}
+  .mh-search{flex-basis:100%}
+  .mh-record{width:100%;justify-content:center}
+}
 .concept .cw-detail .plot-detail-tabs{grid-template-columns:repeat(5,minmax(0,1fr));background:var(--bg)}
 @media(max-width:700px){.concept .cw-detail .plot-detail-tabs{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.plot-detail-tabs .detail-tab{min-height:44px;font-size:13px;white-space:nowrap;padding-inline:5px}.plot-detail-tabs .detail-tab:last-child{grid-column:2/4}}
 .mh-panel{border:1px solid var(--card-border);border-radius:12px;background:var(--card);padding:22px;color:var(--text);min-width:0}

@@ -3857,14 +3857,15 @@ function renderPlotDetail() {
     <div class="row" style="margin-bottom:10px">
       <button class="btn btn-sm btn-ghost" onclick="App.goPlots()">← กลับไปแปลงทั้งหมด</button>
     </div>
-    <div class="card">
+    <div class="card plot-detail-header">
       <div class="plot-top">
         <div class="plot-emoji">${cropEmoji(p.crop)}</div>
         <div class="grow">
           <div class="plot-name">${esc(p.name)} ${p.status === "active" ? `<span class="badge badge-green">เปิดใช้งาน</span>` : `<span class="badge badge-gray">ว่าง</span>`}</div>
         </div>
       </div>
-      <div class="meta-grid">
+      <p class="plot-header-context">${fmtNum(p.sizeRai)} ไร่ · ${activeCycle ? esc(activeCycle.plant) + ' · รอบ ' + esc(activeCycle.round || '—') + (cycles.filter(c=>c.status==='active').length > 1 ? ' · กำลังปลูก ' + cycles.filter(c=>c.status==='active').length + ' รอบ' : '') : 'ยังไม่มีรอบที่กำลังปลูก'}</p>
+      <div class="meta-grid" id="plotHeaderMeta">
         <div class="meta-box"><div class="lb">ขนาดพื้นที่</div><div class="vl">${fmtNum(p.sizeRai)} ไร่</div></div>
         <div class="meta-box"><div class="lb">พิกัด GPS</div><div class="vl" style="font-size:.85rem">${plotCoordinatesHtml(p)}</div></div>
         <div class="meta-box"><div class="lb">รอบที่กำลังปลูก</div><div class="vl" style="font-size:.78rem">${cycles.filter(c=>c.status==='active').length} รอบ</div></div>
@@ -3873,9 +3874,10 @@ function renderPlotDetail() {
       <div class="actions-row">
         ${activeCycle ? "" : `<button class="btn btn-sm btn-primary" onclick="App.modalCycle('${p.id}')">${ic("leaf")} เริ่มปลูก</button>`}
         <button class="btn btn-sm btn-primary" onclick="App.modalTask(todayISO(), { plotId: '${p.id}' })">${ic("plus")} เพิ่มกิจกรรม</button>
-        <button class="btn btn-sm btn-outline" onclick="App.modalTask(todayISO(), { plotId: '${p.id}', type: 'inspect', status: 'done' })">${ic('search')} ตรวจแปลง</button>
-        <button class="btn btn-sm btn-ghost" onclick="Inspection.history('${p.id}')">${ic('chart')} ผลตรวจย้อนหลัง</button>
+        <div class="plot-header-tools" id="plotHeaderTools"><button class="btn btn-sm btn-outline" onclick="App.modalTask(todayISO(), { plotId: '${p.id}', type: 'inspect', status: 'done' })">${ic('search')} ตรวจแปลง</button>
+        <button class="btn btn-sm btn-ghost" onclick="Inspection.history('${p.id}')">${ic('chart')} ผลตรวจย้อนหลัง</button></div>
       </div>
+      <button type="button" class="btn btn-ghost plot-header-toggle" aria-expanded="false" aria-controls="plotHeaderMeta plotHeaderTools" onclick="App.togglePlotHeader(this)">ข้อมูลแปลงและเครื่องมือ</button>
     </div>
     <div class="detail-tabs plot-detail-tabs">
       ${tabBtn("overview", "chart", "ภาพรวม", null)}

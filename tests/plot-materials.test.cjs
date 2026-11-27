@@ -117,3 +117,55 @@ test('material names and identifiers are escaped in date and expanded-product vi
     assert.doesNotMatch(html,/<img src=x/);assert.match(html,/&lt;img/);assert.match(html,/App\.viewTask/);
   }
 });
+
+test('name search filters matching lines in both views without adding other materials or changing ledger totals', () => {
+  const h=harness();h.run(`S.projects=[{id:'pr',stages:[]}];
+    S.tasks=[{...task('a','c2',[item('ยา ตัวอย่าง A',800,120),item('สารร่วม B',250,45),{name:'แรง',category:'labor',totalCost:150}]),projectId:'pr'},
+      task('b','c2',[item('ยา ตัวอย่าง A',1000,150)]),task('old','c1',[item('ยา ตัวอย่าง A',500,75)]),
+      task('plan','c2',[item('ยา ตัวอย่าง A',1000,100)],'planned')];
+    const before=JSON.stringify(S);
+    const selected=materialHistoryScope('p','c2');
+    const model=materialHistoryModel(selected.tasks,{query:'  ตัวอย่าง   a  ',month:'2026-11',category:'chemical'});
+    const dates=materialHistoryResultsHtml(model,false), products=materialHistoryResultsHtml(model,true);`);
+  assert.equal(h.run('model.cost'),270);assert.equal(h.run('model.rows.length'),2);
+  assert.equal(h.run('model.products.length'),1);assert.equal(h.run('model.planned.length'),1);
+  assert.equal(h.run('model.products[0].quantities.get("volume").qty'),1800);
+  for(const view of ['dates','products']){assert.match(h.run(view),/270 บาท/);assert.doesNotMatch(h.run(view),/สารร่วม B/);}
+  assert.equal(h.run('materialHistoryModel(selected.tasks,{query:"ไม่มีชื่อนี้"}).rows.length'),0);
+  assert.equal(h.run('materialHistoryModel(selected.tasks,{query:"   "}).cost'),315);
+  assert.equal(h.run('JSON.stringify(S)===before'),true);
+  assert.equal(h.run('cycleFinance(S,"c2").cost'),465);assert.equal(h.run('projectCosts(projectById("pr")).cost'),315);
+});
+
+test('record shortcut preserves selected, closed, unassigned and fixed cycles and requires a choice for multiple active cycles', () => {
+  const h=harness();h.run(`let captured=null; App.modalTask=(date,preset)=>{captured=preset}; const before=JSON.stringify(S); App.materialHistoryAdd('p');`);
+  assert.equal(h.run('captured.cycleId'),'c2');assert.equal(h.run('captured.plotId'),'p');
+  assert.equal(h.run('captured.status'),'done');assert.equal(h.run('captured.type'),'spray');
+  h.run(`App.materialHistoryFilter('plot:p','cycle','c1'); App.materialHistoryAdd('p');`);
+  assert.equal(h.run('captured.cycleId'),'c1');
+  h.run(`App.materialHistoryFilter('plot:p','cycle','__none__'); App.materialHistoryAdd('p');`);
+  assert.equal(h.run('captured.cycleId'),'__none__');
+  h.run(`App.materialHistoryFilter('cycle:c2','category','fertilizer'); App.materialHistoryAdd('p','c2');`);
+  assert.equal(h.run('captured.cycleId'),'c2');assert.equal(h.run('captured.type'),'fertilize');
+  assert.equal(h.run('JSON.stringify(S)===before'),true);
+  h.run(`captured=null;App.materialHistoryAdd('p','other');App.materialHistoryAdd('missing');`);
+  assert.equal(h.run('captured'),null);
+  h.run(`S.cycles.push({id:'c3',plotId:'p',status:'active'});App.materialHistoryFilter('plot:p','cycle','');App.materialHistoryAdd('p');`);
+  assert.equal(h.run('captured.cycleId'),'');
+  h.run(`S.cycles.forEach(c=>c.status='done');App.materialHistoryAdd('p');`);
+  assert.equal(h.run('captured.cycleId'),'__none__');
+});
+
+test('shortcut opens a draft only; one canonical save, repeated searches and edit-save count stock and linked costs once', () => {
+  const h=harness();h.run(`S.projects=[{id:'pr',stages:[]}];S.stock=[{id:'s',name:'A',qty:5,openQty:1,avgCost:100}];
+    let preset; App.modalTask=(date,context)=>{preset=context};
+    const before=JSON.stringify(S);App.materialHistoryAdd('p'); const untouched=JSON.stringify(S)===before;
+    const saved=addTask(S,{...task('saved'),...preset,projectId:'pr',costItems:[{...item('A',500,50),stockId:'s',qty:0.5,stockMode:'open'}],cost:50});
+    const afterSave=JSON.stringify(S.stock);
+    for(let i=0;i<5;i++){materialHistoryModel(S.tasks,{query:'A'});materialHistoryHtml('p');}
+    updateTask(S,saved.id,{costItems:JSON.parse(JSON.stringify(saved.costItems)),cost:50},'keep');`);
+  assert.equal(h.run('untouched'),true);assert.equal(h.run('S.tasks.length'),1);
+  assert.equal(h.run('JSON.stringify(S.stock)===afterSave'),true);
+  assert.equal(h.run('cycleFinance(S,"c2").cost'),50);assert.equal(h.run('projectCosts(projectById("pr")).cost'),50);
+  assert.equal(h.run('materialHistoryModel(S.tasks).cost'),50);
+});
