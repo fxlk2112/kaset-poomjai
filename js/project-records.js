@@ -1,0 +1,234 @@
+/* Inline project records share canonical trials; drafts are account-local and never complete tasks. */
+"use strict";
+let projectRecordDraft=null,projectRecordOwner='',projectRecordUploading=false,projectRecordMode='entry',projectPlantIndex=0,projectActiveTrial='',projectShowAllPlants=false;
+function projectActor(){return typeof Auth!=='undefined'?(Auth.session?.name || Auth.session?.email || 'ผู้บันทึก'):'ผู้บันทึก';}
+function projectClone(value){return JSON.parse(JSON.stringify(value));}
+function projectRecordKey(p,t,tr){return projectDraftKey()+'::record::'+p.id+'::'+t.id+'::'+tr.id;}
+function projectRecordGroupName(tr,unitId,fallback=''){
+  const unit=tr.units?.find(u=>u.id===unitId);
+  return tr.treatments?.find(t=>t.id===unit?.treatmentId)?.name ?? fallback;
+}
+function projectRefreshRecordGroups(d,tr){
+  for(const row of d.rows)row.group=projectRecordGroupName(tr,row.unitId,row.group);
+  return d;
+}
+function projectGroupNames(tr){return (tr.treatments || []).map(t=>({id:t.id,name:t.name}));}
+function projectRenameGroups(p,tr,entries,expected){
+  if(!p || !tr || !p.trialIds?.includes(tr.id))throw new Error('การทดลองไม่ตรงกับโครงการ');
+  if(p.status==='done' || tr.status==='done')throw new Error('เปิดโครงการและการทดลองอีกครั้งก่อนแก้ชื่อกลุ่ม');
+  const current=projectGroupNames(tr);
+  if(JSON.stringify(current)!==JSON.stringify(expected))throw new Error('ชื่อกลุ่มถูกแก้ไขแล้ว กรุณาปิดแล้วเปิดจัดการกลุ่มอีกครั้ง');
+  if(!Array.isArray(entries) || entries.length!==current.length || new Set(entries.map(e=>e.id)).size!==current.length || entries.some(e=>!current.some(t=>t.id===e.id)))throw new Error('เปลี่ยนได้เฉพาะชื่อของกลุ่มเดิม');
+  const names=entries.map(e=>({...e,name:typeof e.name==='string'?e.name.trim().normalize('NFC'):''}));
+  if(names.some(e=>!e.name || e.name.length>120))throw new Error('กรอกชื่อทุกกลุ่ม ไม่เกิน 120 ตัวอักษร');
+  if(new Set(names.map(e=>e.name.toLocaleLowerCase('th-TH'))).size!==names.length)throw new Error('ชื่อกลุ่มต้องไม่ซ้ำกัน');
+  const changes=current.flatMap(t=>{const name=names.find(e=>e.id===t.id).name;return name===t.name?[]:[{id:t.id,from:t.name,to:name}];});
+  if(!changes.length)return false;
+  for(const t of tr.treatments)t.name=names.find(e=>e.id===t.id).name;
+  // The trial owns membership; never rebuild units or rewrite historical records.
+  if(p.trialIds.length===1 && tr.projectId===p.id)p.groups=tr.treatments.map(t=>t.name);
+  const at=Date.now();tr.groupNameHistory=[...(tr.groupNameHistory || []),{at,by:projectActor(),changes}];tr.updatedAt=at;p.updatedAt=at;
+  return true;
+}
+let projectGroupEditor=null;
+App.projectManageGroups=function(projectId,trialId){
+  const p=projectById(projectId),tr=projectLinkedTrials(p || {}).find(t=>t.id===trialId);
+  if(!p || !tr || p.status==='done' || tr.status==='done' || !tr.treatments?.length || !projectCanLeaveRecord())return;
+  projectGroupEditor={projectId,trialId,owner:projectDraftKey(),names:projectGroupNames(tr)};
+  openModal(`<h3>จัดการกลุ่มทดลอง</h3><p>${esc(tr.name)}</p><p class="hint">เปลี่ยนชื่อให้ตรงกับสูตรหรือวิธีที่ใช้ ชื่อนี้ใช้กับทุกงานที่เชื่อมการทดลองเดียวกัน</p><form onsubmit="return App.projectSaveGroups(event)"><div class="pw-group-editor">${tr.treatments.map((t,i)=>`<div class="pw-group-edit-row"><div><b>${esc(t.code)}</b><small>${tr.units.filter(u=>u.treatmentId===t.id).length} ตัวอย่าง</small></div><label for="projectGroupName${i}">ชื่อกลุ่ม ${esc(t.code)}<input id="projectGroupName${i}" maxlength="120" required value="${esc(t.name)}" placeholder="เช่น ปุ๋ยสูตร 1"></label></div>`).join('')}</div><p class="hint">รหัสต้น ค่าวัด และรูปภาพยังอยู่กลุ่มเดิม รายงานฉบับที่เก็บไว้จะคงชื่อเดิม</p><p id="projectGroupError" class="pw-error" role="alert"></p><div class="modal-actions"><button type="button" class="btn btn-outline" onclick="App.closeModal()">ยกเลิก</button><button type="submit" class="btn btn-primary">บันทึกชื่อกลุ่ม</button></div></form>`);
+};
+App.projectSaveGroups=function(e){
+  e.preventDefault();const edit=projectGroupEditor;
+  if(!edit || edit.owner!==projectDraftKey())return false;
+  try{
+    const p=projectById(edit.projectId),tr=trialById(S,edit.trialId),entries=edit.names.map((t,i)=>({id:t.id,name:document.getElementById('projectGroupName'+i).value}));
+    const result=projectTransaction(()=>projectRenameGroups(p,tr,entries,edit.names));
+    if(!result.ok){document.getElementById('projectGroupError').textContent='ยังบันทึกชื่อไม่ได้ กรุณาลองอีกครั้ง';return false;}
+    if(projectRecordDraft?.trialId===tr.id)projectRefreshRecordGroups(projectRecordDraft,tr);
+    projectGroupEditor=null;closeModal();render();toast(result.value?'บันทึกชื่อกลุ่มแล้ว':'ชื่อกลุ่มยังเหมือนเดิม');
+  }catch(error){document.getElementById('projectGroupError').textContent=error.message;}
+  return false;
+};
+function projectSetupSamples(p,count) {
+  if(!Number.isInteger(count) || count<1 || count>200)throw new Error('ระบุจำนวนต้นต่อกลุ่ม 1–200 ต้น');
+  const groups=(p.groups || []).filter(Boolean),metrics=p.measurementSchema || [];
+  if(!groups.length || !metrics.length)throw new Error('กำหนดกลุ่มทดลองและค่าวัดก่อนสร้างตัวอย่าง');
+  if(groups.length*count>400)throw new Error('หนึ่งการทดลองรองรับไม่เกิน 400 ตัวอย่าง');
+  const treatments=groups.map((name,i)=>({id:uid(),code:String.fromCharCode(65+i),name,desc:''}));
+  const units=treatments.flatMap(t=>Array.from({length:count},(_,i)=>({id:uid(),treatmentId:t.id,label:t.code+'-'+String(i+1).padStart(2,'0'),block:i+1,order:i+1,areaRai:0,note:''})));
+  const tr={id:uid(),projectId:p.id,name:p.name,plotId:p.plotId || '',plotName:plotById(S,p.plotId)?.name || '',status:'active',design:'MANUAL',layoutMode:'manual',trialType:'screening',objective:p.objective,createdAt:Date.now(),startDate:p.startDate || todayISO(),metrics:projectClone(metrics),metric:metrics[0].name,metricUnit:metrics[0].unit,treatments,units,observations:[]};
+  S.trials.push(tr);p.trialIds=[...(p.trialIds || []),tr.id];return tr;
+}
+function projectRecordLoad(p,task,tr){
+  const key=projectRecordKey(p,task,tr);
+  if(projectRecordDraft && projectRecordOwner===key)return projectRefreshRecordGroups(projectRecordDraft,tr);
+  projectRecordOwner=key;projectPlantIndex=0;
+  let stored;try{stored=JSON.parse(localStorage.getItem(key));}catch(_){}
+  if(stored?.version===1 && stored.projectId===p.id && stored.taskId===task.id && stored.trialId===tr.id && Array.isArray(stored.rows) && Array.isArray(stored.photos)){projectRecordDraft=projectRefreshRecordGroups(stored,tr);return projectRecordDraft;}
+  const saved=(p.records || []).find(r=>r.taskId===task.id && r.trialId===tr.id);
+  const rows=tr.units.map(u=>{
+    const row=saved?.rows.find(r=>r.unitId===u.id),values={};
+    for(const m of tr.metrics){const old=tr.observations.find(o=>o.projectTaskId===task.id && o.unitId===u.id && o.metricId===m.id);values[m.id]=row?.values?.[m.id] ?? old?.value ?? '';}
+    return {unitId:u.id,code:u.label || u.name || String(u.order),group:projectRecordGroupName(tr,u.id,row?.group || ''),values,note:row?.note || ''};
+  });
+  projectRecordDraft={version:1,id:saved?.id || uid(),projectId:p.id,taskId:task.id,trialId:tr.id,date:saved?.date || todayISO(),rows,photos:projectClone(saved?.photos || []),workNote:saved?.workNote || '',note:saved?.note || '',baseUpdatedAt:saved?.updatedAt || 0,updatedAt:Date.now(),dirty:false};
+  return projectRecordDraft;
+}
+function projectRecordStatus(message,error=false){const el=document.getElementById('projectRecordStatus');if(el){el.textContent=message;el.classList.toggle('pw-error',error);}const foot=document.getElementById('projectRecordFootnote');if(foot)foot.textContent=error?'ยังเก็บร่างไม่ได้ กรุณาอย่าเพิ่งปิดหน้า':projectRecordDraft?.dirty?'ร่างบันทึกแล้ว · ยังไม่ยืนยันผล':projectRecordDraft?.baseUpdatedAt?'ยืนยันผลแล้ว · สถานะงานไม่เปลี่ยน':'บันทึกผลแยกจากสถานะงาน';}
+function projectRecordStore(){
+  const d=projectRecordDraft,p=d&&projectById(d.projectId),task=d&&S.tasks.find(t=>t.id===d.taskId),tr=d&&trialById(S,d.trialId);
+  if(!d || !p || !task || !tr || projectRecordOwner!==projectRecordKey(p,task,tr))return false;
+  try{localStorage.setItem(projectRecordOwner,JSON.stringify(d));projectRecordStatus((typeof navigator!=='undefined' && !navigator.onLine?'ออฟไลน์ · ':'')+(d.dirty?'บันทึกร่างในเครื่องแล้ว · ':d.baseUpdatedAt?'ยืนยันผลแล้ว · ':'พร้อมบันทึก · ')+new Date(d.updatedAt).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}));return true;}
+  catch(_){projectRecordStatus('เก็บร่างไม่สำเร็จ พื้นที่เครื่องอาจเต็ม',true);return false;}
+}
+function projectRecordCommit(p,task,tr,d){
+  if(p.status==='done')throw new Error('เปิดโครงการอีกครั้งก่อนแก้ไขผล');
+  if(projectTaskRecordKind(task,p)!=='measurement')throw new Error('งานนี้ใช้บันทึกการทำงาน เลือกงานเก็บค่าวัดก่อนบันทึกผลทดลอง');
+  if(d.projectId!==p.id || d.taskId!==task.id || d.trialId!==tr.id || task.projectId!==p.id || !p.trialIds?.includes(tr.id))throw new Error('งานและการทดลองไม่ตรงกับโครงการ');
+  if(!trialValidDate(d.date) || d.date>todayISO())throw new Error('ระบุวันที่เก็บข้อมูลจริง ไม่เกินวันนี้');
+  const old=(p.records || []).find(r=>r.id===d.id);
+  if((old?.updatedAt || 0)!==(d.baseUpdatedAt || 0))throw new Error('ผลนี้ถูกแก้ไขหลังเปิดร่าง กรุณาเปิดประวัติและโหลดข้อมูลล่าสุดก่อนบันทึก');
+  const validUnits=new Set(tr.units.map(u=>u.id)),validMetrics=new Map(tr.metrics.map(m=>[m.id,m]));
+  if(new Set(d.rows.map(r=>r.unitId)).size!==d.rows.length)throw new Error('รหัสตัวอย่างซ้ำ');
+  const now=Date.now(),actor=projectActor(),changes=[];
+  for(const row of d.rows){
+    if(!validUnits.has(row.unitId))throw new Error('ตัวอย่างนี้ถูกเปลี่ยนแปลง กรุณาตรวจแบบบันทึก');
+    for(const [metricId,raw] of Object.entries(row.values)){
+      if(raw==='' || raw===null || raw===undefined)continue;
+      const metric=validMetrics.get(metricId),value=Number(raw);
+      if(!metric || !Number.isFinite(value) || (metric.kind==='count' && (!Number.isInteger(value) || value<0)) || (/ความสูง|น้ำหนัก|จำนวน/.test(metric.name) && value<0))throw new Error(row.code+': ตรวจค่าวัดและหน่วยอีกครั้ง');
+      const prev=tr.observations.find(o=>(o.projectRecordId===d.id || (!o.projectRecordId && o.projectTaskId===task.id)) && o.unitId===row.unitId && o.metricId===metricId);
+      const collision=tr.observations.find(o=>o.id!==prev?.id && o.unitId===row.unitId && o.metricId===metricId && o.date===d.date);
+      if(collision)throw new Error(row.code+' มี '+metric.name+' ในวันนี้แล้ว ให้แก้รายการเดิมหรือเลือกวันที่ถูกต้อง');
+      const photos=d.photos.filter(ph=>ph.unitId===row.unitId);
+      changes.push({id:prev?.id || uid(),unitId:row.unitId,metricId,metric:metric.name,unit:metric.unit,value,date:d.date,note:row.note || '',sampleGroup:projectRecordGroupName(tr,row.unitId,row.group),projectTaskId:task.id,projectRecordId:d.id,photos:photos.map(ph=>ph.src),photoMetadata:photos.map(({src,...metadata})=>projectClone(metadata)),includeInReport:true,createdAt:prev?.createdAt || now,createdBy:prev?.createdBy || actor,updatedAt:now,updatedBy:actor,revisions:prev?[...(prev.revisions || []),{...projectClone(prev),revisions:undefined,editedAt:now,editedBy:actor}]:[]});
+    }
+  }
+  if(!changes.length && !d.photos.length && !d.workNote.trim() && !d.note.trim())throw new Error('กรอกค่าวัด แนบรูป หรือบันทึกข้อสังเกตก่อน');
+  if(d.photos.some(ph=>ph.unitId && !validUnits.has(ph.unitId)))throw new Error('ตรวจต้นที่ผูกกับรูปภาพ');
+  const record={...projectClone(d),dirty:false,createdAt:old?.createdAt || now,createdBy:old?.createdBy || actor,updatedAt:now,updatedBy:actor,revisions:old?[...(old.revisions || []),{...projectClone(old),revisions:undefined}]:[]};
+  delete record.baseUpdatedAt;
+  p.records=p.records || [];
+  if(old)p.records[p.records.indexOf(old)]=record;else p.records.push(record);
+  const priorIds=new Set(tr.observations.filter(o=>o.projectRecordId===d.id || (!o.projectRecordId && o.projectTaskId===task.id && d.rows.some(r=>r.unitId===o.unitId))).map(o=>o.id));
+  tr.observations=tr.observations.filter(o=>!priorIds.has(o.id)).concat(changes);tr.updatedAt=now;p.updatedAt=now;
+  return record;
+}
+function projectTaskTree(p,selected){return `<aside class="pw-task-tree"><div class="pw-mobile-task">${selected?taskCompletionCircleHtml(selected,{project:true,locked:p.status==='done'}):''}<label>งานย่อย<select aria-label="เลือกงานย่อย" onchange="App.projectSelectTask(this.value)">${projectTaskList(p).map(t=>`<option value="${t.id}" ${t.id===selected?.id?'selected':''}>${esc(t.title)}</option>`).join('')}</select></label></div><div class="pw-tree-list"><h2>ขั้นตอนและงานย่อย</h2>${p.stages.map((stage,i)=>`<section><h3><span class="project-stage-number">${i+1}</span>${esc(stage.name)}</h3>${projectTaskList(p,stage.id).map(t=>`<div class="pw-task-row ${selected?.id===t.id?'active':''}">${taskCompletionCircleHtml(t,{project:true,locked:p.status==='done'})}<button class="pw-task ${selected?.id===t.id?'active':''}" onclick="App.projectSelectTask('${t.id}')"><span>${esc(t.title)}<small>${t.date?esc(dateLabel(t.date)):'ยังไม่กำหนดวัน'}${t.assignee?' · '+esc(t.assignee):''}</small></span></button></div>`).join('')}<details class="pw-stage-manage"><summary>จัดการงานในขั้นตอนนี้</summary><button class="btn btn-ghost btn-sm" onclick="App.projectNewTask('${p.id}','${stage.id}')">เพิ่มงาน</button><button class="btn btn-ghost btn-sm" onclick="App.projectLinkModal('${p.id}','${stage.id}')">เชื่อมงานเดิม</button></details></section>`).join('')}</div></aside>`;}
+function projectRecordPhotosHtml(d){return `<div class="pw-photo-grid">${d.photos.map((ph,i)=>`<figure class="pw-record-photo ${!ph.unitId || ph.unitId===d.rows[projectPlantIndex]?.unitId?'pw-current-plant':''}"><div><img src="${esc(ph.src)}" alt="${esc(ph.caption || 'รูปประกอบงาน')}" loading="lazy"><button class="pw-icon-button" aria-label="ลบรูป ${i+1}" onclick="App.projectRemovePhoto(${i})">${pwIcon('x')}</button></div><label>ผูกกับต้น<select aria-label="ต้นในรูป ${i+1}" onchange="App.projectPhotoField(${i},'unitId',this.value)"><option value="">ภาพรวมงาน</option>${d.rows.map(r=>`<option value="${r.unitId}" ${r.unitId===ph.unitId?'selected':''}>${esc(r.code)}</option>`).join('')}</select></label><label>คำบรรยาย<input aria-label="คำบรรยายรูป ${i+1}" maxlength="400" value="${esc(ph.caption)}" oninput="App.projectPhotoField(${i},'caption',this.value)"></label><label class="pw-check"><input type="checkbox" ${ph.includeInReport!==false?'checked':''} onchange="App.projectPhotoField(${i},'includeInReport',this.checked)"> ใช้ในเล่มสรุป</label></figure>`).join('') || '<p class="pw-photo-empty">แนบภาพการทำงาน แล้วเลือกต้นและเขียนคำบรรยายได้</p>'}</div>`;}
+function projectTrendHtml(p,tr,d){
+  const row=d.rows[projectPlantIndex] || d.rows[0];if(!row)return '<p>ยังไม่มีตัวอย่าง</p>';
+  return `<div class="pw-trend"><label>เปรียบเทียบต้นเดิม <select onchange="App.projectPlant(Number(this.value),true)">${d.rows.map((r,i)=>`<option value="${i}" ${r===row?'selected':''}>${esc(r.code)} · ${esc(r.group)}</option>`).join('')}</select></label><p>ข้อมูลค่าวัดจริงตามวันที่ ช่องว่างหมายถึงยังไม่วัด</p><div class="pw-table-scroll"><table class="pw-measure-table"><thead><tr><th>วันที่</th><th>งานย่อย</th>${tr.metrics.map(m=>`<th>${esc(m.name)} (${esc(m.unit)})</th>`).join('')}</tr></thead><tbody>${[...new Set(tr.observations.filter(o=>o.unitId===row.unitId).map(o=>o.date))].sort().map(date=>{const observations=tr.observations.filter(o=>o.unitId===row.unitId && o.date===date);return `<tr><td>${esc(dateLabel(date))}</td><td>${esc(S.tasks.find(t=>t.id===observations[0]?.projectTaskId)?.title || 'ข้อมูลเดิม')}</td>${tr.metrics.map(m=>{const o=observations.find(o=>o.metricId===m.id);return `<td>${o?fmtNum(o.value):'—'}</td>`;}).join('')}</tr>`;}).join('') || '<tr><td colspan="20">ยังไม่มีผลที่ยืนยันแล้วของต้นนี้</td></tr>'}</tbody></table></div></div>`;
+}
+function projectGeneralWorkHtml(p,task,tree){
+  const count=projectCounts(p),cost=projectCosts(p).cost,closed=p.status==='done';
+  return `<div class="pw-general-toolbar"><div><strong>ทำแล้ว ${count.done} กิจกรรม</strong><span>${cost?'ต้นทุนที่บันทึก '+fmtMoney(cost)+' บาท':'บันทึกงาน รูป และค่าใช้จ่ายได้ตามที่ทำจริง'}</span></div><button class="btn btn-primary" ${closed?'disabled':''} onclick="App.projectQuickTask('${p.id}')">${pwIcon('plus')} เพิ่มงาน</button></div><div class="pw-work-layout pw-general-work">${tree}<section class="pw-general-pane">${task?`<div class="pw-between"><h2>${esc(task.title)}</h2><span class="pw-badge">${esc(taskStatusText(task))}</span></div><p>${task.status==='done'?'ทำจริง '+esc(dateLabel(taskRecordDate(task))):task.date?'กำหนด '+esc(dateLabel(task.date)):'ยังไม่กำหนดวัน'}${task.assignee?' · '+esc(task.assignee):''}</p><section class="card pw-section"><h3>บันทึกการทำงาน</h3><p>${esc(task.doneNote || task.note || 'เมื่อทำงานนี้แล้ว บันทึกสิ่งที่ทำ พร้อมรูปและค่าใช้จ่ายได้ที่นี่')}</p>${trialPhotosHtml([...(task.photos || []),...(task.donePhotos || [])])}<button class="btn btn-primary" onclick="App.projectLogWork('${p.id}','${task.id}')">${task.status==='done'?'ดูบันทึกและต้นทุน':'บันทึกการทำงาน'}</button>${!closed?`<button class="btn btn-outline" onclick="App.editTask('${task.id}')">แก้งาน / ค่าใช้จ่าย</button>`:''}${!closed && task.status==='planned'?`<button class="btn btn-ghost" onclick="App.rescheduleTask('${task.id}')">เลื่อนกำหนดงาน</button>`:''}</section>`:`<section class="pw-empty"><h2>ตั้งโครงการไว้แล้ว</h2><p>เริ่มจากงานแรกที่อยากทำ เช่น ใส่ปุ๋ย ตัดหญ้า หรือเตรียมแปลง เพิ่มงานอื่นเมื่อพร้อมได้</p><button class="btn btn-primary" ${closed?'disabled':''} onclick="App.projectQuickTask('${p.id}')">เพิ่มงานแรก</button></section>`}<p class="hint">บันทึกแต่ละงานจะรวมเป็นประวัติและเล่มสรุปของโครงการนี้</p><div class="pw-general-secondary"><button class="btn btn-outline" onclick="App.projectTab('report')">ดูเล่มสรุป</button>${!closed && p.stages[0]?`<button class="btn btn-ghost" onclick="App.projectLinkModal('${p.id}','${p.stages[0].id}')">นำกิจกรรมที่มีอยู่มาใส่โครงการ</button>`:''}</div></section></div>`;
+}
+function projectRecordKindHtml(p,task){
+  const kind=projectTaskRecordKind(task,p),history=projectLinkedTrials(p).some(tr=>(tr.observations || []).some(o=>o.projectTaskId===task.id)) || (p.records || []).some(r=>r.taskId===task.id);
+  const trials=projectLinkedTrials(p),tr=trials.find(t=>t.id===projectActiveTrial) || trials[0];
+  return `<div class="pw-record-kind"><label>แบบบันทึกของงานนี้<select aria-label="แบบบันทึกของงานนี้" ${p.status==='done'?'disabled':''} onchange="App.projectSetRecordKind('${task.id}',this.value)"><option value="work" ${kind==='work'?'selected':''}>บันทึกงานและหลักฐาน</option><option value="measurement" ${kind==='measurement'?'selected':''}>เก็บค่าวัดทดลอง</option></select></label><p>${kind==='work'?'บันทึกสิ่งที่ทำ ข้อตกลง และหลักฐานของงานนี้':'กรอกค่าที่วัดจริงของตัวอย่างในงานนี้'}${kind==='work'&&history?' · มีข้อมูลค่าวัดเดิมที่ยังเก็บไว้ เลือกเก็บค่าวัดทดลองเพื่อเปิดดู':''}</p>${kind==='work'?`<button class="btn btn-outline btn-sm" onclick="App.projectTab('info')">ดูวัตถุประสงค์และแผนโครงการ</button>`:''}<button class="btn btn-outline btn-sm" onclick="App.projectExperimentSetup('${p.id}','${tr?.id || ''}')">เตรียมการทดลอง</button>${tr?.treatments?.length?`<button class="btn btn-outline btn-sm" ${p.status==='done' || tr.status==='done'?'disabled':''} onclick="App.projectManageGroups('${p.id}','${tr.id}')">${pwIcon('pencil')} จัดการกลุ่มทดลอง</button>`:''}</div>`;
+}
+App.projectSetRecordKind=function(id,kind){
+  const p=projectById(route.projectId),task=S.tasks.find(t=>t.id===id && t.projectId===p?.id);
+  if(!p || p.status==='done' || !task || !['work','measurement'].includes(kind))return;
+  if(!projectCanLeaveRecord()){render();return;}
+  const result=projectTransaction(()=>{task.recordKind=kind;task.updatedAt=Date.now();});
+  if(result.ok){projectRecordDraft=null;projectRecordMode='entry';render();}
+};
+function projectWorkHtml(p){
+  const tasks=projectTaskList(p),task=tasks.find(t=>t.id===projectSelectedTask) || tasks[0],trials=projectLinkedTrials(p),tr=trials.find(t=>t.id===projectActiveTrial) || trials[0];
+  if(task)projectSelectedTask=task.id;
+  const tree=projectTaskTree(p,task);
+  if(!projectHasExperiment(p))return projectGeneralWorkHtml(p,task,tree);
+  if(!task)return `<div class="pw-work-layout">${tree}<section><h2>เพิ่มงานย่อยเพื่อเริ่มทำงาน</h2></section></div>`;
+  if(projectTaskRecordKind(task,p)!=='measurement')return projectGeneralWorkHtml(p,task,tree).replace('<section class="pw-general-pane">','<section class="pw-general-pane">'+projectRecordKindHtml(p,task));
+  if(!tr || !tr.units?.length)return `<div class="pw-work-layout">${tree}<section class="pw-record-pane">${projectRecordKindHtml(p,task)}<h2>${esc(task.title)}</h2><p>${esc(task.note || 'บันทึกงานและหลักฐานในโครงการนี้')}</p><button class="btn btn-outline" onclick="App.viewTask('${task.id}')">บันทึกงาน / ต้นทุน</button><div class="pw-empty"><h3>เตรียมแบบบันทึกผลทดลอง</h3><p>กำหนดจำนวนตัวอย่าง หรือเชื่อมการทดลองเดิมเพื่อใช้ข้อมูลชุดเดียวกัน</p><button class="btn btn-primary" onclick="App.projectExperimentSetup('${p.id}')">กำหนดกลุ่ม ตัวอย่าง และค่าวัด</button><button class="btn btn-outline" onclick="App.projectTrialLinkModal('${p.id}')">เชื่อมการทดลองเดิม</button><button class="btn btn-ghost" onclick="App.projectCreateTrial('${p.id}')">กำหนดการทดลอง</button></div>${projectObservationList(p,task.id)}</section></div>`;
+  projectActiveTrial=tr.id;
+  const d=projectRecordLoad(p,task,tr),events=(p.events || []).filter(e=>e.taskId===task.id),last=events.at(-1),readonly=p.status==='done',row=d.rows[projectPlantIndex] || d.rows[0];
+  const complete=d.rows.filter(r=>tr.metrics.every(m=>r.values[m.id]!=='' && r.values[m.id]!==undefined && r.values[m.id]!==null)).length;
+  return `<div class="pw-work-layout">${tree}<section class="pw-record-pane"><div class="pw-between pw-record-title"><h2>${esc(task.title)}</h2><div class="pw-inline"><span id="projectRecordStatus" class="pw-badge" role="status">${d.dirty?'ร่างในเครื่อง · ยังไม่ยืนยันผล':d.baseUpdatedAt?'ยืนยันผลแล้ว':'พร้อมบันทึกผล'}</span><button class="btn btn-ghost" onclick="App.projectRecordHistory()">${pwIcon('history')} ประวัติการแก้ไข</button></div></div>
+    ${last?`<button class="pw-event-banner" onclick="App.projectEvents()">${pwIcon('info')} ${esc(last.type==='reschedule'?'เลื่อนเก็บข้อมูลจาก '+(last.oldDate?dateLabel(last.oldDate):'ยังไม่กำหนด')+' เป็น '+dateLabel(last.newDate):'เหตุการณ์ในงาน')} · ${esc(last.reason)} <u>ดูเหตุการณ์</u></button>`:''}
+    ${projectRecordKindHtml(p,task)}<div class="pw-record-context"><label>วันที่เก็บข้อมูล<input aria-label="วันที่เก็บข้อมูล" type="date" max="${todayISO()}" value="${esc(d.date)}" onchange="App.projectRecordField('date',this.value)"></label><label>แปลง<input aria-label="แปลงที่บันทึก" readonly value="${esc(plotById(S,p.plotId || tr.plotId)?.name || tr.plotName || 'ไม่ได้ผูกแปลง')}"></label>${trials.length>1?`<label>การทดลอง<select aria-label="เลือกการทดลอง" onchange="App.projectChooseTrial(this.value)">${trials.map(t=>`<option value="${t.id}" ${t.id===tr.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></label>`:''}</div>
+    <nav class="pw-record-tabs"><button class="${projectRecordMode==='entry'?'active':''}" onclick="App.projectRecordMode('entry')">กรอกค่าวัด</button><button class="${projectRecordMode==='trend'?'active':''}" onclick="App.projectRecordMode('trend')">เทียบแต่ละรอบ</button></nav>
+    ${projectRecordMode==='trend'?projectTrendHtml(p,tr,d):`<fieldset class="pw-record-fields ${projectShowAllPlants?'pw-all-plants':''}" ${readonly?'disabled':''}><legend>ค่าวัด <span id="projectRowCount" class="pw-badge">${complete} จาก ${d.rows.length} ต้น</span></legend><div class="pw-desktop-measure pw-table-scroll"><table class="pw-measure-table"><thead><tr><th>รหัสต้น</th><th>กลุ่มทดลอง</th>${tr.metrics.map(m=>`<th>${esc(m.name)} ${m.unit?'('+esc(m.unit)+')':''}</th>`).join('')}<th>หมายเหตุ</th></tr></thead><tbody>${d.rows.map((r,i)=>`<tr><th scope="row">${esc(r.code)}</th><td>${esc(r.group)}</td>${tr.metrics.map(m=>`<td><input aria-label="${esc(r.code+' '+m.name)}" type="number" step="${m.kind==='count'?'1':'any'}" inputmode="decimal" placeholder="ยังไม่วัด" value="${esc(r.values[m.id] ?? '')}" oninput="App.projectRecordValue(${i},'${m.id}',this.value)"></td>`).join('')}<td><input aria-label="หมายเหตุ ${esc(r.code)}" value="${esc(r.note)}" oninput="App.projectRecordRowNote(${i},this.value)"></td></tr>`).join('')}</tbody></table></div>
+    <div class="pw-mobile-measure"><div class="pw-plant-navigation"><button class="btn btn-outline" aria-label="ต้นก่อนหน้า" ${projectPlantIndex===0?'disabled':''} onclick="App.projectPlant(-1)">${pwIcon('arrow-left')}</button><div><b>${esc(row?.code || '')}</b><small>${esc(row?.group || '')} · ต้นที่ ${projectPlantIndex+1} / ${d.rows.length}</small></div><button class="btn btn-outline" aria-label="ต้นถัดไป" ${projectPlantIndex>=d.rows.length-1?'disabled':''} onclick="App.projectPlant(1)">${pwIcon('chevron')}</button></div>${row?tr.metrics.map(m=>`<label>${esc(m.name)} (${esc(m.unit)})<input aria-label="มือถือ ${esc(row.code+' '+m.name)}" type="number" step="${m.kind==='count'?'1':'any'}" inputmode="decimal" placeholder="ยังไม่วัด" value="${esc(row.values[m.id] ?? '')}" oninput="App.projectRecordValue(${projectPlantIndex},'${m.id}',this.value)"></label>`).join(''):''}<label class="pw-mobile-row-note">ข้อสังเกตของต้นนี้<textarea rows="2" aria-label="ข้อสังเกตของต้นที่เลือก" oninput="App.projectRecordRowNote(${projectPlantIndex},this.value)">${esc(row?.note || '')}</textarea></label></div>
+    <div class="pw-evidence-layout"><section><div class="pw-between"><h3>รูปประกอบงาน <small>รูปและคำบรรยายใช้ประกอบเล่มสรุปโครงการ</small></h3><label class="btn btn-outline pw-photo-picker">${pwIcon('plus')} แนบรูป<input type="file" accept="image/*" multiple onchange="App.projectAddPhotos(this.files);this.value=''" aria-label="แนบรูปผลทดลอง"></label></div><label class="btn btn-outline pw-camera-picker">${pwIcon('camera')} ถ่ายรูปต้นนี้<input type="file" accept="image/*" capture="environment" onchange="App.projectAddPhotos(this.files,true);this.value=''" aria-label="ถ่ายรูปต้นที่เลือก"></label><div id="projectRecordPhotos">${projectRecordPhotosHtml(d)}</div></section><section class="pw-work-notes"><label for="prWorkNote">บันทึกการทำงาน</label><textarea id="prWorkNote" rows="3" placeholder="วันนี้ทำอะไร ใช้วิธีใด" oninput="App.projectRecordField('workNote',this.value)">${esc(d.workNote)}</textarea><label for="prNote">ข้อสังเกต</label><textarea id="prNote" rows="3" placeholder="สภาพต้น ความผิดปกติ หรือข้อจำกัด" oninput="App.projectRecordField('note',this.value)">${esc(d.note)}</textarea><button class="btn btn-ghost" onclick="App.projectEventModal()">${pwIcon('plus')} บันทึกเหตุการณ์</button></section></div></fieldset>`}
+    <details class="pw-work-actions"><summary>จัดการงานและการเชื่อมข้อมูล</summary><button class="btn btn-outline" onclick="App.viewTask('${task.id}')">บันทึกงาน / ต้นทุน</button><button class="btn btn-outline" onclick="App.rescheduleTask('${task.id}')">เลื่อนกำหนดงาน</button><button class="btn btn-outline" onclick="App.projectTrialLinkModal('${p.id}')">เชื่อมการทดลองเดิม</button><button class="btn btn-ghost" onclick="App.projectTaskComplete()" ${readonly || task.status==='done'?'disabled':''}>ทำงานนี้เสร็จแล้ว</button></details>
+    </section></div><footer class="pw-footer"><span id="projectRecordFootnote">${pwIcon('file-text')} ${d.dirty?'ร่างบันทึกแล้ว · ยังไม่ยืนยันผล':d.baseUpdatedAt?'ยืนยันผลแล้ว · สถานะงานไม่เปลี่ยน':'บันทึกผลแยกจากสถานะงาน'}</span><button class="btn btn-outline" onclick="App.projectBack()">กลับโครงการ</button><button class="btn btn-primary pw-save-result" onclick="App.projectSaveRecord()" ${readonly?'disabled':''}>บันทึกผล</button><button class="btn btn-primary pw-save-next" onclick="App.projectPlant(1)" ${readonly?'disabled':''}>${projectPlantIndex<d.rows.length-1?'บันทึกร่างและไปต้นถัดไป':'เก็บร่างต้นนี้'}</button><button class="btn btn-ghost pw-mobile-final" onclick="App.projectAllPlants()">${projectShowAllPlants?'กรอกทีละต้น':'ดูทั้งหมด '+d.rows.length+' ต้น'}</button><button class="btn btn-outline pw-mobile-final" onclick="App.projectSaveRecord()" ${readonly?'disabled':''}>ยืนยันผลรอบนี้</button></footer>`;
+}
+App.projectPrepareSamples=function(e,id){e.preventDefault();try{const p=projectById(id);if(!p || p.status==='done')return false;const count=Number(document.getElementById('prSampleCount').value);const r=projectTransaction(()=>projectSetupSamples(p,count));if(r.ok)render();}catch(e){toast(e.message);}return false;};
+App.projectRecordValue=function(i,key,value){projectRecordDraft.rows[i].values[key]=value;projectRecordDraft.dirty=true;projectRecordDraft.updatedAt=Date.now();projectRecordStore();const tr=trialById(S,projectRecordDraft.trialId),el=document.getElementById('projectRowCount');if(el)el.textContent=projectRecordDraft.rows.filter(r=>tr.metrics.every(m=>r.values[m.id]!=='' && r.values[m.id]!=null)).length+' จาก '+projectRecordDraft.rows.length+' ต้น';};
+App.projectRecordRowNote=function(i,value){projectRecordDraft.rows[i].note=value;projectRecordDraft.dirty=true;projectRecordDraft.updatedAt=Date.now();projectRecordStore();};
+App.projectRecordField=function(key,value){if(!['date','workNote','note'].includes(key))return;projectRecordDraft[key]=value;projectRecordDraft.dirty=true;projectRecordDraft.updatedAt=Date.now();projectRecordStore();};
+App.projectRecordMode=function(mode){if(!projectRecordStore())return;projectRecordMode=mode;render();};
+App.projectChooseTrial=function(id){if(projectRecordDraft && !projectRecordStore())return;projectActiveTrial=id;projectRecordDraft=null;render();};
+App.projectPlant=function(delta,absolute=false){if(!projectRecordStore())return;projectPlantIndex=Math.max(0,Math.min(projectRecordDraft.rows.length-1,absolute?delta:projectPlantIndex+delta));render();document.querySelector('.pw-mobile-measure')?.scrollIntoView({block:'center'});};
+App.projectAddPhotos=async function(files,plant=false){
+  const selected=[...(files || [])];if(!selected.length || projectRecordUploading)return;
+  const draft=projectRecordDraft,owner=projectRecordOwner,unitId=plant?draft.rows[projectPlantIndex]?.unitId || '':'';
+  if(draft.photos.length+selected.length>24){toast('หนึ่งบันทึกแนบได้ไม่เกิน 24 รูป');return;}
+  if(selected.some(file=>!file.type.startsWith('image/') || file.size>20*1024*1024)){toast('ใช้ไฟล์รูปขนาดไม่เกิน 20 MB');return;}
+  projectRecordUploading=true;projectRecordStatus('กำลังเก็บรูป…');
+  try{const photos=[];for(const file of selected){const src=await readTaskPhotoFile(file);if(projectRecordDraft!==draft || projectRecordOwner!==owner || !owner.startsWith(projectDraftKey()+'::'))throw new Error('หน้าแบบบันทึกหรือบัญชีเปลี่ยน กรุณาแนบรูปใหม่');photos.push({id:uid(),src,unitId,caption:'',includeInReport:true});}draft.photos.push(...photos);draft.dirty=true;draft.updatedAt=Date.now();projectRecordStore();const container=document.getElementById('projectRecordPhotos');if(container)container.innerHTML=projectRecordPhotosHtml(draft);}catch(e){projectRecordStatus('แนบรูปไม่สำเร็จ · กรุณาลองอีกครั้ง');toast(e.message);}finally{projectRecordUploading=false;}
+};
+App.projectPhotoField=function(i,key,value){if(!['caption','unitId','includeInReport'].includes(key))return;projectRecordDraft.photos[i][key]=value;projectRecordDraft.dirty=true;projectRecordDraft.updatedAt=Date.now();projectRecordStore();};
+App.projectRemovePhoto=function(i){projectRecordDraft.photos.splice(i,1);projectRecordDraft.dirty=true;projectRecordDraft.updatedAt=Date.now();projectRecordStore();document.getElementById('projectRecordPhotos').innerHTML=projectRecordPhotosHtml(projectRecordDraft);};
+App.projectSaveRecord=function(next=false){
+  if(projectRecordUploading){toast('รอแนบรูปให้เสร็จก่อน');return;}
+  const d=projectRecordDraft,p=d&&projectById(d.projectId),task=d&&S.tasks.find(t=>t.id===d.taskId),tr=d&&trialById(S,d.trialId);
+  if(!p || !task || !tr || projectRecordOwner!==projectRecordKey(p,task,tr)){toast('เปิดแบบบันทึกของบัญชีนี้อีกครั้ง');return;}
+  try{const result=projectTransaction(()=>projectRecordCommit(p,task,tr,d));if(!result.ok)return;d.baseUpdatedAt=result.value.updatedAt;d.dirty=false;d.updatedAt=Date.now();projectRecordStore();if(next)projectPlantIndex=Math.min(d.rows.length-1,projectPlantIndex+1);render();projectRecordStatus('บันทึกผลแล้ว · '+new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}));toast('บันทึกผลแล้ว · สถานะงานยังคงเดิม');}catch(e){toast(e.message);}
+};
+App.projectRecordHistory=function(){const d=projectRecordDraft,p=projectById(d.projectId),r=(p.records || []).find(r=>r.id===d.id);openModal(`<h3>ประวัติการแก้ไขผล</h3>${r?[r,...(r.revisions || []).slice().reverse()].map((v,i)=>`<details ${i===0?'open':''}><summary>${i===0?'ล่าสุด':'ฉบับก่อนหน้า'} · ${esc(v.updatedBy || v.createdBy || 'ผู้บันทึก')} · ${new Date(v.updatedAt).toLocaleString('th-TH')}</summary><p>วันที่เก็บ ${esc(v.date)} · ${esc(v.workNote)} · ${esc(v.note)}</p>${v.rows.map(row=>`<p><b>${esc(row.code)}</b> ${esc(Object.entries(row.values).map(([id,val])=>{const m=trialById(S,d.trialId).metrics.find(m=>m.id===id);return (m?.name || 'ค่าวัด')+': '+(val===''?'ยังไม่วัด':val)+' '+(m?.unit || '');}).join(' · '))}</p>`).join('')}<div class="pw-history-photos">${v.photos.map(ph=>`<figure><img src="${esc(ph.src)}" alt="${esc(ph.caption)}"><figcaption>${esc(v.rows.find(row=>row.unitId===ph.unitId)?.code || 'ภาพรวม')} · ${esc(ph.caption)} · ${ph.includeInReport===false?'ไม่ใช้ในเล่ม':'ใช้ในเล่ม'}</figcaption></figure>`).join('')}</div></details>`).join(''):'<p>ยังไม่มีผลที่ยืนยัน ร่างยังอยู่ในเครื่องนี้</p>'}<div class="modal-actions"><button class="btn btn-outline" onclick="App.projectReloadRecord()">โหลดผลล่าสุดแทนร่าง</button><button class="btn btn-primary" onclick="App.closeModal()">ปิด</button></div>`);};
+App.projectReloadRecord=function(){App.confirm('โหลดผลล่าสุดแทนร่าง?','ค่าที่ยังไม่ยืนยันในร่างนี้จะถูกแทนที่ด้วยผลล่าสุด',()=>{localStorage.removeItem(projectRecordOwner);projectRecordDraft=null;closeModal();render();});};
+App.projectEventModal=function(){openModal(`<h3>บันทึกเหตุการณ์</h3><form onsubmit="return App.projectSaveEvent(event)"><div class="field"><label for="prEventDate">วันที่</label><input id="prEventDate" type="date" value="${todayISO()}" max="${todayISO()}" required></div><div class="field"><label for="prEventReason">เหตุการณ์และผลกระทบ</label><textarea id="prEventReason" rows="4" required placeholder="เช่น ฝนตก ทำให้เลื่อนเก็บข้อมูล 1 วัน"></textarea></div><div class="modal-actions"><button type="button" class="btn btn-outline" onclick="App.closeModal()">ยกเลิก</button><button type="submit" class="btn btn-primary">บันทึกเหตุการณ์</button></div></form>`);};
+App.projectSaveEvent=function(e){e.preventDefault();const p=projectById(route.projectId),reason=document.getElementById('prEventReason').value.trim(),date=document.getElementById('prEventDate').value;if(!p || p.status==='done' || !reason || !trialValidDate(date) || date>todayISO())return false;const result=projectTransaction(()=>{p.events=p.events || [];p.events.push({id:uid(),taskId:projectSelectedTask,type:'note',date,reason,at:Date.now(),by:projectActor()});});if(result.ok){closeModal();render();}return false;};
+App.projectEvents=function(){const p=projectById(route.projectId);openModal(`<h3>เหตุการณ์และการปรับแผน</h3>${(p.events || []).slice().reverse().map(e=>`<article><b>${esc(S.tasks.find(t=>t.id===e.taskId)?.title || 'โครงการ')}</b><p>${e.type==='reschedule'?esc((e.oldDate || 'ยังไม่กำหนด')+' → '+e.newDate):esc(e.date)} · ${esc(e.reason)}</p><small>${esc(e.by)} · ${new Date(e.at).toLocaleString('th-TH')}</small></article>`).join('') || '<p>ยังไม่มีเหตุการณ์</p>'}<button class="btn btn-primary" onclick="App.closeModal()">ปิด</button>`);};
+App.projectTaskComplete=function(id=projectSelectedTask){const p=projectById(route.projectId),t=S.tasks.find(t=>t.id===id);if(!p || p.status==='done' || !t || t.projectId!==p.id || !projectCanLeaveRecord())return;projectSelectedTask=t.id;App.completeTaskFromCircle(t.id);};
+const projectSelectTaskBase=App.projectSelectTask,projectTabBase=App.projectTab,projectBackBase=App.projectBack;
+function projectCanLeaveRecord(){if(projectRecordUploading){toast('รอเก็บรูปให้เสร็จก่อน');return false;}return !projectRecordDraft || !document.getElementById('projectRecordStatus') || projectRecordStore();}
+App.projectSelectTask=function(id){if(!projectCanLeaveRecord())return;projectRecordDraft=null;projectRecordMode='entry';projectSelectTaskBase(id);};
+App.projectTab=function(tab){if(!projectCanLeaveRecord())return;projectTabBase(tab);};
+App.projectBack=function(){if(!projectCanLeaveRecord())return;projectRecordDraft=null;projectBackBase();};
+App.projectRecord=function(p,task,tr){if(!projectCanLeaveRecord())return;projectSelectedTask=task;projectActiveTrial=tr;projectRecordDraft=null;projectWorkspaceTab='work';App.projectOpen(p);};
+if(typeof window!=='undefined'){
+  window.addEventListener('online',()=>{if(projectRecordDraft && document.getElementById('projectRecordStatus'))projectRecordStore();});
+  window.addEventListener('offline',()=>{if(projectRecordDraft && document.getElementById('projectRecordStatus'))projectRecordStore();});
+  window.addEventListener('beforeunload',e=>{if(document.getElementById('projectRecordStatus') && (projectRecordUploading || !projectRecordStore())){e.preventDefault();e.returnValue='';}});
+}
+
+App.projectAllPlants=function(){if(!projectRecordStore())return;projectShowAllPlants=!projectShowAllPlants;render();};
+
+let projectFilesUploading=false;
+App.projectDownloadFile=function(id){
+  const p=projectById(route.projectId),version=(p?.reportVersions || []).find(v=>v.id===projectReportVersion),file=(version?.attachments || p?.attachments || []).find(f=>f.id===id);if(!file)return false;
+  (async()=>{try{const data=file.key?await Auth.getProjectFile(file):projectFileDownloadData(file);if(!data)throw new Error('ข้อมูลไฟล์ไม่สมบูรณ์');const bytes=Uint8Array.from(atob(data.split(',')[1]),c=>c.charCodeAt(0)),url=URL.createObjectURL(new Blob([bytes],{type:'application/octet-stream'})),a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){toast('ดาวน์โหลดไม่สำเร็จ: '+e.message);}})();return false;
+};
+function projectFileDownloadData(file){return /^data:[^,]*;base64,[A-Za-z0-9+/=\s]+$/.test(file.data || '')?'data:application/octet-stream;base64,'+file.data.split(',')[1]:'';}
+function projectFileDateLabel(value){
+  if(typeof value==='string')value=value.trim();
+  if(value==null || value==='' || !['string','number'].includes(typeof value))return 'ไม่ระบุวันที่แนบ';
+  const date=new Date(value);
+  return Number.isFinite(date.getTime())?date.toLocaleDateString('th-TH'):'ไม่ระบุวันที่แนบ';
+}
+function projectFilesHtml(p){return `<section id="projectFiles" class="card pw-section"><h2>ไฟล์ประกอบโครงการ</h2><p>แผนงาน ข้อมูลดิบ และเอกสารอ้างอิง · PDF, Word, Excel, CSV หรือ TXT ไม่เกิน 2 MB ต่อไฟล์</p><label class="btn btn-outline pw-photo-picker">${pwIcon('plus')} แนบเอกสาร<input aria-label="แนบเอกสารโครงการ" type="file" accept=".pdf,.docx,.xlsx,.csv,.txt" multiple ${p.status==='done'?'disabled':''} onchange="App.projectAddFiles(this.files,'${p.id}');this.value=''"></label><div class="pw-project-files">${(p.attachments || []).map((f,i)=>`<article><a href="${esc(projectFileDownloadData(f))}" download="${esc(f.name)}" onclick="return App.projectDownloadFile('${f.id}')">${pwIcon('file-text')} ${esc(f.name)}</a><small>${Math.ceil(f.size/1024)} KB · ${f.by?esc(f.by)+' · ':''}${esc(projectFileDateLabel(f.at))}</small><label>คำอธิบาย<input aria-label="คำอธิบายไฟล์ ${i+1}" value="${esc(f.caption || '')}" ${p.status==='done'?'disabled':''} oninput="App.projectFileCaption('${p.id}','${f.id}',this.value)"></label><button class="btn btn-ghost" ${p.status==='done'?'disabled':''} onclick="App.projectRemoveFile('${p.id}','${f.id}')">นำไฟล์ออกจากโครงการ</button></article>`).join('') || '<p>ยังไม่มีเอกสารแนบ</p>'}</div><small>ภาคผนวกระบุรายการเอกสาร เก็บไฟล์ต้นฉบับไว้ดาวน์โหลดที่หน้านี้</small></section>`;}
+function projectFilesRefresh(p){const target=document.getElementById('projectFiles');if(target)target.outerHTML=projectFilesHtml(p);}
+function projectValidateFiles(existing,files){
+  if(existing.length+files.length>10)throw new Error('โครงการแนบได้ไม่เกิน 10 ไฟล์');
+  if(files.some(f=>!(/\.(pdf|docx|xlsx|csv|txt)$/i.test(f.name)) || f.size>2*1024*1024 || !f.size))throw new Error('ใช้ PDF, DOCX, XLSX, CSV หรือ TXT ขนาดไม่เกิน 2 MB');
+  if([...existing,...files].reduce((n,f)=>n+f.size,0)>4*1024*1024)throw new Error('ไฟล์ประกอบโครงการรวมได้ไม่เกิน 4 MB');
+}
+App.projectAddFiles=async function(files,id){
+  const selected=[...(files || [])],p=projectById(id),owner=projectDraftKey();if(!selected.length || !p || p.status==='done' || projectFilesUploading)return;
+  try{
+    projectValidateFiles(p.attachments || [],selected);projectFilesUploading=true;toast('กำลังเก็บเอกสาร…');const attachments=[];
+    const session=Auth.session;
+    for(const file of selected){const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('อ่านไฟล์ไม่สำเร็จ'));reader.readAsDataURL(file);});attachments.push(await Auth.putProjectFile({id:uid(),name:file.name,size:file.size,data,caption:'',by:projectActor(),at:Date.now()},session));}
+    if(owner!==projectDraftKey() || projectById(id)!==p || p.status==='done')throw new Error('โครงการหรือบัญชีเปลี่ยน กรุณาแนบใหม่');
+    const result=projectTransaction(()=>{p.attachments=[...(p.attachments || []),...attachments];});
+    if(result.ok){if(route.projectId===id)projectFilesRefresh(p);toast('เก็บไฟล์แล้ว · รายการเอกสารรอซิงก์');}
+  }catch(e){toast(e.message);}finally{projectFilesUploading=false;}
+};
+App.projectFileCaption=function(id,fileId,value){const p=projectById(id),file=p?.attachments?.find(f=>f.id===fileId);if(!file || p.status==='done')return;projectTransaction(()=>{file.caption=value;});};
+App.projectRemoveFile=function(id,fileId){const p=projectById(id);if(!p || p.status==='done')return;App.confirm('นำไฟล์ออกจากโครงการ?','รายงานฉบับที่เก็บไว้ยังคงข้อมูลเดิม',()=>{const result=projectTransaction(()=>{p.attachments=(p.attachments || []).filter(f=>f.id!==fileId);});if(result.ok){closeModal();projectFilesRefresh(p);}});};

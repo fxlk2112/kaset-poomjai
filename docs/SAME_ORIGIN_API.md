@@ -29,6 +29,8 @@ FARMULTIMATE public origin
 - Service: Worker ของ FARMULTIMATE ใน environment ที่ตรงกับ deployment
 - Preview binding ต้องชี้ preview/staging Worker; production binding ต้องชี้ production Worker
 
-Workflow ใช้ Wrangler จาก repository root. Cloudflare จะตรวจ `functions/` ที่ root และรวม Pages Functions ใน deployment แม้ static assets จะถูกประกอบไว้ใน staging directory.
+Workflow ใช้ `scripts/build-pages.mjs --out NEW_DIRECTORY` ประกอบ artifact เดียวที่มี static assets, `_worker.js` และ `_routes.json` ชัดเจน ไม่ขึ้นกับการค้นหา `functions/` จาก working directory ของ Wrangler. `_worker.js` สร้างจาก proxy ต้นทางเดียวใน `functions/api/[[path]].js` และทดสอบ forwarding, static fallback และ missing-binding fail-closed ก่อน upload.
+
+ก่อนและหลัง release ต้องผ่าน `scripts/check-api-health.mjs PUBLIC_ORIGIN`: `/api` ต้องตอบ health, `output_control_allowed=false` และ capability `project_files_v1`. รุ่นนี้ต้องปล่อย backend ที่รองรับเอกสารส่วนตัวก่อน frontend ภายใต้ approval สำหรับ production แยกต่างหาก; workflow ไม่เปลี่ยน binding หรือ secrets ให้เอง. CI ทดสอบ artifact เดียวกันด้วยข้อมูลจำลอง. ดู [Cloudflare advanced mode](https://developers.cloudflare.com/pages/functions/advanced-mode/).
 
 การสร้างโค้ดและ integration branch เป็น `PREPARED / NOT_DEPLOYED`. การตั้ง production binding หรือ merge เข้า `master` ต้องมี `APPROVE_PRODUCTION_DEPLOY` และ readback หลัง deploy.
