@@ -1,5 +1,18 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — RELEASE-MULTI-PLOT-20261128
+
+- Owner: Codex for Folk, explicit production approval in this chat; SUCHA retains integration review.
+- Branch: `codex/release-multi-plot-20261128`; source `d98c096`, refreshed `origin/develop` verified as ancestor.
+- Task / Scope: Deploy the tested multi-plot dropdown fix to the canonical Pages site, then verify desktop/mobile selection, quantity/cost confirmation and persisted cost/stock totals in the isolated QA account.
+- Files / lock: release evidence and this status only. No active conflicting lock; runtime remains the tested source.
+- Status: DEPLOYED_AND_VERIFIED — runtime `d98c096`, fresh check 827 PASS and relay 9 PASS; both remote CI runs PASS. Desktop/mobile selection and QA save/reload/re-save checks passed.
+- Deployment: Authorized by the user's `APPROVE_PRODUCTION_DEPLOY` for `farmultimate-solutions.pages.dev`. QA synthetic entries only; preserve all seven incomplete worksheet entries. No schema/config/credential/hardware expansion.
+- Validation / evidence: `qa/multi-plot-refresh/DEPLOYMENT-20261128.md`; Pages `7d15d444-d3da-4f1c-9d70-cc8d8291c0e3`. All 77 public assets match. Two QA records total 4 kg / 200 baht; stock 10 → 6 kg. All original records, including 33 worksheet entries and 7 pending, verified unchanged.
+- Integration: Draft PR https://github.com/fxlk2112/kaset-poomjai/pull/23 targets `develop`; source `folk/multi-plot-type-refresh`. Protected branches unchanged.
+- Blocked / Risks: No release blocker. Mobile validated through responsive viewport, not a physical device.
+- Next action: SUCHA reviews PR #23 after the existing integration stack.
+
 ## Task lock — MULTI-PLOT-TYPE-REFRESH-20261128
 
 - Owner: Codex for Folk, user-reported activity-form regression; SUCHA retains integration review.
