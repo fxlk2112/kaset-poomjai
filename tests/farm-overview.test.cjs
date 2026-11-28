@@ -29,8 +29,8 @@ test('week navigation handles months, leap days and Buddhist-year labels without
 test('home and project lists read the same tasks without changing money, stock or saved state',()=>{
   const h=harness();h.run('const before=JSON.stringify(S);const first=renderHome();FarmOverview.select("2026-11-28");const second=renderHome();FarmOverview.projectTasks("overview-project-0","done");');
   assert.equal(h.run('JSON.stringify(S)===before'),true);
-  assert.match(h.run('first'),/ทำแล้ว 2 จาก 5 งาน/);assert.match(h.run('first'),/ทำแล้ว 6 จาก 10 งาน/);assert.match(h.run('second'),/งานวันที่ 28/);
-  assert.match(h.run('second'),/ทำแล้ว 6 จาก 10 งาน/);assert.match(h.calls[0],/overview-done-a-5/);assert.doesNotMatch(h.calls[0],/data-task-id="overview-fertilizer"/);
+  assert.match(h.run('first'),/ทำแล้ว 2 จาก 5 งาน/);assert.match(h.run('first'),/บันทึกแล้ว 6 กิจกรรม/);assert.match(h.run('second'),/งานวันที่ 28/);
+  assert.match(h.run('second'),/งานตามแผน 0\/4 งาน · 0%/);assert.match(h.calls[0],/overview-done-a-5/);assert.doesNotMatch(h.calls[0],/data-task-id="overview-fertilizer"/);
   h.run('FarmOverview.projectTasks("overview-project-0","remaining")');assert.match(h.calls[1],/data-task-id="overview-fertilizer"/);
 });
 test('material circle from overview opens review and cancellation leaves totals and reservations unchanged',()=>{

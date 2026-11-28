@@ -20,18 +20,25 @@ function taskReusableMaterials(task,state) {
     return copy;
   });
 }
-App.taskUsePreviousMaterials=function(){
+App.taskUsePreviousMaterials=function(confirmed=false){
   const plot=document.getElementById('t_plot')?.value,cycle=document.getElementById('t_cycle')?.value,type=document.getElementById('t_type')?.value;
   const matches=S.tasks.filter(t=>t.id!==taskEditingId && t.plotId===plot && t.cycleId===cycle && t.type===type && t.status==='done' && t.costItems?.some(ci=>['chemical','fertilizer','seed','materials'].includes(ci.category))).sort((a,b)=>taskRecordDate(b).localeCompare(taskRecordDate(a)));
   if(!matches.length){toast('ยังไม่มีรายการวัสดุครั้งก่อนของงานชนิดนี้ในรอบปลูกนี้');return;}
-  const apply=()=>{taskCostItems=taskReusableMaterials(matches[0],S);document.getElementById('t_usecost').checked=true;App.taskToggleCost();App.costRender();TaskWizard.persist();const note=document.getElementById('taskReuseStatus');if(note)note.textContent='ใช้รายการจาก '+dateLabel(taskRecordDate(matches[0]))+' แล้ว · ตรวจปริมาณและราคาก่อนยืนยัน';};
-  if(taskCostItems.some(ci=>ci.stockId || ci.name || Number(ci.totalCost)>0)) App.confirm('ใช้วัสดุจากครั้งก่อน?','แทนที่รายการวัสดุในร่างนี้ รูปภาพและผลเดิมจะไม่ถูกนำมาใช้',apply);
-  else apply();
+  if(!confirmed && taskCostItems.some(ci=>ci.stockId || ci.name || Number(ci.totalCost)>0)){
+    const note=document.getElementById('taskReuseStatus');if(!note)return;
+    document.getElementById('taskReuseConfirm')?.remove();
+    const prompt=document.createElement('div');prompt.id='taskReuseConfirm';prompt.className='task-reuse-confirm';prompt.setAttribute('role','group');prompt.setAttribute('aria-label','ยืนยันใช้วัสดุจากครั้งก่อน');
+    prompt.innerHTML='<p>แทนที่เฉพาะวัสดุในร่างนี้ ค่าแรงและค่าใช้จ่ายอื่นยังอยู่</p><button type="button" class="btn btn-outline" onclick="this.closest(\'.task-reuse-confirm\').remove()">คงรายการเดิม</button> <button type="button" class="btn btn-primary" onclick="App.taskUsePreviousMaterials(true)">ยืนยันใช้วัสดุครั้งก่อน</button>';note.after(prompt);return;
+  }
+  document.getElementById('taskReuseConfirm')?.remove();
+  const extras=taskCostItems.filter(ci=>!taskItemIsMaterial(ci) && !['chemical','fertilizer','seed','materials'].includes(ci.category) && (ci.name || Number(ci.totalCost)>0));
+  taskCostItems=[...taskReusableMaterials(matches[0],S),...extras];document.getElementById('t_usecost').checked=true;App.taskToggleCost();App.costRender();TaskWizard.persist();
+  const note=document.getElementById('taskReuseStatus');if(note)note.textContent='ใช้รายการจาก '+dateLabel(taskRecordDate(matches[0]))+' แล้ว · ตรวจปริมาณและราคาก่อนยืนยัน';
 };
 const projectOriginalModalTask=App.modalTask;
 App.modalTask=function(...args){
   const result=projectOriginalModalTask.apply(this,args);
   const list=document.getElementById('costItemsList');
-  if(list && !taskEditingId){const panel=document.createElement('div');panel.className='pw-activity-reuse';panel.innerHTML=`<button type="button" class="btn btn-outline" onclick="App.taskUsePreviousMaterials()">${ic('copy')} ใช้รายการวัสดุจากครั้งก่อน</button><small id="taskReuseStatus" role="status">เลือกแปลงและรอบปลูกก่อนใช้รายการเดิม</small>`;list.before(panel);}
+  if(list && !taskEditingId){const panel=document.createElement('div');panel.className='pw-activity-reuse';panel.innerHTML=`<button type="button" class="btn btn-outline" onclick="App.taskUsePreviousMaterials()">${ic('copy')} ใช้รายการวัสดุจากครั้งก่อน</button><small id="taskReuseStatus" role="status">ดึงรายการของแปลงและรอบที่เลือก แล้วตรวจปริมาณกับราคาอีกครั้ง</small>`;list.before(panel);}
   return result;
 };

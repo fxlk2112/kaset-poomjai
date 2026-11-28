@@ -266,9 +266,8 @@ function taskMaterialCalculatedRate(t, it) {
   return result ? { ...result, currentArea, currentPackage: quantity.currentPackage, estimated: currentArea || quantity.currentPackage } : null;
 }
 function taskMaterialItems(t) {
-  const items = (t.costItems || []).filter(it => it.stockId || ["chemical", "fertilizer", "seed", "materials"].includes(it.category)
-    || (["spray", "fertilize"].includes(t.type) && (!it.category || it.category === "other")));
-  if (!items.length && t.stockId && !(t.reportedMaterials || []).length) items.push({ stockId: t.stockId, qty: t.qty, unit: t.unit });
+  const items = (t.costItems || []).filter(taskItemIsMaterial);
+  if (!items.length && !(t.costItems || []).length && t.stockId && !(t.reportedMaterials || []).length) items.push({ stockId: t.stockId, qty: t.qty, unit: t.unit });
   const reports = t.reportedMaterials || [], used = new Set();
   const merged = items.map(it => {
     const index = reports.findIndex((m, i) => !used.has(i) && (it.stockId ? m.stockId === it.stockId : !m.stockId && m.name === it.name));
@@ -4342,6 +4341,7 @@ App.finishTask = async function (id, allowNoPhoto) {
     toast(e.message);
     return;
   }
+  t.planTracked = taskWasPlanned(t);
   t.status = "done";
   if (t.type === "water" && taskDoneWaterSessions.length) {
     t.wateringSessions = normalizeTaskWaterSessions(taskDoneWaterSessions.map(w => ({ ...w, status: w.status || "done" })));
@@ -4391,6 +4391,7 @@ App.failTask = async function (id) {
     return;
   }
   taskFinishSaving = true;
+  t.planTracked = taskWasPlanned(t);
   t.status = "failed";
   closeCycleForTask(S, t);
   if (t.type === "water") {
@@ -8615,9 +8616,9 @@ App.costRender = function () {
         <button type="button" class="btn btn-sm btn-danger-soft" onclick="App.costRemove(${i})">${ic("trash")} ลบ</button>
       </div>
       <div class="cost-source-fields">
-        <details class="cost-category"><summary>หมวดค่าใช้จ่าย: ${esc(costCatMap(S)[it.category]?.label || 'อื่นๆ')}</summary><div class="field"><label>หมวดหมู่</label><select onchange="App.costSet(${i}, 'category', this.value)">
+        <div class="field cost-category"><label>ประเภทค่าใช้จ่าย</label><select aria-label="ประเภทค่าใช้จ่ายรายการที่ ${i+1}" onchange="App.costSet(${i}, 'category', this.value)">
           ${allCostCats(S).map(c => `<option value="${c.key}" ${(it.category || "other") === c.key ? "selected" : ""}>${c.label}</option>`).join("")}
-        </select></div></details>
+        </select></div>
         <div class="field"><label>แหล่งรายการ</label>${costSourceHtml(i, it)}${costStockPickerHtml(i, it)}</div>
       </div>
       ${it.stockId ? `<details ${!sizeFamily(parseStockSize(st?.size)?.unit) ? "open" : ""}><summary>คำนวณจากอัตราต่อไร่ / ขนาดบรรจุ</summary>${calcBoxHtml(i, it)}</details>` : ""}
@@ -8862,8 +8863,10 @@ App.costSupported = function(i,on){
   else{delete it.funding;delete it.sponsor;it.externalTotal="";it.unitCost="";it.totalCost=0;}
   App.costRender();if(typeof TaskWizard!=="undefined")TaskWizard.persist();
 };
-App.costAdd = function () {
-  taskCostItems.push({ category: "other", externalPriceMode: "total", source: "external", stockId: "", stockMode: "package", name: "", qty: "", unit: "", unitCost: "", totalCost: 0 });
+App.costAdd = function (category) {
+  const type=document.getElementById('t_type')?.value;
+  category=allCostCats(S).some(c=>c.key===category)?category:({spray:'chemical',fertilize:'fertilizer'}[type] || 'materials');
+  taskCostItems.push({ category, externalPriceMode: "total", source: "external", stockId: "", stockMode: "package", name: category==='labor'?'ค่าแรง':'', qty: "", unit: "", unitCost: "", totalCost: 0 });
   App.costRender();
 };
 App.costRemove = function (i) {
@@ -9310,7 +9313,7 @@ App.taskTypeChange = function () {
   if (App._taskFormType !== sel.value) {
     App._taskCostDrafts[App._taskFormType] = { items: taskCostItems, enabled: document.getElementById("t_usecost").checked };
     const draft = App._taskCostDrafts[sel.value];
-    taskCostItems = draft ? draft.items : [{ category: defaultCostCat(sel.value), externalPriceMode: ["spray", "fertilize"].includes(sel.value) ? "package" : "total", stockId: "", stockMode: "package", name: "", qty: "", unit: "", unitCost: "", totalCost: 0 }];
+    taskCostItems = draft ? draft.items : [{ category: defaultCostCat(sel.value), externalPriceMode: "total", stockId: "", stockMode: "package", name: "", qty: "", unit: "", unitCost: "", totalCost: 0 }];
     document.getElementById("t_usecost").checked = draft ? draft.enabled : ["spray", "fertilize", "expense"].includes(sel.value);
     document.getElementById("t_useharvest").checked = sel.value === "harvest";
     App._taskFormType = sel.value;
@@ -9474,7 +9477,7 @@ App.modalTask = function (date, preset) {
       <div id="costBox" class="nested-fields" style="display:${hasCost ? "" : "none"}">
         <div class="field" id="materialAreaFields"><label for="t_material_area">พื้นที่ใช้ยา/ปุ๋ย (ไร่)</label><input id="t_material_area" type="number" min="0.0001" step="any" value="${editing ? esc(editing.materialAreaRai ?? editing.applicationWork?.areaRai ?? "") : ""}" placeholder="พื้นที่ที่ทำจริง" oninput="App.costRateRefresh()"></div>
         <div id="costItemsList"></div>
-        <button type="button" class="btn btn-sm btn-ghost" onclick="App.costAdd()">${ic("plus")} เพิ่มรายการ</button>
+        <div class="task-expense-add"><button type="button" class="btn btn-sm btn-outline" onclick="App.costAdd()">${ic("plus")} เพิ่มวัสดุ</button><button type="button" class="btn btn-sm btn-outline" onclick="App.costAdd('labor')">+ ค่าแรง</button><button type="button" class="btn btn-sm btn-ghost" onclick="App.costAdd('other')">+ ค่าใช้จ่ายอื่น</button></div>
         <div class="usage-total">รวมต้นทุน <strong id="costSum">0 บาท</strong></div>
       </div>
 
@@ -9524,7 +9527,7 @@ App.modalTask = function (date, preset) {
       totalCost: editing.cost || 0
     }];
   } else {
-    taskCostItems = [{ category: defaultCostCat(type), externalPriceMode: ["spray", "fertilize"].includes(type) ? "package" : "total", stockId: "", stockMode: "package", name: "", qty: "", unit: "", unitCost: "", totalCost: 0 }];
+    taskCostItems = [{ category: defaultCostCat(type), externalPriceMode: "total", stockId: "", stockMode: "package", name: "", qty: "", unit: "", unitCost: "", totalCost: 0 }];
   }
   App.costRender();
   App.waterSessionsRender();

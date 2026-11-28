@@ -22,15 +22,15 @@ function notebookModel(c) {
     const cost=Number(t.cost)||0,items=t.costItems || [];
     const itemTotal=items.reduce((sum,ci)=>sum+(Number(ci.totalCost)||0),0);
     if(items.length && Math.abs(itemTotal-cost)<0.005) {
-      for(const ci of items) categories[bucket(ci.category)]+=Number(ci.totalCost)||0;
+      for(const ci of items) categories[taskItemIsMaterial(ci)?'materials':bucket(ci.category)]+=Number(ci.totalCost)||0;
     } else categories[bucket(t.costCat)]+=cost;
   }
   const materials=done.filter(t=>['spray','fertilize'].includes(t.type) || t.costItems?.some(ci=>['chemical','fertilizer'].includes(ci.category)));
   return {tasks,done,finance,categories,materials,projects:notebookProjects(c),area:Number(plotById(S,c.plotId)?.sizeRai)||0};
 }
 function notebookMaterialItems(t, category='') {
-  const items=(t.costItems || []).filter(ci=>['chemical','fertilizer'].includes(ci.category));
-  if(items.length) return items.filter(ci=>!category || ci.category===category);
+  const items=(t.costItems || []).filter(taskItemIsMaterial);
+  if((t.costItems || []).length) return items.filter(ci=>!category || ci.category===category);
   const cat=t.costCat || (t.type==='fertilize'?'fertilizer':t.type==='spray'?'chemical':'');
   if(!['chemical','fertilizer'].includes(cat) || (category && category!==cat)) return [];
   return [{name:'วัสดุที่บันทึกเดิม',category:cat,totalCost:Number(t.cost)||0}];
@@ -42,7 +42,7 @@ function notebookMaterialRows(c, filter={}) {
 function notebookQuantity(ci) {
   const qty=ci.usageUnit?ci.usageQty:ci.qty,unit=ci.usageUnit || ci.unit || '';
   const labels={kg:'กก.',g:'กรัม',ml:'มล.',l:'ลิตร',cc:'มล.'};
-  return qty==null?'ไม่ระบุ':fmtNum(Number(qty)||0)+' '+esc(labels[unit] || unit);
+  return qty==null || qty===''?'ไม่ระบุปริมาณ':fmtNum(Number(qty)||0)+' '+esc(labels[unit] || unit);
 }
 function notebookPhotos(t) { return [...new Set(taskAllPhotos(t))]; }
 function notebookMonth(month) {
@@ -86,7 +86,9 @@ function notebookHistoryModel(tasks,filter={}) {
   const mode=filter.mode==='planned'?'planned':'recorded';
   const recorded=tasks.filter(t=>['done','failed'].includes(t.status));
   const planned=tasks.filter(t=>!['done','failed'].includes(t.status));
-  const rows=(mode==='planned'?planned:recorded).filter(t=>(!filter.type || t.type===filter.type) && (mode==='planned' || !filter.outcome || t.status===filter.outcome));
+  const query=String(filter.query || '').trim().normalize('NFC').toLocaleLowerCase('th-TH');
+  const rows=(mode==='planned'?planned:recorded).filter(t=>(!filter.type || t.type===filter.type) && (mode==='planned' || !filter.outcome || t.status===filter.outcome) &&
+    (!query || [t.title,...(t.costItems || []).map(ci=>ci.name)].join(' ').normalize('NFC').toLocaleLowerCase('th-TH').includes(query)));
   const byDate=new Map();
   for(const task of rows){const date=taskRecordDate(task);if(!byDate.has(date))byDate.set(date,[]);byDate.get(date).push(task);}
   const sort=filter.sort || (mode==='planned'?'old':'new');
@@ -110,14 +112,41 @@ function notebookHistoryRow(t,{showCycle=false}={}) {
   if(showCycle)facts.push(`<span>${cycle?esc(cycle.plant)+' · รอบ '+esc(cycle.round || '—'):'ไม่ผูกรอบปลูก'}</span>`);
   return `<article class="nb-work-item">${t.activityMembers?`<button class="task-complete-circle is-done" aria-label="ดูรายการในกิจกรรม ${esc(t.title)}" onclick="${notebookAction('projectViewActivity',t.id)}">✓</button>`:taskCompletionCircleHtml(t,{locked:project?.status==='done'})}<button type="button" class="nb-work-open" onclick="${notebookAction(t.activityMembers?.length?'projectViewActivity':'viewTask',t.id)}" aria-label="${esc('ดูรายละเอียด: '+t.title)}"><span class="nb-work-content"><span class="nb-work-title"><strong>${esc(t.title)}</strong><span class="nb-work-status nb-work-${status}">${esc(statusText || 'วางไว้')}</span></span>${materialText?`<span class="nb-work-material">${materialText}${materials.length>2?` · อีก ${materials.length-2} รายการ`:''}</span>`:''}${facts.length?`<span class="nb-work-facts">${facts.join('')}</span>`:''}${project?`<span class="nb-work-project">${notebookIcon('FolderOpen')} ${esc(projectCode(project))} · ${esc(project.name)}</span>`:''}</span><span class="nb-work-detail">ดูรายละเอียด ${notebookIcon('ChevronRight')}</span></button>${!recorded?`<div class="nb-work-actions"><button class="btn btn-sm btn-ghost" onclick="${notebookAction('rescheduleTask',t.id)}" aria-label="${esc('เลื่อนวัน: '+t.title)}">${notebookIcon('CalendarDays')} เลื่อน</button></div>`:''}</article>`;
 }
+function notebookHistoryTable(model,{showCycle=false,hideProject=false}={}) {
+  const planned=model.mode==='planned';
+  return `<div class="nb-table-scroll" role="region" aria-label="ตารางประวัติงาน" tabindex="0"><table class="nb-history-table"><thead><tr><th>วันที่${planned?'ตามแผน':'ทำจริง'}</th><th>งาน / สถานะ</th><th>วัสดุและปริมาณ</th><th>${planned?'งบประมาณ':'เงินที่จ่ายจริง'}</th><th>หลักฐาน / จัดการ</th></tr></thead><tbody>${model.groups.flatMap(group=>group.tasks.map(t=>{
+    const project=projectById(t.projectId),cycle=showCycle?cycleById(S,t.cycleId):null,closed=project?.status==='done';
+    const items=typeof taskMaterialItems==='function'?taskMaterialItems(t):notebookMaterialItems(t),costs=t.costItems || [];
+    const supported=costs.filter(materialIsSupported),labor=costs.filter(ci=>ci.category==='labor').reduce((n,ci)=>n+(Number(ci.totalCost)||0),0);
+    const uncertain=costs.filter(ci=>(!ci.category || ci.category==='other') && !taskItemIsMaterial(ci));
+    const photos=notebookPhotos(t).length,status=taskStatusOf(t),view=t.activityMembers?'projectViewActivity':'viewTask';
+    const statusText={done:'ทำแล้ว',failed:'ไม่สำเร็จ',overdue:'เลยกำหนด',planned:'วางไว้'}[status] || 'วางไว้';
+    const amount=t.status==='failed'?'ไม่รวมในต้นทุนจริง':taskDataPending(t)&&!Number(t.cost)?'ยอดรอยืนยัน':fmtMoney(Number(t.cost)||0)+' บาท';
+    return `<tr><td data-label="วันที่"><strong>${group.date?esc(dateLabel(group.date)):'ยังไม่ระบุวัน'}</strong>${taskPlannedTime(t)&&planned?`<small>${esc(taskPlannedTime(t))}</small>`:''}${showCycle?`<small>${cycle?esc(cycle.plant)+' · รอบ '+esc(cycle.round || '—'):'ไม่ผูกรอบปลูก'}</small>`:''}</td>
+      <td data-label="งาน"><div class="nb-table-work">${t.activityMembers?'<span class="nb-group-check" aria-label="ทำแล้ว">✓</span>':taskCompletionCircleHtml(t,{locked:closed})}<div><button class="nb-table-link" onclick="${notebookAction(view,t.id)}">${esc(t.title || 'กิจกรรม')}</button><small>${esc(statusText)}${taskDataPending(t)?' · ข้อมูลรอตรวจ':''}${t.activityMembers?' · '+t.activityMembers.length+' รายการต้นทาง':''}</small>${!hideProject&&project?`<small>${esc(projectCode(project))}</small>`:''}</div></div></td>
+      <td data-label="วัสดุ / ปริมาณ">${items.map(ci=>`<div class="nb-table-material"><span>${esc(ci.name || 'วัสดุเดิม')}</span><strong>${notebookQuantity(ci)}</strong>${materialIsSupported(ci)?'<small class="nb-support-tag">ได้รับสนับสนุน</small>':''}</div>`).join('') || '<span class="muted">—</span>'}</td>
+      <td data-label="${planned?'งบประมาณ':'จ่ายจริง'}"><strong>${esc(amount)}</strong>${t.status!=='failed'&&labor?`<small>รวมค่าแรง ${fmtMoney(labor)} บาท</small>`:''}${supported.length?`<small class="nb-support-tag">สนับสนุน ${supported.length} รายการ · จ่าย 0 บาท</small>`:''}${uncertain.length?`<small class="nb-category-review">ตรวจหมวด ${uncertain.length} รายการ</small>`:''}${t.status==='done'&&Number(t.revenue)>0?`<small>รายรับ ${fmtMoney(t.revenue)} บาท</small>`:''}</td>
+      <td data-label="หลักฐาน / จัดการ"><button class="btn btn-sm btn-ghost" onclick="${notebookAction(view,t.id)}">${photos?notebookIcon('Image')+' '+photos+' รูป':'ดูรายละเอียด'}</button>${!closed?`<button class="btn btn-sm btn-outline" onclick="${notebookAction(t.activityMembers?'projectViewActivity':'editTask',t.id)}">${t.activityMembers?'ดูรายการ':'แก้ไข'}</button>`:''}${planned?`<button class="btn btn-sm btn-ghost" onclick="${notebookAction('rescheduleTask',t.id)}">เลื่อนวัน</button>`:''}</td></tr>`;
+  })).join('')}</tbody></table></div>`;
+}
+App.notebookHistorySearch=function(input,key){
+  const value=input.value,start=input.selectionStart,end=input.selectionEnd;
+  notebookHistoryFilters.set(key,{...(notebookHistoryFilters.get(key) || {}),query:value});rerender();
+  const next=document.getElementById('nbHistorySearch-'+key);if(next){next.focus();try{next.setSelectionRange(start,end);}catch(_){}}
+};
 function notebookHistoryHtml(tasks,key,options={}) {
-  const filter=notebookHistoryFilters.get(key) || {},model=notebookHistoryModel(tasks,filter),planned=model.mode==='planned';
+  const filter=notebookHistoryFilters.get(key) || {},model=notebookHistoryModel(tasks,filter),planned=model.mode==='planned',list=filter.view==='list';
   const change=field=>esc('App.notebookHistoryFilter('+JSON.stringify(key)+','+JSON.stringify(field)+',this.value)');
-  const empty=filter.type || filter.outcome?'ไม่พบงานตามตัวกรองที่เลือก':planned?'ยังไม่มีงานที่วางไว้':'ยังไม่มีงานที่ลงผลแล้ว';
-  return `<section class="nb-card nb-activity-history"><div class="nb-history-heading"><h2>ประวัติงาน</h2>${options.calendar?`<button class="btn btn-outline" onclick="App.cycleDetailTab('calendar')">${notebookIcon('CalendarDays')} ปฏิทินงาน</button>`:''}</div><div class="nb-work-toolbar"><div class="nb-work-tabs" role="group" aria-label="แยกประวัติกับแผนงาน"><button type="button" aria-pressed="${!planned}" onclick="${notebookAction('notebookHistoryFilter',key,'mode','recorded')}">งานที่ทำแล้ว <b>${model.recorded}</b></button><button type="button" aria-pressed="${planned}" onclick="${notebookAction('notebookHistoryFilter',key,'mode','planned')}">งานที่วางไว้ <b>${model.planned}</b></button></div><div class="nb-filters nb-work-filters"><select aria-label="ประเภทงานในประวัติ" onchange="${change('type')}"><option value="">ทุกประเภทงาน</option>${Object.entries(TYPE_LABELS).map(([value,label])=>`<option value="${value}" ${filter.type===value?'selected':''}>${esc(label)}</option>`).join('')}</select>${!planned?`<select aria-label="ผลการทำงาน" onchange="${change('outcome')}">${[['','ทุกผลการทำงาน'],['done','ทำแล้ว'],['failed','ไม่สำเร็จ']].map(([value,label])=>`<option value="${value}" ${filter.outcome===value?'selected':''}>${label}</option>`).join('')}</select>`:''}<select aria-label="เรียงวันที่งาน" onchange="${change('sort')}">${[['new','วันที่ใหม่ → เก่า'],['old','วันที่เก่า → ใหม่']].map(([value,label])=>`<option value="${value}" ${model.sort===value?'selected':''}>${label}</option>`).join('')}</select></div></div><p class="nb-work-hint">${planned?'เรียงตามกำหนดทำงาน · งบประมาณยังไม่ใช่ต้นทุนจริง':'เรียงตามวันที่ลงผลจริง · รวมงานที่บันทึกว่าไม่สำเร็จ'} · กดรายการเพื่อดูรายละเอียด</p>${model.groups.map(group=>`<section class="nb-work-day"><h3>${notebookIcon('CalendarDays')} ${group.date?esc(dateLabel(group.date)):planned?'ยังไม่กำหนดวัน':'ไม่ระบุวันที่ลงผล'} <small>${group.tasks.length} งาน</small></h3><div class="nb-work-day-items">${group.tasks.map(t=>notebookHistoryRow(t,options)).join('')}</div></section>`).join('') || `<p class="nb-empty" role="status">${empty}</p>`}</section>`;
+  const empty=filter.type || filter.outcome || filter.query?'ไม่พบงานตามตัวกรองที่เลือก':planned?'ยังไม่มีงานที่วางไว้':'ยังไม่มีงานที่ลงผลแล้ว';
+  const content=!model.count?`<p class="nb-empty" role="status">${empty}</p>`:list?model.groups.map(group=>`<section class="nb-work-day"><h3>${notebookIcon('CalendarDays')} ${group.date?esc(dateLabel(group.date)):planned?'ยังไม่กำหนดวัน':'ไม่ระบุวันที่ลงผล'} <small>${group.tasks.length} งาน</small></h3><div class="nb-work-day-items">${group.tasks.map(t=>notebookHistoryRow(t,options)).join('')}</div></section>`).join(''):notebookHistoryTable(model,options);
+  return `<section class="nb-card nb-activity-history"><div class="nb-history-heading"><div><h2>ประวัติงาน</h2><small>บันทึกเดียวกันกับแปลง รอบปลูก และโครงการ</small></div>${options.calendar?`<button class="btn btn-outline" onclick="App.cycleDetailTab('calendar')">${notebookIcon('CalendarDays')} ปฏิทินงาน</button>`:''}</div>
+    <div class="nb-work-toolbar"><div class="nb-work-tabs" role="group" aria-label="แยกประวัติกับแผนงาน"><button type="button" aria-pressed="${!planned}" onclick="${notebookAction('notebookHistoryFilter',key,'mode','recorded')}">งานที่ทำแล้ว <b>${model.recorded}</b></button><button type="button" aria-pressed="${planned}" onclick="${notebookAction('notebookHistoryFilter',key,'mode','planned')}">งานที่วางไว้ <b>${model.planned}</b></button></div>
+    <div class="nb-history-view" role="group" aria-label="มุมมองประวัติ"><button type="button" aria-pressed="${!list}" onclick="${notebookAction('notebookHistoryFilter',key,'view','table')}">ตาราง</button><button type="button" aria-pressed="${list}" onclick="${notebookAction('notebookHistoryFilter',key,'view','list')}">ตามวัน</button></div></div>
+    <div class="nb-history-search"><input id="${esc('nbHistorySearch-'+key)}" type="search" aria-label="ค้นหางานหรือวัสดุในประวัติ" placeholder="ค้นหาชื่องาน ยา หรือปุ๋ย" value="${esc(filter.query || '')}" oninput="${esc('App.notebookHistorySearch(this,'+JSON.stringify(key)+')')}"><div class="nb-filters nb-work-filters"><select aria-label="ประเภทงานในประวัติ" onchange="${change('type')}"><option value="">ทุกประเภทงาน</option>${Object.entries(TYPE_LABELS).map(([value,label])=>`<option value="${value}" ${filter.type===value?'selected':''}>${esc(label)}</option>`).join('')}</select>${!planned?`<select aria-label="ผลการทำงาน" onchange="${change('outcome')}">${[['','ทุกผลการทำงาน'],['done','ทำแล้ว'],['failed','ไม่สำเร็จ']].map(([value,label])=>`<option value="${value}" ${filter.outcome===value?'selected':''}>${label}</option>`).join('')}</select>`:''}<select aria-label="เรียงวันที่งาน" onchange="${change('sort')}">${[['new','วันที่ใหม่ → เก่า'],['old','วันที่เก่า → ใหม่']].map(([value,label])=>`<option value="${value}" ${model.sort===value?'selected':''}>${label}</option>`).join('')}</select></div></div>
+    <p class="nb-work-hint">${planned?'เรียงตามกำหนดทำงาน · งบประมาณยังไม่ใช่ต้นทุนจริง':'เรียงตามวันที่ลงผลจริง · งานไม่สำเร็จไม่รวมในต้นทุนจริง'} · ${model.count} รายการ</p>${content}</section>`;
 }
 App.notebookHistoryFilter=function(key,field,value){
-  if(!['mode','type','outcome','sort'].includes(field))return;
+  if(!['mode','type','outcome','sort','view'].includes(field))return;
   const filter={...(notebookHistoryFilters.get(key) || {})};
   if(field==='mode'){filter.mode=value==='planned'?'planned':'recorded';filter.sort=filter.mode==='planned'?'old':'new';filter.outcome='';}
   else filter[field]=value;

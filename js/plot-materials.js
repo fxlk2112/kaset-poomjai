@@ -9,13 +9,13 @@ function materialHistoryNumber(value) {
   return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
 }
 function materialHistoryCategory(item, task) {
+  if (!taskItemIsMaterial(item)) return '';
   if (['chemical', 'fertilizer'].includes(item.category)) return item.category;
   if (item.category && !['other', 'materials'].includes(item.category)) return '';
   const stock = item.stockId ? stockById(S, item.stockId) : null;
   if (/ปุ๋ย/.test(stock?.category || '')) return 'fertilizer';
   if (/^(ยา|สาร)|ฮอร์โมน/.test(stock?.category || '')) return 'chemical';
-  if (item.stockId || ['spray', 'fertilize'].includes(task.type)) return 'other';
-  return '';
+  return 'other';
 }
 function materialHistoryItems(task) {
   const saved = task.costItems || [];
@@ -35,7 +35,7 @@ function materialHistoryItems(task) {
     const stock = item.stockId ? stockById(S, item.stockId) : null;
     const category = materialHistoryCategory(item, task);
     const name = String(item.name || stock?.name || 'ไม่ระบุชื่อวัสดุ (บันทึกเดิม)').trim();
-    return {...item, name, category, cost: mismatch ? null : materialHistoryNumber(item.totalCost), mismatch};
+    return {...item, name, category, cost: mismatch || item.amountPending ? null : materialHistoryNumber(item.totalCost), mismatch};
   }).filter(item => item.category);
 }
 function materialHistoryQuantity(item) {
@@ -59,7 +59,7 @@ function materialHistoryQuantityText(quantity) {
   return number + ' ' + unit;
 }
 function materialHistoryModel(tasks, filter = {}) {
-  const seen = new Set(), rows = [], planned = [];
+  const seen = new Set(), rows = [], planned = [], unclassified = [];
   const words = materialHistorySearchText(filter.query).split(' ').filter(Boolean);
   for (const task of tasks) {
     const identity = task.id || task;
@@ -68,6 +68,7 @@ function materialHistoryModel(tasks, filter = {}) {
     if (task.status === 'failed') continue;
     const date = taskRecordDate(task);
     if (filter.month && !date.startsWith(filter.month)) continue;
+    if(task.status==='done' && !filter.category && (task.costItems || []).some(item=>(!item.category || item.category==='other') && !taskItemIsMaterial(item) && words.every(word=>materialHistorySearchText(item.name).includes(word))))unclassified.push(task);
     const items = materialHistoryItems(task).filter(item => (!filter.category || item.category === filter.category) &&
       words.every(word => materialHistorySearchText(item.name).includes(word)));
     if (!items.length) continue;
@@ -85,8 +86,9 @@ function materialHistoryModel(tasks, filter = {}) {
     for (const item of row.items) {
       if (item.cost === null) missingCosts++; else cost += item.cost;
       const key = materialHistorySearchText(item.name);
-      if (!products.has(key)) products.set(key, {key, name: item.name, tasks: new Set(), rows: [], quantities: new Map(), cost: 0, missingCosts: 0, latest: ''});
+      if (!products.has(key)) products.set(key, {key, name: item.name, tasks: new Set(), rows: [], quantities: new Map(), cost: 0, missingCosts: 0, supported: 0, latest: ''});
       const product = products.get(key), quantity = materialHistoryQuantity(item);
+      if(materialIsSupported(item))product.supported++;
       product.tasks.add(row.task.id || row.task);
       if (!product.rows.some(entry => entry.task === row.task)) product.rows.push({...row, items: []});
       product.rows.find(entry => entry.task === row.task).items.push(item);
@@ -96,7 +98,7 @@ function materialHistoryModel(tasks, filter = {}) {
       if (quantity.qty !== null) product.quantities.get(quantity.key).qty += quantity.qty;
     }
   }
-  return {rows, planned, days, products: [...products.values()].sort((a, b) => a.name.localeCompare(b.name, 'th')), cost, missingCosts};
+  return {rows, planned, unclassified, days, products: [...products.values()].sort((a, b) => a.name.localeCompare(b.name, 'th')), cost, missingCosts};
 }
 function materialHistoryScope(plotId, fixedCycleId = '') {
   const key = fixedCycleId ? 'cycle:' + fixedCycleId : 'plot:' + plotId;
@@ -115,14 +117,15 @@ function materialHistoryRowsHtml(rows) {
     const cycle = cycleById(S, task.cycleId), photos = notebookPhotos(task).length;
     const sum = items.reduce((n, item) => n + (item.cost || 0), 0), missing = items.filter(item => item.cost === null).length;
     return `<article class="mh-activity"><header><div><h4>${esc(task.title || TYPE_LABELS[task.type] || 'บันทึกการใช้วัสดุ')}</h4><p>${cycle ? esc(cycle.plant) + ' · รอบ ' + esc(cycle.round || '—') : 'ไม่ผูกรอบปลูก'}${task.projectId && projectById(task.projectId) ? ' · ' + esc(projectCode(projectById(task.projectId))) : ''}</p></div><span class="mh-done">ทำแล้ว</span></header>
-      <table class="mh-items"><thead><tr><th>ยา / ปุ๋ย</th><th>ใช้จริง</th><th>ค่าวัสดุ</th></tr></thead><tbody>${items.map(item => `<tr><th scope="row">${esc(item.name)}</th><td>${esc(materialHistoryQuantityText(materialHistoryQuantity(item)))}</td><td>${item.cost === null ? (item.mismatch ? 'ตรวจต้นทุนเดิม' : 'ไม่ระบุ') : fmtMoney(Math.round(item.cost * 100) / 100) + ' บาท'}</td></tr>`).join('')}</tbody></table>
+      <table class="mh-items"><thead><tr><th>ยา / ปุ๋ย</th><th>ใช้จริง</th><th>ค่าวัสดุ</th></tr></thead><tbody>${items.map(item => `<tr><th scope="row">${esc(item.name)}${materialIsSupported(item)?'<small class="mh-support">ได้รับสนับสนุน · จ่าย 0 บาท</small>':''}</th><td>${esc(materialHistoryQuantityText(materialHistoryQuantity(item)))}</td><td>${item.cost === null ? (item.mismatch ? 'ตรวจต้นทุนเดิม' : 'ไม่ระบุ') : fmtMoney(Math.round(item.cost * 100) / 100) + ' บาท'}</td></tr>`).join('')}</tbody></table>
       <footer><strong>ค่าวัสดุ ${esc(materialHistoryMoney(sum, missing))}</strong><button type="button" class="btn btn-outline btn-sm" onclick="${notebookAction('viewTask', task.id)}" aria-label="${esc('ดูรายละเอียดการใช้: ' + task.title)}">${photos ? notebookIcon('Image') + ' ' + photos + ' รูป · ' : ''}ดูรายละเอียด ${notebookIcon('ChevronRight')}</button></footer></article>`;
   }).join('');
 }
 function materialHistoryResultsHtml(model, summary, query = '') {
   return `    <div class="mh-totals" role="status"><span>ใช้แล้ว <strong>${model.rows.length} ครั้ง</strong></span><span><strong>${model.products.length} รายการ</strong></span><span>ค่าวัสดุตามที่เลือก <strong>${esc(materialHistoryMoney(model.cost, model.missingCosts))}</strong></span></div>
     <p class="mh-note">รวมเฉพาะงานที่ทำแล้ว · ไม่รวมค่าแรงและงานที่วางไว้${model.missingCosts ? ' · บางรายการยังไม่ระบุต้นทุน หรือยอดเดิมต้องตรวจสอบ' : ''}</p>
-    ${summary ? `<div class="mh-products">${model.products.map(product => `<details class="mh-product"><summary><span class="mh-product-name"><strong>${esc(product.name)}</strong><small>ใช้ล่าสุด ${product.latest ? esc(dateLabel(product.latest)) : 'ไม่ระบุวันที่'}</small></span><span class="mh-product-qty"><small>ใช้รวม</small><strong>${[...product.quantities.values()].map(q => esc(materialHistoryQuantityText(q))).join('<br>')}</strong></span><span class="mh-product-count"><small>ใช้แล้ว</small><strong>${product.tasks.size} ครั้ง</strong></span><span class="mh-product-cost"><small>ค่าวัสดุรวม</small><strong>${esc(materialHistoryMoney(product.cost, product.missingCosts))}</strong></span><span class="mh-expand">${notebookIcon('ChevronDown')}</span></summary><div class="mh-product-history"><p>ประวัติการใช้ ${esc(product.name)}</p>${product.rows.map(row => `<h3>${row.date ? esc(dateLabel(row.date)) : 'ไม่ระบุวันที่ใช้'}</h3>${materialHistoryRowsHtml([row])}`).join('')}</div></details>`).join('')}</div>` : [...model.days].map(([date, rows]) => `<section class="mh-day"><h3>${notebookIcon('CalendarDays')} ${date ? esc(dateLabel(date)) : 'ไม่ระบุวันที่ใช้'} <small>${rows.length} งาน</small></h3>${materialHistoryRowsHtml(rows)}</section>`).join('')}
+    ${model.unclassified?.length?`<details class="mh-unclassified"><summary>ค่าใช้จ่ายหมวดอื่น ${model.unclassified.length} งาน · ยังไม่รวมเป็นค่าวัสดุ</summary><p>เลือกประเภทค่าใช้จ่ายในบันทึกต้นทาง หากเป็นค่าแรงให้เลือก “ค่าแรง” ยอดต้นทุนกิจกรรมยังคงเดิม</p>${model.unclassified.map(t=>`<button type="button" class="btn btn-ghost btn-sm" onclick="${notebookAction('viewTask',t.id)}">${esc(t.title)} · ตรวจหมวด</button>`).join('')}</details>`:''}
+    ${summary ? `<div class="mh-products">${model.products.map(product => `<details class="mh-product"><summary><span class="mh-product-name"><strong>${esc(product.name)}</strong>${product.supported?`<small class="mh-support">ได้รับสนับสนุน ${product.supported} รายการ</small>`:''}<small>ใช้ล่าสุด ${product.latest ? esc(dateLabel(product.latest)) : 'ไม่ระบุวันที่'}</small></span><span class="mh-product-qty"><small>ใช้รวม</small><strong>${[...product.quantities.values()].map(q => esc(materialHistoryQuantityText(q))).join('<br>')}</strong></span><span class="mh-product-count"><small>ใช้แล้ว</small><strong>${product.tasks.size} ครั้ง</strong></span><span class="mh-product-cost"><small>ค่าวัสดุรวม</small><strong>${esc(materialHistoryMoney(product.cost, product.missingCosts))}</strong></span><span class="mh-expand">${notebookIcon('ChevronDown')}</span></summary><div class="mh-product-history"><p>ประวัติการใช้ ${esc(product.name)}</p>${product.rows.map(row => `<h3>${row.date ? esc(dateLabel(row.date)) : 'ไม่ระบุวันที่ใช้'}</h3>${materialHistoryRowsHtml([row])}`).join('')}</div></details>`).join('')}</div>` : [...model.days].map(([date, rows]) => `<section class="mh-day"><h3>${notebookIcon('CalendarDays')} ${date ? esc(dateLabel(date)) : 'ไม่ระบุวันที่ใช้'} <small>${rows.length} งาน</small></h3>${materialHistoryRowsHtml(rows)}</section>`).join('')}
     ${!model.rows.length ? `<p class="mh-empty" role="status">${query ? 'ไม่พบรายการที่ทำแล้วสำหรับ “' + esc(query.trim()) + '”' : 'ยังไม่มีการใช้ยาและปุ๋ยที่ทำแล้วตามตัวเลือกนี้'}</p>` : ''}
     ${model.planned.length ? `<details class="mh-planned"><summary>งานที่วางไว้ ${model.planned.length} งาน <span>ยังไม่รวมยอดใช้จริง</span></summary>${model.planned.map(({task, date, items}) => `<button type="button" onclick="${notebookAction('viewTask', task.id)}"><span><strong>${esc(task.title)}</strong><small>${date ? 'กำหนด ' + esc(dateLabel(date)) : 'ยังไม่กำหนดวัน'} · ${items.map(item => esc(item.name)).join(' · ')}</small></span>${notebookIcon('ChevronRight')}</button>`).join('')}</details>` : ''}
 `;

@@ -33,7 +33,7 @@ const TaskWizard = {
     try { localStorage.setItem(this.owner,JSON.stringify(this.capture()));if(status)status.textContent='เก็บฉบับร่างในเครื่องนี้แล้ว';return true; }
     catch (_) { if(status)status.textContent='เก็บฉบับร่างไม่ได้ พื้นที่เครื่องอาจเต็ม อย่าเพิ่งปิดหน้านี้';return false; }
   },
-  schedule() { if(this.active()){clearTimeout(this.timer);this.timer=setTimeout(()=>this.persist(),250);} },
+  schedule() { if(this.active()){this.compactTotal();clearTimeout(this.timer);this.timer=setTimeout(()=>this.persist(),250);} },
   completed() { clearTimeout(this.timer);if(this.owner)try{localStorage.removeItem(this.owner);}catch(_){} this.ready=false; },
   close() {
     if(!this.ready){closeModal();return;}
@@ -45,7 +45,7 @@ const TaskWizard = {
     clearTimeout(this.timer);this.ready=false;this.form=null;
     if(taskEditingId)return;
     const form=document.querySelector('.task-form');if(!form)return;
-    this.form=form;this.owner=this.key();this.step=0;this.compact=window.matchMedia('(max-width:899px)').matches;
+    this.form=form;this.owner=this.key();this.step=0;this.compact=true;
     this.multiPlot=false;this.plotSelections=[];this.lastMultiActive=false;
     form.classList.add('task-wizard');form.noValidate=true;
     const first=form.querySelector('[data-task-step="0"]');
@@ -62,11 +62,11 @@ const TaskWizard = {
     form.append(document.getElementById('t_status').closest('.field'));
     dateRow.append(document.getElementById('t_title').closest('.field'));
     const nav=document.createElement('nav');nav.className='task-step-nav';nav.setAttribute('aria-label','ขั้นตอนบันทึกกิจกรรม');
-    nav.innerHTML=['งานและแปลง','รายละเอียดงาน','ตรวจและบันทึก'].map((label,i)=>`<button type="button" data-wizard-step="${i}" onclick="TaskWizard.go(${i})"><b>${i+1}</b><span>${label}</span></button>`).join('');
+    nav.innerHTML=[[0,'บันทึกงาน'],[2,'ตรวจและยืนยัน']].map(([step,label],i)=>`<button type="button" data-wizard-step="${step}" onclick="TaskWizard.go(${step})"><b>${i+1}</b><span>${label}</span></button>`).join('');
     form.prepend(nav);
     const summary=document.getElementById('cwTaskSummary');
     const review=document.createElement('section');review.dataset.taskStep='2';review.className='task-wizard-review';
-    review.innerHTML='<div id="taskReviewContext"></div><div class="task-review-edit"><button type="button" class="btn btn-outline" onclick="TaskWizard.go(0)">'+ic('pencil')+' แก้งานและแปลง</button><button type="button" class="btn btn-outline" onclick="TaskWizard.go(1)">'+ic('pencil')+' แก้รายละเอียด</button></div>';
+    review.innerHTML='<h4 tabindex="-1">ตรวจข้อมูลก่อนยืนยัน</h4><div id="taskReviewContext" tabindex="-1"></div><div class="task-review-edit"><button type="button" class="btn btn-outline" onclick="TaskWizard.go(0)">'+ic('pencil')+' กลับไปแก้ข้อมูล</button></div>';
     if(summary)review.prepend(summary);form.append(review);
     const actions=document.getElementById('taskSubmitButton').closest('.modal-actions');actions.classList.add('task-wizard-actions');
     actions.querySelector('button[type="button"]').textContent='เก็บร่างและปิด';
@@ -186,10 +186,14 @@ const TaskWizard = {
     const scope=form.querySelector('.task-scope');first.prepend(scope);
     const type=document.getElementById('t_type').closest('.field');type.hidden=false;
     const date=document.getElementById('t_date').closest('.form-row-2');date.prepend(type);
-    const title=document.getElementById('t_title').closest('.field'),more=document.createElement('details');more.className='task-compact-more';more.innerHTML='<summary>ชื่องาน / วางแผน / ตั้งงานซ้ำ</summary>';more.append(title);const mode=form.querySelector('.task-mode');if(mode)more.append(mode);const repeat=form.querySelector('.task-repeat-setup');if(repeat)more.append(repeat);second.append(more);
+    const title=document.getElementById('t_title').closest('.field');date.after(title);
+    const more=document.createElement('details');more.className='task-compact-more';more.innerHTML='<summary>รายรับ / ความครบถ้วน / ตั้งงานซ้ำ</summary>';
+    for(const el of [form.querySelector('.task-repeat-setup'),document.getElementById('t_useincome')?.closest('label'),document.getElementById('incomeBox'),form.querySelector('.task-data-review')])if(el)more.append(el);
+    if(document.getElementById('t_useincome')?.checked || document.getElementById('t_data_pending')?.checked)more.open=true;
+    second.append(more);
     const plotFields=document.getElementById('taskPlotCycleFields'),plots=document.getElementById('taskMultiPlot'),plotSettings=document.createElement('details');plotSettings.className='task-compact-plots';plotSettings.innerHTML='<summary>เปลี่ยนแปลง / รอบปลูก / พื้นที่ทำจริง</summary>';scope.append(plotSettings);plotSettings.append(plots,plotFields);const area=document.getElementById('materialAreaFields');if(area)plotSettings.append(area);if(!document.getElementById('t_plot').value)plotSettings.open=true;
     const extra=form.querySelector('.task-extras'),photo=extra?.querySelector('.task-photo-panel');if(photo){extra.before(photo);extra.querySelector('summary').textContent='หมายเหตุ';photo.querySelector('.task-photo-head button').innerHTML=ic('camera')+' ถ่ายรูป / แนบรูป';}
-    const project=form.querySelector('.task-project-setup');if(project)scope.after(project);
+    const project=form.querySelector('.task-project-setup');if(project){const fold=document.createElement('details');fold.className='task-project-fold';fold.innerHTML='<summary></summary>';fold.open=!document.getElementById('t_project')?.value;scope.after(fold);fold.append(project);}
     const total=document.createElement('div');total.className='task-compact-total';total.innerHTML='<div>รวมค่าใช้จ่าย<strong id="taskCompactTotal">0 บาท</strong></div><small>ยังไม่ยืนยันหรือตัดสต็อก</small>';document.querySelector('.task-wizard-actions').before(total);
     this.compactTotal();
   },
@@ -202,13 +206,21 @@ const TaskWizard = {
       document.getElementById('taskScopeSummary').textContent=farm?'งานส่วนกลาง':p?.name || 'เลือกแปลง';
       document.getElementById('taskScopeSummaryDetail').textContent=farm?'งานทั่วไปที่ไม่ผูกแปลง':c?c.plant+' · รอบ '+c.round+' · '+fmtNum(p.sizeRai)+' ไร่':'ต้นทุนรวมแปลง';
     }
+    const fold=this.form.querySelector('.task-project-fold'),project=projectById(document.getElementById('t_project')?.value);
+    if(fold){fold.querySelector('summary').textContent=project?'โครงการ: '+project.name+' · เปลี่ยน':'เลือกโครงการที่เกี่ยวข้อง (ไม่บังคับ)';if(fold.dataset.project && !project)fold.open=true;fold.dataset.project=project?.id || '';}
   },
   compactCosts() {
     if(!this.compact || !this.form?.isConnected || !this.form.classList.contains('task-compact'))return;
     this.form.querySelectorAll('.usage-row:not([data-compact])').forEach(row=>{
       row.dataset.compact='1';
-      const extra=document.createElement('details');extra.className='task-cost-extra';extra.innerHTML='<summary>แหล่งวัสดุ / วิธีคิดราคา / รายละเอียด</summary>';
-      const source=row.querySelector('.cost-source-fields');if(source)extra.append(source);
+      const extra=document.createElement('details');extra.className='task-cost-extra';extra.innerHTML='<summary>วิธีคิดราคา / อัตราต่อไร่ / รายละเอียด</summary>';
+      const source=row.querySelector('.cost-source-fields'),category=source?.querySelector('.cost-category');if(category)row.querySelector('.usage-row-head').append(category);
+      const priceMode=row.querySelector('.ci-external-mode')?.closest('.field');if(priceMode)extra.append(priceMode);
+      const item=taskCostItems[Number(row.dataset.ci)];
+      if(item && !item.stockId && !taskItemIsMaterial(item) && !['chemical','fertilizer','seed','materials'].includes(item.category)){
+        const quantity=row.querySelector('.ci-qty')?.closest('.form-row-2');if(quantity)extra.append(quantity);
+        if(source)extra.append(source);
+      }
       const measured=row.querySelector('button[onclick^="App.costUseMeasured"]');if(measured)extra.append(measured);
       for(const el of [...row.children])if(el.tagName==='DETAILS' || el.matches('.cost-external-note,.hint,.cost-auto-rate') || el.matches('.field:has(.cost-auto-rate)'))extra.append(el);
       const stock=row.querySelector('.stock-action');if(stock){const mode=document.createElement('details');mode.className='task-stock-mode';const summary=document.createElement('summary');summary.textContent='สต็อก: '+(stock.querySelector('[aria-pressed="true"]')?.textContent || 'ตรวจวิธีตัดสต็อก');mode.append(summary);stock.before(mode);mode.append(stock);}
@@ -220,7 +232,7 @@ const TaskWizard = {
   show(step,focus=true) {
     this.step=Math.max(0,Math.min(2,step));
     this.form.querySelectorAll('[data-task-step]').forEach(el=>el.hidden=this.compact && this.step<2?Number(el.dataset.taskStep)===2:Number(el.dataset.taskStep)!==this.step);
-    this.form.querySelectorAll('[data-wizard-step]').forEach(el=>el.setAttribute('aria-current',Number(el.dataset.wizardStep)===this.step?'step':'false'));
+    this.form.querySelectorAll('[data-wizard-step]').forEach(el=>el.setAttribute('aria-current',Number(el.dataset.wizardStep)===(this.step===2?2:0)?'step':'false'));
     this.form.querySelectorAll('[data-wizard-type]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.wizardType===document.getElementById('t_type').value)));
     document.getElementById('taskStepBack').hidden=this.compact?this.step<2:this.step===0;
     document.getElementById('taskStepNext').hidden=this.step===2;
@@ -228,7 +240,7 @@ const TaskWizard = {
     if(this.step===2)this.review();
     this.compactTotal();
     this.compactCosts();
-    if(focus){const current=this.compact?this.form.querySelector(this.step===2?'#taskReviewContext':'[data-task-step="0"]'):this.form.querySelector(`[data-wizard-step="${this.step}"]`);current?.focus();current?.scrollIntoView({block:'nearest'});}
+    if(focus){const current=this.compact?this.form.querySelector(this.step===2?'[data-task-step="2"] h4':'[data-task-step="0"]'):this.form.querySelector(`[data-wizard-step="${this.step}"]`);current?.focus({preventScroll:true});(this.form.closest('.modal-scroll') || this.form.closest('.modal'))?.scrollTo({top:0});}
   },
   error(id,message,step) { this.show(step);const input=document.getElementById(id);setModalFieldError(input,message);input?.focus();return false; },
   validate(step) {

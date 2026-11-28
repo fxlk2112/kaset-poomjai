@@ -44,7 +44,8 @@ test('zero-cost materials retain zero and mismatched old item totals do not infl
 test('quantity uses saved actual usage units and does not relabel historical package counts',()=>{
   const h=harness();assert.equal(h.run("notebookQuantity({qty:0.3,unit:'ขวด',usageQty:300,usageUnit:'ml'})"),'300 มล.');
   assert.equal(h.run("notebookQuantity({qty:0.3,unit:'ขวด'})"),'0.3 ขวด');
-  assert.equal(h.run('notebookQuantity({})'),'ไม่ระบุ');
+  assert.equal(h.run('notebookQuantity({})'),'ไม่ระบุปริมาณ');
+  assert.equal(h.run('notebookQuantity({qty:"",unit:"kg"})'),'ไม่ระบุปริมาณ');
 });
 test('evidence includes before and completion photos once',()=>{
   const h=harness();assert.deepEqual(Array.from(h.run("notebookPhotos({photos:['before'],donePhotos:['after','before']})")),['before','after']);

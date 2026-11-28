@@ -11,7 +11,8 @@ function render(task,compact=false) {
   const c=vm.createContext({task,compact,S:{},plotById:()=>({sizeRai:4}),stockById:()=>({name:'Current catalog name',unit:'ขวด'}),fmtNum:String,
     unitLabel:u=>['ml','มล','ซีซี'].includes(u)?'ซีซี (มล.)':u,
     esc:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;')});
-  vm.runInContext(unitSource + source,c);
+  const classify=data.slice(data.indexOf('function taskItemIsMaterial('),data.indexOf('// Group only the display'));
+  vm.runInContext(unitSource + classify + source,c);
   return vm.runInContext('taskMaterialsHtml(task,compact)',c);
 }
 

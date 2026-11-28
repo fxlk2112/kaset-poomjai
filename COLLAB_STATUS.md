@@ -1,5 +1,17 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — DAILY-ENTRY-HISTORY-CLARITY-20261128
+
+- Owner: Codex for Folk, user-authorized farm/project follow-up; SUCHA retains shared integration review.
+- Branch: `codex/daily-entry-history-clarity`, source `6f5fdc6`; refreshed `origin/develop` retained as ancestor.
+- Task / Scope: Shorten daily activity entry, show project records as a readable table, separate labor from material summaries, and separate recorded work from planned progress. Preserve quantity/cost review and canonical accounting without duplicate charges.
+- Files / lock: task/project entry, history, progress, report and plot-material modules/styles; scoped `js/app.js`, `js/data.js`, dashboard/notebook hooks, asset wiring `index.html` / `sw.js`, related tests, scoped QA and this status file. No other owner's conflicting active lock found.
+- Status: LOCAL_COMPLETE. Daily entry, shared table history, explicit expense categories and planned-work progress implemented. No production migration, backend contract changes or hardware actions.
+- Validation: `npm run check` 772/772; relay 9/9. Desktop/mobile UI, quantity/cost guards, real synthetic API save/edit/reload/photo, planned completion and canonical totals verified. See `qa/daily-entry-history/HANDOFF.md`.
+- Commit: Feature commit containing `qa/daily-entry-history/HANDOFF.md`.
+- Deployment: NOT_DEPLOYED. DATA_ONLY / SAFE_OFF and same-origin API retained.
+- Next action: Integration-owner review of this branch for `develop`.
+
 ## Task lock — PROPOSAL-FIRST-SPONSORSHIP-20261128
 
 - Owner: Codex for Folk, user-authorized follow-up; SUCHA retains shared integration review.

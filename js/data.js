@@ -856,6 +856,20 @@ function taskDataIssues(t) {
   return t?.dataStatus==='pending' ? (fields.length?fields:['ข้อมูลรอตรวจ']) : [];
 }
 function taskDataPending(t) { return taskDataIssues(t).length>0; }
+// A completed log is not proof that it was part of an agreed work plan.
+function taskWasPlanned(t) {
+  return !!t && (t.planTracked===true || ['planned','overdue'].includes(t.status) ||
+    ['project','project-draft'].includes(t.source));
+}
+function taskItemIsMaterial(item) {
+  if (!item || item.projectEntryExpense || item.category==='labor') return false;
+  if (['chemical','fertilizer','seed','materials'].includes(item.category)) return true;
+  if (item.category && item.category!=='other') return false;
+  if (item.stockId) return true;
+  // Preserve measured legacy materials. An unclassified lump-sum expense is not a material.
+  const qty=Number(item.usageUnit ? item.usageQty : item.qty);
+  return Number.isFinite(qty) && qty>0 && !!sizeFamily(item.usageUnit || item.unit || '');
+}
 // Group only the display of reviewed source records. The financial ledger keeps every ID.
 function taskActivityRows(tasks) {
   const groups=new Map(),rows=[];
@@ -1200,6 +1214,7 @@ function updateTask(s, taskId, data, stockAction = "replace") {
     next.stockState = "reserved";
   }
   Object.assign(next, JSON.parse(JSON.stringify(data)));
+  next.planTracked = taskWasPlanned(old) || taskWasPlanned(next);
   prepareTaskStock(staged, next);
   staged.stock.forEach(x => Object.assign(stockById(s, x.id), x));
   Object.assign(old, next, { updatedAt: Date.now() });
@@ -1209,6 +1224,7 @@ function updateTask(s, taskId, data, stockAction = "replace") {
 function addTask(s, t) {
   t.id = uid();
   t.status = t.status || "planned";
+  t.planTracked = taskWasPlanned(t);
   t.photos = Array.isArray(t.photos) ? t.photos.map(p => String(p || "").trim()).filter(Boolean) : [];
   t.donePhotos = Array.isArray(t.donePhotos) ? t.donePhotos.map(p => String(p || "").trim()).filter(Boolean) : [];
   t.doneNote = String(t.doneNote || "");
@@ -1432,6 +1448,7 @@ function applyStockUse(s, t) {
 function toggleTaskDone(s, taskId) {
   const t = s.tasks.find(x => x.id === taskId);
   if (!t) return;
+  t.planTracked = taskWasPlanned(t) || t.status==='done';
   if (t.status !== "done") {
     if (!hasTaskStockUse(t)) applyStockUse(s, t);
     t.status = "done";

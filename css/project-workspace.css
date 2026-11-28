@@ -117,3 +117,30 @@ html[data-theme="dark"] .pw-page :is(.project-stage-number,.pw-task-tree h3>span
 html[data-theme="dark"] .pw-page :is(.pw-tabs button.active,.pw-record-tabs button.active,.project-eyebrow){color:#81dfba;border-bottom-color:#65d1a8}
 html[data-theme="dark"] .pw-page .pw-error{background:#452b29;color:#ffb5ad}
 html[data-theme="dark"] .pw-page .pw-record-photo .pw-icon-button{background:var(--card);color:var(--text)}
+
+/* Daily entry: one continuous form, then an explicit quantity/cost review. */
+.task-compact .task-step-nav{display:grid;grid-template-columns:1fr 1fr;margin-bottom:14px}
+.task-compact .task-step-nav button{flex-direction:row;font-size:14px;min-height:42px}
+.task-compact .task-type-options{display:none}
+.task-compact-modal{width:760px;max-width:96vw}
+.task-compact .task-scope{background:var(--green-light,#e7f4ee);padding:12px;border:1px solid var(--line);border-radius:8px;margin:12px 0}
+.task-compact .task-scope-current{padding:0;background:none}.task-compact .task-scope legend,.task-compact #taskScopeHint{display:none}
+.task-compact .task-project-fold,.task-compact-more,.task-compact .task-extras{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:12px 0}
+.task-project-fold>summary{font-weight:600;cursor:pointer;overflow-wrap:anywhere}
+.task-compact .task-project-setup{border:0!important;padding:10px 0 0!important;margin:0!important}
+.task-compact .task-compact-plots{margin:8px 0 0}.task-compact .task-mode{margin:10px 0}
+.task-compact .usage-row{border:1px solid var(--line);border-radius:9px;padding:14px;margin:12px 0;background:var(--card)}
+.task-compact .usage-row-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.task-compact .usage-row-head>strong{order:0;font-size:14px}.task-compact .usage-row-head>.btn{order:2;margin-left:auto}
+.task-compact .usage-row-head>.cost-category{order:1;max-width:220px;margin:0}
+.task-compact .usage-row-head>.cost-category label{display:none}.task-compact .cost-category select{font-size:13px;min-height:36px}
+.task-compact .cost-source-fields:empty{display:none}.task-compact .cost-source-fields{display:block}
+.task-compact .task-cost-extra{border-top:1px solid var(--line);padding:8px 0 0;margin-top:8px;font-size:13px}
+.task-compact .task-cost-extra>summary{cursor:pointer;color:var(--green,#00866c)}
+.task-compact .task-photo-panel{background:none;border:1px dashed var(--line);border-radius:8px;padding:12px;margin:16px 0}
+.task-compact .task-photo-head button{min-height:44px}.task-compact .task-photo-empty{min-height:0;padding:8px}
+.task-expense-add{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.task-compact-total{border-top:1px solid var(--line);padding-top:12px;margin:12px 0}.task-compact-total>div{display:flex;justify-content:space-between;gap:12px;font-weight:700}.task-compact-total strong{font-size:22px;color:var(--text)}.task-compact-total small{font-size:12px;color:var(--muted)}
+.project-progress-summary{display:grid;gap:5px;margin:12px 0}.project-progress-summary>strong{font-size:16px}.project-progress-summary>span{font-size:14px}.project-progress-summary>small{font-size:12px;font-weight:400;color:var(--muted)}.project-progress-summary progress{width:100%;height:7px;accent-color:var(--green,#00866c);border:0;border-radius:6px}
+@media(max-width:600px){.task-compact-modal{width:100%}.task-compact .task-step-nav button{font-size:13px}.task-compact .usage-row-head>.cost-category{max-width:175px}.task-compact .task-photo-head{display:block}.task-compact .task-photo-head button{width:100%}.task-compact .task-photo-head>div{display:none}.task-compact .form-row-2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.task-compact .usage-row{padding:10px}.task-compact .pw-activity-reuse small{display:block;font-size:12px}}
+html[data-theme="dark"] .task-compact .task-scope{background:var(--card)!important}html[data-theme="dark"] .task-compact-total strong{color:var(--text)}

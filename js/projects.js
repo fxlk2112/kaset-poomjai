@@ -33,8 +33,16 @@ function projectCounts(p) {
     planned: tasks.filter(t => t.status === "planned").length, failed: tasks.filter(t => t.status === "failed").length };
 }
 function projectProgress(p) {
-  const n = projectCounts(p);
-  return n.total ? Math.round(n.done / n.total * 100) : 0;
+  return projectPlanProgress(p).percent;
+}
+function projectPlanProgress(p) {
+  // Count canonical planned tasks, never display groups or ad-hoc expense rows.
+  const tasks=projectTaskList(p).filter(taskWasPlanned),done=tasks.filter(t=>t.status==='done').length;
+  return {total:tasks.length,done,percent:tasks.length?Math.round(done/tasks.length*100):null};
+}
+function projectProgressHtml(p) {
+  const plan=projectPlanProgress(p),n=projectCounts(p);
+  return `<div class="project-progress-summary"><strong>บันทึกแล้ว ${fmtNum(n.done)} กิจกรรม</strong>${plan.total?`<span>งานตามแผน ${plan.done}/${plan.total} งาน · ${plan.percent}%</span><progress max="100" value="${plan.percent}" aria-label="งานตามแผนที่ทำแล้ว"></progress><small>ความคืบหน้าของงานตามแผน ไม่ใช่ผลสำเร็จของโครงการ</small>`:'<small>ยังไม่มีฐานงานตามแผนสำหรับคำนวณความคืบหน้า</small>'}</div>`;
 }
 function projectStageProgress(tasks) {
   if (!tasks.length) return "ยังไม่มีงาน";
@@ -53,7 +61,7 @@ function renderProjectDetail() {
   const stages = p.stages || [];
   return `<div class="project-page"><div class="project-back"><button class="btn btn-ghost btn-sm" onclick="App.projectBack()">← โครงการทั้งหมด</button></div>
     <header class="project-head card"><div class="project-head-main"><span class="project-eyebrow">โครงการ · ${p.status === "done" ? "ปิดแล้ว" : "กำลังดำเนินการ"}</span><h1>${esc(p.name)}</h1>${p.description ? `<p>${esc(p.description)}</p>` : ""}</div><div class="project-head-actions"><button class="btn btn-ghost btn-sm" onclick="App.projectEditModal('${p.id}')">${ic("pencil")} แก้ไข</button><button class="btn btn-ghost btn-sm" onclick="App.projectToggleStatus('${p.id}')">${p.status === "done" ? "เปิดโครงการอีกครั้ง" : "ปิดโครงการ"}</button></div>
-    <div class="project-progress"><div><b>${fmtNum(counts.done)}/${fmtNum(counts.total)} งานเสร็จ</b><span>${fmtNum(counts.planned)} รอทำ${counts.failed ? ` · ${fmtNum(counts.failed)} ทำไม่ได้` : ""}</span></div><div class="project-progress-bar" role="progressbar" aria-label="งานที่ทำเสร็จ" aria-valuenow="${projectProgress(p)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${projectProgress(p)}%"></i></div></div></header>
+    ${projectProgressHtml(p)}</header>
     <div class="project-section-head"><div><h2>ช่วงงาน</h2><p>เพิ่มกิจกรรมหรือเชื่อมงานเดิมได้ แม้จะอยู่คนละแปลง</p></div>${stages.length < 8 ? `<button class="btn btn-outline btn-sm" onclick="App.projectStageModal('${p.id}')">${ic("plus")} เพิ่มช่วง</button>` : ""}</div>
     <div class="project-stages">${stages.map((stage, i) => {
       const tasks = projectTaskList(p, stage.id), done = tasks.filter(t => t.status === "done").length;
@@ -72,7 +80,7 @@ function renderProjects() {
   const shown = all.filter(p => projectListFilter === "all" || (p.status === "done" ? "done" : "active") === projectListFilter);
   return `<div class="project-page"><header class="project-list-head"><div><h1>โครงการ</h1><p>รวมงานหลายแปลงไว้เป็นช่วง ดูสิ่งที่เสร็จและสิ่งที่ต้องทำต่อ</p></div><button class="btn btn-primary" onclick="App.projectCreateModal()">${ic("plus")} สร้างโครงการ</button></header>
     <div class="project-filters" role="group" aria-label="กรองโครงการ">${[["active","กำลังทำ"],["done","ปิดแล้ว"],["all","ทั้งหมด"]].map(([key,label]) => `<button class="${projectListFilter === key ? "active" : ""}" aria-pressed="${projectListFilter === key}" onclick="App.projectFilter('${key}')">${label}</button>`).join("")}</div>
-    ${shown.length ? `<div class="project-grid">${shown.map(p => { const n = projectCounts(p), next = projectTaskList(p).find(t => t.status === "planned"); return `<article class="card project-card"><button class="project-card-open" onclick="App.projectOpen('${p.id}')"><span class="project-eyebrow">${p.status === "done" ? "ปิดแล้ว" : "กำลังดำเนินการ"} · ${p.stages.length} ช่วง</span><h2>${esc(p.name)}</h2>${p.description ? `<p>${esc(p.description)}</p>` : ""}<div class="project-card-progress"><span>${fmtNum(n.done)}/${fmtNum(n.total)} งานเสร็จ</span><span>${projectProgress(p)}%</span></div><div class="project-progress-bar"><i style="width:${projectProgress(p)}%"></i></div>${p.status === "done" ? `<small class="project-card-next">ปิดโครงการแล้ว${n.planned ? ` · ยังมี ${fmtNum(n.planned)} งานรอทำในกิจกรรม` : ""}</small>` : next ? `<small class="project-card-next">ถัดไป: ${esc(next.title)} · ${esc(dateLabel(next.date))}</small>` : `<small class="project-card-next">${n.total ? "ไม่มีงานรอทำ" : "เริ่มเพิ่มกิจกรรมในแต่ละช่วง"}</small>`}</button></article>`; }).join("")}</div>` : `<div class="card project-empty"><h2>${all.length ? "ไม่มีโครงการในกลุ่มนี้" : "ยังไม่มีโครงการ"}</h2><p>${all.length ? "ลองเลือกตัวกรองอื่น" : "สร้างโครงการ แล้วแบ่งงานเป็นช่วง เช่น เตรียมงาน ลงมือทำ และติดตามผล"}</p>${!all.length ? `<button class="btn btn-primary" onclick="App.projectCreateModal()">สร้างโครงการแรก</button>` : ""}</div>`}</div>`;
+    ${shown.length ? `<div class="project-grid">${shown.map(p => { const n = projectCounts(p), next = projectTaskList(p).find(t => t.status === "planned"); return `<article class="card project-card"><button class="project-card-open" onclick="App.projectOpen('${p.id}')"><span class="project-eyebrow">${p.status === "done" ? "ปิดแล้ว" : "กำลังดำเนินการ"} · ${p.stages.length} ช่วง</span><h2>${esc(p.name)}</h2>${p.description ? `<p>${esc(p.description)}</p>` : ""}${projectProgressHtml(p)}${p.status === "done" ? `<small class="project-card-next">ปิดโครงการแล้ว${n.planned ? ` · ยังมี ${fmtNum(n.planned)} งานรอทำในกิจกรรม` : ""}</small>` : next ? `<small class="project-card-next">ถัดไป: ${esc(next.title)} · ${esc(dateLabel(next.date))}</small>` : `<small class="project-card-next">${n.total ? "ไม่มีงานรอทำ" : "เริ่มเพิ่มกิจกรรมในแต่ละช่วง"}</small>`}</button></article>`; }).join("")}</div>` : `<div class="card project-empty"><h2>${all.length ? "ไม่มีโครงการในกลุ่มนี้" : "ยังไม่มีโครงการ"}</h2><p>${all.length ? "ลองเลือกตัวกรองอื่น" : "สร้างโครงการ แล้วแบ่งงานเป็นช่วง เช่น เตรียมงาน ลงมือทำ และติดตามผล"}</p>${!all.length ? `<button class="btn btn-primary" onclick="App.projectCreateModal()">สร้างโครงการแรก</button>` : ""}</div>`}</div>`;
 }
 App.projectFilter = function (value) { projectListFilter = value; render(); };
 App.projectOpen = function (id) { if (!projectById(id)) return; route.view = "projectDetail"; route.projectId = id; render(); };

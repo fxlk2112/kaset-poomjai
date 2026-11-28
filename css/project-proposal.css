@@ -81,3 +81,6 @@
 .ph-expense .ph-check{display:flex;align-items:center;grid-column:1/-1}
 .ph-expense .ph-check input{width:18px;height:18px;flex:none}
 .ph-expense>label:nth-child(5){grid-column:span 2}
+
+.pp-plan-status,.pp-report-readiness{display:flex;justify-content:space-between;align-items:center;gap:18px;margin:16px 0}.pp-plan-status .project-progress-summary{margin:0}.pp-pending-stage{margin-top:12px}.pp-report-readiness h2{margin-bottom:5px}.pp-report-readiness p{margin:5px 0}.pp-report-readiness>.btn{flex-shrink:0}.pp-work-view .nb-activity-history{width:100%;max-width:none}.pp-work-view .nb-history-table{font-size:14px}.ph-expense select{max-width:100%;font:inherit}
+@media(max-width:700px){.pp-plan-status,.pp-report-readiness{align-items:stretch;flex-direction:column}.pp-plan-status .pp-buttons{justify-content:flex-start}.pp-report-readiness>.btn{align-self:flex-start}}
