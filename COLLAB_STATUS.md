@@ -1,5 +1,18 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — RELEASE-INTEGRITY-20261128
+
+- Owner: Codex for Folk, explicitly authorized production release; SUCHA retains integration review.
+- Branch: `codex/release-integrity-20261128`, source `f55802b`; refreshed `origin/develop` verified as ancestor.
+- Task / Scope: Release the four High fixes to the canonical Pages site and existing backend; verify isolated live QA sync, actual costs and inventory without duplicate costs. Preserve all seven incomplete worksheet entries.
+- Files / lock: this status, scoped release/QA evidence and acceptance helpers only. No other active owner lock overlaps. Runtime source remains the tested feature commit unless acceptance reveals a required fix.
+- Status: DEPLOYED_AND_VERIFIED — runtime `f55802b`; 820 checks and relay 9 PASS. All 77 canonical public asset hashes match. Live QA repeated save, independent-client sync, private file download, cost and stock reconciliation PASS; all 33 worksheet records including seven incomplete entries are unchanged.
+- Deployment: Approved by the user's `APPROVE_PRODUCTION_DEPLOY` in this chat for `farmultimate-solutions.pages.dev` plus backend. No hardware, schema migration, credential/config expansion or real farm-data write.
+- Validation / evidence: `qa/high-integrity/DEPLOYMENT-20261128.md`; Pages `d5a725d5-aefd-405f-b1c2-8c2cc45ab80d`, backend `786ac3e0-7151-4163-8819-7b6791ff1fab`. Desktop/mobile browser readback and final API preservation check passed.
+- Integration: Draft PR https://github.com/fxlk2112/kaset-poomjai/pull/20 targets `develop`; created through existing GitHub CLI access after the connector returned 403.
+- Blocked / Risks: No release blocker. Physical phones and browser file-picker upload remain untested. Minor attachment-date and cycle-timeline display follow-ups are recorded in the release evidence. Source published to `folk/high-integrity-fixes`; protected branches unchanged.
+- Next action: SUCHA reviews `folk/high-integrity-fixes` into `develop`.
+
 ## Task lock — HIGH-INTEGRITY-20261128
 
 - Owner: Codex for Folk, explicitly requested cross-module audit fixes; SUCHA retains integration review.
