@@ -3991,19 +3991,26 @@ App.cycleCalToday = function () {
   rerender();
 };
 function cycleJourneyHtml(c, tasks) {
-  const done = tasks.filter(t => t.status === "done");
-  const pending = tasks.filter(t => t.status === "planned").sort((a,b) => a.date.localeCompare(b.date));
-  const care = done.filter(t => t.type !== "harvest");
-  const harvest = done.filter(t => t.type === "harvest");
+  const actual = tasks.filter(taskHasActuals);
+  const pending = tasks.filter(t => t.status === "planned").sort((a,b) => String(a.date || '').localeCompare(String(b.date || '')));
+  const care = actual.filter(t => t.type !== "harvest");
+  const harvest = actual.filter(t => t.type === "harvest");
+  const carePlans = pending.filter(t => t.type !== "harvest");
+  const executionSummary = rows => [
+    [rows.filter(t => t.status === 'done').length, 'ทำสำเร็จ'],
+    [rows.filter(t => t.status === 'failed' && t.execution === 'partial').length, 'ทำบางส่วน'],
+    [rows.filter(t => t.status === 'failed' && t.execution === 'full').length, 'ทำแล้วแต่ผลไม่เป็นไปตามเป้า']
+  ].filter(([count]) => count).map(([count,label]) => `${label} ${fmtNum(count)} งาน`).join(' · ');
+  const allSuccessful = rows => rows.length > 0 && rows.every(t => t.status === 'done');
   const steps = [
     { label: "เริ่มรอบปลูก", detail: dateLabel(c.startDate), complete: true },
-    { label: "ดูแลแปลง", detail: care.length ? `${fmtNum(care.length)} งานที่ทำแล้ว` : pending.length ? `${fmtNum(pending.length)} งานที่วางแผน` : "ยังไม่มีบันทึกงานดูแล", complete: care.length > 0 },
-    { label: "เก็บเกี่ยว", detail: harvest.length ? `${fmtNum(harvest.length)} ครั้ง` : "ยังไม่มีบันทึกเก็บเกี่ยว", complete: harvest.length > 0 },
+    { label: "ดูแลแปลง", detail: care.length ? executionSummary(care) : carePlans.length ? `${fmtNum(carePlans.length)} งานที่วางแผน` : "ยังไม่มีบันทึกงานดูแล", complete: allSuccessful(care), started: care.length > 0 },
+    { label: "เก็บเกี่ยว", detail: harvest.length ? executionSummary(harvest) : "ยังไม่มีบันทึกเก็บเกี่ยว", complete: allSuccessful(harvest), started: harvest.length > 0 },
     { label: "ปิดรอบ", detail: c.status === "done" ? (c.endDate ? dateLabel(c.endDate) : "ปิดรอบแล้ว") : "ยังเปิดรอบอยู่", complete: c.status === "done" }
   ];
   const next = pending[0];
-  return `<section class="card work-journey" aria-label="ขั้นตอนรอบปลูก"><div class="work-journey-head"><div><h2>เส้นทางรอบปลูก</h2><p>อ้างอิงจากกิจกรรมที่บันทึกจริง · ${fmtNum(done.length)} งานทำแล้ว · ${fmtNum(pending.length)} งานรอทำ</p></div></div>
-    <ol class="work-journey-steps">${steps.map((step,i) => `<li class="${step.complete ? "complete" : "waiting"}"><span class="work-journey-mark">${step.complete ? ic("check") : i+1}</span><span><b>${step.label}</b><small>${esc(step.detail)}</small></span></li>`).join("")}</ol>
+  return `<section class="card work-journey" aria-label="ขั้นตอนรอบปลูก"><div class="work-journey-head"><div><h2>เส้นทางรอบปลูก</h2><p>อ้างอิงจากกิจกรรมที่บันทึกจริง · ${executionSummary(actual) || 'ยังไม่มีงานที่ลงมือทำ'} · รอทำ ${fmtNum(pending.length)} งาน</p></div></div>
+    <ol class="work-journey-steps">${steps.map((step,i) => `<li class="${step.complete ? "complete" : "waiting"}"><span class="work-journey-mark">${step.complete ? ic("check") : step.started ? ic("clock") : i+1}</span><span><b>${step.label}</b><small>${esc(step.detail)}</small></span></li>`).join("")}</ol>
     ${next ? `<button class="work-journey-next" onclick="App.viewTask('${next.id}')"><span><b>งานถัดไป · ${esc(next.title)}</b><small>${esc(dateLabel(next.date))}</small></span>${ic("chevron")}</button>` : c.status === "active" ? `<button class="work-journey-next" onclick="App.modalTask(todayISO(), {cycleId:'${c.id}'})"><span><b>เพิ่มงานในรอบนี้</b><small>วางแผนหรือบันทึกงานที่ทำแล้ว</small></span>${ic("plus")}</button>` : ""}</section>`;
 }
 function renderCycleDetail() {

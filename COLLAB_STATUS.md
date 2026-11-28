@@ -1,5 +1,16 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — CYCLE-EXECUTION-FILE-DATES-20261128
+
+- Owner: Codex for Folk, explicit user-requested Farm/Project follow-up; SUCHA retains integration review.
+- Branch: `codex/cycle-execution-file-dates`, source `43e5902`; refreshed `origin/develop` verified as ancestor.
+- Task / Scope: Guard missing/invalid attachment dates and represent partial/unsuccessful actual work in the crop-cycle overview; verify cost/stock idempotency and preserve seven incomplete records.
+- Files / lock: `js/project-records.js`, the cycle journey renderer in `js/app.js`, scoped tests and synthetic QA evidence, matching `index.html` / `sw.js` cache wiring and this status. No overlapping active lock. No changes to canonical finance/stock mutations.
+- Status: COMPLETE_LOCAL — both read-model fixes implemented. `npm run check`: 824 PASS, 0 FAIL; relay 9 PASS. Desktop/mobile screenshot/readback, mandatory quantity/cost review, repeat save/reload and persisted cost/stock reconciliation passed. See `qa/cycle-display/HANDOFF.md`.
+- Deployment: NOT_DEPLOYED. User explicitly requested no deployment; production accounts and the seven real incomplete entries will not be written.
+- Blocked / Risks: No blocker; mobile evidence uses viewport emulation. Seven incomplete synthetic records preserved in local acceptance; seven real entries were not accessed or modified.
+- Next action: SUCHA reviews this feature branch into `develop`.
+
 ## Task lock — RELEASE-INTEGRITY-20261128
 
 - Owner: Codex for Folk, explicitly authorized production release; SUCHA retains integration review.
