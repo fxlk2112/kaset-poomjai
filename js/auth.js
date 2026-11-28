@@ -78,7 +78,7 @@ try {
 } catch (e) {}
 
 function authCall(action, extra) {
-  const controller = ["load", "save", "photo_put"].includes(action) ? new AbortController() : null;
+  const controller = ["load", "save", "photo_put", "project_file_put", "project_file_get"].includes(action) ? new AbortController() : null;
   const timeout = controller ? setTimeout(() => controller.abort(), 20000) : null;
   return fetch(AUTH_API, {
     method: "POST",
@@ -116,6 +116,43 @@ function setSession(s) {
   else localStorage.removeItem(SESSION_KEY);
 }
 function cloudSafeState(state) { const copy = JSON.parse(JSON.stringify(state || {})); delete copy.adminPass; return copy; }
+Auth.putProjectFile = async function(file, session = Auth.session) {
+  if (!session?.token || navigator.onLine === false) throw new Error('เชื่อมต่ออินเทอร์เน็ตและเข้าสู่ระบบก่อนแนบเอกสาร');
+  const data = String(file.data || '').match(/^data:[^,]*;base64,([A-Za-z0-9+/=]+)$/)?.[1];
+  if (!data) throw new Error('ข้อมูลเอกสารไม่สมบูรณ์');
+  const result = await authCall('project_file_put', {token:session.token, name:file.name, data});
+  if (Auth.session !== session) throw new Error('บัญชีเปลี่ยน กรุณาแนบเอกสารใหม่');
+  if (!result.ok || !result.data?.key) throw new Error(result.error || 'เก็บเอกสารไม่สำเร็จ');
+  const reference = {...file, key:result.data.key, size:result.data.size};
+  delete reference.data;
+  return reference;
+};
+Auth.getProjectFile = async function(file) {
+  const session = Auth.session;
+  if (!session?.token) throw new Error('เข้าสู่ระบบก่อนดาวน์โหลดเอกสาร');
+  const result = await authCall('project_file_get', {token:session.token, key:file.key});
+  if (Auth.session !== session) throw new Error('บัญชีเปลี่ยน กรุณาดาวน์โหลดใหม่');
+  if (!result.ok) throw new Error(result.error || 'ดาวน์โหลดเอกสารไม่สำเร็จ');
+  return 'data:application/octet-stream;base64,' + result.data.data;
+};
+async function cloudProjectFiles(state, session) {
+  const uploaded = new Map();
+  for (const project of state.projects || []) {
+    for (const holder of [project, ...(project.reportVersions || [])]) {
+      if (!Array.isArray(holder.attachments)) continue;
+      for (let i = 0; i < holder.attachments.length; i++) {
+        const file = holder.attachments[i];
+        if (!/^data:[^,]*;base64,/.test(file.data || '')) continue;
+        const identity = file.name + '\n' + file.data;
+        if (!uploaded.has(identity)) uploaded.set(identity, await Auth.putProjectFile(file, session));
+        const reference = {...file, key:uploaded.get(identity).key, size:uploaded.get(identity).size};
+        delete reference.data;
+        holder.attachments[i] = reference;
+      }
+    }
+  }
+  return state;
+}
 function accountScopedKey(base, email) {
   return base + "::" + String(email || (Auth.session && Auth.session.email) || "").toLowerCase();
 }
@@ -362,8 +399,12 @@ Auth.saveNow = function (options) {
     if (localDirty()) {
       const savedSnapshot = JSON.stringify(cloudSafeState(S));
       const savedLocal = localStorage.getItem(slotKey(session.email));
+      const cloudState = await cloudProjectFiles(JSON.parse(savedSnapshot), session);
+      if (!current()) return {ok:false};
+      const cloudSnapshot = JSON.stringify(cloudState);
+      if (cloudSnapshot.length > 900000) throw new Error('ข้อมูลใหญ่เกิน (~0.9MB) — ข้อมูลในเครื่องยังอยู่ กรุณาติดต่อผู้ดูแล');
       const result = await authCall("save", {
-        token: session.token, data: savedSnapshot, base_updated_at: revision, updated_at: Date.now()
+        token: session.token, data: cloudSnapshot, base_updated_at: revision, updated_at: Date.now()
       });
       if (!current()) return { ok: false };
       if (!result.ok) throw new Error(result.error || "ส่งข้อมูลไม่สำเร็จ");
@@ -376,6 +417,20 @@ Auth.saveNow = function (options) {
       Auth._conflict = null;
       // A completed request only acknowledges its own snapshot, not edits made while it was in flight.
       const changedDuringSave = JSON.stringify(cloudSafeState(S)) !== savedSnapshot || localStorage.getItem(slotKey(session.email)) !== savedLocal;
+      if (!changedDuringSave && cloudSnapshot !== savedSnapshot) {
+        // Persist first: a quota failure must preserve the original local document bytes.
+        const localState = JSON.parse(JSON.stringify(S));
+        for (let i=0; i<(localState.projects || []).length; i++) {
+          localState.projects[i].attachments = cloudState.projects[i].attachments;
+          for (let v=0; v<(localState.projects[i].reportVersions || []).length; v++) localState.projects[i].reportVersions[v].attachments = cloudState.projects[i].reportVersions[v].attachments;
+        }
+        localStorage.setItem(slotKey(session.email), JSON.stringify(localState));
+        // Replace only acknowledged document containers; never discard in-flight edits.
+        for (let i=0; i<(S.projects || []).length; i++) {
+          S.projects[i].attachments = cloudState.projects[i].attachments;
+          for (let v=0; v<(S.projects[i].reportVersions || []).length; v++) S.projects[i].reportVersions[v].attachments = cloudState.projects[i].reportVersions[v].attachments;
+        }
+      }
       setLocalDirty(changedDuringSave);
       if (changedDuringSave) {
         Auth.queueSave();

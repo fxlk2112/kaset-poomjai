@@ -1,5 +1,18 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — HIGH-INTEGRITY-20261128
+
+- Owner: Codex for Folk, explicitly requested cross-module audit fixes; SUCHA retains integration review.
+- Branch: `codex/high-integrity-fixes`, source `fed1456`; refreshed `origin/develop` verified as ancestor.
+- Task / Scope: Fix project attachment cloud size mismatch, preserve actual consumption/cost independently of failed outcomes, distinguish unknown material quantity from zero, and build/validate one complete same-origin Pages release artifact. Preserve all seven incomplete worksheet records. No deployment.
+- Files / lock: scoped attachment/auth/Worker API code and tests; canonical task finance/stock helpers and dependent farm/project renderers; release assembly/check scripts and `.github/workflows/deploy.yml`; matching UI styles/asset wiring, tests, synthetic QA evidence and this status file. No conflicting active owner found; previous locks are completed/history. Shared changes remain subject to SUCHA integration review.
+- Status: COMPLETE_LOCAL — all four High fixes implemented and locally verified; no production access or deployment.
+- Validation: `npm run check`: 820 PASS, 0 FAIL; relay 9 PASS; release artifact/proxy contract PASS. Local desktop/mobile readback confirms 1 kg usage, 50 baht cost, stock 10 → 9 after repeat save/reload; seven synthetic incomplete entries unchanged. See `qa/high-integrity/HANDOFF.md` for scope, evidence and limits.
+- Commit: Feature commit containing `qa/high-integrity/HANDOFF.md`.
+- Blocked / Risks: Browser file-picker upload blocked by extension file-access permission; upload/download/auth/retry covered by API integration tests. Physical phones and deployed Cloudflare runtime not tested. Backend document capability must be released before frontend in a separately approved release.
+- Deployment: NOT_DEPLOYED. No production data, secret/config, hardware or protected-branch writes.
+- Next action: SUCHA reviews this local branch for integration into `develop`.
+
 ## Task lock — RELEASE-STATUS-20261128
 
 - Owner: Codex for Folk, explicitly authorized production release; SUCHA retains integration review.

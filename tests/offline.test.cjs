@@ -43,8 +43,9 @@ test('first installation precaches every local script and stylesheet before taki
 test('every deployment path ships the public guide page',()=>{
   const deploy=fs.readFileSync(path.join(__dirname,'../deploy.ps1'),'utf8');
   const workflow=fs.readFileSync(path.join(__dirname,'../.github/workflows/deploy.yml'),'utf8');
-  assert.match(deploy,/"guide\.html"/);
-  assert.match(workflow,/\bguide\.html\b/);
+  assert.match(deploy,/scripts\/build-pages\.mjs/);
+  assert.match(workflow,/node scripts\/build-pages\.mjs --out/);
+  assert.match(fs.readFileSync(path.join(__dirname,'../scripts/build-pages.mjs'),'utf8'),/'guide\.html'/);
 });
 
 test('offline navigation with a different query and versioned scripts uses the cached shell',async()=>{

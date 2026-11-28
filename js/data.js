@@ -823,6 +823,12 @@ function totalStockValue(s) {
 function doneTasks(s) {
   return s.tasks.filter(t => t.status === "done");
 }
+// Execution/outcome is separate from the actual resource ledger. Legacy failed
+// records remain excluded unless an actual execution has explicitly been recorded.
+function taskHasActuals(t) {
+  return t?.status === 'done' || (t?.status === 'failed' && ['partial','full'].includes(t.execution));
+}
+function actualTasks(s) { return (s.tasks || []).filter(taskHasActuals); }
 function taskPlannedTime(t) {
   const time = typeof t?.time === 'string' ? t.time.trim() : '';
   return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time) ? time : '';
@@ -894,7 +900,7 @@ function cycleHasHarvest(s,id) {
 }
 function taskFinance(s, filterFn) {
   let revenue = 0, cost = 0;
-  doneTasks(s).forEach(t => {
+  actualTasks(s).forEach(t => {
     if (filterFn(t)) {
       revenue += t.revenue || 0;
       cost += t.cost || 0;
@@ -916,7 +922,7 @@ function cycleStageFinance(s, year) {
   ];
   const cycles = new Map((s.cycles || []).map(c => [c.id, c]));
   const counted = new Set();
-  doneTasks(s).filter(t => taskRecordDate(t).startsWith(String(year))).forEach(t => {
+  actualTasks(s).filter(t => taskRecordDate(t).startsWith(String(year))).forEach(t => {
     const cycle = cycles.get(t.cycleId);
     const group = groups[cycle ? (cycle.status === "active" ? 0 : 1) : 2];
     group.cost += Number(t.cost) || 0;
@@ -965,7 +971,7 @@ function cropBaseName(plant) {
 function cropMargins(s, year) {
   const map = {};
   const yr = year ? String(year) : "";
-  doneTasks(s).forEach(t => {
+  actualTasks(s).forEach(t => {
     if (yr && !taskRecordDate(t).startsWith(yr)) return;
     if (!t.plotId) return;
     const p = plotById(s, t.plotId);
@@ -997,7 +1003,7 @@ function costBreakdown(s, year) {
   const map = {};
   const cmap = costCatMap(s);
   const yr = year ? String(year) : "";
-  doneTasks(s).forEach(t => {
+  actualTasks(s).forEach(t => {
     if (!t.cost) return;
     if (yr && !taskRecordDate(t).startsWith(yr)) return;
     const add = (category, value) => {
@@ -1037,7 +1043,12 @@ function plotYearProfits(s, year) {
    เรียงจากแปลงที่ใช้ยามากสุด (ตามต้นทุน) */
 function plotChemUse(s, year) {
   const map = {};
-  doneTasks(s).forEach(t => {
+  const addQuantity = (items, key, value) => {
+    const item = items[key] || (items[key] = {qty:null, missingCount:0});
+    if (value == null || String(value).trim() === '' || !Number.isFinite(Number(value)) || Number(value) < 0) item.missingCount++;
+    else item.qty = (item.qty ?? 0) + Number(value);
+  };
+  actualTasks(s).forEach(t => {
     if (!t.plotId || !taskRecordDate(t).startsWith(year)) return;
     const items = (t.costItems || []).filter(ci => ci.category === "chemical");
     const isChem = t.costCat === "chemical" || items.length > 0;
@@ -1051,7 +1062,7 @@ function plotChemUse(s, year) {
         const nm = ci.name || (ci.stockId ? (stockById(s, ci.stockId) || {}).name : "") || "อื่นๆ";
         const unit = ci.usageUnit || ci.unit || (stockById(s,ci.stockId) || {}).unit || 'ไม่ระบุหน่วย';
         const key = JSON.stringify([nm,unit]);
-        row.items[key] = (row.items[key] || 0) + (Number(ci.usageUnit ? ci.usageQty : ci.qty) || 0);
+        addQuantity(row.items, key, ci.usageUnit ? ci.usageQty : ci.qty);
       });
     } else {
       /* งานเดียวแบบเก่า: ใช้ t.cost + t.stockId/t.qty */
@@ -1060,7 +1071,7 @@ function plotChemUse(s, year) {
         const st = stockById(s, t.stockId);
         const nm = (st && st.name) || "อื่นๆ";
         const key=JSON.stringify([nm,t.unit || st?.unit || 'ไม่ระบุหน่วย']);
-        row.items[key] = (row.items[key] || 0) + (Number(t.qty) || 0);
+        addQuantity(row.items, key, t.qty);
       }
     }
   });
@@ -1069,7 +1080,7 @@ function plotChemUse(s, year) {
     name: (plotById(s, r.plotId) || {}).name || "—",
     crop: plotCropName(s, plotById(s, r.plotId)),
     cost: r.cost,
-    items: Object.entries(r.items).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([key, qty]) => { const [name,unit]=JSON.parse(key); return {name,unit,qty}; })
+    items: Object.entries(r.items).sort((a, b) => (b[1].qty ?? -1) - (a[1].qty ?? -1)).slice(0, 3).map(([key, value]) => { const [name,unit]=JSON.parse(key); return {name,unit,qty:value.qty,...(value.missingCount?{missingCount:value.missingCount}:{})}; })
   })).sort((a, b) => b.cost - a.cost);
 }
 
@@ -1180,7 +1191,7 @@ function validateTaskStock(s, t) {
 }
 function prepareTaskStock(s, t) {
   if (hasTaskStockUse(t)) return;
-  if (t.status !== "failed") validateTaskStock(s, t);
+  if (t.status !== "failed" || taskHasActuals(t)) validateTaskStock(s, t);
   t.stockState = taskStockItems(t).length ? "reserved" : (t.costItems?.some(ci => ci.stockId && Number(ci.qty) > 0 && taskStockMode(ci) === "record") ? "untracked" : "reserved");
   t.stockLog = [];
   if (t.costItems?.length) {
@@ -1189,7 +1200,7 @@ function prepareTaskStock(s, t) {
     });
     t.cost = t.costItems.reduce((n, ci) => n + (Number(ci.totalCost) || 0), 0);
   }
-  if (t.status === "done") applyStockUse(s, t);
+  if (taskHasActuals(t)) applyStockUse(s, t);
 }
 function closeCycleForTask(s, t) {
   const c = cycleById(s, t.cycleId);
@@ -1208,6 +1219,11 @@ function updateTask(s, taskId, data, stockAction = "replace") {
   if (!old) return null;
   // Stage inventory changes so validation cannot leave a partially edited task or stock.
   const next = JSON.parse(JSON.stringify(old));
+  if (data.status === 'failed' && taskHasActuals(old)) {
+    if (data.execution === 'none') throw new Error('งานนี้มีการใช้จริงแล้ว กรุณาตรวจปริมาณและต้นทุนก่อนแก้รายการใช้จริง');
+    next.execution = data.execution || (['partial','full'].includes(old.execution)?old.execution:'full');
+    if (!['costItems','stockId','qty','cost'].some(key => Object.hasOwn(data,key))) stockAction = 'keep';
+  }
   const staged = { ...s, stock: s.stock.map(x => ({ ...x })), tasks: s.tasks.filter(t => t.id !== taskId) };
   if (stockAction === "replace") {
     if (hasTaskStockUse(next)) restockTask(staged, next);
@@ -1779,6 +1795,7 @@ function taskStatusOf(t) {
 // Work outcome and data completeness are separate; all task surfaces share this wording.
 function taskStatusText(t) {
   const status=taskStatusOf(t);
+  if(status==='failed' && taskHasActuals(t))return t.execution==='partial'?'ทำบางส่วน · มีต้นทุนจริง':'ผลไม่เป็นไปตามเป้า · มีต้นทุนจริง';
   const label={done:'ทำแล้ว',failed:'ไม่สำเร็จ',overdue:'เลยกำหนด',planned:'วางแผน'}[status];
   return label+(status==='done' && taskDataPending(t)?' · ข้อมูลรอตรวจ':'');
 }

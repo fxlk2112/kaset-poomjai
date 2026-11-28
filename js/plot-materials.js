@@ -65,15 +65,15 @@ function materialHistoryModel(tasks, filter = {}) {
     const identity = task.id || task;
     if (seen.has(identity)) continue;
     seen.add(identity);
-    if (task.status === 'failed') continue;
+    if (task.status === 'failed' && !taskHasActuals(task)) continue;
     const date = taskRecordDate(task);
     if (filter.month && !date.startsWith(filter.month)) continue;
-    if(task.status==='done' && !filter.category && (task.costItems || []).some(item=>(!item.category || item.category==='other') && !taskItemIsMaterial(item) && words.every(word=>materialHistorySearchText(item.name).includes(word))))unclassified.push(task);
+    if(taskHasActuals(task) && !filter.category && (task.costItems || []).some(item=>(!item.category || item.category==='other') && !taskItemIsMaterial(item) && words.every(word=>materialHistorySearchText(item.name).includes(word))))unclassified.push(task);
     const items = materialHistoryItems(task).filter(item => (!filter.category || item.category === filter.category) &&
       words.every(word => materialHistorySearchText(item.name).includes(word)));
     if (!items.length) continue;
     const row = {task, date, items};
-    if (task.status === 'done') rows.push(row);
+    if (taskHasActuals(task)) rows.push(row);
     else if (['planned', 'overdue'].includes(task.status)) planned.push(row);
   }
   rows.sort((a, b) => !a.date ? 1 : !b.date ? -1 : b.date.localeCompare(a.date));
@@ -133,7 +133,7 @@ function materialHistoryResultsHtml(model, summary, query = '') {
 function materialHistoryHtml(plotId, fixedCycleId = '') {
   const scope = materialHistoryScope(plotId, fixedCycleId), {key, filter, cycles, cycleId, tasks} = scope;
   const model = materialHistoryModel(tasks, filter), summary = filter.view === 'products';
-  const months = [...new Set(tasks.filter(t => t.status !== 'failed' && materialHistoryItems(t).length).map(t => taskRecordDate(t).slice(0, 7)))].filter(Boolean).sort().reverse();
+  const months = [...new Set(tasks.filter(t => (t.status !== 'failed' || taskHasActuals(t)) && materialHistoryItems(t).length).map(t => taskRecordDate(t).slice(0, 7)))].filter(Boolean).sort().reverse();
   const change = field => esc('App.materialHistoryFilter(' + JSON.stringify(key) + ',' + JSON.stringify(field) + ',this.value)');
   const options = (values, selected) => values.map(([value, label]) => `<option value="${esc(value)}" ${selected === value ? 'selected' : ''}>${esc(label)}</option>`).join('');
   const monthValues = [['', 'ทุกเดือน'], ...months.map(month => [month, notebookMonth(month)])];

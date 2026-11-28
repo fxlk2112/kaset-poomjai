@@ -1,6 +1,6 @@
 "use strict";
 function cycleMaterialHistory(cycleId) {
-  return S.tasks.filter(t=>t.cycleId===cycleId && t.status==='done' && (['spray','fertilize'].includes(t.type) || t.costItems?.some(ci=>['chemical','fertilizer'].includes(ci.category))))
+  return S.tasks.filter(t=>t.cycleId===cycleId && taskHasActuals(t) && (['spray','fertilize'].includes(t.type) || t.costItems?.some(ci=>['chemical','fertilizer'].includes(ci.category))))
     .slice().sort((a,b)=>taskRecordDate(b).localeCompare(taskRecordDate(a)));
 }
 function cycleNotebookHtml(c) {

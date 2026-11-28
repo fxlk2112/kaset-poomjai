@@ -3,10 +3,11 @@
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $stage = Join-Path $env:TEMP ("kaset-pages-stage-" + [guid]::NewGuid().ToString("N"))
-New-Item -ItemType Directory -Path $stage | Out-Null
-# Match the site-only allowlist in the GitHub deployment workflow.
-foreach ($name in @("index.html", "collector.html", "guide.html", "sw.js", "manifest.json", "logo.jpg", "css", "js", "icons", "images", "_redirects")) {
-  Copy-Item -LiteralPath (Join-Path $root $name) -Destination $stage -Recurse
-}
+node (Join-Path $root "scripts/build-pages.mjs") --out $stage
+if ($LASTEXITCODE -ne 0) { throw "Pages assembly failed: $LASTEXITCODE" }
+node (Join-Path $root "scripts/check-api-health.mjs") https://farmultimate-solutions.pages.dev
+if ($LASTEXITCODE -ne 0) { throw "Required backend or binding is not ready" }
 wrangler pages deploy $stage --project-name=farmultimate-solutions --branch=master --commit-dirty=true
 if ($LASTEXITCODE -ne 0) { throw "Pages deployment failed: $LASTEXITCODE" }
+node (Join-Path $root "scripts/check-api-health.mjs") https://farmultimate-solutions.pages.dev
+if ($LASTEXITCODE -ne 0) { throw "Post-release API health failed" }

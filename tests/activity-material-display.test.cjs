@@ -12,7 +12,8 @@ function render(task,compact=false) {
     unitLabel:u=>['ml','มล','ซีซี'].includes(u)?'ซีซี (มล.)':u,
     esc:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;')});
   const classify=data.slice(data.indexOf('function taskItemIsMaterial('),data.indexOf('// Group only the display'));
-  vm.runInContext(unitSource + classify + source,c);
+  const actuals=data.slice(data.indexOf('function taskHasActuals('),data.indexOf('function actualTasks('));
+  vm.runInContext(unitSource + classify + actuals + source,c);
   return vm.runInContext('taskMaterialsHtml(task,compact)',c);
 }
 

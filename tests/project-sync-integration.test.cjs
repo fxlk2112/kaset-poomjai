@@ -30,7 +30,7 @@ async function server(t){
       async run(){return {meta:{changes:Number(statement.run(bindings).changes)}};}};
   }},PHOTOS:{
     async put(key,body,options){objects.set(key,{body:new Uint8Array(body),httpMetadata:options.httpMetadata});},
-    async get(key){return objects.get(key)||null;},
+    async get(key){const value=objects.get(key);return value?{...value,size:value.body.length,arrayBuffer:async()=>value.body.slice().buffer}:null;},
     async delete(key){objects.delete(key);}
   }};
   const api={db,objects,requests,bindingAvailable:true,
@@ -46,6 +46,86 @@ async function server(t){
   };
   return api;
 }
+
+test('700 KiB document and saved editions sync as one private object across devices without changing seven incomplete records',async t=>{
+  const api=await server(t),a=device(api),b=device(api);createProject(a);
+  const bytes=Buffer.alloc(700*1024,65),data='data:text/plain;base64,'+bytes.toString('base64');
+  a.run(`S.projects[0].attachments=[{id:'file',name:'synthetic.txt',size:${bytes.length},data:${JSON.stringify(data)},caption:'original'}];S.projects[0].reportVersions=[projectReportSnapshot(S.projects[0])];
+    for(let i=0;i<7;i++)S.tasks.push({id:'missing-'+i,type:'work',status:'done',date:'',doneDate:'',qty:null,cost:0,revenue:0,costItems:[],missingFields:['วันที่','ปริมาณ'],dataStatus:'pending'});saveState(S);`);
+  const missing=copy(a.state.tasks.slice(1));
+  assert.equal((await a.auth.saveNow()).ok,true);
+  assert.equal(api.objects.size,1,'live document and saved edition reuse immutable bytes');
+  assert.ok(JSON.stringify(api.snapshot().data).length<900000);
+  const file=a.state.projects[0].attachments[0];
+  assert.equal(file.data,undefined);assert.match(file.key,/^project-private\/fixture-owner\//);
+  assert.equal(a.state.projects[0].reportVersions[0].attachments[0].key,file.key);
+  assert.deepEqual(copy(a.state.tasks.slice(1)),missing);
+  assert.equal((await b.auth.saveNow()).ok,true);
+  const downloaded=await api.call('project_file_get',{key:b.state.projects[0].attachments[0].key});
+  assert.equal(downloaded.ok,true);assert.deepEqual(Buffer.from(downloaded.data.data,'base64'),bytes);
+  assert.equal(b.run('cycleFinance(S,"cycle").cost'),90);assert.equal(b.state.stock[0].openQty,0);
+  assert.equal((await a.auth.saveNow()).ok,true);assert.equal(api.objects.size,1);
+  b.run('S.projects[0].attachments=[];saveState(S);');await b.auth.saveNow();await a.auth.saveNow();
+  assert.equal((await api.call('project_file_get',{key:a.state.projects[0].reportVersions[0].attachments[0].key})).ok,true,'removing current attachment preserves frozen edition');
+  assert.equal((await api.fetch(ORIGIN+'/api/photo/'+file.key)).status,403);
+  assert.equal((await api.call('project_file_get',{key:file.key,token:'invalid-synthetic-session'})).ok,false);
+  api.db.prepare('INSERT INTO users (id,email,pass_hash,name,created_at) VALUES (?,?,?,?,?)').run('other','other@example.invalid','unused','Other',1);
+  api.db.prepare('INSERT INTO sessions VALUES (?,?,?)').run('other-synthetic-session','other',Date.now()+86400000);
+  assert.equal((await api.call('project_file_get',{key:file.key,token:'other-synthetic-session'})).ok,false);
+});
+
+test('document upload failure and concurrent edit leave original local data dirty; retry is idempotent',async t=>{
+  const api=await server(t),a=device(api);createProject(a);await a.auth.saveNow();
+  a.run(`S.projects[0].attachments=[{id:'file',name:'synthetic.txt',size:3,data:'data:text/plain;base64,YWJj'}];saveState(S);`);
+  const original=api.fetch;let reject=true,edit=false;
+  api.fetch=async(url,options)=>{
+    if(JSON.parse(options?.body||'{}').action==='project_file_put'){
+      if(reject)return Response.json({ok:false,error:'synthetic storage unavailable'});
+      if(edit){edit=false;a.run("S.projects[0].objective='edited during upload';saveState(S);");}
+    }
+    return original(url,options);
+  };
+  assert.equal((await a.auth.saveNow()).ok,false);assert.equal(a.run('localDirty()'),true);
+  assert.equal(a.state.projects[0].attachments[0].data,'data:text/plain;base64,YWJj');assert.equal(api.objects.size,0);
+  reject=false;edit=true;assert.equal((await a.auth.saveNow()).pending,true);
+  assert.equal(a.state.projects[0].objective,'edited during upload');
+  assert.equal((await a.auth.saveNow()).ok,true);assert.equal(api.objects.size,1);
+  assert.equal(api.snapshot().data.projects[0].objective,'edited during upload');
+});
+
+test('private document endpoint enforces size/type/auth and repeated bytes use the same reference',async t=>{
+  const api=await server(t),data=Buffer.alloc(2*1024*1024,97).toString('base64');
+  const first=await api.call('project_file_put',{name:'max.txt',data});assert.equal(first.ok,true);
+  const second=await api.call('project_file_put',{name:'max.txt',data});assert.equal(second.data.key,first.data.key);assert.equal(api.objects.size,1);
+  for(const extra of [{name:'bad.exe',data:'YWJj'},{name:'big.txt',data:Buffer.alloc(2*1024*1024+1).toString('base64')},{name:'bad.txt',data:'!!!!'},{name:'a.txt',data:'YWJj',token:'expired-synthetic'}])assert.equal((await api.call('project_file_put',extra)).ok,false);
+  assert.equal(api.objects.size,1);
+});
+
+test('partial and failed outcomes sync across two devices without duplicate stock or costs',async t=>{
+  const api=await server(t),a=device(api),b=device(api);createProject(a);
+  a.run(`updateTask(S,S.tasks[0].id,{status:'failed',execution:'partial'});saveState(S);`);
+  await a.auth.saveNow();await b.auth.saveNow();
+  assert.equal(b.state.tasks[0].execution,'partial');assert.equal(b.state.tasks[0].status,'failed');
+  assert.equal(b.run('projectCosts(S.projects[0]).cost'),90);assert.equal(b.run('cycleFinance(S,"cycle").cost'),90);assert.equal(b.state.stock[0].openQty,0);
+  b.run(`updateTask(S,S.tasks[0].id,{status:'failed',execution:'full'});saveState(S);`);
+  await b.auth.saveNow();await a.auth.saveNow();await b.auth.saveNow();
+  assert.equal(a.state.tasks.length,1);assert.equal(a.run('plotFinance(S,"plot").cost'),90);assert.equal(a.state.stock[0].openQty,0);
+  const loaded=device(api);await loaded.auth.saveNow();assert.equal(loaded.state.tasks.length,1);assert.equal(loaded.run('cycleFinance(S,"cycle").cost'),90);
+});
+
+test('local quota failure after cloud acknowledgement preserves original document and retries without duplication',async t=>{
+  const api=await server(t),a=device(api);createProject(a);await a.auth.saveNow();
+  a.run(`S.projects[0].attachments=[{id:'file',name:'synthetic.txt',size:3,data:'data:text/plain;base64,YWJj'}];saveState(S);`);
+  const original=a.state.projects[0].attachments[0].data;
+  a.run(`const writeLocal=localStorage.setItem;localStorage.setItem=(key,value)=>{if(key===slotKey(Auth.session.email))throw Error('quota');return writeLocal(key,value);};`);
+  assert.equal((await a.auth.saveNow()).ok,false);
+  assert.equal(a.state.projects[0].attachments[0].data,original);
+  assert.equal(a.run('localDirty()'),true);assert.equal(api.objects.size,1);
+  a.run('localStorage.setItem=writeLocal;');
+  assert.equal((await a.auth.saveNow()).ok,true);
+  assert.equal(a.state.projects[0].attachments[0].data,undefined);assert.equal(api.objects.size,1);
+  assert.equal(a.run('cycleFinance(S,"cycle").cost'),90);
+});
 
 function device(api,sharedStorage){
   const storage=sharedStorage||new Map([['farmult-session-v1',JSON.stringify({email:'sync@example.invalid',token:FIXTURE_SESSION,name:'Synthetic owner'})]]);

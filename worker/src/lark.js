@@ -20,6 +20,7 @@ import {
 */
 import { MARKET_DATA } from "./market-data.js";
 import { teamAction } from "./team.js";
+import { projectFileAction } from "./project-files.js";
 const BATCH = 500;
 
 /* แคช tenant_access_token ต่อ isolate (Cloudflare เก็บระหว่าง request) */
@@ -1246,7 +1247,7 @@ export default {
         try {
           const key = decodeURIComponent(url.pathname.slice(photoPrefix.length));
           if (!key || key.includes("..")) return new Response("bad key", { status: 400 });
-          if (key.startsWith('team-private/') || key.startsWith('sale-private/')) return new Response('Authentication required', {status:403,headers:{'Cache-Control':'no-store'}});
+          if (['team-private/','sale-private/','project-private/'].some(prefix => key.startsWith(prefix))) return new Response('Authentication required', {status:403,headers:{'Cache-Control':'no-store'}});
           if (!env.PHOTOS) return new Response("R2 ยังไม่พร้อม", { status: 503 });
           const obj = await env.PHOTOS.get(key);
           if (!obj) return new Response("ไม่พบรูป", { status: 404 });
@@ -1269,6 +1270,7 @@ export default {
       if (payload.action === "health") data = {
         service: "flytech-farmultimate-api",
         mode: "SENSOR_PHASE1_READ_ONLY",
+        capabilities: env.PHOTOS ? ['project_files_v1'] : [],
         output_control_allowed: false
       };
       else if (String(payload.action || '').startsWith('team_')) data = await teamAction(env,payload,await authUser(env,payload.token));
@@ -1312,8 +1314,10 @@ export default {
       else if (payload.action === "share_comment") data = await doShareComment(env, request, payload);
       else if (payload.action === "photo_put") data = await doPhotoPut(env, payload, request);
       else if (payload.action === "photo_del") data = await doPhotoDel(env, payload);
-      else if (['sale_slip_put','sale_slip_get'].includes(payload.action)) {
-        data = await saleSlipAction(env, payload);
+      else if (['sale_slip_put','sale_slip_get','project_file_put','project_file_get'].includes(payload.action)) {
+        data = payload.action.startsWith('project_file_')
+          ? await projectFileAction(env, payload, await authUser(env, payload.token))
+          : await saleSlipAction(env, payload);
         const response = json({ok:true,data}, 200, request, env);
         response.headers.set('Cache-Control', 'no-store');
         return response;

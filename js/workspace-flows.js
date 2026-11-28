@@ -73,10 +73,10 @@ const ConceptWorkflows = {
     if(overviewHeading&&overviewSync)overviewHeading.querySelector('h1').after(overviewSync);
     const year=Number(route.year||todayISO().slice(0,4));
     let text='';
-    if(route.view==='home')text=`ยอดเงิน: ทุกแปลงและงานส่วนกลาง · เฉพาะกิจกรรมที่เสร็จแล้ว · ปี ${Number(todayISO().slice(0,4))+543} · ไม่รวมการขายสินค้า`;
-    else if(route.view==='farm')text=route.tab==='analytics'?(route.analyticsTab==='shop'?`การขายสินค้า · ปี ${year+543} · ไม่รวมกิจกรรมในแปลง`:`ทุกแปลงและงานส่วนกลาง · กิจกรรมที่เสร็จแล้ว · ปี ${year+543} · ไม่รวมการขายสินค้า`):`เฉพาะงานที่ไม่ผูกแปลง · ปี ${year+543}`;
-    else if(route.view==='plotDetail')text=`${plotById(S,route.plotId)?.name||'แปลงนี้'} · รวมทุกรอบและทุกช่วงเวลา · ยอดเงินเฉพาะงานที่เสร็จแล้ว`;
-    else if(route.view==='cycleDetail' && !view.querySelector('.nb-page')){const c=cycleById(S,route.cycleId);if(c)text=`${plotById(S,c.plotId)?.name||'แปลงนี้'} · ${c.plant} รอบ ${c.round||'-'} · ${dateLabel(c.startDate)} ถึง ${c.endDate?dateLabel(c.endDate):'ปัจจุบัน'} · ยอดเงินเฉพาะงานที่เสร็จแล้ว`;}
+    if(route.view==='home')text=`ยอดเงิน: ทุกแปลงและงานส่วนกลาง · จากรายการที่ใช้จริง · ปี ${Number(todayISO().slice(0,4))+543} · ไม่รวมการขายสินค้า`;
+    else if(route.view==='farm')text=route.tab==='analytics'?(route.analyticsTab==='shop'?`การขายสินค้า · ปี ${year+543} · ไม่รวมกิจกรรมในแปลง`:`ทุกแปลงและงานส่วนกลาง · รายการที่ใช้จริง · ปี ${year+543} · ไม่รวมการขายสินค้า`):`เฉพาะงานที่ไม่ผูกแปลง · ปี ${year+543}`;
+    else if(route.view==='plotDetail')text=`${plotById(S,route.plotId)?.name||'แปลงนี้'} · รวมทุกรอบและทุกช่วงเวลา · ยอดรายรับและค่าใช้จ่ายจริงที่บันทึก`;
+    else if(route.view==='cycleDetail' && !view.querySelector('.nb-page')){const c=cycleById(S,route.cycleId);if(c)text=`${plotById(S,c.plotId)?.name||'แปลงนี้'} · ${c.plant} รอบ ${c.round||'-'} · ${dateLabel(c.startDate)} ถึง ${c.endDate?dateLabel(c.endDate):'ปัจจุบัน'} · ยอดรายรับและค่าใช้จ่ายจริงที่บันทึก`;}
     if(text){const band=document.createElement('details');band.className='cw-scope';const label=document.createElement('summary');label.textContent='ขอบเขตข้อมูล';const detail=document.createElement('p');detail.textContent=text;band.append(label,detail);const farmSummary=view.querySelector('.fo-farm-content'),metrics=view.querySelector('.ch-metrics');if(farmSummary)farmSummary.prepend(band);else if(metrics)metrics.before(band);else view.prepend(band);}
     if(route.view==='plots'&&route.tab==='trials'&&route.trialId&&route.trialSection==='compare'){
       const title=[...view.querySelectorAll('#trialWorkPanel h2')].find(h=>h.textContent==='ผลตลอดการทดลอง');
@@ -137,7 +137,7 @@ const ConceptWorkflows = {
       const unit=unitLabel(i.usageUnit||i.unit||'');
       const qty=Number(i.usageUnit?i.usageQty:i.qty)||0;
       let effect='ไม่ตัดสต็อก';
-      if(i.stockId&&costStockMode(i)!=='record')effect=status==='planned'?'จองตามแผน · ยังไม่ตัด':status==='failed'?'ไม่ตัดสต็อก (งานไม่สำเร็จ)':costStockMode(i)==='open'?'ใช้จากของเปิดแล้ว':costStockMode(i)==='package'?'เบิกจากสต็อกหลัก':'หักตามปริมาณที่ใช้';
+      if(i.stockId&&costStockMode(i)!=='record')effect=status==='planned'?'จองตามแผน · ยังไม่ตัด':status==='failed'&&!taskHasActuals({status,execution:document.getElementById('t_execution')?.value})?'ไม่ตัดสต็อก (ยังไม่ได้ทำจริง)':costStockMode(i)==='open'?'ใช้จากของเปิดแล้ว':costStockMode(i)==='package'?'เบิกจากสต็อกหลัก':'หักตามปริมาณที่ใช้';
       const rate=materialRateFromArea(i,document.getElementById('t_material_area')?.value);
       const quantityText=!taskItemIsMaterial(i)&&!qty&&!unit?'ยอดรวม':fmtNum(qty)+' '+esc(unit);
       return `<li><div><strong>${esc(i.name||stockById(S,i.stockId)?.name||'รายการวัสดุ')}</strong><span>${quantityText} · ${esc(effect)}${materialIsSupported(i)?' · ได้รับสนับสนุน':''}</span>${rate?'<span>เฉลี่ย '+esc(rate.text)+' · พื้นที่ '+fmtNum(rate.areaRai)+' ไร่</span>':''}</div><b>${costPriceMissing(i)?'ยังไม่ระบุราคา':fmtMoney(Number(i.totalCost)||0)+' บาท'}</b></li>`;

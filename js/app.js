@@ -282,7 +282,7 @@ function taskMaterialItems(t) {
 function taskMaterialsHtml(t, compact = false) {
   const items = taskMaterialItems(t);
   if (!items.length) return "";
-  const qtyLabel = t.status === "planned" ? "ปริมาณที่วางไว้" : t.status === "failed" ? "ปริมาณที่ระบุ" : "ใช้จริง";
+  const qtyLabel = taskHasActuals(t) ? "ใช้จริง" : t.status === "planned" ? "ปริมาณที่วางไว้" : "ปริมาณที่ระบุ";
   return `<div class="task-materials${compact ? " task-materials-compact" : ""}">${(compact ? items.slice(0, 2) : items).map(it => {
     const stock = it.stockId ? stockById(S, it.stockId) : null;
     const name = it.name || stock?.name || "รายการสต็อกเดิม";
@@ -303,7 +303,7 @@ function taskMaterialsHtml(t, compact = false) {
 }
 function taskRowHtml(t, opts) {
   opts = opts || {};
-  const done = t.status === "done";
+  const done = taskHasActuals(t);
   const st = taskStatusOf(t);
   const taskLabel=t.title+(opts.showPlot?' · '+(plotById(S,t.plotId)?.name || 'งานส่วนกลาง'):'');
   const meta = [];
@@ -708,7 +708,7 @@ function homeOrder() {
    slot 0 = คอลัมน์ซ้ายยาว 2 แถว, 1 = ขวาบน, 2 = ขวาล่าง, 3 = เต็มความกว้างล่าง
    ใช้ single quote ('...') เพื่อไม่ให้ชนกับเครื่องหมาย " ใน attribute style= */
 function hasRecordedFinance(tasks) {
-  return tasks.some(t => t.status === 'done' && (['expense', 'harvest'].includes(t.type) || t.costItems?.length || Number(t.cost) || Number(t.revenue)));
+  return tasks.some(t => taskHasActuals(t) && (['expense', 'harvest'].includes(t.type) || t.costItems?.length || Number(t.cost) || Number(t.revenue)));
 }
 function renderHome() {
   const ytd = ytdFinance(S);
@@ -4034,7 +4034,7 @@ function renderCycleDetail() {
   const costByCat = {};
   let totalCost = 0;
   tasks.forEach(t => {
-    if (t.status !== "done") return;
+    if (!taskHasActuals(t)) return;
     if (t.costItems && t.costItems.length) {
       t.costItems.forEach(ci => {
         const amt = ci.totalCost || (Number(ci.qty || 0) * Number(ci.unitCost || 0)) || 0;
@@ -4303,7 +4303,7 @@ App.modalTaskComplete = function (id, returnToDetail, resultIntent) {
       <div class="field"><label for="tdone_date">${failedResult ? "วันที่บันทึกผล" : "วันที่ทำจริง"} *</label><input id="tdone_date" type="date" value="${esc(doneDate)}" max="${todayISO()}" required></div>
       <div class="field"><label for="tdone_time">${failedResult ? "เวลาที่บันทึกผล" : "เวลาที่ทำจริง"}</label><input id="tdone_time" type="time" value="${esc(doneTime)}"></div>
     </div>
-    ${failedResult ? `<details class="task-result-optional" ${taskDonePhotos.length || t.doneNote ? "open" : ""}><summary>รูปและหมายเหตุ (ไม่บังคับ)</summary>${evidenceHtml}</details>` : ""}
+    ${failedResult ? `<div class="field"><label for="tdone_execution">ได้ลงมือทำและใช้ทรัพยากรแล้วหรือยัง?</label><select id="tdone_execution"><option value="none" ${taskHasActuals(t)?'disabled':'selected'}>ยังไม่ได้ทำ / ไม่มีค่าใช้จ่ายจริง</option><option value="partial" ${t.execution==='partial'?'selected':''}>ทำบางส่วน · บันทึกเฉพาะที่ใช้จริง</option><option value="full" ${taskHasActuals(t)&&t.execution!=='partial'?'selected':''}>ทำแล้ว แต่ผลไม่เป็นไปตามเป้า</option></select><small>งานที่ใช้วัสดุไปแล้วจะคงต้นทุนและยอดใช้จริง ต้องตรวจปริมาณก่อนบันทึก</small></div><details class="task-result-optional" ${taskDonePhotos.length || t.doneNote ? "open" : ""}><summary>รูปและหมายเหตุ (ไม่บังคับ)</summary>${evidenceHtml}</details>` : ""}
     ${recommendWeather && !failedResult ? `
     <div class="task-weather-panel">
       <label class="option-box inline-option"><input type="checkbox" id="tdone_weather" ${weatherPlot ? "checked" : ""} ${weatherPlot ? "" : "disabled"}><span>${ic("droplet")} บันทึกสภาพอากาศตอนทำงาน</span></label>
@@ -4313,7 +4313,7 @@ App.modalTaskComplete = function (id, returnToDetail, resultIntent) {
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" onclick="App.closeModal()">ยกเลิก</button>
       ${failedResult ? `<button type="button" class="btn btn-danger-soft" onclick="App.failTask('${id}')">${ic("save")} บันทึกไม่สำเร็จ</button>` : `
-      <button type="button" class="btn btn-danger-soft" onclick="App.failTask('${id}')">${ic("alert")} งานไม่สำเร็จ</button>
+      <button type="button" class="btn btn-danger-soft" onclick="App.modalTaskComplete('${id}', true, 'failed')">${ic("alert")} งานไม่สำเร็จ</button>
       <button type="button" class="btn btn-outline" onclick="App.finishTask('${id}', true)">${alreadyDone ? "บันทึกโดยไม่แนบรูป" : "ทำเสร็จโดยไม่แนบรูป"}</button>
       <button type="button" class="btn btn-primary" onclick="App.finishTask('${id}', false)">${ic("check")} ${alreadyDone ? "บันทึกผลหลังทำ" : "บันทึกผล"}</button>`}
     </div>`);
@@ -4394,9 +4394,14 @@ App.failTask = async function (id) {
     if (doneDateInput) setModalFieldError(doneDateInput, "กรุณาเลือกวันที่บันทึกผล ไม่เกินวันนี้");
     return;
   }
+  const execution = document.getElementById('tdone_execution')?.value || (taskHasActuals(t)?t.execution || 'full':'none');
+  if (execution !== 'none') {
+    App.modalTask(doneDate, {taskId:id, failureRecord:{execution,doneDate,doneTime,doneNote:(document.getElementById('tdone_note')?.value || '').trim(),donePhotos:taskDonePhotos.slice()}});
+    return;
+  }
+  try { updateTask(S,id,{status:'failed',execution:'none'}); }
+  catch(e) { toast(e.message); return; }
   taskFinishSaving = true;
-  t.planTracked = taskWasPlanned(t);
-  t.status = "failed";
   closeCycleForTask(S, t);
   if (t.type === "water") {
     const rows = taskDoneWaterSessions.length ? taskDoneWaterSessions : doneWaterSessionsForTask(t);
@@ -4762,7 +4767,7 @@ function renderAnalytics(embedded) {
     <div class="card">
       <div class="chart-wrap" id="chartYear"></div>
       <details><summary>ตัวเลขรายเดือน (บาท)</summary><div class="inspection-table-scroll"><table class="audit-data-table"><thead><tr><th scope="col">เดือน</th><th scope="col">รายรับ</th><th scope="col">ต้นทุน</th><th scope="col">ส่วนต่าง</th></tr></thead><tbody>${months.map(m=>`<tr><th scope="row">${esc(m.label)}</th><td>${fmtMoney(m.revenue)}</td><td>${fmtMoney(m.cost)}</td><td>${fmtMoney(m.value)}</td></tr>`).join('')}</tbody></table></div></details>
-      <div class="muted mt-8" style="font-size:.72rem">รวมรายการที่ทำเสร็จแล้ว ทั้งรอบที่กำลังปลูกและรอบที่ปิดแล้ว</div>
+      <div class="muted mt-8" style="font-size:.72rem">รวมรายรับและค่าใช้จ่ายจริง ทั้งงานที่สำเร็จและงานที่ทำบางส่วนหรือไม่สำเร็จ</div>
     </div>
 
     <div class="section-title">ส่วนต่างรายรับ-ต้นทุนรายแปลง (พ.ศ. ${beYr})</div>
@@ -4774,7 +4779,7 @@ function renderAnalytics(embedded) {
           return `<div class="li"><span class="sw" style="background:${isProfit ? "var(--green)" : "var(--red)"}"></span><span>${ic('map')} ${esc(p.name)}</span><span class="val">${fmtMoney(p.net)} บาท</span></div>`;
         }).join("")}
       </div>
-      <div class="muted mt-8" style="font-size:.72rem">${ic("info")} รายได้ − ต้นทุนของงานที่เสร็จแล้วในพ.ศ. ${beYr} · รอบที่กำลังปลูกยังไม่ใช่ผลกำไรสุดท้าย</div>
+      <div class="muted mt-8" style="font-size:.72rem">${ic("info")} รายได้ − ต้นทุนที่ใช้จริงในพ.ศ. ${beYr} · รอบที่กำลังปลูกยังไม่ใช่ผลกำไรสุดท้าย</div>
     </div>
 
     <div class="section-title">วิเคราะห์กำไรตามพืช (Margin %)</div>
@@ -4804,7 +4809,7 @@ function renderAnalytics(embedded) {
         : `<div class="chart-wrap" id="chartChem" ${chemRows.length < 2 ? 'hidden' : ''}></div>
       <div class="legend-list">
         ${chemRows.map(c => `
-          <div class="li"><span class="sw" style="background:#f59e0b"></span><span>${cropEmoji(c.crop)} ${esc(c.name)}${c.items.length ? ` <span class="muted">· ${esc(c.items.map(it => `${it.name} ${fmtNum(it.qty)} ${it.unit}`).join(" · "))}</span>` : ""}</span><span class="val">${fmtMoney(c.cost)} บาท</span></div>`).join("")}
+          <div class="li"><span class="sw" style="background:#f59e0b"></span><span>${cropEmoji(c.crop)} ${esc(c.name)}${c.items.length ? ` <span class="muted">· ${esc(c.items.map(it => `${it.name} ${it.qty==null?'ยังไม่ทราบปริมาณ':fmtNum(it.qty)+' '+it.unit}${it.missingCount&&it.qty!=null?' · รวมเฉพาะที่ทราบ ขาดอีก '+it.missingCount+' รายการ':''}`).join(" · "))}</span>` : ""}</span><span class="val">${fmtMoney(c.cost)} บาท</span></div>`).join("")}
       </div>
       <div class="muted mt-8" style="font-size:.72rem">${ic("info")} เรียงตามต้นทุนสูงสุด ไม่ใช่ปริมาณยาที่ใช้ · แสดงรายการยาสูงสุด 3 รายการต่อแปลง</div>`}
     </div>`;
@@ -8237,7 +8242,7 @@ App.viewTask = function (id) {
   const costItems = (t.costItems && t.costItems.length ? t.costItems : [])
     .filter(it => it.name || it.stockId || it.qty > 0 || it.totalCost > 0);
   const costListHtml = costItems.length ? `
-    <div class="td-cost-title">${ic("dollar")} ${t.status === "done" ? "ค่าใช้จ่ายและวัสดุ" : "งบประมาณและวัสดุ"} (${costItems.length} รายการ)</div>
+    <div class="td-cost-title">${ic("dollar")} ${taskHasActuals(t) ? "ค่าใช้จ่ายและวัสดุ" : "งบประมาณและวัสดุ"} (${costItems.length} รายการ)</div>
     <div class="td-cost-list">
       ${costItems.map(it => {
         const si = it.stockId ? stockById(S, it.stockId) : null;
@@ -9361,6 +9366,8 @@ App.useStockInPlot = function (id) {
 };
 App.taskModeChange = function (status) {
   document.getElementById("t_status").value = status;
+  const execution = document.getElementById('t_execution');
+  if(execution)execution.closest('.field').hidden=status!=='failed';
   document.querySelectorAll("[data-task-mode]").forEach(button => {
     button.setAttribute("aria-pressed", String(button.dataset.taskMode === status));
   });
@@ -9391,14 +9398,15 @@ App.reviewTaskCompletion = function (id, returnToDetail=false) {
 };
 App.modalTask = function (date, preset) {
   preset = preset || {};
+  App._failureRecord = preset.failureRecord || null;
   const editing = preset.taskId ? S.tasks.find(x => x.id === preset.taskId) : null;
   const completionReview=!!(preset.completionReview && editing && !['done','failed'].includes(editing.status));
   taskEditingId = editing ? editing.id : "";
   if (!editing) taskEditReturnToDetail = false;
   const type = editing ? editing.type : (preset.type || "work");
   const title = editing ? editing.title : (preset.title || TYPE_LABELS[type] || "กิจกรรม");
-  const d = completionReview || preset.inspectionCompletion && editing?.status === 'planned' ? todayISO() : editing ? taskRecordDate(editing) : (date || todayISO());
-  const status = completionReview || preset.inspectionCompletion ? 'done' : editing ? (["done", "failed"].includes(editing.status) ? editing.status : "planned") : (preset.status === "done" ? "done" : "planned");
+  const d = preset.failureRecord?.doneDate || (completionReview || preset.inspectionCompletion && editing?.status === 'planned' ? todayISO() : editing ? taskRecordDate(editing) : (date || todayISO()));
+  const status = preset.failureRecord ? 'failed' : completionReview || preset.inspectionCompletion ? 'done' : editing ? (["done", "failed"].includes(editing.status) ? editing.status : "planned") : (preset.status === "done" ? "done" : "planned");
   const hasCost = completionReview || (editing ? (editing.cost > 0 || !!editing.stockId || (editing.costItems || []).length > 0) : ["spray", "fertilize", "expense"].includes(type));
   const hasHarvest = editing ? taskIncomeMode(editing)==='harvest' : type === "harvest";
   const hasGeneralIncome = editing && taskIncomeMode(editing)==='general';
@@ -9437,6 +9445,7 @@ App.modalTask = function (date, preset) {
         </select></div>
       </div>
       <div class="field" ${status !== 'planned' ? 'hidden' : ''}><label for="t_time">เวลาที่วางแผน (ไม่บังคับ)</label><input id="t_time" type="time" step="60" value="${esc(taskPlannedTime(editing))}" ${status !== 'planned' ? 'disabled' : ''} aria-describedby="t_time_hint"><small id="t_time_hint" class="hint">เว้นว่างได้ หากยังไม่ได้กำหนดเวลา</small></div>
+      <div class="field" ${status!=='failed'?'hidden':''}><label for="t_execution">การทำงานจริง</label><select id="t_execution"><option value="none" ${taskHasActuals(editing)?'disabled':''}>ยังไม่ได้ทำ / ไม่มีค่าใช้จ่ายจริง</option><option value="partial" ${(preset.failureRecord?.execution || editing?.execution)==='partial'?'selected':''}>ทำบางส่วน · ใช้ปริมาณและต้นทุนจริงด้านล่าง</option><option value="full" ${(preset.failureRecord?.execution || editing?.execution)==='full' || (!preset.failureRecord && editing?.status==='done')?'selected':''}>ทำแล้ว แต่ผลไม่เป็นไปตามเป้า</option></select><small>คงต้นทุนและวัสดุที่ใช้จริง แม้งานไม่สำเร็จ</small></div>
       <div class="field"><label for="t_title">ชื่องาน *</label><input id="t_title" data-auto-title="${!editing && !preset.title}" value="${esc(title)}" placeholder="เช่น ใส่ปุ๋ยครั้งที่ 2" oninput="this.dataset.autoTitle='false'" required></div>
       <fieldset class="task-scope">
         <legend>บันทึกให้กับ</legend>
@@ -9633,7 +9642,7 @@ App.submitTask = function (e, editId, validateOnly) {
   const title = document.getElementById("t_title").value.trim();
   if (!title) return false;
   const useCost = document.getElementById("t_usecost").checked;
-  if(document.getElementById('t_status').value==='done'){
+  if(taskHasActuals({status:recordStatus,execution:document.getElementById('t_execution')?.value})){
     const message=taskMaterialReviewError(document.getElementById('t_type').value,useCost,taskCostItems);
     if(message){toast(message);document.querySelector('#costItemsList .ci-qty')?.focus();return false;}
   }
@@ -9866,6 +9875,20 @@ App.submitTask = function (e, editId, validateOnly) {
     const cur = data.note ? data.note.split("\n") : [];
     calcLines.forEach(l => { if (!cur.includes(l)) cur.push(l); });
     data.note = cur.join("\n");
+  }
+  if(data.status==='failed') {
+    data.execution=document.getElementById('t_execution')?.value || (taskHasActuals(existing)?existing.execution || 'full':'none');
+    if(App._failureRecord)Object.assign(data,{donePhotos:App._failureRecord.donePhotos,doneNote:App._failureRecord.doneNote,doneTime:App._failureRecord.doneTime});
+    if(taskHasActuals(data)) {
+      const form=document.querySelector('.task-form'),reviewKey=JSON.stringify([data,existing?.updatedAt]);
+      if(form.dataset.failedReviewed!==reviewKey) {
+        form.dataset.failedReviewed=reviewKey;
+        let review=document.getElementById('taskFailedReview');
+        if(!review){review=document.createElement('section');review.id='taskFailedReview';review.className='card';review.tabIndex=-1;document.getElementById('taskSubmitButton').closest('.modal-actions').before(review);}
+        review.innerHTML=`<h4>ตรวจปริมาณและต้นทุนที่ใช้จริง</h4><p>${esc(data.execution==='partial'?'ทำบางส่วน':'ทำแล้ว แต่ผลไม่เป็นไปตามเป้า')}</p>${data.costItems.map(ci=>`<p>${esc(ci.name)} · ${esc(ci.usageQty ?? ci.qty)} ${esc(ci.usageUnit || ci.unit || '')} · ${fmtMoney(ci.totalCost)} บาท</p>`).join('')}<strong>ต้นทุนจริง ${fmtMoney(data.cost)} บาท</strong><p>บันทึกแทนรายการเดิม ไม่เพิ่มต้นทุนซ้ำ · สต็อกปรับตามปริมาณใช้จริงที่ตรวจแล้ว</p>`;
+        document.getElementById('taskSubmitButton').textContent='ยืนยันปริมาณและต้นทุน';review.focus();return false;
+      }
+    }
   }
   if (typeof projectEntryPrepare === 'function') projectEntryPrepare(data, existing);
   /* บันทึกงาน (ใหม่ หรือแก้ไข) — คืนค่าและปิด modal */

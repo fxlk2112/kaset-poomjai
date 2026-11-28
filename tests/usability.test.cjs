@@ -26,13 +26,17 @@ function client(fields={}) {
 }
 
 test('financial summaries distinguish missing records from explicit zero-cost finance entries',()=>{
-  const c=vm.createContext({});vm.runInContext(section('function hasRecordedFinance(', 'function renderHome()'),c);
+  const c=vm.createContext({});
+  const data=read('js/data.js');vm.runInContext(data.slice(data.indexOf('function taskHasActuals('),data.indexOf('function actualTasks(')),c);
+  vm.runInContext(section('function hasRecordedFinance(', 'function renderHome()'),c);
   const check=rows=>vm.runInContext('hasRecordedFinance('+JSON.stringify(rows)+')',c);
   assert.equal(check([]),false);
   assert.equal(check([{status:'done',type:'inspect',cost:0,revenue:0}]),false);
   assert.equal(check([{status:'planned',type:'expense',cost:100}]),false);
   assert.equal(check([{status:'done',type:'expense',cost:0}]),true);
   assert.equal(check([{status:'done',type:'work',cost:100,revenue:100}]),true);
+  assert.equal(check([{status:'failed',execution:'partial',type:'work',cost:50}]),true);
+  assert.equal(check([{status:'failed',execution:'none',type:'expense',cost:100}]),false);
 });
 test('home finance labels show the currency and do not use a dollar glyph as the primary summary icon',()=>{
   const home=section('function renderHome()', '/* ---------------- Plots & cycles ---------------- */');
