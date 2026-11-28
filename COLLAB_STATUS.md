@@ -1,5 +1,18 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — BATCH-WORK-ENTRY-20261128
+
+- Owner: Codex for Folk, explicitly requested Farm/Project entry follow-up; SUCHA retains integration review.
+- Branch: `codex/batch-work-entry`, source `2a89f72`; refreshed `origin/develop` verified as ancestor.
+- Task / Scope: Batch activity table, copy previous work, spreadsheet paste, quantity/cost review and atomic idempotent recording through the canonical task/stock ledger.
+- Files / lock: new scoped batch entry JS/CSS, tests and synthetic QA; entry links in farm/project/cycle surfaces, scoped `js/app.js` routing if needed, `index.html` / `sw.js`, and this status file. No conflicting active owner found.
+- Status: LOCAL_COMPLETE. Batch table, previous-work copy, TSV/CSV paste, account-scoped drafts and review-before-save implemented through the existing canonical task/stock ledger.
+- Validation: `npm run check` 793/793 PASS; relay 9/9. Desktop 1440x940/mobile 390x844; real synthetic API save/edit/reload, duplicate guards and persisted ledger verification PASS. See `qa/batch-work/HANDOFF.md`.
+- Commit: Feature commit containing `qa/batch-work/HANDOFF.md`.
+- Blocked / Risks: No implementation blocker; one plot/cycle per batch, completed activities only. Duplicate-content warnings supplement stable batch/row retry IDs. Existing single-entry form remains available for harvest, inspections and attachments.
+- Deployment: NOT_DEPLOYED. No production write, migration or hardware action is in this task.
+- Next action: Integration-owner review of this branch for `develop`.
+
 ## Task lock — RELEASE-DAILY-ENTRY-20261128
 
 - Owner: Codex for Folk, explicit production release requested in this chat; SUCHA retains integration review.

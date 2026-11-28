@@ -29,7 +29,7 @@ const Concept = {
   },
   active() {
     if (route.view === 'team') return Team.section==='members'?'members':'team';
-    if (route.view === 'planner') return 'tasks';
+    if (['planner','batchWork'].includes(route.view)) return 'tasks';
     if (route.view === 'farm') return route.tab==='analytics'?'reports':'farm';
     if (route.view === 'ledgerPreview') return 'reports';
     if (['projectDetail','projectDraft'].includes(route.view)) return 'projects';
