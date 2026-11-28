@@ -73,12 +73,12 @@ test("receiveStock rounds received stock down to whole units and recalculates we
   commerce.receiveStock(s, "demo-chemical-a", 2.9, 50);
 
   assert.equal(s.stock[0].qty, 12);
-  assert.equal(s.stock[0].avgCost, 25);
+  assert.equal(s.stock[0].avgCost, 350 / 14.5);
 
   commerce.receiveStock(s, "demo-chemical-a", 0.9, 1000);
 
   assert.equal(s.stock[0].qty, 12);
-  assert.equal(s.stock[0].avgCost, 25);
+  assert.equal(s.stock[0].avgCost, 350 / 14.5);
 });
 
 test("addSale deducts only main stock and preserves opened stock quantity", () => {
@@ -133,7 +133,7 @@ test("updateSale restores previous stock before deducting new items and preserve
   assert.equal(commerce.saleGrandTotal(updated), 550);
 });
 
-test("voidSale restores main stock and removes the receipt", () => {
+test("voidSale restores stock and retains the voided receipt for history", () => {
   const s = demoState();
   const sale = commerce.addSale(s, {
     date: "2026-09-05",
@@ -147,7 +147,9 @@ test("voidSale restores main stock and removes the receipt", () => {
   assert.equal(commerce.voidSale(s, sale.id), true);
   assert.equal(s.stock[0].qty, 10);
   assert.equal(s.stock[0].openQty, 2.5);
-  assert.deepEqual(s.sales, []);
+  assert.equal(s.sales.length, 1);
+  assert.equal(s.sales[0].status, 'void');
+  assert.equal(s.sales[0].id, sale.id);
 });
 
 test("sale grand total never goes below zero after discount", () => {

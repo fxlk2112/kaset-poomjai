@@ -10,11 +10,11 @@ async function source(relativePath) {
   return readFile(path.join(root, relativePath), "utf8");
 }
 
-test("dashboard has no blocking login page", async () => {
+test("current application keeps the account gate and login form", async () => {
   const html = await source("index.html");
-  assert.equal(html.includes('id="authGate"'), false);
-  assert.equal(html.includes("auth-locked"), false);
-  assert.equal(/type=["']password["']/.test(html), false);
+  assert.equal(html.includes('id="authGate"'), true);
+  assert.equal(html.includes("auth-locked"), true);
+  assert.equal(/type=["']password["']/.test(html), true);
 });
 
 test("dashboard renderer does not require a cloud session", async () => {
@@ -23,8 +23,9 @@ test("dashboard renderer does not require a cloud session", async () => {
   assert.equal(app.includes('if (typeof Auth === "undefined" || !Auth.session) {'), false);
 });
 
-test("expired or missing cloud session cannot reopen a login gate", async () => {
+test("missing session opens the gate and preview bypass requires loopback", async () => {
   const auth = await source("js/auth.js");
-  assert.match(auth, /Direct-open: หน้าหลักต้องเปิดได้เสมอ/);
-  assert.equal(auth.includes("Auth.showGate();"), false);
+  assert.ok(auth.includes('if (!Auth.session) { Auth.showGate(); return; }'));
+  assert.ok(auth.includes('return localHost &&'));
+  assert.ok(auth.includes('const AUTH_API = FarmUltimateRuntime.apiUrl;'));
 });

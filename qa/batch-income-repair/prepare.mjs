@@ -1,0 +1,26 @@
+// Synthetic local-only acceptance fixture. Never imports or changes production data.
+import fs from 'node:fs';
+import vm from 'node:vm';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+const root=fileURLToPath(new URL('../../',import.meta.url));
+const runDir=fileURLToPath(new URL('.private/',import.meta.url));
+fs.mkdirSync(runDir,{recursive:true});
+const ctx=vm.createContext({console,Date,JSON,localStorage:{getItem:()=>null,setItem(){}},window:{addEventListener(){}},setTimeout(){}});
+vm.runInContext(fs.readFileSync(path.join(root,'js/data.js'),'utf8'),ctx);
+const state=vm.runInContext(`JSON.parse(JSON.stringify(S))`,ctx);
+for(const key of Object.keys(state))if(Array.isArray(state[key]))state[key]=[];
+state.plots=[{id:'repair-plot',name:'แปลงทดสอบข้อมูล',sizeRai:4,active:true}];
+state.cycles=[{id:'repair-cycle',plotId:'repair-plot',plant:'พืชตัวอย่าง',round:1,status:'active',startDate:'2026-11-01',sizeRai:4}];
+state.projects=[{id:'repair-project',code:'PRJ-QA-REPAIR',name:'ทดสอบเติมข้อมูลและรายรับ',kind:'work',entryMode:'historical',status:'active',plotId:'repair-plot',cycleId:'repair-cycle',objective:'ตรวจการกรอกข้อมูลด้วยข้อมูลสมมติ',stages:[{id:'repair-stage',name:'บันทึกงาน'}],records:[],groups:[],samples:[],schema:[],proposal:{budget:''}}];
+const names=['วัสดุสนับสนุน A','ปุ๋ยสนับสนุน B','ปุ๋ยสนับสนุน C','ปุ๋ยสนับสนุน D','บริการสนับสนุน','ปุ๋ยสนับสนุน E','วัสดุสนับสนุน F'];
+state.tasks=names.map((name,i)=>({id:'repair-task-'+i,title:name,type:'work',status:'done',source:'project-history',projectId:'repair-project',projectStageId:'repair-stage',plotId:'repair-plot',cycleId:'repair-cycle',sourceRow:i+1,date:i%2?'':'2026-11-20',doneDate:i%2?'':'2026-11-20',cost:0,revenue:0,incomeMode:'none',dataStatus:'pending',missingFields:[i===4?'วันที่ทำจริง':'วันที่ทำจริง · ปริมาณ / หน่วยที่ใช้'],dataNote:i===4?'วันที่ทำจริง':'วันที่ทำจริง · ปริมาณ / หน่วยที่ใช้',photos:[],donePhotos:[],note:'ข้อมูลสมมติเพื่อทดสอบเท่านั้น',costItems:[{name,category:i===4?'labor':i===0||i===6?'chemical':'fertilizer',source:'manual',qty:'',unit:'',totalCost:0,funding:'supported',sponsor:'ผู้สนับสนุนตัวอย่าง',amountPending:false}]}));
+state.tasks[4].date='';state.tasks[4].doneDate='';
+state.tasks.push({id:'copy-income',title:'รายรับค่าบริการตัวอย่าง',type:'work',status:'done',source:'project-history',projectId:'repair-project',projectStageId:'repair-stage',plotId:'repair-plot',cycleId:'repair-cycle',date:'2026-11-27',doneDate:'2026-11-27',cost:100,revenue:5000,incomeMode:'general',dataStatus:'complete',missingFields:[],costItems:[{name:'อาหารตัวอย่าง',category:'meals',qty:'',unit:'',totalCost:100,source:'manual'}],photos:[],donePhotos:[],note:'ข้อมูลสมมติ'});
+fs.writeFileSync(path.join(runDir,'fixture.json'),JSON.stringify(state));
+const quote=v=>'"'+String(v??'').replaceAll('"','""')+'"';
+const sheet=[['Bill-Date','ช่วงอายุ','Bill-Type','Topic\n(รายการ)','Cost-Type\n(ประเภทต้นทุน)','Chemical-Type','Description','ปริมาตร','Amount\n(จำนวน)','Unit\n(หน่วย)','ปริมาณ/ขวด','ปริมาณที่ใช้ทั้งหมด','Amount/Unit\n(ราคา/หน่วย)','Total Amount\n(จำนวนเงิน)','Remark'],['28/11/2569','','รายจ่าย','ปุ๋ยนำเข้าตัวอย่าง','ค่าปุ๋ยเคมี','','ตรวจแยกหมวด','','1','กก.','50','25','1400','-700','ข้อมูลสมมติ'],['28/11/2569','','รายได้ฟาร์ม','รายรับนำเข้าตัวอย่าง','รายได้อื่น','','','','1','ครั้ง','1','1','2000','2000','ข้อมูลสมมติ'],['28/11/2569','','รายจ่าย','บริการสนับสนุนนำเข้า','ค่าจ้างแรงงานชั่วคราว','','','','','','','','','0','ข้อมูลสมมติ']];
+fs.writeFileSync(path.join(runDir,'original-headers.tsv'),sheet.map(r=>r.map(quote).join('\t')).join('\n'));
+const source=fs.readFileSync(path.join(root,'qa/syngenta-batch-example/serve-backend.mjs'),'utf8');
+fs.writeFileSync(new URL('serve-backend.mjs',import.meta.url),source.replaceAll('4194','4195').replaceAll('sheet-a-batch-qa','batch-income-repair-qa').replaceAll('ตัวอย่างชีท A ชุดใหม่','ทดสอบข้อมูลสมมติ').replace('Local workbook example:','Local synthetic QA:'));
+console.log('Prepared 7 synthetic pending records, one general-income source, and original-header paste data.');

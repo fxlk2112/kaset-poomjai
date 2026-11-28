@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS sensor_devices (
   revoked_at  INTEGER DEFAULT 0,
   UNIQUE (user_id, source_id)
 );
-
 CREATE TABLE IF NOT EXISTS sensor_samples (
   id                       TEXT PRIMARY KEY,
   user_id                  TEXT NOT NULL,
