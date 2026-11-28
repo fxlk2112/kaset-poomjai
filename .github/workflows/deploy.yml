@@ -7,15 +7,19 @@ on:
 
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Assemble site-only directory
-        run: |
-          mkdir -p "${{ runner.temp }}/site-stage"
-          cp -r index.html sw.js manifest.json logo.jpg css js icons images "${{ runner.temp }}/site-stage/"
-          [ -f _redirects ] && cp _redirects "${{ runner.temp }}/site-stage/" || true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate application and release contracts
+        run: npm run check
+      - name: Assemble and verify complete Pages artifact
+        run: node scripts/build-pages.mjs --out "${{ runner.temp }}/farm-pages-${{ github.run_id }}-${{ github.run_attempt }}"
+      - name: Verify required backend and binding before release
+        run: node scripts/check-api-health.mjs https://farmultimate-solutions.pages.dev
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
@@ -25,4 +29,6 @@ jobs:
           wranglerVersion: "4"
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy "${{ runner.temp }}/site-stage" --project-name=farmultimate-solutions --branch=master --commit-dirty=true
+          command: pages deploy "${{ runner.temp }}/farm-pages-${{ github.run_id }}-${{ github.run_attempt }}" --project-name=farmultimate-solutions --branch=master --commit-dirty=true
+      - name: Verify same-origin API after release
+        run: node scripts/check-api-health.mjs https://farmultimate-solutions.pages.dev

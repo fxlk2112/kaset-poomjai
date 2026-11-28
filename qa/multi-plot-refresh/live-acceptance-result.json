@@ -1,0 +1,16 @@
+{
+  "result": "LIVE_MULTI_PLOT_PASS",
+  "source": "d98c096",
+  "newTasks": 2,
+  "quantityKg": 4,
+  "costBaht": 200,
+  "plotAndCycleCosts": [
+    50,
+    150
+  ],
+  "stockBeforeKg": 10,
+  "stockAfterKg": 6,
+  "allOriginalRecordsUnchanged": true,
+  "worksheetRecords": 33,
+  "pendingRecordsUnchanged": 7
+}

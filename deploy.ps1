@@ -2,11 +2,12 @@
 # ใช้: powershell -File deploy.ps1
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
-$stage = Join-Path $env:TEMP "kaset-pages-stage"
-if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
-New-Item -ItemType Directory -Path $stage | Out-Null
-robocopy $root $stage /E /NFL /NDL /NJH /NJS /NP `
-  /XD .git .github .freebuff .wrangler .netlify node_modules worker netlify `
-  /XF .gitignore .assetsignore deploy.ps1 | Out-Null
-if ($LASTEXITCODE -ge 8) { throw "robocopy failed: $LASTEXITCODE" }
+$stage = Join-Path $env:TEMP ("kaset-pages-stage-" + [guid]::NewGuid().ToString("N"))
+node (Join-Path $root "scripts/build-pages.mjs") --out $stage
+if ($LASTEXITCODE -ne 0) { throw "Pages assembly failed: $LASTEXITCODE" }
+node (Join-Path $root "scripts/check-api-health.mjs") https://farmultimate-solutions.pages.dev
+if ($LASTEXITCODE -ne 0) { throw "Required backend or binding is not ready" }
 wrangler pages deploy $stage --project-name=farmultimate-solutions --branch=master --commit-dirty=true
+if ($LASTEXITCODE -ne 0) { throw "Pages deployment failed: $LASTEXITCODE" }
+node (Join-Path $root "scripts/check-api-health.mjs") https://farmultimate-solutions.pages.dev
+if ($LASTEXITCODE -ne 0) { throw "Post-release API health failed" }

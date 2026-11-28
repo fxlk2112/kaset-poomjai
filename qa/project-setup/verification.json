@@ -1,0 +1,63 @@
+{
+  "date": "2026-11-27",
+  "environment": "loopback only; shipped Pages Function and Worker, local SQLite D1 adapter and photo store",
+  "projects": [
+    {
+      "code": "PRJ-2569-001",
+      "groups": [
+        "สูตรทดสอบ A",
+        "แปลงเปรียบเทียบ"
+      ],
+      "taskCount": 7,
+      "records": 1,
+      "reportVersions": 1,
+      "trials": [
+        {
+          "groups": [
+            "สูตรทดสอบ A",
+            "แปลงเปรียบเทียบ"
+          ],
+          "samples": 4,
+          "values": [
+            12.5,
+            13,
+            11,
+            11.5
+          ]
+        }
+      ]
+    },
+    {
+      "code": "PRJ-2569-002",
+      "groups": [
+        "สูตรทดสอบ A",
+        "แปลงเปรียบเทียบ"
+      ],
+      "taskCount": 7,
+      "records": 0,
+      "reportVersions": 0,
+      "trials": [
+        {
+          "groups": [
+            "สูตรทดสอบ A",
+            "แปลงเปรียบเทียบ"
+          ],
+          "samples": 4,
+          "values": []
+        }
+      ]
+    }
+  ],
+  "storedPhotos": 1,
+  "word": {
+    "downloaded": true,
+    "groupNamesPresent": true,
+    "valuesPresent": true,
+    "embeddedImages": 1,
+    "bytes": 275412
+  },
+  "pdf": {
+    "fileVerified": false,
+    "reason": "Print window could not be controlled by available browser/native UI tools; no PDF-file pass claimed."
+  }
+}

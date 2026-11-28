@@ -1,0 +1,43 @@
+{
+  "suggestedTasks": [
+    {
+      "title": "ยืนยันวัตถุประสงค์และแผนทดลอง",
+      "date": "2026-11-24"
+    },
+    {
+      "title": "กำหนดชุดทดลอง ตัวอย่าง และค่าวัด",
+      "date": "2026-11-24"
+    },
+    {
+      "title": "บันทึกค่าก่อนเริ่ม",
+      "date": "2026-11-24"
+    },
+    {
+      "title": "ดำเนินงานตามแผนและบันทึกวัสดุ",
+      "date": "2026-11-24"
+    },
+    {
+      "title": "เก็บค่าวัดและรูปภาพติดตามผล",
+      "date": "2026-11-24"
+    },
+    {
+      "title": "ตรวจความครบถ้วนของข้อมูล",
+      "date": "2026-11-24"
+    },
+    {
+      "title": "สรุปผลและจัดทำรายงาน",
+      "date": "2026-11-24"
+    }
+  ],
+  "reportTask": {
+    "id": "audit-task",
+    "title": "Audit task",
+    "date": "2026-11-24",
+    "status": "done",
+    "cost": 0,
+    "note": "planned note",
+    "photos": []
+  },
+  "completionEvidenceIncluded": false,
+  "completionNoteIncluded": false
+}

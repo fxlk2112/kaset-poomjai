@@ -1,0 +1,21 @@
+{
+  "newTasks": 2,
+  "newCost": 200,
+  "allocatedCosts": [
+    50,
+    150
+  ],
+  "usedQtyKg": 4,
+  "stockBeforeKg": 9,
+  "stockAfterKg": 5,
+  "plotCostsIncludingExisting": [
+    100,
+    150
+  ],
+  "cycleCostsIncludingExisting": [
+    100,
+    150
+  ],
+  "pendingEntriesUnchanged": 7,
+  "scope": "loopback synthetic QA only; production untouched"
+}

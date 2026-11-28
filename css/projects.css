@@ -1,0 +1,70 @@
+/* Project stages use the existing FarmUltimate palette and cards. */
+.project-page { max-width:1180px; margin:0 auto; padding:20px 0 44px; }
+.project-list-head,.project-section-head,.project-head-actions,.project-stage-footer,.project-card-progress { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.project-list-head { margin-bottom:18px; }
+.project-list-head h1,.project-head h1 { margin:0; line-height:1.25; }
+.project-list-head p,.project-section-head p,.project-head p { color:var(--muted); margin:5px 0 0; line-height:1.5; }
+.project-filters { display:inline-flex; gap:4px; padding:4px; background:var(--card); border:1px solid var(--line); border-radius:12px; margin-bottom:18px; }
+.project-filters button { border:0; background:transparent; color:var(--muted); padding:8px 13px; border-radius:9px; font-weight:700; cursor:pointer; }
+.project-filters button.active { background:var(--green-soft); color:var(--green-deep); }
+.project-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.project-card { padding:0; overflow:hidden; }
+.project-card-open { display:block; width:100%; height:100%; padding:18px; text-align:left; border:0; background:transparent; color:inherit; cursor:pointer; }
+.project-card-open:hover,.project-card-open:focus-visible { background:var(--green-soft); }
+.project-card h2 { font-size:1.08rem; margin:8px 0 0; overflow-wrap:anywhere; }
+.project-card p { color:var(--muted); margin:6px 0 16px; font-size:.85rem; line-height:1.45; overflow-wrap:anywhere; }
+.project-eyebrow { color:var(--green-deep); font-size:.76rem; font-weight:800; }
+.project-card-progress { margin-top:17px; font-size:.82rem; font-weight:700; }
+.project-progress-bar { width:100%; height:7px; background:var(--line); border-radius:999px; overflow:hidden; }
+.project-progress-bar i { display:block; height:100%; border-radius:999px; background:var(--green); }
+.project-card .project-progress-bar { margin-top:8px; }
+.project-card-next { display:block; margin-top:14px; color:var(--muted); line-height:1.4; }
+.project-empty { text-align:center; padding:40px 20px; }
+.project-empty h2 { margin:0; }
+.project-empty p { color:var(--muted); margin:8px 0 18px; }
+.project-back { margin-bottom:12px; }
+.project-head { padding:20px; margin-bottom:22px; display:grid; grid-template-columns:1fr auto; gap:18px; }
+.project-head-main { min-width:0; }
+.project-head h1 { margin-top:6px; overflow-wrap:anywhere; }
+.project-head-actions { align-self:start; }
+.project-progress { grid-column:1/-1; padding-top:16px; border-top:1px solid var(--line); }
+.project-progress>div:first-child { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:.84rem; margin-bottom:8px; }
+.project-progress span { color:var(--muted); }
+.project-section-head { margin:0 0 12px; }
+.project-section-head h2 { font-size:1.08rem; margin:0; }
+.project-stages { display:grid; gap:12px; }
+.project-stage { padding:17px; }
+.project-stage-top { display:flex; align-items:center; gap:12px; padding-bottom:13px; border-bottom:1px solid var(--line); }
+.project-stage-number { flex:0 0 30px; height:30px; display:grid; place-items:center; border-radius:50%; background:var(--green-soft); color:var(--green-deep); font-weight:800; }
+.project-stage-top>div { flex:1; min-width:0; }
+.project-stage-top h3 { margin:0; font-size:1rem; overflow-wrap:anywhere; }
+.project-stage-top small { color:var(--muted); }
+.project-stage-status { padding:5px 9px; border-radius:999px; background:var(--bg); color:var(--muted); font-size:.72rem; font-weight:700; white-space:nowrap; }
+.project-stage-status.complete { background:var(--green-soft); color:var(--green-deep); }
+.project-stage-status.progress { background:#fff3d8; color:#785300; }
+.project-stage-tasks { padding:5px 0; }
+.project-stage-empty { color:var(--muted); font-size:.83rem; margin:14px 0; }
+.project-task-row { display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line); padding:9px 0; }
+.project-task-row:last-child { border-bottom:0; }
+.project-task-open { flex:1; min-width:0; text-align:left; border:0; background:none; color:inherit; cursor:pointer; padding:2px; }
+.project-task-open b,.project-task-open small { display:block; overflow-wrap:anywhere; }
+.project-task-open small { color:var(--muted); margin-top:3px; }
+.project-task-row select { max-width:170px; width:170px; padding:7px 9px; font:inherit; font-size:.76rem; color:inherit; background:var(--card); border:1px solid var(--line); border-radius:8px; }
+.project-stage-footer { justify-content:flex-start; flex-wrap:wrap; margin-top:12px; }
+.project-stage-manage { margin-top:12px; color:var(--muted); font-size:.78rem; }
+.project-stage-manage summary { cursor:pointer; width:max-content; }
+.project-stage-manage>div { display:flex; flex-wrap:wrap; gap:7px; padding-top:8px; }
+.project-more-tasks summary { cursor:pointer; color:var(--green-deep); font-size:.8rem; margin:8px 0; }
+.project-footnote { font-size:.76rem; color:var(--muted); margin-top:17px; }
+.project-task-choices { max-height:44vh; overflow-y:auto; border:1px solid var(--line); border-radius:10px; }
+.project-task-choices button { display:block; width:100%; border:0; border-bottom:1px solid var(--line); padding:11px; background:var(--card); color:inherit; text-align:left; cursor:pointer; }
+.project-task-choices button:hover { background:var(--green-soft); }
+.project-task-choices button:last-child { border-bottom:0; }
+.project-task-choices b,.project-task-choices small { display:block; }
+.project-task-choices small { color:var(--muted); margin-top:3px; }
+.project-task-choices .hint { margin:12px; }
+.task-project-setup { padding:12px; margin:12px 0; border:1px solid var(--line); border-radius:10px; }
+.task-project-setup summary { cursor:pointer; color:var(--green-deep); font-weight:700; }
+.task-project-setup .field { margin-top:12px; }
+@media(max-width:700px) { .project-grid { grid-template-columns:1fr; } .project-list-head,.project-section-head { align-items:flex-start; } .project-head { grid-template-columns:1fr; } .project-head-actions { justify-content:flex-start; flex-wrap:wrap; } }
+@media(max-width:480px) { .project-page { padding:12px 0 32px; } .project-list-head,.project-section-head { flex-wrap:wrap; } .project-list-head .btn { width:100%; } .project-head,.project-stage { padding:14px; } .project-task-row { align-items:stretch; flex-direction:column; gap:6px; } .project-task-row select { width:100%; max-width:100%; } }
