@@ -85,6 +85,9 @@
 .fc-empty strong { display:block;font-size:15px;color:var(--text); }
 .fc-empty p { font-size:12px;line-height:1.7;margin:6px 0; }
 .fc-projects article { border-top:1px solid var(--line);padding:14px 0 4px; }
+.fc-failed { border-top:1px solid var(--line);margin-top:12px;padding-top:8px; }
+.fc-failed h3 { font-size:14px;color:var(--muted); }
+.fc-status { color:var(--muted); }
 .fc-projects article+article { margin-top:10px; }
 .fc-projects article>small { color:var(--green-dark);font-size:11px; }
 .fc-project-title { display:flex;align-items:center;justify-content:space-between;gap:7px;text-align:left;width:100%;font-size:15px!important;font-weight:700!important;padding:7px 0;overflow-wrap:anywhere; }

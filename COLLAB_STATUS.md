@@ -1,5 +1,18 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — STATUS-MOBILE-ACCEPTANCE-20261128
+
+- Owner: Codex for Folk, explicitly requested Farm/Project/Commerce follow-up; SUCHA retains shared integration review.
+- Branch: `codex/status-mobile-acceptance`, source `0490f16`; refreshed `origin/develop` verified as ancestor.
+- Task / Scope: Unify planned progress and work/data-completeness status across surfaces; verify mobile entry, actual proposal/report PDFs, payment slips and stock without duplicate costs. Preserve all 33 worksheet records including seven incomplete records.
+- Files / lock: scoped status renderers in `js/projects.js`, `js/farm-calendar.js`, `js/farm-overview.js`, project/history/report modules and relevant `js/app.js`/`js/data.js` helpers; matching styles/tests; `index.html`/`sw.js`; dedicated QA harness/evidence and this status. Narrow entry/sales fixes only if acceptance exposes them. No conflicting active lock found.
+- Status: COMPLETE_LOCAL — null progress removed; shared outcome/completeness labels and failed-work counts aligned; actual PDF pagination corrected.
+- Validation: Full check 810 PASS; relay 9 PASS. Desktop/mobile browser readback, actual proposal/report PDFs, local and authorized production QA saves/photos/slips, edit/resave/reload and canonical ledger reconciliation PASS. All 33 original worksheet records and seven incomplete records unchanged. See `qa/status-acceptance/HANDOFF.md`.
+- Commit: Feature commit containing `qa/status-acceptance/HANDOFF.md`.
+- Blocked / Risks: Physical-phone OS/browser checks not performed. QA credentials appeared in a native-window diagnostic; stopped that inspection and notified the user. No credential values in committed evidence.
+- Deployment: NOT_DEPLOYED. Only authorized synthetic QA data was written on the canonical site; new status/PDF code remains local. No hardware, schema or secret/config changes.
+- Next action: Integration-owner review of this branch for `develop`.
+
 ## Task lock — PUBLISH-SYNGENTA-DEMO-20261128
 
 - Owner: Codex for Folk, explicit user request to publish the existing worksheet example to the separate production QA account.

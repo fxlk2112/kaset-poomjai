@@ -10,7 +10,7 @@ function taskNeedsMaterialReview(t) {
 }
 function taskCompletionCircleHtml(t,{project=false,locked=false}={}) {
   const done=t.status==='done',failed=t.status==='failed',disabled=done || failed || locked;
-  const label=(done?'ทำแล้ว: ':failed?'ไม่สำเร็จ: ':locked?'โครงการปิดแล้ว: ':'ทำเสร็จ: ')+t.title;
+  const label=(done||failed?taskStatusText(t)+': ':locked?'โครงการปิดแล้ว: ':'ทำเสร็จ: ')+t.title;
   const action='App.'+(project?'projectTaskComplete':'completeTaskFromCircle')+'('+JSON.stringify(t.id)+')';
   return `<button type="button" class="task-complete-circle${done?' is-done':failed?' is-failed':''}" aria-label="${esc(label)}" title="${esc(label)}" ${disabled?'disabled':`onclick="${esc(action)}"`}><span aria-hidden="true">${done?'✓':failed?'×':''}</span></button>`;
 }
@@ -42,7 +42,7 @@ function projectPlanProgress(p) {
 }
 function projectProgressHtml(p) {
   const plan=projectPlanProgress(p),n=projectCounts(p);
-  return `<div class="project-progress-summary"><strong>บันทึกแล้ว ${fmtNum(n.done)} กิจกรรม</strong>${plan.total?`<span>งานตามแผน ${plan.done}/${plan.total} งาน · ${plan.percent}%</span><progress max="100" value="${plan.percent}" aria-label="งานตามแผนที่ทำแล้ว"></progress><small>ความคืบหน้าของงานตามแผน ไม่ใช่ผลสำเร็จของโครงการ</small>`:'<small>ยังไม่มีฐานงานตามแผนสำหรับคำนวณความคืบหน้า</small>'}</div>`;
+  return `<div class="project-progress-summary"><strong>ทำแล้ว ${fmtNum(n.done)} กิจกรรม</strong>${plan.total?`<span>งานตามแผน ${plan.done}/${plan.total} งาน · ${plan.percent}%</span><progress max="100" value="${plan.percent}" aria-label="งานตามแผนที่ทำแล้ว"></progress><small>ความคืบหน้าของงานตามแผน ไม่ใช่ผลสำเร็จของโครงการ</small>`:'<small>ยังไม่มีฐานงานตามแผนสำหรับคำนวณความคืบหน้า</small>'}${n.pendingData?`<small>ทำแล้ว · ข้อมูลรอตรวจ ${fmtNum(n.pendingData)} กิจกรรม</small>`:''}${n.failed?`<small>ไม่สำเร็จ ${fmtNum(n.failed)} งาน</small>`:''}</div>`;
 }
 function projectStageProgress(tasks) {
   if (!tasks.length) return "ยังไม่มีงาน";
@@ -52,7 +52,7 @@ function projectStageProgress(tasks) {
 function projectTaskRow(t, p) {
   const plot = t.plotId ? plotById(S, t.plotId) : null;
   const when = ["done", "failed"].includes(t.status) ? taskDoneDate(t) : t.date;
-  return `<div class="project-task-row"><button type="button" class="project-task-open" onclick="App.viewTask('${t.id}')"><b>${esc(t.title)}</b><small>${esc(dateLabel(when))} · ${esc(plot?.name || "งานส่วนกลาง")} · ${t.status === "done" ? "เสร็จ" : t.status === "failed" ? "ทำไม่ได้" : "รอทำ"}</small></button><select aria-label="ย้าย ${esc(t.title)} ไปช่วงอื่น" onchange="App.projectMoveTask('${t.id}',this.value)"><option value="">เอาออกจากโครงการ</option>${p.stages.map(stage => `<option value="${stage.id}" ${t.projectStageId === stage.id ? "selected" : ""}>${esc(stage.name)}</option>`).join("")}</select></div>`;
+  return `<div class="project-task-row"><button type="button" class="project-task-open" onclick="App.viewTask('${t.id}')"><b>${esc(t.title)}</b><small>${esc(dateLabel(when))} · ${esc(plot?.name || "งานส่วนกลาง")} · ${esc(taskStatusText(t))}</small></button><select aria-label="ย้าย ${esc(t.title)} ไปช่วงอื่น" onchange="App.projectMoveTask('${t.id}',this.value)"><option value="">เอาออกจากโครงการ</option>${p.stages.map(stage => `<option value="${stage.id}" ${t.projectStageId === stage.id ? "selected" : ""}>${esc(stage.name)}</option>`).join("")}</select></div>`;
 }
 function renderProjectDetail() {
   const p = projectById(route.projectId);

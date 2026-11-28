@@ -211,7 +211,8 @@ function thaiDateStr(d) {
 function cropEmoji(crop) {
   return ic("leaf");
 }
-function statusTag(status) {
+function statusTag(status, task=null) {
+  if(task){const color=status==='done'?'green':['failed','overdue'].includes(status)?'red':'amber';return `<span class="badge badge-${color}">${esc(taskStatusText(task))}</span>`;}
   if (status === "done") return `<span class="badge badge-green">เสร็จ</span>`;
   if (status === "failed") return `<span class="badge badge-red">ไม่สำเร็จ</span>`;
   if (status === "overdue") return `<span class="badge badge-red">เลยกำหนด</span>`;
@@ -364,7 +365,7 @@ function taskRowHtml(t, opts) {
       <div class="task-row-actions">
         ${st !== "done" && st !== "failed" ? `
           <button class="btn btn-sm btn-ghost task-reschedule" onclick="App.rescheduleTask('${t.id}')" title="เลื่อนวัน" aria-label="เลื่อนวัน: ${esc(t.title)}">${ic("calendar")} <span>เลื่อน</span></button>` : `
-          ${statusTag(st)}
+          ${statusTag(st,t)}
           <button class="btn btn-sm btn-ghost icon-action" onclick="App.editTask('${t.id}')" title="แก้ไขกิจกรรม" aria-label="แก้ไข: ${esc(t.title)}">${ic("pencil")}</button>`}
       </div>
     </div>`;
@@ -6059,7 +6060,7 @@ function shareTaskHtml(t) {
         ${photosHtml}
         ${costsHtml}
       </div>
-      ${statusTag(taskStatusOf(t))}
+      ${statusTag(taskStatusOf(t),t)}
     </div>`;
 }
 App.renderShareView = function () {
@@ -8281,7 +8282,7 @@ App.viewTask = function (id) {
   openModal(`
     <button class="modal-x" onclick="App.closeModal()">✕</button>
     <h3>${esc(t.title)}</h3>
-    <div class="modal-sub">${typeTag(t)} ${statusTag(taskStatusOf(t))}</div>
+    <div class="modal-sub">${typeTag(t)} ${statusTag(taskStatusOf(t),t)}</div>
     ${project ? `<button class="btn btn-sm btn-ghost" onclick="App.closeModal();App.projectOpen('${project.id}')">${ic("briefcase")} ดูโครงการ</button>` : ""}
     <div class="td-list">
       ${rows.map(r => `<div class="td-row"><span class="td-k">${r.k}</span><span class="td-v">${esc(r.v)}</span></div>`).join("")}

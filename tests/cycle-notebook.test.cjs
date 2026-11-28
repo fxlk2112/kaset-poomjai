@@ -137,6 +137,6 @@ test('restored plot history renders safely before notebook loading and refreshes
   h.run(app.slice(app.indexOf('function renderPlotDetail()'),app.indexOf('App.openPlot =')));
   h.run('render()');assert.match(h.run('rendered'),/กำลังโหลดประวัติงาน/);
   h.run(source('js/cycle-notebook.js'));
-  assert.match(h.run('rendered'),/งานที่ทำแล้ว/);assert.match(h.run('rendered'),/Recorded work/);
+  assert.match(h.run('rendered'),/บันทึกผลแล้ว/);assert.match(h.run('rendered'),/Recorded work/);
   assert.doesNotMatch(h.run('rendered'),/กำลังโหลดประวัติงาน/);assert.equal(h.run('S.tasks[0].cost'),30);
 });

@@ -1776,6 +1776,12 @@ function taskStatusOf(t) {
   if (t.date && t.date < todayISO()) return "overdue";
   return "planned";
 }
+// Work outcome and data completeness are separate; all task surfaces share this wording.
+function taskStatusText(t) {
+  const status=taskStatusOf(t);
+  const label={done:'ทำแล้ว',failed:'ไม่สำเร็จ',overdue:'เลยกำหนด',planned:'วางแผน'}[status];
+  return label+(status==='done' && taskDataPending(t)?' · ข้อมูลรอตรวจ':'');
+}
 /* รายการแจ้งเตือน: งานที่ครบกำหนดวันนี้ + งานที่เลยกำหนด (ยังไม่เสร็จ, ยังไม่กดปิด)
    เรียง: เลยกำหนด ตามวันที่เก่าสุดก่อน / วันนี้ ตามเวลาที่เพิ่มล่าสุดก่อน */
 function notifList(s) {

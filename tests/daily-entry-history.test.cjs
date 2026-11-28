@@ -15,7 +15,7 @@ function harness(){
 test('completed logs alone never fabricate 100 percent planned progress',()=>{
   const h=harness();h.run(`S.tasks=Array.from({length:33},(_,i)=>({id:'t'+i,title:'Entry',projectId:'p',status:'done',source:'qa-sheet-import',cost:i,photos:[]}));const before=JSON.stringify(S);const html=projectProgressHtml(p);`);
   assert.equal(h.run('projectCounts(p).done'),33);assert.equal(h.run('projectProgress(p)'),null);
-  assert.match(h.run('html'),/บันทึกแล้ว 33 กิจกรรม/);assert.doesNotMatch(h.run('html'),/100%|<progress/);
+  assert.match(h.run('html'),/ทำแล้ว 33 กิจกรรม/);assert.doesNotMatch(h.run('html'),/100%|<progress/);
   assert.equal(h.run('JSON.stringify(S)===before'),true);
 });
 test('plan denominator ignores ad-hoc expenses and survives completing, failing and regrouping work',()=>{

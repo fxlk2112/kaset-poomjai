@@ -48,7 +48,7 @@ function overviewTaskRow(t,{future=false}={}) {
   const label=t.title+' · '+(plotById(S,t.plotId)?.name||'งานส่วนกลาง');
   return `<article class="fo-task${future?' fo-task-future':''}" data-task-id="${esc(t.id)}">
     ${future?`<button class="fo-date-badge" aria-label="${esc('ดูงานวันที่ '+overviewDate(t.date))}" onclick="${overviewAction('select',t.date)}">${overviewDate(t.date)}</button>`:taskCompletionCircleHtml({...t,title:label},{locked:projectById(t.projectId)?.status==='done'})}
-    <div class="fo-task-main"><button class="fo-task-title" onclick="${overviewApp('viewTask',t.id)}">${esc(t.title)}</button>${overviewContext(t,{compact:true})}${review?'<span class="fo-review">ตรวจปริมาณและต้นทุน</span>':''}${t.status==='failed'?'<span class="fo-review">บันทึกว่าไม่สำเร็จ</span>':''}</div>
+    <div class="fo-task-main"><button class="fo-task-title" onclick="${overviewApp('viewTask',t.id)}">${esc(t.title)}</button>${overviewContext(t,{compact:true})}${review?'<span class="fo-review">ตรวจปริมาณและต้นทุน</span>':''}<span class="fo-task-status">${esc(taskStatusText(t))}</span></div>
     <button class="fo-task-detail" aria-label="${esc('ดูรายละเอียด: '+label)}" onclick="${overviewApp('viewTask',t.id)}">${/^\d{2}:\d{2}$/.test(time||'')?`<span>${ic('clock')}${esc(time)}</span>`:''}${ic('chevron')}</button>
   </article>`;
 }
@@ -88,8 +88,8 @@ const FarmOverview = {
   project(id) { this.closeTaskList();projectWorkspaceTab='work'; App.projectOpen(id); },
   projectTasks(id,status='done') {
     const p=projectById(id); if(!p)return;
-    const all=projectTaskList(p),tasks=all.filter(t=>status==='done'?t.status==='done':t.status!=='done');
-    openModal(`<button class="modal-x" aria-label="ปิด" onclick="App.closeModal()">${notebookIcon('X')}</button><h3>${esc(p.name)}</h3><p>${esc(projectCode(p))}</p><div class="fo-list-tabs" role="group" aria-label="สถานะงานในโครงการ">${[['done','ทำแล้ว'],['remaining','งานที่เหลือ']].map(([key,label])=>`<button class="btn btn-outline" aria-pressed="${key===status}" onclick="${overviewAction('projectTasks',id,key)}">${label} ${all.filter(t=>key==='done'?t.status==='done':t.status!=='done').length}</button>`).join('')}</div><div class="fo-modal-tasks">${tasks.map(t=>overviewTaskRow(t)).join('')||'<p class="fo-empty">ไม่มีงานในกลุ่มนี้</p>'}</div>`);
+    const all=projectTaskList(p),tasks=all.filter(t=>status==='done'?t.status==='done':status==='failed'?t.status==='failed':!['done','failed'].includes(t.status));
+    openModal(`<button class="modal-x" aria-label="ปิด" onclick="App.closeModal()">${notebookIcon('X')}</button><h3>${esc(p.name)}</h3><p>${esc(projectCode(p))}</p><div class="fo-list-tabs" role="group" aria-label="สถานะงานในโครงการ">${[['done','ทำแล้ว'],['remaining','งานที่เหลือ'],['failed','ไม่สำเร็จ']].map(([key,label])=>`<button class="btn btn-outline" aria-pressed="${key===status}" onclick="${overviewAction('projectTasks',id,key)}">${label} ${all.filter(t=>key==='done'?t.status==='done':key==='failed'?t.status==='failed':!['done','failed'].includes(t.status)).length}</button>`).join('')}</div><div class="fo-modal-tasks">${tasks.map(t=>overviewTaskRow(t)).join('')||'<p class="fo-empty">ไม่มีงานในกลุ่มนี้</p>'}</div>`);
   },
   recordSaved(ids) {
     this.receipt={ids:ids.filter(id=>S.tasks.some(t=>t.id===id)),owner:Auth.session?.email||'',failed:!!storageSaveFailed};

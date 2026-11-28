@@ -24,6 +24,41 @@ test('calendar months align Monday through Sunday, retain adjacent dates and cla
   assert.equal(run(`farmCalendarMonth('2024-01-31',1)`),'2024-02-29');
   assert.equal(run(`farmCalendarMonth('2026-12-27',1)`),'2027-01-27');
 });
+
+test('calendar and project cards agree without inventing progress for historical or empty projects',()=>{
+  const h=harness();
+  h.run(`const p=S.projects[0];S.tasks=[{id:'historical',title:'Unknown quantity',projectId:p.id,status:'done',source:'project-history',date:'2026-11-27',dataStatus:'pending',missingFields:['ปริมาณ'],cost:0}];const before=JSON.stringify(S);`);
+  for(const count of [1,0]){
+    if(!count)h.run('S.tasks=[];');
+    const html=h.run('farmCalendarProjects([p])');
+    assert.ok(html.includes(h.run('projectProgressHtml(p)')));
+    assert.match(html,/ยังไม่มีฐานงานตามแผน/);
+    assert.doesNotMatch(html,/null%|NaN|undefined|<progress|100%/);
+    if(count){assert.match(html,/ข้อมูลรอตรวจ 1 กิจกรรม/);assert.equal(h.run('JSON.stringify(S)===before'),true);}
+  }
+});
+
+test('planned progress excludes imported work and failed outcomes stay out of remaining work',()=>{
+  const h=harness();
+  h.run(`const p=S.projects[0];S.tasks=[{id:'a',title:'Complete',projectId:p.id,status:'done',planTracked:true,date:'2026-11-27',cost:100},{id:'b',title:'Failed work',projectId:p.id,status:'failed',planTracked:true,date:'2026-11-27',cost:900},{id:'c',title:'Imported',projectId:p.id,status:'done',source:'project-history',date:'2026-11-27',cost:50}];const before=JSON.stringify(S);`);
+  const html=h.run('farmCalendarProjects([p])');
+  assert.match(html,/งานตามแผน 1\/2 งาน · 50%/);assert.match(html,/ไม่สำเร็จ 1 งาน/);
+  assert.match(html,/ทำแล้ว 2 กิจกรรม/); // Imported work is complete, while failed work is not.
+  h.run(`FarmOverview.projectTasks(p.id,'remaining');`);
+  assert.doesNotMatch(h.calls.at(-1),/Failed work/);assert.match(h.calls.at(-1),/งานที่เหลือ 0/);
+  h.run(`FarmOverview.projectTasks(p.id,'failed');`);assert.match(h.calls.at(-1),/Failed work/);
+  assert.match(h.run(`farmCalendarSelected(farmCalendarModel(S,'2026-11-27'),'2026-11-27')`),/ไม่สำเร็จ 1 งาน/);
+  assert.equal(h.run('projectCosts(p).cost'),150);assert.equal(h.run('JSON.stringify(S)===before'),true);
+});
+
+test('calendar, overview and completion control expose incomplete data without reopening completed work',()=>{
+  const h=harness();h.run(`const t={id:'pending',title:'Supported material',status:'done',dataStatus:'pending',missingFields:['ปริมาณ'],date:'2026-11-27',cost:0};const failed={...t,status:'failed'};const before=JSON.stringify(S);`);
+  for(const expression of ['farmCalendarChip(t)','farmCalendarTask(t)','overviewTaskRow(t)','taskCompletionCircleHtml(t)'])assert.match(h.run(expression),/ทำแล้ว · ข้อมูลรอตรวจ/);
+  assert.match(h.run('taskCompletionCircleHtml(t)'),/disabled/);
+  assert.equal(h.run('taskStatusText(failed)'),'ไม่สำเร็จ');
+  assert.equal(h.run('taskStatusText({...t,status:"planned",date:"2026-11-26"})'),'เลยกำหนด');
+  assert.equal(h.run('JSON.stringify(S)===before'),true);
+});
 test('calendar uses actual dates for results, planned dates for work and excludes invalid dates from grids',()=>{
   const {run}=harness();run(`S.tasks=[{id:'done',status:'done',date:'2026-11-01',doneDate:'2026-11-27'}, {id:'late',status:'planned',date:'2026-11-26'}, {id:'invalid',status:'planned',date:'2026-02-30'}];const model=farmCalendarModel(S,'2026-11-27');`);
   assert.equal(run(`model.byDay.has('2026-11-01')`),false);

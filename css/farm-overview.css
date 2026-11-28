@@ -211,3 +211,4 @@ html[data-theme="dark"] .fo-page .fo-link,html[data-theme="dark"] .fo-context,ht
 html[data-theme="dark"] .fo-project progress,html[data-theme="dark"] .fo-project progress::-webkit-progress-bar { background:#31483d; }
 html[data-theme="dark"] .fo-day.selected { color:#163c2d; }
 html[data-theme="dark"] .fo-day small { background:#d5efe2; color:#174a37; }
+.fo-task-status { display:block;font-size:12px;color:var(--muted);margin-top:3px; }
