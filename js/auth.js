@@ -315,6 +315,13 @@ Auth.saveNow = function (options) {
       Auth.setSyncStatus("conflict", "ข้อมูลในเครื่องเปลี่ยนแล้ว · ตรวจสอบใหม่ก่อนซิงก์");
       return { ok: false, conflict: true };
     }
+    // Another tab shares the dirty flag and storage slot, but has its own in-memory S.
+    // It must not acknowledge or replace a newer local edit that it has never loaded.
+    const storedLocal = localStorage.getItem(slotKey(session.email));
+    if(localDirty() && storedLocal && JSON.stringify(cloudSafeState(JSON.parse(storedLocal))) !== snapshot){
+      Auth.setSyncStatus("incoming", "อีกแท็บมีข้อมูลใหม่ · โหลดหน้าใหม่ก่อนแก้ไข");
+      return {ok:false,deferred:true,otherTab:true};
+    }
     const remoteMatches = remote.data && JSON.stringify(normalizedAccountState(remote.data)) === snapshot;
     const changed = revision !== cloudTs();
     if (!remoteMatches && options && options.replaceRevision !== undefined) {

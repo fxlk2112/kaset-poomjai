@@ -8239,6 +8239,7 @@ App.viewTask = function (id) {
         const name = it.name || (si ? si.name : "");
         const meta = [];
         if (si) meta.push("จากสต็อก");
+        if (materialIsSupported(it)) meta.push("ได้รับสนับสนุน · จ่ายจริง 0 บาท"+(it.sponsor?" · "+it.sponsor:""));
         if (it.usageUnit) meta.push(fmtNum(it.usageQty) + " " + it.usageUnit);
         else if (it.qty) meta.push(fmtNum(it.qty) + (it.unit ? " " + it.unit : ""));
         const cat = costCatMap(S)[it.category];
@@ -8366,6 +8367,7 @@ function costChargeQty(it) {
   return !it?.stockId || it?.usageUnit ? qty : (costStockMode(it) === "package" ? Math.ceil(qty) : qty);
 }
 function costTotal(it) {
+  if(materialIsSupported(it))return 0;
   if (it.areaAllocation && it.areaAllocation.key === taskAllocationCostKey(it)) return it.areaAllocation.cost;
   const external = externalMaterialCost(it);
   if (external !== null) return external;
@@ -8633,7 +8635,9 @@ App.costRender = function () {
       </div>
       ${st && it.usageUnit ? `<div class="hint">ขนาด ${esc(it.packageSize)} / ${esc(st.unit)} · คิดเงินตามปริมาณที่ระบุ</div>` : ""}
       ${st || ["chemical", "fertilizer", "seed", "materials"].includes(it.category) ? `<div class="field"><label>เฉลี่ยต่อไร่ (คำนวณอัตโนมัติ)</label><output class="cost-auto-rate" id="ciAutoRate_${i}" aria-live="polite">${esc(costAutoRateHtml(it))}</output></div><details><summary>อัตราที่ระบุเอง (ถ้ามี)</summary><div class="field"><label>อัตราที่ระบุ</label><input class="ci-usage-rate" value="${esc(it.rate || "")}" maxlength="240" placeholder="เช่น 20 ซีซี/น้ำ 20 ลิตร" oninput="App.costSet(${i}, 'rate', this.value)"></div></details>` : ""}
-      <div class="form-row-2">
+      ${!st && !it.showStockPicker ? `<label class="ph-check"><input type="checkbox" ${materialIsSupported(it)?"checked":""} onchange="App.costSupported(${i},this.checked)"> ได้รับสนับสนุน · เราไม่เสียค่าใช้จ่าย</label>` : ""}
+      ${materialIsSupported(it)?`<div class="field"><label>ผู้สนับสนุน / ที่มา (ไม่บังคับ)</label><input value="${esc(it.sponsor || '')}" maxlength="150" oninput="App.costSet(${i}, 'sponsor', this.value)"></div>`:""}
+      <div class="form-row-2" ${materialIsSupported(it)?'hidden':''}>
         ${!st ? `<div class="field"><label>วิธีคิดค่าใช้จ่าย</label><select class="ci-external-mode" onchange="App.costSet(${i}, 'externalPriceMode', this.value)">
           <option value="package" ${it.externalPriceMode === "package" ? "selected" : ""}>คำนวณจากราคาขวด/ถุง</option>
           <option value="total" ${it.externalPriceMode === "total" ? "selected" : ""}>ระบุค่าใช้จ่ายรวมเอง</option>
@@ -8841,6 +8845,7 @@ function costExternalPackageError(it) {
   return null;
 }
 function costExternalEquation(it) {
+  if(materialIsSupported(it))return "ได้รับสนับสนุน · จ่ายจริง 0 บาท · ไม่ตัดสต็อก";
   if (it.externalPriceMode === "package") {
     const error = costExternalPackageError(it);
     if (error) return error[1];
@@ -8851,6 +8856,12 @@ function costExternalEquation(it) {
   if (it.externalPriceMode === "total") return `ค่าใช้จ่ายรวม ${fmtMoney(costTotal(it))} บาท · ไม่ตัดสต็อก`;
   return `${fmtNum(it.qty || 0)} ${it.unit || "หน่วย"} × ${Number(it.unitCost) || 0} บาท/${it.unit || "หน่วย"} = ${fmtMoney(costTotal(it))} บาท`;
 }
+App.costSupported = function(i,on){
+  const it=taskCostItems[i];if(!it || it.stockId)return;
+  if(on){delete it.areaAllocation;Object.assign(it,materialSupportFields({...it,funding:"supported"}));}
+  else{delete it.funding;delete it.sponsor;it.externalTotal="";it.unitCost="";it.totalCost=0;}
+  App.costRender();if(typeof TaskWizard!=="undefined")TaskWizard.persist();
+};
 App.costAdd = function () {
   taskCostItems.push({ category: "other", externalPriceMode: "total", source: "external", stockId: "", stockMode: "package", name: "", qty: "", unit: "", unitCost: "", totalCost: 0 });
   App.costRender();
@@ -8873,6 +8884,7 @@ App.costSet = function (i, field, value) {
   }
   /* กดรายการที่เลือกอยู่ซ้ำ -> ยกเลิกการเลือก (เอารายการนี้ออก ไม่ต้องลบทั้งแถว) */
   if (field === "stockId" && value === it.stockId) value = "";
+  if(field === "stockId" && value){delete it.funding;delete it.sponsor;}
   it[field] = value;
   if (field === "externalPriceMode") {
     if (value === "total" && it.externalTotal == null) it.externalTotal = it.totalCost || "";
@@ -9614,6 +9626,11 @@ App.submitTask = function (e, editId, validateOnly) {
   const title = document.getElementById("t_title").value.trim();
   if (!title) return false;
   const useCost = document.getElementById("t_usecost").checked;
+  if(document.getElementById('t_status').value==='done'){
+    const message=taskMaterialReviewError(document.getElementById('t_type').value,useCost,taskCostItems);
+    if(message){toast(message);document.querySelector('#costItemsList .ci-qty')?.focus();return false;}
+  }
+
   const areaInput = document.getElementById("t_material_area");
   if (useCost && areaInput && !areaInput.disabled && areaInput.value !== "" && (!Number.isFinite(Number(areaInput.value)) || Number(areaInput.value) <= 0)) {
     setModalFieldError(areaInput, "พื้นที่ที่ทำจริงต้องมากกว่า 0 ไร่");
@@ -9681,7 +9698,8 @@ App.submitTask = function (e, editId, validateOnly) {
       rate: String(it.rate || "").trim().slice(0, 240),
       ...(it.usageUnit ? { usageQty: Number(it.usageQty) || 0, usageUnit: it.usageUnit, packageSize: it.packageSize } : {}),
       ...(it.areaAllocation ? {areaAllocation: it.areaAllocation} : {}),
-      totalCost: costTotal(it)
+      totalCost: costTotal(it),
+      ...materialSupportFields(it)
     }))
     .filter(it => it.name || it.stockId || it.qty > 0 || it.unitCost > 0 || it.totalCost > 0);
   /* ตรวจจำนวนกับสต็อกก่อนบันทึก — ตอนแก้ไขต้องบวกยอดเดิมของงานนี้กลับแบบชั่วคราว */

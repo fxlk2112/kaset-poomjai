@@ -1797,3 +1797,18 @@ function dayStatus(s, dateStr) {
 // The Worker reuses the same stock rules without initializing browser storage.
 const S = typeof module !== "undefined" && module.exports ? null : loadState();
 if (typeof module !== "undefined" && module.exports) module.exports = { prepareTaskStock };
+/* Funding is explicit: a blank price is never inferred to be sponsorship. */
+function materialIsSupported(item){return item?.funding==='supported' && !item.stockId;}
+function materialSupportFields(item){
+  if(item?.funding!=='supported')return {};
+  if(item.stockId)throw new Error('วัสดุจากคลังใช้ต้นทุนของคลัง แยกรายการรับสนับสนุนนอกคลัง');
+  return {funding:'supported',sponsor:String(item.sponsor || '').trim().slice(0,150),unitCost:0,totalCost:0,externalPriceMode:'total',externalTotal:0,amountPending:false};
+}
+
+function taskMaterialReviewError(type,useCost,items){
+  if(!['spray','fertilize'].includes(type))return '';
+  const materials=items.filter(it=>!it.projectEntryExpense && (!it.category || it.stockId || ['chemical','fertilizer','seed','materials'].includes(it.category)));
+  if(!useCost || !materials.length)return 'ระบุวัสดุและปริมาณที่ใช้จริงก่อนบันทึกงานยา/ปุ๋ย';
+  for(const it of materials){const qty=Number(it.usageUnit?it.usageQty:it.qty);if(!(it.name || it.stockId) || !Number.isFinite(qty) || qty<=0 || !(it.usageUnit || it.unit))return 'ตรวจชื่อวัสดุ หน่วย และปริมาณที่ใช้จริงให้มากกว่า 0';}
+  return '';
+}

@@ -1,5 +1,16 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — PROPOSAL-FIRST-SPONSORSHIP-20261128
+
+- Owner: Codex for Folk, user-authorized follow-up; SUCHA retains shared integration review.
+- Branch: `codex/proposal-first-sponsorship`, source `9ddebea`; fetched `origin/develop` verified as ancestor.
+- Task / Scope: Proposal before work, optional task breakdown, normal activity recording linked to the project, explicit requested/approved budgets, and supplied materials at zero cash cost with separate reporting.
+- Files / lock: project modules/styles, focused `js/app.js` / `js/data.js` / wizard hooks and `js/auth.js` stale-tab acknowledgement guard, asset wiring, tests, scoped QA and this status file. No conflicting active owner found.
+- Status: LOCAL_COMPLETE. Proposal-first workflow, sponsorship, shared material quantity validation and stale-reader sync guard implemented. Original workbook and saved editions preserved; no production data migration.
+- Validation: `npm run check` 761/761; relay 9/9. Desktop/mobile browser readback, actual Word download, API reload and original-data invariants verified. See `qa/proposal-first-sponsorship/HANDOFF.md` for evidence and limits.
+- Deployment: NOT_DEPLOYED. DATA_ONLY / SAFE_OFF and same-origin API unchanged.
+- Next action: Integration-owner review of this scoped branch for `develop`.
+
 ## Task lock — PROJECT-RECORDS-FINANCE-20261128
 
 - Owner: Codex for Folk, user-authorized follow-up; SUCHA retains shared integration review.

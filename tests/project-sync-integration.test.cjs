@@ -47,8 +47,8 @@ async function server(t){
   return api;
 }
 
-function device(api){
-  const storage=new Map([['farmult-session-v1',JSON.stringify({email:'sync@example.invalid',token:FIXTURE_SESSION,name:'Synthetic owner'})]]);
+function device(api,sharedStorage){
+  const storage=sharedStorage||new Map([['farmult-session-v1',JSON.stringify({email:'sync@example.invalid',token:FIXTURE_SESSION,name:'Synthetic owner'})]]);
   const document={hidden:false,activeElement:null,
     documentElement:{dataset:{},classList:{toggle(){},add(){},remove(){}},setAttribute(){},removeAttribute(){}},
     getElementById:()=>null,querySelector:()=>null,querySelectorAll:()=>[],addEventListener(){}};
@@ -149,4 +149,14 @@ test('uploaded evidence can be read and deleted through the same-origin API phot
   const removed=await api.call('photo_del',{url:uploaded.data.url});assert.equal(removed.ok,true);
   assert.equal((await api.fetch(uploaded.data.url)).status,404);
   assert.equal((await api.fetch(ORIGIN+'/api/photo/team-private/fixture.png')).status,403);
+});
+
+test('stale reader tab cannot clear the shared dirty flag or discard a new project',async t=>{
+ const api=await server(t),writer=device(api);createProject(writer);await writer.auth.saveNow();
+ const reader=device(api,writer.storage);await reader.auth.saveNow();
+ writer.run("const added=projectCreateSimple('New proposal');saveState(S);");
+ const result=await reader.auth.saveNow();assert.equal(result.otherTab,true);
+ assert.equal(writer.run('localDirty()'),true);assert.equal(writer.state.projects.length,2);
+ assert.equal((await writer.auth.saveNow()).ok,true);assert.equal(api.snapshot().data.projects.length,2);
+ await reader.auth.saveNow();assert.equal(reader.state.projects.length,2);
 });

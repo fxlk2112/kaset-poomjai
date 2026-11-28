@@ -68,9 +68,16 @@
 .ph-choices>label,.ph-check { display:flex; align-items:flex-start; gap:10px; padding:10px 0; }
 .ph-choices input[type=checkbox],.ph-check input { width:22px; height:22px; accent-color:#00856f; flex-shrink:0; }
 .ph-choices small { display:block; }
-.ph-expense { display:grid; grid-template-columns:2fr 1fr 1fr 1.4fr auto; gap:8px; border:1px solid var(--pp-border,#cbd9d3); border-radius:8px; padding:10px; margin:10px 0; }
+.ph-expense { display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; border:1px solid var(--pp-border,#cbd9d3); border-radius:8px; padding:10px; margin:10px 0; }
 .ph-expense label { display:grid; gap:5px; min-width:0; font-size:12px; }
 .ph-expense input { width:100%; min-width:0; padding:8px; color:inherit; background:var(--card,#fff); border:1px solid #cbd9d3; border-radius:5px; }
 @media(max-width:600px){ .ph-expense{grid-template-columns:1fr 1fr}.ph-expense>label:first-child{grid-column:1/-1}.ph-toolbar{justify-content:flex-start}.ph-toolbar .btn{flex:1 1 40%}.ph-modal .modal-actions{flex-wrap:wrap} }
 
 @media(max-width:899px){.pp-page .pp-metrics>div:nth-child(3)>span{display:grid;grid-template-columns:1fr;justify-content:start;gap:4px}}
+
+/* Support is a separate quantity table, not a currency column. */
+.pp-paper .pp-support-table th:nth-child(2){white-space:nowrap}
+.pp-paper .pp-support-table :is(td,th):last-child{white-space:normal;text-align:left}
+.ph-expense .ph-check{display:flex;align-items:center;grid-column:1/-1}
+.ph-expense .ph-check input{width:18px;height:18px;flex:none}
+.ph-expense>label:nth-child(5){grid-column:span 2}

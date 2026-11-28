@@ -83,6 +83,7 @@ test('typed external materials keep their exact price without creating or deduct
   const data=fs.readFileSync(path.join(__dirname,'..','js/data.js'),'utf8');
   const c=vm.createContext({App:{}});
   vm.runInContext(data.slice(data.indexOf('function externalMaterialCost('),data.indexOf('function taskMaterialCost(')),c);
+  vm.runInContext(data.slice(data.indexOf('function materialIsSupported(')),c);
   vm.runInContext(source,c);
   assert.equal(vm.runInContext('costChargeQty({qty:.5,unitCost:120})',c),.5);
   assert.equal(vm.runInContext('costTotal({qty:.5,unitCost:120})',c),60);

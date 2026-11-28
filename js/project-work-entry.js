@@ -4,13 +4,7 @@ let projectEntryTaskId='',projectEntryOwner='',projectEntryBefore=null,projectEn
 const legacyProjectLogWork=App.projectLogWork,legacyProjectTaskComplete=App.projectTaskComplete;
 function projectEntryKey(id){return projectDraftKey()+'::work::'+id;}
 function projectEntryPrepare(data,existing){if(!projectEntrySaving || existing?.id!==projectEntryTaskId)return;data.doneNote=data.note;data.note=existing.note || '';data.photos=taskPhotos(existing).slice();data.donePhotos=taskFormPhotos.slice();}
-function projectEntryMaterialError(type,useCost,items){
-  if(!['spray','fertilize'].includes(type))return '';
-  const materials=items.filter(it=>!it.projectEntryExpense);
-  if(!useCost || !materials.length)return 'ระบุวัสดุและปริมาณที่ใช้จริงก่อนบันทึกงานยา/ปุ๋ย';
-  for(const it of materials){const qty=Number(it.usageUnit?it.usageQty:it.qty);if(!(it.name || it.stockId) || !Number.isFinite(qty) || qty<=0 || !(it.usageUnit || it.unit))return 'ตรวจชื่อวัสดุ หน่วย และปริมาณที่ใช้จริงให้มากกว่า 0';}
-  return '';
-}
+function projectEntryMaterialError(type,useCost,items){return taskMaterialReviewError(type,useCost,items);}
 function projectEntryPage(p){
   const t=S.tasks.find(t=>t.id===projectEntryTaskId && t.projectId===p.id);if(!t){projectEntryTaskId='';return renderProjectDetail();}
   setTimeout(()=>{if(route.view==='projectDetail' && route.projectId===p.id && projectEntryTaskId===t.id && !document.querySelector('.pp-entry-form'))projectEntryMount(p,t);},0);
@@ -50,7 +44,7 @@ App.projectEntryExpense=function(key,value){let item=taskCostItems.find(ci=>ci.p
 function projectEntryRefresh(){
   const target=document.getElementById('ppEntryReview');if(!target)return;const use=document.getElementById('t_usecost')?.checked,items=use?taskCostItems:[],total=items.reduce((sum,it)=>sum+(Number(costTotal(it))||0),0);let stock='';
   try{stock=taskWizardStockPreview(S,items.filter(it=>it.stockId),'done').map(({before,after})=>`<p>${esc(before.name)} <b>${fmtNum(before.qty)} → ${fmtNum(after.qty)} ${esc(before.unit || '')}</b></p>`).join('');}catch(e){stock=`<p class="pp-notice">${esc(e.message)}</p>`;}
-  target.innerHTML=`<h2>ตรวจปริมาณและต้นทุน</h2><span class="pp-tag">ยอดก่อนยืนยัน</span><div class="pp-entry-totals">${items.filter(it=>it.name || it.stockId).map(it=>`<div><span>${esc(it.name || stockById(S,it.stockId)?.name || 'วัสดุ')}<small>${esc([it.usageQty ?? it.qty,it.usageUnit || it.unit].filter(v=>v!==''&&v!=null).join(' '))}</small></span><b>${fmtMoney(costTotal(it))} บาท</b></div>`).join('') || '<p>ยังไม่มีค่าใช้จ่ายที่ระบุ</p>'}<div class="pp-context"><b>ต้นทุนรายการนี้</b><strong>${fmtMoney(total)} บาท</strong></div></div>${stock?`<section class="pp-card pp-stock-after"><h3>สต็อกหลังยืนยัน</h3>${stock}</section>`:''}<p class="pp-notice">ตรวจชื่อวัสดุ หน่วย ปริมาณ และยอดรวมก่อนยืนยัน</p><h3>หลังยืนยัน ข้อมูลจะอัปเดตที่</h3><ul><li>ประวัติงานของแปลง</li><li>ยาและปุ๋ยของรอบปลูก</li><li>ต้นทุนรอบปลูกและโครงการ</li><li>เล่มสรุปโครงการ</li></ul><small>ใช้บันทึกเดียวกันทุกหน้า ต้นทุนรายการนี้นับครั้งเดียว</small>`;
+  target.innerHTML=`<h2>ตรวจปริมาณและต้นทุน</h2><span class="pp-tag">ยอดก่อนยืนยัน</span><div class="pp-entry-totals">${items.filter(it=>it.name || it.stockId).map(it=>`<div><span>${esc(it.name || stockById(S,it.stockId)?.name || 'วัสดุ')}<small>${esc([it.usageQty ?? it.qty,it.usageUnit || it.unit].filter(v=>v!==''&&v!=null).join(' '))}</small></span><b>${fmtMoney(costTotal(it))} บาท${materialIsSupported(it)?' · ได้รับสนับสนุน':''}</b></div>`).join('') || '<p>ยังไม่มีค่าใช้จ่ายที่ระบุ</p>'}<div class="pp-context"><b>ต้นทุนรายการนี้</b><strong>${fmtMoney(total)} บาท</strong></div></div>${stock?`<section class="pp-card pp-stock-after"><h3>สต็อกหลังยืนยัน</h3>${stock}</section>`:''}<p class="pp-notice">ตรวจชื่อวัสดุ หน่วย ปริมาณ และยอดรวมก่อนยืนยัน</p><h3>หลังยืนยัน ข้อมูลจะอัปเดตที่</h3><ul><li>ประวัติงานของแปลง</li><li>ยาและปุ๋ยของรอบปลูก</li><li>ต้นทุนรอบปลูกและโครงการ</li><li>เล่มสรุปโครงการ</li></ul><small>ใช้บันทึกเดียวกันทุกหน้า ต้นทุนรายการนี้นับครั้งเดียว</small>`;
   document.querySelectorAll('#costItemsList [data-ci]').forEach(el=>{el.hidden=!!taskCostItems[Number(el.dataset.ci)]?.projectEntryExpense;});
 }
 function projectEntryCompactMaterials(openRows=[]){
