@@ -1,6 +1,6 @@
 /* Responsive owner workspace. Public and collector pages keep their own styles. */
-body.concept { --green:#168064; --green-dark:#126850; --green-deep:#11543f; --green-soft:#eaf5f0; --green-light:#dceee5; --text:#273633; --muted:#68756f; --line:#e5eae7; --bg:#f5f7f8; --card-border:#e0e6e3; --radius:8px; --radius-sm:6px; --side-w:252px; --shadow:none; }
-body.concept { background:#f5f7f8; background-image:none; }
+body.concept { --green:#168064; --green-dark:#126850; --green-deep:#11543f; --green-soft:#eaf5f0; --green-light:#dceee5; --text:#273633; --muted:#5d6d64; --line:#d0dcd5; --bg:#edf2ef; --card-border:#bfcfc6; --surface-subtle:#f3f7f4; --surface-heading:#e3ede7; --control-border:#7b9285; --radius:8px; --radius-sm:6px; --side-w:252px; --shadow:none; }
+body.concept { background:var(--bg); background-image:none; }
 body:not(.concept) :is(#conceptSidebar,.cn-scrim,.cn-top-left) { display:none!important; }
 .concept .topbar-row>.brand { display:none; }
 .cn-brand>span { overflow-wrap:anywhere; min-width:0; }

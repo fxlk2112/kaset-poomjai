@@ -1,5 +1,16 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — LIGHT-THEME-SURFACES-20261128
+
+- Owner: Codex for Folk, user-requested light UI readability follow-up; SUCHA retains shared-shell integration review.
+- Branch: `codex/light-theme-surfaces`, source `2be003c`; refreshed `origin/develop` verified as ancestor.
+- Task / Scope: Inspect the supplied material-history light-theme screenshots; improve page/card/table separation within the existing green design. Verify light desktop/mobile and dark-mode regression locally.
+- Files / lock: light surface/border tokens in `css/workspace.css`, material-history styles in `css/plot-materials.css`, matching `index.html` / `sw.js` versions, scoped synthetic QA evidence and this status. No active overlapping owner lock; no data or business-logic changes.
+- Status: COMPLETE_LOCAL — light page/card/table/control separation improved. `npm run check`: 824 PASS, 0 FAIL; relay 9 PASS. Desktop/mobile screenshot/readback and dark-token comparison passed. See `qa/light-theme/HANDOFF.md`.
+- Deployment: NOT_DEPLOYED. Keep prior no-deploy instruction; no production-account access or missing-record edits.
+- Blocked / Risks: No blocker; mobile checked through viewport emulation. Shared light tokens affect owner views; representative farm overview and project list also inspected. Synthetic costs/stock and seven incomplete records unchanged.
+- Next action: Review light-theme screenshots before any production release.
+
 ## Task lock — CYCLE-EXECUTION-FILE-DATES-20261128
 
 - Owner: Codex for Folk, explicit user-requested Farm/Project follow-up; SUCHA retains integration review.

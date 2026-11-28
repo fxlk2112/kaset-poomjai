@@ -1,0 +1,66 @@
+{
+  "light": {
+    ".mh-activity": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(224, 230, 227)",
+      "text": "rgb(39, 54, 51)"
+    },
+    ".mh-activity footer": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(229, 234, 231)",
+      "text": "rgb(39, 54, 51)"
+    },
+    ".mh-items thead th": {
+      "background": "rgb(245, 247, 248)",
+      "border": "rgb(229, 234, 231)",
+      "text": "rgb(104, 117, 111)"
+    },
+    ".mh-panel": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(224, 230, 227)",
+      "text": "rgb(39, 54, 51)"
+    },
+    ".mh-search": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(224, 230, 227)",
+      "text": "rgb(104, 117, 111)"
+    },
+    "body": {
+      "background": "rgb(245, 247, 248)",
+      "border": "rgb(39, 54, 51)",
+      "text": "rgb(39, 54, 51)"
+    }
+  },
+  "dark": {
+    ".mh-activity": {
+      "background": "rgb(32, 39, 37)",
+      "border": "rgb(57, 69, 63)",
+      "text": "rgb(237, 242, 239)"
+    },
+    ".mh-activity footer": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(57, 69, 63)",
+      "text": "rgb(237, 242, 239)"
+    },
+    ".mh-items thead th": {
+      "background": "rgb(20, 25, 24)",
+      "border": "rgb(57, 69, 63)",
+      "text": "rgb(180, 193, 185)"
+    },
+    ".mh-panel": {
+      "background": "rgb(32, 39, 37)",
+      "border": "rgb(57, 69, 63)",
+      "text": "rgb(237, 242, 239)"
+    },
+    ".mh-search": {
+      "background": "rgb(32, 39, 37)",
+      "border": "rgb(57, 69, 63)",
+      "text": "rgb(180, 193, 185)"
+    },
+    "body": {
+      "background": "rgb(20, 25, 24)",
+      "border": "rgb(237, 242, 239)",
+      "text": "rgb(237, 242, 239)"
+    }
+  }
+}
