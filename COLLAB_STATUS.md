@@ -1,5 +1,18 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — RELEASE-LIGHT-THEME-20261128
+
+- Owner: Codex for Folk, explicitly authorized production release; SUCHA retains integration review.
+- Branch: `codex/release-light-theme-20261128`, source `344772c`; refreshed `origin/develop` verified as ancestor.
+- Task / Scope: Deploy the latest light-theme and date/cycle-display fixes to the canonical Pages site, then verify light desktop/mobile through the existing QA account.
+- Files / lock: this status and scoped release evidence only. No active conflicting lock; runtime remains the tested feature source.
+- Status: DEPLOYED_AND_VERIFIED — runtime `344772c`; fresh check 824 PASS, relay 9 PASS, both required remote CI runs PASS. All 77 public asset hashes match; canonical-site desktop/mobile light-mode screenshot/readback passed.
+- Deployment: Authorized by the user's `APPROVE_PRODUCTION_DEPLOY` in this chat for `farmultimate-solutions.pages.dev`. No backend source changes since the previous release; verify existing same-origin API capability. No hardware, schema, credential/config expansion or real farm-data write.
+- Validation / evidence: `qa/light-theme/DEPLOYMENT-20261128.md`; Pages `a7b820be-41e7-4b95-91a2-d4d47ff100cf`. Existing backend/proxy unchanged; API healthy. No data forms submitted; seven incomplete entries remain pending.
+- Integration: Draft PR https://github.com/fxlk2112/kaset-poomjai/pull/22 targets `develop`; source published to `folk/light-theme-surfaces`. Protected branches unchanged.
+- Blocked / Risks: No release blocker; mobile verified by responsive viewport, not physical device.
+- Next action: SUCHA reviews PR #22 in dependency order.
+
 ## Task lock — LIGHT-THEME-SURFACES-20261128
 
 - Owner: Codex for Folk, user-requested light UI readability follow-up; SUCHA retains shared-shell integration review.
