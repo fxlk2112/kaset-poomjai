@@ -1,5 +1,16 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — PUBLISH-SYNGENTA-DEMO-20261128
+
+- Owner: Codex for Folk, explicit user request to publish the existing worksheet example to the separate production QA account.
+- Branch: `codex/publish-syngenta-demo-20261128`, source `a4e723c`; refreshed `origin/develop` verified as ancestor.
+- Task / Scope: Append the saved local worksheet example, its linked plot/cycle and labelled sample images to the existing QA account; preserve seven incomplete records and every original amount/date/quantity.
+- Files / lock: this status file and scoped QA handoff only. Transfer scripts, data and credentials stay ignored. No application or shared contract changes.
+- Status: TRANSFERRED_AND_VERIFIED — 33 source records and two labelled sample photos available in the separate production QA account. All seven incomplete records preserved; existing 12 QA records unchanged.
+- Validation: Original workbook/source reconciliation, revision-guarded append, exact API readback before and after browser login, unique IDs and project/plot/cycle finance agreement PASS. Canonical-site project, seven-row repair table and report/photo readback PASS. See `qa/syngenta-batch-example/PRODUCTION-EXAMPLE-20261128.md`.
+- Deployment: No code deployment; the user explicitly authorized this QA-account data transfer on 2026-11-28. Real farm accounts and the original workbook remain unchanged.
+- Next action: User tries project `PRJ-DEMO-A-002` in the signed-in QA browser tab, leaving missing inputs blank until confirmed.
+
 ## Task lock — RELEASE-BATCH-INCOME-20261128
 
 - Owner: Codex for Folk, explicitly authorized production release; SUCHA retains integration review.
