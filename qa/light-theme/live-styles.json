@@ -1,0 +1,36 @@
+{
+  "pageWidth": 1440,
+  "styles": {
+    ".mh-activity": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(191, 207, 198)",
+      "text": "rgb(39, 54, 51)"
+    },
+    ".mh-activity footer": {
+      "background": "rgb(243, 247, 244)",
+      "border": "rgb(208, 220, 213)",
+      "text": "rgb(39, 54, 51)"
+    },
+    ".mh-items thead th": {
+      "background": "rgb(227, 237, 231)",
+      "border": "rgb(208, 220, 213)",
+      "text": "rgb(64, 91, 77)"
+    },
+    ".mh-panel": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(191, 207, 198)",
+      "text": "rgb(39, 54, 51)"
+    },
+    ".mh-search": {
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(123, 146, 133)",
+      "text": "rgb(93, 109, 100)"
+    },
+    "body": {
+      "background": "rgb(237, 242, 239)",
+      "border": "rgb(39, 54, 51)",
+      "text": "rgb(39, 54, 51)"
+    }
+  },
+  "width": 1440
+}

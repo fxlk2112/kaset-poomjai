@@ -1,0 +1,20 @@
+// Read-only verification of synthetic data after the browser scenario in HANDOFF.md.
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const {DatabaseSync}=require('node:sqlite');
+const db=new DatabaseSync(path.join(__dirname,'.private/runtime/state.sqlite'),{readOnly:true});
+const state=JSON.parse(db.prepare('SELECT data FROM user_data WHERE user_id=?').get('batch-work-qa').data);
+const ctx=vm.createContext({console,Date,JSON,App:{},window:{addEventListener(){}},localStorage:{getItem:()=>null,setItem(){}},setTimeout(){},state});
+const run=s=>vm.runInContext(s,ctx);
+for(const f of ['data','projects','project-workspace','cycle-notebook','plot-materials'])run(fs.readFileSync(path.join(__dirname,'../../js',f+'.js'),'utf8'));
+const app=fs.readFileSync(path.join(__dirname,'../../js/app.js'),'utf8');
+run(app.slice(app.indexOf('function taskMaterialItems('),app.indexOf('function taskMaterialsHtml(')));
+run('Object.assign(S,state);');
+const result=run(`({records:S.tasks.length,uniqueIds:new Set(S.tasks.map(t=>t.id)).size,batchRecords:S.tasks.filter(t=>t.source==='batch-work').length,uniqueBatchRows:new Set(S.tasks.filter(t=>t.source==='batch-work').map(t=>t.entryBatchId+':'+t.entryRowId)).size,projectCash:projectCosts(projectById('daily-project')).cost,plannedProjectCash:projectCosts(projectById('daily-plan')).cost,cycleCash:cycleFinance(S,S.projects[0].cycleId).cost,materialCash:materialHistoryModel(S.tasks).cost,stock:S.stock.find(s=>s.id==='proposal-stock').qty,adHocProgress:projectProgress(projectById('daily-project')),plannedProgress:projectProgress(projectById('daily-plan')),supportedCash:S.tasks.flatMap(t=>t.costItems||[]).filter(materialIsSupported).reduce((n,i)=>n+Number(i.totalCost||0),0),groupedLabor:S.tasks.find(t=>t.title==='ใส่ปุ๋ยชุดตาราง QA').costItems.filter(i=>i.category==='labor').reduce((n,i)=>n+i.totalCost,0),copiedWork:S.tasks.filter(t=>t.title==='ใส่ปุ๋ยจากคลัง QA').map(t=>({date:t.date,cost:t.cost,photos:(t.photos||[]).length+(t.donePhotos||[]).length})).sort((a,b)=>a.date.localeCompare(b.date))})`);
+assert.equal(result.records,8);assert.equal(result.uniqueIds,8);
+assert.equal(result.batchRecords,4);assert.equal(result.uniqueBatchRows,4);
+assert.equal(result.projectCash,1135);assert.equal(result.plannedProjectCash,0);assert.equal(result.cycleCash,1135);
+assert.equal(result.materialCash,645);assert.equal(result.stock,47);assert.equal(result.supportedCash,0);assert.equal(result.groupedLabor,80);
+assert.equal(result.adHocProgress,null);assert.equal(result.plannedProgress,50);
+assert.equal(result.copiedWork.length,2);assert.equal(result.copiedWork[0].cost,110);assert.equal(result.copiedWork[1].cost,185);
+assert.ok(result.copiedWork.every(t=>t.photos===0));
+console.log(JSON.stringify({result:'PASS',...result},null,2));db.close();

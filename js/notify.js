@@ -25,16 +25,16 @@ function renderNotifPanel() {
   if (!panel) return;
   const n = notifList(S);
   const rowHtml = (t, grp) => {
-    const st = taskStatusOf(t);
-    const dotCls = st === "done" ? "dot-green" : st === "overdue" ? "dot-red" : "dot-amber";
+    const plotLabel=plotById(S,t.plotId)?.name || 'งานส่วนกลาง';
+    const label=t.title+' · '+plotLabel;
     return `
-    <div class="notif-row" onclick="App.viewTask('${t.id}')" role="button" tabindex="0" style="cursor:pointer">
-      <span class="task-ico ${esc(t.type)}">${ic(TYPE_ICONS[t.type] || "wrench")}</span>
-      <div class="grow">
+    <div class="notif-row notif-row-circles">
+      ${taskCompletionCircleHtml({...t,title:label},{locked:projectById(t.projectId)?.status==='done'})}
+      <button class="notif-open grow" aria-label="${esc('ดูรายละเอียด: '+label)}" onclick="${esc('App.viewTask('+JSON.stringify(t.id)+')')}">
         <div class="bold" style="font-size:.82rem">${esc(t.title)}</div>
+        <div class="muted" style="font-size:.75rem">${esc(plotLabel)}</div>
         <div class="muted" style="font-size:.68rem">${grp === "overdue" ? `${ic("alert")} เลยกำหนด ${dateLabel(t.date)}` : `${ic("calendar")} ครบกำหนดวันนี้ ${dateLabel(t.date)}`} ${typeTag(t)}</div>
-      </div>
-      <button class="task-dot ${dotCls}" onclick="event.stopPropagation();App.toggleTask('${t.id}')" aria-label="สลับสถานะเสร็จ" title="ทำเสร็จ"></button>
+      </button>
       <button class="notif-x" onclick="event.stopPropagation();App.dismissNotif('${t.id}')" aria-label="ปิดการแจ้งเตือน" title="ปิดการแจ้งเตือนนี้">✕</button>
     </div>`;
   };
