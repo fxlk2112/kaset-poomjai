@@ -6,9 +6,10 @@
 - Branch: `codex/release-batch-income-20261128`, source `364eab8`; refreshed `origin/develop` verified as ancestor.
 - Task / Scope: Deploy the latest batch entry, income copy, original worksheet paste and missing-data repair UI to the canonical site; verify live flows and consistent costs.
 - Files / lock: this status file and scoped release evidence; live readback exposed legacy non-material stock links, so the lock also covers the narrow copy fix in `js/batch-work.js`, its regression tests, `index.html` and `sw.js` cache wiring. Existing backend and hardware contracts are unchanged.
-- Status: RELEASE_VALIDATION — full check passed (805 tests; relay 9).
-- Deployment: APPROVED by the user's `APPROVE_PRODUCTION_DEPLOY` on 2026-11-28 naming `farmultimate-solutions.pages.dev` and all three verification flows; not yet deployed.
-- Next action: Publish the verified frontend and inspect production behavior.
+- Status: DEPLOYED_AND_VERIFIED — final runtime `d244cb1`, full check 807 PASS and relay 9 PASS. Live isolated QA saved/reloaded all three flows; canonical-site readback confirmed the legacy service-copy fix.
+- Deployment: DEPLOYED under the user's `APPROVE_PRODUCTION_DEPLOY` on 2026-11-28; final Pages deployment `56a813f3-469a-43c1-ba05-fc913e630676`. The user separately approved an isolated QA account and 12 synthetic records. Existing farm records were not submitted or changed by testing.
+- Blocked / Risks: No deployment blocker. GitHub connector cannot create an integration PR (403); source is published to `folk/batch-income-repair`. See `qa/batch-income-repair/DEPLOYMENT-20261128.md` for evidence and limits.
+- Next action: Integration owner reviews the published feature branch into `develop` through normal GitHub access.
 
 ## Task lock — BATCH-INCOME-MISSING-DATA-20261128
 
