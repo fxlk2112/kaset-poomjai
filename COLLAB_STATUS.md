@@ -1,5 +1,16 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — RELEASE-STATUS-20261128
+
+- Owner: Codex for Folk, explicitly authorized production release; SUCHA retains integration review.
+- Branch: `codex/release-status-20261128`, source `a1ccb1d`; refreshed `origin/develop` verified as ancestor.
+- Task / Scope: Deploy the latest status/progress fixes to `farmultimate-solutions.pages.dev` and verify canonical-site desktop/mobile readback. Preserve all seven incomplete worksheet entries; do not save PDFs.
+- Files / lock: this status file and scoped release evidence only; no additional feature changes or conflicting active owner found.
+- Status: DEPLOYED_AND_VERIFIED — runtime `a1ccb1d`, full check 810 PASS, relay 9 PASS; 17 canonical asset hashes and same-origin API health PASS. Desktop/mobile status readback and whole-QA-account before/after equality PASS; seven incomplete entries unchanged. No PDFs saved.
+- Deployment: DEPLOYED under the user's `APPROVE_PRODUCTION_DEPLOY` on 2026-11-28; production Pages deployment `f05b6e34-fc29-4e8b-b19d-550c5f5507a6`. Existing backend/binding unchanged. See `qa/status-acceptance/DEPLOYMENT-20261128.md`.
+- Blocked / Risks: No deployment blocker. Source published to `folk/status-progress`; GitHub connector returned 403 when creating the integration PR. No protected-branch update, migration, configuration, hardware or field-data write.
+- Next action: Integration owner reviews `folk/status-progress` into `develop` through normal GitHub access.
+
 ## Task lock — STATUS-MOBILE-ACCEPTANCE-20261128
 
 - Owner: Codex for Folk, explicitly requested Farm/Project/Commerce follow-up; SUCHA retains shared integration review.
