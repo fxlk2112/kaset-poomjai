@@ -512,6 +512,7 @@ function render() {
     batchWork: "planner",
     projects: "more",
     projectDetail: "more",
+    projectDataRepair: "more",
     projectDraft: "more",
     plotDetail: "plots",
     cycleDetail: "plots"
@@ -556,6 +557,7 @@ function render() {
     home: renderHome, plots: renderPlots, stock: renderStock,
     planner: renderPlanner, batchWork: () => typeof renderBatchWork === 'function' ? renderBatchWork() : '', analytics: renderAnalytics, more: renderMore,
     projects: renderProjects, projectDetail: renderProjects, projectDraft: renderProjects,
+    projectDataRepair: () => typeof renderProjectDataRepair === 'function' ? renderProjectDataRepair() : '',
     farm: renderFarmOverview, equipment: renderEquipment, iot: renderIoT, settings: renderSettings,
     plotDetail: renderPlotDetail, cycleDetail: renderCycleDetail,
     prices: renderPrices, weather: renderWeather,

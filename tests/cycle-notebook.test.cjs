@@ -23,6 +23,12 @@ function harness({notebook=true}={}){
   run(`S.tasks=[];S.projects=[];S.plots=[{id:'p',sizeRai:2}];S.cycles=[{id:'c',plotId:'p',status:'active'}];`);
   return {run,ctx,count,note};
 }
+
+test('history keeps supported zero separate from unknown money and displays known partial costs',()=>{
+  const h=harness();h.run(`function dateLabel(v){return v;}const gift={id:'gift',title:'Gift',type:'work',status:'done',cost:0,dataStatus:'pending',missingFields:['ปริมาณ / หน่วยที่ใช้'],costItems:[{name:'Gift',category:'fertilizer',funding:'supported',totalCost:0}]};const unknown={...gift,id:'unknown',costItems:[],missingFields:['ค่าใช้จ่าย']};const partial={...gift,id:'partial',cost:100,missingFields:['ยอด Material'],costItems:[{name:'Known',category:'labor',totalCost:100},{name:'Material',category:'fertilizer',totalCost:0,amountPending:true}]};const table=t=>notebookHistoryTable({mode:'done',groups:[{date:'2026-11-20',tasks:[t]}]});`);
+  assert.equal(h.run('notebookAmountPending(gift)'),false);assert.doesNotMatch(h.run('table(gift)'),/ยอดรอยืนยัน/);assert.match(h.run('table(gift)'),/0 บาท/);
+  assert.equal(h.run('notebookAmountPending(unknown)'),true);assert.match(h.run('table(unknown)'),/ยอดรอยืนยัน/);assert.match(h.run('table(partial)'),/100 บาท · รอยืนยันบางรายการ/);
+});
 test('notebook totals reconcile to canonical completed costs across categories',()=>{
   const h=harness();h.run(`S.tasks=[{id:'a',cycleId:'c',date:'2026-11-24',status:'done',cost:800,costItems:[{category:'chemical',totalCost:600},{category:'labor',totalCost:200}]},{id:'b',cycleId:'c',date:'2026-11-23',status:'done',cost:1300,costCat:'labor'},{id:'c',cycleId:'c',date:'2026-11-22',status:'done',cost:400,costCat:'other'},{id:'estimate',cycleId:'c',date:'2026-11-25',status:'planned',cost:9000},{id:'other-cycle',cycleId:'elsewhere',date:'2026-11-24',status:'done',cost:9000}];const model=notebookModel(S.cycles[0]);`);
   assert.equal(h.run('model.finance.cost'),2500);

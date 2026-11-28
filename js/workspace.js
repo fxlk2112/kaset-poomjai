@@ -32,7 +32,7 @@ const Concept = {
     if (['planner','batchWork'].includes(route.view)) return 'tasks';
     if (route.view === 'farm') return route.tab==='analytics'?'reports':'farm';
     if (route.view === 'ledgerPreview') return 'reports';
-    if (['projectDetail','projectDraft'].includes(route.view)) return 'projects';
+    if (['projectDetail','projectDraft','projectDataRepair'].includes(route.view)) return 'projects';
     if (route.view === 'plots') return route.tab === 'trials' ? 'projects' : 'plots';
     if (['plotDetail','cycleDetail'].includes(route.view)) return 'plots';
     return route.view;

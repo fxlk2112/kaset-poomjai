@@ -12,6 +12,41 @@ function setup(ui=false){
     const draft=(rows=[row()])=>({version:1,id:uid(),context:{plotId:'plot',cycleId:'cycle',projectId:'project',stageId:'stage'},rows});`);
   return {c,run,storage};
 }
+
+test('copy preserves general income, explicit zero and sponsored service without copying harvest income',()=>{
+  const {run}=setup();
+  run(`const original={id:'old',title:'Service income',type:'work',revenue:1234.5,incomeMode:'general',cost:80,costItems:[{name:'Sponsored service',category:'labor',funding:'supported',sponsor:'Example',qty:'',unit:'',totalCost:0},{name:'Meals',category:'meals',totalCost:80}],photos:['old-photo']};const copy=batchWorkCopyRow(original,S);const plan=batchWorkPlan(S,draft([copy]));`);
+  assert.equal(run('copy.income'),'1234.5');assert.equal(run('copy.items[0].source'),'supported');assert.equal(run('copy.items[0].sponsor'),'Example');assert.equal(run('copy.items[1].category'),'meals');assert.equal(run('plan.valid'),true);assert.equal(run('plan.income'),1234.5);assert.equal(run('plan.total'),80);
+  assert.equal(run(`batchWorkCopyRow({...original,revenue:0},S).income`),'0');
+  assert.throws(()=>run(`batchWorkCopyRow({...original,incomeMode:'harvest'},S)`),/เก็บเกี่ยว/);
+});
+test('general income commits once to every scope and is part of the review and duplicate checks',()=>{
+  const {run}=setup();run(`const d=draft([row({income:'5000'})]),p=batchWorkPlan(S,d);let writes=0;batchWorkCommit(S,d,()=>{writes++;return true;},p.signature);batchWorkCommit(S,d,()=>{writes++;return true;});`);
+  assert.equal(run('writes'),1);assert.equal(run('S.tasks.length'),1);
+  for(const key of ['plotId','cycleId','projectId'])assert.equal(run(`taskFinance(S,t=>t.${key}===d.context.${key}).revenue`),5000);
+  assert.equal(run(`batchWorkPlan(S,draft([row({income:'5001'})])).duplicates.length`),0);
+  assert.equal(run(`batchWorkPlan(S,draft([row({income:'5000'})])).duplicates.length`),1);
+  assert.equal(run(`batchWorkPlan(S,draft([row({income:'-1'})])).valid`),false);
+  run(`const changed=draft([row({income:'50',title:'Other'})]),review=batchWorkPlan(S,changed);changed.rows[0].income='51';`);
+  assert.throws(()=>run('batchWorkCommit(S,changed,()=>true,review.signature)'),/เปลี่ยน/);
+});
+test('original Farm Record headers distinguish quantity, unit price, signed expenses and income',()=>{
+  const {run}=setup();run(`const cells=[['Bill-Date','ช่วงอายุ','Bill-Type','Topic\\n(รายการ)','Cost-Type\\n(ประเภทต้นทุน)','Chemical-Type','Description','ปริมาตร','Amount\\n(จำนวน)','Unit\\n(หน่วย)','ปริมาณ/ขวด','ปริมาณที่ใช้ทั้งหมด','Amount/Unit\\n(ราคา/หน่วย)','Total Amount\\n(จำนวนเงิน)','Remark','รายได้'],['27/11/2569','','รายจ่าย','Fertilizer','ค่าปุ๋ยเคมี','','before','','999','kg','50','25','1400','-700','after',''],['27/11/2569','','รายได้ฟาร์ม','Income','รายได้อื่น','','','','1','ครั้ง','1','1','5000','5000','',''],['27/11/2569','','รายจ่าย','Labor','ค่าจ้างแรงงานชั่วคราว','','','','1','ครั้ง','1','2','200','','','']];const guess=batchWorkGuessColumns(cells);const rows=batchWorkPasteRows(cells,guess.map,true),p=batchWorkPlan(S,draft(rows));`);
+  assert.equal(run('guess.header'),true);assert.equal(run('guess.map[8]'),'skip');assert.equal(run('guess.map[12]'),'unitPrice');assert.equal(run('guess.map[13]'),'amount');assert.equal(run('rows[0].items[0].qty'),'25');assert.equal(run('rows[0].items[0].amount'),'700');assert.match(run('rows[0].note'),/before.*after/);assert.equal(run('rows[1].income'),'5000');assert.equal(run('rows[1].items.length'),0);assert.equal(run('rows[2].items[0].category'),'labor');assert.equal(run('rows[2].items[0].amount'),'400');assert.equal(run('p.valid'),true);assert.equal(run('p.total'),1100);assert.equal(run('p.income'),5000);
+  run(`cells[1][13]='-800'`);assert.throws(()=>run('batchWorkPasteRows(cells,guess.map,true)'),/ยอดรวมไม่ตรง/);
+});
+test('original blank sponsorship requires confirmation, incomplete fields stay blank and cannot post',()=>{
+  const {run}=setup();run(`const map=['date','title','direction','category','amount','qty','unit','unitPrice'];const cells=[['','Gift','รายจ่าย','fertilizer','0','','',''],['2026-11-27','Free service','รายจ่าย','labor','','','','']];const pending=batchWorkPasteRows(cells,map,false),supported=batchWorkPasteRows(cells,map,false,{blankSupported:true});`);
+  assert.equal(run('pending[0].items[0].source'),'external');assert.equal(run('supported[0].items[0].source'),'supported');assert.equal(run('supported[0].date'),'');assert.equal(run('supported[0].items[0].qty'),'');assert.equal(run('batchWorkPlan(S,draft(supported)).valid'),false);
+  assert.equal(run('batchWorkPlan(S,draft([supported[1]])).valid'),true);
+  assert.throws(()=>run(`batchWorkPasteRows([['2026-11-27','Name','unknown']],['date','title','category'],false)`),/หมวดต้นทุน/);
+  assert.throws(()=>run(`batchWorkPasteRows([['2026-11-27','Name','รายรับ','-1']],['date','title','direction','amount'],false)`),/ตัวเลข/);
+});
+test('Farm Record right-side summary labels are not mistaken for per-record income',()=>{
+  const {run}=setup();run(`const cells=[['Bill-Date','Bill-Type','Topic (รายการ)','Cost-Type','Chemical-Type','Description','Total Amount','Remark','รายได้'],['27/11/2569','รายจ่าย','Service','labor','ชนิดเดิม','รายละเอียด','-100','หมายเหตุ','ต้นทุน']];const guess=batchWorkGuessColumns(cells),rows=batchWorkPasteRows(cells,guess.map,true);`);
+  assert.equal(run('guess.map[8]'),'skip');assert.equal(run('rows[0].income'),'');assert.equal(run('rows[0].items[0].amount'),'100');assert.match(run('rows[0].note'),/รายละเอียด.*ชนิดเดิม.*หมายเหตุ/);
+  assert.equal(run(`batchWorkGuessColumns([['วันที่','ชื่องาน','รายได้']]).map[2]`),'income');
+});
 test('sheet parser handles quoted CSV, Thai numbers, Buddhist dates and real calendar validation',()=>{
   const {run}=setup();assert.equal(run(`batchWorkDate('๒๘/๑๑/๒๕๖๙')`),'2026-11-28');assert.equal(run(`batchWorkNumber('1,250.50 บาท','cost')`),1250.5);
   assert.throws(()=>run(`batchWorkDate('31/02/2569')`),/วันที่/);assert.throws(()=>run(`batchWorkNumber('1,2','cost')`),/ตัวเลข/);

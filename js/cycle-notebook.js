@@ -102,7 +102,7 @@ function notebookHistoryRow(t,{showCycle=false}={}) {
   const statusText={done:'ทำแล้ว',failed:'ไม่สำเร็จ',overdue:'เลยกำหนด',planned:t.date===todayISO()?'กำหนดวันนี้':'วางไว้'}[status];
   const materialText=materials.slice(0,2).map(ci=>`${esc(ci.name || 'ไม่ระบุชื่อวัสดุ')} · ${t.status==='done'?'ใช้':recorded?'ระบุไว้':'วางแผนใช้'} ${notebookQuantity(ci)}`).join(' · ');
   const facts=[];
-  if(t.status==='done')facts.push(`<span class="nb-work-cost">${taskDataPending(t)&&!cost?'ต้นทุนรอยืนยัน':'ต้นทุน '+fmtMoney(cost)+' บาท'}</span>`);
+  if(t.status==='done')facts.push(`<span class="nb-work-cost">${notebookAmountPending(t)&&!cost?'ต้นทุนรอยืนยัน':'ต้นทุน '+fmtMoney(cost)+' บาท'+(notebookAmountPending(t)?' · รอยืนยันบางรายการ':'')}</span>`);
   if(taskDataPending(t))facts.push('<span class="badge badge-amber">ทำแล้ว · ข้อมูลรอตรวจ</span>');
   if(t.activityMembers?.length)facts.push(`<span>${t.activityMembers.length} รายการต้นทาง</span>`);
   else if(!recorded && cost>0)facts.push(`<span>งบประมาณ ${fmtMoney(cost)} บาท</span>`);
@@ -112,6 +112,7 @@ function notebookHistoryRow(t,{showCycle=false}={}) {
   if(showCycle)facts.push(`<span>${cycle?esc(cycle.plant)+' · รอบ '+esc(cycle.round || '—'):'ไม่ผูกรอบปลูก'}</span>`);
   return `<article class="nb-work-item">${t.activityMembers?`<button class="task-complete-circle is-done" aria-label="ดูรายการในกิจกรรม ${esc(t.title)}" onclick="${notebookAction('projectViewActivity',t.id)}">✓</button>`:taskCompletionCircleHtml(t,{locked:project?.status==='done'})}<button type="button" class="nb-work-open" onclick="${notebookAction(t.activityMembers?.length?'projectViewActivity':'viewTask',t.id)}" aria-label="${esc('ดูรายละเอียด: '+t.title)}"><span class="nb-work-content"><span class="nb-work-title"><strong>${esc(t.title)}</strong><span class="nb-work-status nb-work-${status}">${esc(statusText || 'วางไว้')}</span></span>${materialText?`<span class="nb-work-material">${materialText}${materials.length>2?` · อีก ${materials.length-2} รายการ`:''}</span>`:''}${facts.length?`<span class="nb-work-facts">${facts.join('')}</span>`:''}${project?`<span class="nb-work-project">${notebookIcon('FolderOpen')} ${esc(projectCode(project))} · ${esc(project.name)}</span>`:''}</span><span class="nb-work-detail">ดูรายละเอียด ${notebookIcon('ChevronRight')}</span></button>${!recorded?`<div class="nb-work-actions"><button class="btn btn-sm btn-ghost" onclick="${notebookAction('rescheduleTask',t.id)}" aria-label="${esc('เลื่อนวัน: '+t.title)}">${notebookIcon('CalendarDays')} เลื่อน</button></div>`:''}</article>`;
 }
+function notebookAmountPending(t){return (t.costItems||[]).some(it=>it.amountPending&&!materialIsSupported(it))||taskDataIssues(t).some(issue=>issue==='ค่าใช้จ่าย'||String(issue).startsWith('ยอด '));}
 function notebookHistoryTable(model,{showCycle=false,hideProject=false}={}) {
   const planned=model.mode==='planned';
   return `<div class="nb-table-scroll" role="region" aria-label="ตารางประวัติงาน" tabindex="0"><table class="nb-history-table"><thead><tr><th>วันที่${planned?'ตามแผน':'ทำจริง'}</th><th>งาน / สถานะ</th><th>วัสดุและปริมาณ</th><th>${planned?'งบประมาณ':'เงินที่จ่ายจริง'}</th><th>หลักฐาน / จัดการ</th></tr></thead><tbody>${model.groups.flatMap(group=>group.tasks.map(t=>{
@@ -121,7 +122,8 @@ function notebookHistoryTable(model,{showCycle=false,hideProject=false}={}) {
     const uncertain=costs.filter(ci=>(!ci.category || ci.category==='other') && !taskItemIsMaterial(ci));
     const photos=notebookPhotos(t).length,status=taskStatusOf(t),view=t.activityMembers?'projectViewActivity':'viewTask';
     const statusText={done:'ทำแล้ว',failed:'ไม่สำเร็จ',overdue:'เลยกำหนด',planned:'วางไว้'}[status] || 'วางไว้';
-    const amount=t.status==='failed'?'ไม่รวมในต้นทุนจริง':taskDataPending(t)&&!Number(t.cost)?'ยอดรอยืนยัน':fmtMoney(Number(t.cost)||0)+' บาท';
+    const pendingAmount=notebookAmountPending(t);
+    const amount=t.status==='failed'?'ไม่รวมในต้นทุนจริง':pendingAmount?(Number(t.cost)?fmtMoney(Number(t.cost))+' บาท · รอยืนยันบางรายการ':'ยอดรอยืนยัน'):fmtMoney(Number(t.cost)||0)+' บาท';
     return `<tr><td data-label="วันที่"><strong>${group.date?esc(dateLabel(group.date)):'ยังไม่ระบุวัน'}</strong>${taskPlannedTime(t)&&planned?`<small>${esc(taskPlannedTime(t))}</small>`:''}${showCycle?`<small>${cycle?esc(cycle.plant)+' · รอบ '+esc(cycle.round || '—'):'ไม่ผูกรอบปลูก'}</small>`:''}</td>
       <td data-label="งาน"><div class="nb-table-work">${t.activityMembers?'<span class="nb-group-check" aria-label="ทำแล้ว">✓</span>':taskCompletionCircleHtml(t,{locked:closed})}<div><button class="nb-table-link" onclick="${notebookAction(view,t.id)}">${esc(t.title || 'กิจกรรม')}</button><small>${esc(statusText)}${taskDataPending(t)?' · ข้อมูลรอตรวจ':''}${t.activityMembers?' · '+t.activityMembers.length+' รายการต้นทาง':''}</small>${!hideProject&&project?`<small>${esc(projectCode(project))}</small>`:''}</div></div></td>
       <td data-label="วัสดุ / ปริมาณ">${items.map(ci=>`<div class="nb-table-material"><span>${esc(ci.name || 'วัสดุเดิม')}</span><strong>${notebookQuantity(ci)}</strong>${materialIsSupported(ci)?'<small class="nb-support-tag">ได้รับสนับสนุน</small>':''}</div>`).join('') || '<span class="muted">—</span>'}</td>

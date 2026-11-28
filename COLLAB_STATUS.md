@@ -1,5 +1,16 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — BATCH-INCOME-MISSING-DATA-20261128
+
+- Owner: Codex for Folk, user-authorized Farm/Project follow-up; SUCHA retains integration review.
+- Branch: `codex/batch-income-missing-data`, source `b3a0ae9`; refreshed `origin/develop` verified as ancestor.
+- Task / Scope: Preserve copied general income and sponsorship, recognize original Farm Record columns, and review/update incomplete project records in one table without duplicate financial entries.
+- Files / lock: `js/batch-work.js`, `css/batch-work.css`, new scoped project data-repair module/style, project/history/notebook entry and status hooks, scoped app route, `index.html` / `sw.js`, focused tests, scoped QA, and this status file. No conflicting active lock found. No backend or hardware contract changes.
+- Status: COMPLETE_LOCAL — ready for integration review; real missing values remain awaiting field evidence.
+- Validation: `npm run check` 805 tests PASS; relay 9 PASS; desktop/mobile browser readback and screenshots; seven synthetic repairs plus income copy/original-header paste saved/reloaded through local API; source workbook and original 33 records unchanged. See `qa/batch-income-repair/HANDOFF.md`.
+- Deployment: NOT_DEPLOYED.
+- Next action: Fill the seven real records with confirmed field values and review the existing-record updates before confirming.
+
 ## Task lock — SYNGENTA-BATCH-EXAMPLE-20261128
 
 - Owner: Codex for Folk, user-requested workbook example; SUCHA retains integration review.
