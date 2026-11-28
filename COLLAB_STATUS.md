@@ -1,5 +1,15 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — RELEASE-BATCH-INCOME-20261128
+
+- Owner: Codex for Folk, explicitly authorized production release; SUCHA retains integration review.
+- Branch: `codex/release-batch-income-20261128`, source `364eab8`; refreshed `origin/develop` verified as ancestor.
+- Task / Scope: Deploy the latest batch entry, income copy, original worksheet paste and missing-data repair UI to the canonical site; verify live flows and consistent costs.
+- Files / lock: this status file and scoped release evidence; live readback exposed legacy non-material stock links, so the lock also covers the narrow copy fix in `js/batch-work.js`, its regression tests, `index.html` and `sw.js` cache wiring. Existing backend and hardware contracts are unchanged.
+- Status: RELEASE_VALIDATION — full check passed (805 tests; relay 9).
+- Deployment: APPROVED by the user's `APPROVE_PRODUCTION_DEPLOY` on 2026-11-28 naming `farmultimate-solutions.pages.dev` and all three verification flows; not yet deployed.
+- Next action: Publish the verified frontend and inspect production behavior.
+
 ## Task lock — BATCH-INCOME-MISSING-DATA-20261128
 
 - Owner: Codex for Folk, user-authorized Farm/Project follow-up; SUCHA retains integration review.

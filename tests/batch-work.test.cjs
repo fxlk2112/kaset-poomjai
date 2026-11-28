@@ -114,6 +114,18 @@ test('copy previous work keeps materials and expenses but drops IDs, photos, mea
   const {run}=setup();run(`const t={id:'original',date:'2026-01-01',title:'Previous',type:'fertilize',status:'done',photos:['private'],donePhotos:['private'],trialId:'trial',costItems:[{name:'A',category:'fertilizer',qty:2,unit:'kg',totalCost:0,funding:'supported'},{name:'Labor',category:'labor',totalCost:50}]};const original=JSON.stringify(t),r=batchWorkCopyRow(t,S);`);
   assert.notEqual(run('r.id'),'original');assert.equal(run('r.date===todayISO()'),true);assert.equal(run('r.items[0].source'),'supported');assert.equal(run('r.labor'),'50');assert.equal(run('r.photos'),undefined);assert.equal(run('r.trialId'),undefined);assert.equal(run('JSON.stringify(t)===original'),true);
 });
+test('copying legacy non-material stock links preserves the expense and income without touching inventory',()=>{
+  for(const category of ['labor','pilot','meals','utilities','other']){
+    const {run}=setup();run(`const t={id:'legacy',title:'Legacy service',type:'work',cost:1500,revenue:250,incomeMode:'general',costItems:[{name:'Service',category:${JSON.stringify(category)},source:'stock',stockId:'stock',qty:1,unit:'ครั้ง',totalCost:1500}]};const before=JSON.stringify(t),stockBefore=JSON.stringify(S.stock),copy=batchWorkCopyRow(t,S),d=draft([copy]),p=batchWorkPlan(S,d);`);
+    assert.equal(run('p.valid'),true);assert.equal(run('copy.items[0].source'),'external');assert.equal(run('copy.items[0].stockId'),'');assert.equal(run('p.total'),1500);assert.equal(run('p.income'),250);
+    run('batchWorkCommit(S,d,()=>true,p.signature);batchWorkCommit(S,d,()=>true);');
+    assert.equal(run('S.tasks.length'),1);assert.equal(run('S.tasks[0].cost'),1500);assert.equal(run('S.tasks[0].costItems[0].category'),category);assert.equal(run('JSON.stringify(S.stock)===stockBefore'),true);assert.equal(run('JSON.stringify(t)===before'),true);
+  }
+});
+test('copying actual stock material retains inventory costing even with a conflicting funding flag',()=>{
+  const {run}=setup();run(`const t={id:'material',title:'Stock material',type:'fertilize',cost:0,costItems:[{name:'Material',category:'fertilizer',source:'stock',stockId:'stock',qty:0.2,unit:'ขวด',usageQty:100,usageUnit:'ml',totalCost:0,funding:'supported'}]};const stockBefore=JSON.stringify(S.stock),copy=batchWorkCopyRow(t,S),d=draft([copy]),p=batchWorkPlan(S,d);`);
+  assert.equal(run('copy.items[0].source'),'stock');assert.equal(run('copy.items[0].stockId'),'stock');assert.equal(run('p.valid'),true);assert.equal(run('p.total'),76);assert.equal(run('JSON.stringify(S.stock)===stockBefore'),true);
+});
 test('batch rendering escapes spreadsheet text and avoids unintended form submits',()=>{
   const {run}=setup(true);run(`BatchWork.owner=BatchWork.key();BatchWork.draft=draft([row({title:'<img src=x onerror=bad()>',note:'" onclick="bad()'})]);const html=renderBatchWork();`);
   assert.match(run('html'),/&lt;img/);assert.doesNotMatch(run('html'),/<img src=x/);assert.equal(run(`(html.match(/<button(?![^>]*\\btype=)/g)||[]).length`),0);

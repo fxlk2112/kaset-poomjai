@@ -209,7 +209,8 @@ function batchWorkCopyRow(task,state){
   let labor=0,hasLabor=false;
   for(const item of items){
     if(item.category==='labor'&&!materialIsSupported(item)&&!item.amountPending&&!Number(item.qty)){labor+=Number(item.totalCost)||0;hasLabor=true;continue;}
-    const stock=item.stockId?stockById(state,item.stockId):null;
+    // Legacy service/expense rows can retain a stock ID; copying must not turn them into stock use.
+    const stock=!materialIsSupported(item)&&['chemical','fertilizer','seed','materials'].includes(item.category)&&item.stockId?stockById(state,item.stockId):null;
     row.items.push({source:stock?'stock':materialIsSupported(item)?'supported':'external',stockId:stock?.id||'',name:item.name||stock?.name||'',category:BATCH_WORK_CATEGORIES[item.category]?item.category:'other',qty:item.usageUnit?item.usageQty:item.qty||'',unit:item.usageUnit||item.unit||'',amount:item.amountPending?'':item.totalCost??'',sponsor:item.sponsor||''});
   }
   if(!items.length&&Number(task.cost)>0)row.items.push({...batchWorkBlankItem(),category:'other',name:'ค่าใช้จ่ายจากงานเดิม',amount:task.cost});
