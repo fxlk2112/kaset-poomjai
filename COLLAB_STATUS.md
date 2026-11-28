@@ -1,5 +1,16 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — MULTI-PLOT-TYPE-REFRESH-20261128
+
+- Owner: Codex for Folk, user-reported activity-form regression; SUCHA retains integration review.
+- Branch: `codex/multi-plot-type-refresh`, source `9cac81f`; refreshed `origin/develop` verified as ancestor.
+- Task / Scope: Restore multi-plot selection after changing the compact form's activity type, preserve selections across type changes, and verify allocation/cost/stock behavior locally.
+- Files / lock: scoped `js/app.js` type-change hook, `js/task-wizard.js`, regression tests, `index.html` / `sw.js` asset versions and synthetic QA evidence. No overlapping active owner lock.
+- Status: COMPLETE_LOCAL — compact dropdown refresh restored; 827 tests PASS and relay validation 9 PASS. Desktop/mobile UI and persisted synthetic two-plot allocation verified.
+- Deployment: NOT_DEPLOYED. No production account write or inferred missing worksheet values.
+- Validation / evidence: `qa/multi-plot-refresh/README.md`; 4 kg / 200 baht split into 1 kg / 50 and 3 kg / 150, stock 9 → 5 kg after reload. Seven incomplete fixture entries retain their missing values.
+- Next action: Review this local fix for integration before a separately authorized production release.
+
 ## Task lock — RELEASE-LIGHT-THEME-20261128
 
 - Owner: Codex for Folk, explicitly authorized production release; SUCHA retains integration review.

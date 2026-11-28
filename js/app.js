@@ -9359,6 +9359,8 @@ App.taskTypeChange = function () {
     const note = document.getElementById('t_note');
     if (note) note.placeholder = inspect ? 'สิ่งที่พบเพิ่มเติม หรือสิ่งที่ต้องติดตาม' : 'รายละเอียดงานเพิ่มเติม';
   }
+  // The compact form changes type through its native select, not the wizard buttons.
+  if (typeof TaskWizard !== 'undefined' && TaskWizard.active()) TaskWizard.renderPlots();
 };
 
 App.useStockInPlot = function (id) {

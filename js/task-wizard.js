@@ -121,7 +121,7 @@ const TaskWizard = {
     if(step)this.go(step);else this.persist();
   },
   type(type) {
-    document.getElementById('t_type').value=type;App.taskTypeChange();this.renderPlots();this.show(this.step,false);this.schedule();
+    document.getElementById('t_type').value=type;App.taskTypeChange();this.show(this.step,false);this.schedule();
   },
   usesPlots() {
     return !!this.multiPlot && ['spray','fertilize'].includes(document.getElementById('t_type')?.value);
@@ -140,7 +140,7 @@ const TaskWizard = {
     mount.hidden=!['spray','fertilize'].includes(document.getElementById('t_type').value);
     document.getElementById('taskMultiPlotEnabled').checked=this.multiPlot;
     const enabled=this.usesPlots(), rows=document.getElementById('taskMultiPlotRows');rows.hidden=!enabled;
-    document.getElementById('taskPlotCycleFields').hidden=enabled;
+    document.getElementById('taskPlotCycleFields').hidden=enabled || !!document.getElementById('t_scope_farm')?.checked;
     const area=document.getElementById('t_material_area');area.readOnly=enabled;
     document.querySelector('label[for="t_material_area"]').textContent=enabled?'พื้นที่ทำจริงรวมทุกแปลง (ไร่)':'พื้นที่ใช้ยา/ปุ๋ย (ไร่)';
     if(!enabled){if(this.lastMultiActive){this.form.querySelectorAll('.ci-area').forEach(input=>{input.readOnly=false;});App.costAreaSetPlot();App.taskScopeChange();}this.lastMultiActive=false;App.taskProjectRefresh();return;}

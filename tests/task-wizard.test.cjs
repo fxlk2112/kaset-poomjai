@@ -85,3 +85,65 @@ test('stock preview uses the real ledger logic on copies without deducting live 
   assert.equal(c.taskWizardStockPreview(state,[item],'planned').length,0);
   assert.equal(c.taskWizardStockPreview(state,[item],'failed').length,0);
 });
+
+// Exercise the native compact-form dropdown, including the real scope and multi-plot renderers.
+function typeForm(){
+  const {c,w}=setup(),nodes={};
+  for(const id of ['t_type','waterBox','t_title','t_note','t_usecost','t_useharvest','t_scope_plot','t_scope_farm',
+    'taskMultiPlot','taskMultiPlotEnabled','taskMultiPlotRows','taskPlotCycleFields','t_material_area','t_plot','t_cycle',
+    'taskScopeSummary','taskScopeSummaryDetail','taskMultiPlotTotal'])nodes[id]={value:'',checked:false,hidden:false,dataset:{},style:{},options:[]};
+  // Native radio groups automatically uncheck the sibling.
+  let plotScope=false;
+  Object.defineProperty(nodes.t_scope_plot,'checked',{get:()=>plotScope,set:v=>{plotScope=!!v;}});
+  Object.defineProperty(nodes.t_scope_farm,'checked',{get:()=>!plotScope,set:v=>{plotScope=!v;}});
+  const areaLabel={},itemArea={value:0,readOnly:false};
+  c.document.getElementById=id=>nodes[id]||null;
+  c.document.querySelector=()=>areaLabel;
+  w.form.querySelectorAll=()=>[itemArea];
+  w.multiPlot=false;w.plotSelections=[];w.lastMultiActive=false;
+  Object.assign(c,{S:{plots:[{id:'a',name:'A',sizeRai:1},{id:'b',name:'B',sizeRai:3}],cycles:[]},
+    TYPE_LABELS:{work:'Work',spray:'Spray',fertilize:'Fertilize'},taskEditingId:'',taskCostItems:[],
+    taskWaterSessions:[],defaultCostCat:()=>'',esc:String,fmtNum:String,plotById:(s,id)=>s.plots.find(p=>p.id===id),
+    ConceptWorkflows:{formSummary(){}}});
+  c.Inspection.contextRefresh=()=>{};
+  Object.assign(c.App,{_taskFormType:'work',_taskCostDrafts:{},taskToggleCost(){},taskToggleHarvest(){},taskProjectRefresh(){},costRateRefresh(){},taskPlotChange(){}});
+  const app=read('js/app.js');
+  vm.runInContext(app.slice(app.indexOf('function taskMustBelongToPlot'),app.indexOf('function costOpenedAmount'))+
+    app.slice(app.indexOf('App.costAreaSetPlot ='),app.indexOf('App.costUseMeasured ='))+
+    app.slice(app.indexOf('App.taskScopeChange ='),app.indexOf('App.useStockInPlot =')),c);
+  function change(type){nodes.t_type.value=type;c.App.taskTypeChange();}
+  return {c,w,nodes,itemArea,change};
+}
+
+test('native activity dropdown reveals multi-plot selection and respects central-work scope',()=>{
+  const {nodes,change}=typeForm();
+  change('work');assert.equal(nodes.taskMultiPlot.hidden,true);assert.equal(nodes.taskPlotCycleFields.hidden,true);
+  change('fertilize');assert.equal(nodes.taskMultiPlot.hidden,false);assert.equal(nodes.taskPlotCycleFields.hidden,false);
+  assert.equal(nodes.t_scope_plot.checked,true);assert.equal(nodes.t_plot.disabled,false);
+  change('spray');assert.equal(nodes.taskMultiPlot.hidden,false);
+  change('work');assert.equal(nodes.taskMultiPlot.hidden,true);
+  nodes.t_scope_farm.checked=true;change('work');assert.equal(nodes.taskPlotCycleFields.hidden,true);
+});
+
+test('type changes preserve multiple plots and areas without showing stale single-plot inputs',()=>{
+  const {c,w,nodes,itemArea,change}=typeForm();
+  change('fertilize');nodes.t_plot.value='a';nodes.t_cycle.value='__none__';
+  w.multiPlot=true;w.plotSelections=[{plotId:'a',cycleId:'__none__',areaRai:1,selected:true},{plotId:'b',cycleId:'__none__',areaRai:3,selected:true}];
+  const selected=JSON.stringify(w.plotSelections);
+  for(const type of ['spray','fertilize']){
+    change(type);assert.equal(nodes.taskMultiPlot.hidden,false);assert.equal(nodes.taskMultiPlotRows.hidden,false);
+    assert.equal(nodes.taskPlotCycleFields.hidden,true);assert.equal(nodes.t_material_area.value,4);
+    assert.equal(itemArea.value,4);assert.equal(itemArea.readOnly,true);
+    assert.match(nodes.taskMultiPlotTotal.textContent,/2 แปลง.*4 ไร่/);
+  }
+  change('work');assert.equal(nodes.taskMultiPlot.hidden,true);assert.equal(nodes.taskPlotCycleFields.hidden,false);
+  assert.equal(nodes.t_material_area.value,1);assert.equal(itemArea.readOnly,false);
+  nodes.t_scope_farm.checked=true;c.App.taskScopeChange();change('work');assert.equal(nodes.taskPlotCycleFields.hidden,true);
+  change('spray');assert.equal(nodes.taskPlotCycleFields.hidden,true);assert.equal(nodes.t_material_area.value,4);
+  assert.equal(JSON.stringify(w.plotSelections),selected);
+});
+
+test('type refresh does not activate a closed, editing or hydrating wizard',()=>{
+  const {w,nodes,change}=typeForm();w.ready=false;nodes.taskMultiPlot.hidden=true;
+  change('fertilize');assert.equal(nodes.taskMultiPlot.hidden,true);assert.equal(w.ready,false);
+});
