@@ -1,5 +1,7 @@
 # Historical project audit
 
+Follow-up implementation and current validation: [Historical project records and finance](../project-records-finance/HANDOFF.md). The findings below describe the original audit before those fixes.
+
 Owner: Codex for Folk; SUCHA retains integration review.
 Branch: `codex/syngenta-project-audit`
 Deployment: **NOT_DEPLOYED**

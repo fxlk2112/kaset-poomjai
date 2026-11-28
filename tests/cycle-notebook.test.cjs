@@ -9,6 +9,10 @@ test('harvest weight conversion avoids a misleading cost per kg for mixed units'
   assert.equal(h.run(`notebookHarvestKg([{harvestQty:2,harvestUnit:'kg'},{harvestQty:8,harvestUnit:'ลูก'}])`),null);
   assert.equal(h.run('notebookHarvestKg([])'),0);
 });
+test('yield panel excludes rent from harvest revenue while cycle totals include both',()=>{
+  const h=harness();h.run(`function taskRowHtml(t){return t.title || '';}S.tasks=[{id:'rent',cycleId:'c',status:'done',type:'work',revenue:50000,cost:0,date:'2026-03-31'},{id:'crop',cycleId:'c',status:'done',type:'harvest',revenue:220,cost:0,harvestQty:10,date:'2026-03-31'}];const model=notebookModel(S.cycles[0]);const html=notebookYield({...S.cycles[0],status:'closed'},model);`);
+  assert.equal(h.run('model.finance.revenue'),50220);assert.match(h.run('html'),/รายรับจากผลผลิต<\/span><strong>220 บาท/);assert.doesNotMatch(h.run('html'),/50,220/);
+});
 function harness({notebook=true}={}){
   const count={textContent:'',isConnected:true},note={textContent:''};
   const ctx=vm.createContext({console,Date,localStorage:{getItem:()=>null,setItem(){}},App:{},Auth:{session:{email:'demo@example.invalid',token:'synthetic'}},

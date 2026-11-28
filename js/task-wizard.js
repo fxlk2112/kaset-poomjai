@@ -110,7 +110,7 @@ const TaskWizard = {
     this.multiPlot=!!d.multiPlot;this.plotSelections=Array.isArray(d.plotSelections)?d.plotSelections:[];
     document.getElementById('t_title').dataset.autoTitle=d.autoTitle || 'false';
     document.getElementById('inspectionBox').outerHTML=Inspection.begin({inspection:d.inspection});
-    App.taskTypeChange();App.taskToggleCost();App.taskToggleHarvest();App.taskRepeatToggle();App.taskProjectChange(d.fields.t_project_stage?.value);App.waterSessionsRender();App.costRender();
+    App.taskTypeChange();App.taskToggleCost();App.taskToggleHarvest();App.taskToggleIncome?.();App.taskRepeatToggle();App.taskProjectChange(d.fields.t_project_stage?.value);App.waterSessionsRender();App.costRender();
     renderTaskPhotoPreview('form');Inspection.contextRefresh();Inspection.pointsRender();
     labelFormFields(this.form);ConceptWorkflows.formSummary();
     this.renderPlots();

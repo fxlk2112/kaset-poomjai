@@ -3447,6 +3447,7 @@ function currentTimeHHMM() {
   return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
 }
 function taskDoneDate(t) {
+  if(t?.status==='done' && (t.source==='project-history' || taskDataPending(t)))return taskRecordDate(t);
   return String((t && (t.doneDate || (t.weatherSnapshot && t.weatherSnapshot.targetDate) || t.date)) || todayISO()).slice(0, 10);
 }
 function taskDoneTime(t) {
@@ -3813,7 +3814,7 @@ function renderPlotDetail() {
           <div class="meta-box"><div class="lb">รายรับ</div><div class="vl">${fmtMoney(cf.revenue)} บาท</div></div>
           <div class="meta-box"><div class="lb">ต้นทุน</div><div class="vl">${fmtMoney(cf.cost)} บาท</div></div>
           <div class="meta-box"><div class="lb">${c.status === "active" ? "ส่วนต่างปัจจุบัน" : "กำไร/ขาดทุน"}</div><div class="vl ${cf.net >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(cf.net)} บาท</div></div>
-          <div class="meta-box"><div class="lb">สถานะ</div><div class="vl" style="font-size:.78rem">${cf.revenue > 0 ? "มีผลผลิตแล้ว" : "รอผลผลิต"}</div></div>
+          <div class="meta-box"><div class="lb">สถานะ</div><div class="vl" style="font-size:.78rem">${cycleHasHarvest(S,c.id) ? "มีผลผลิตแล้ว" : "ยังไม่มีบันทึกผลผลิต"}</div></div>
         </div>
         <div class="actions-row" style="margin-top:10px">
           <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();App.modalCycle('${c.plotId}', '${c.id}')">${ic("pencil")} แก้ไขรอบ</button>
@@ -4116,7 +4117,7 @@ function renderCycleDetail() {
         <div class="meta-box"><div class="lb">รายรับ</div><div class="vl">${fmtMoney(cf.revenue)} บาท</div></div>
         <div class="meta-box"><div class="lb">ต้นทุน</div><div class="vl">${fmtMoney(cf.cost)} บาท</div></div>
         <div class="meta-box"><div class="lb">${c.status === "active" ? "ส่วนต่างปัจจุบัน" : "กำไร/ขาดทุน"}</div><div class="vl ${cf.net >= 0 ? "price-trend-up" : "price-trend-down"}">${fmtMoney(cf.net)} บาท</div></div>
-        <div class="meta-box"><div class="lb">สถานะ</div><div class="vl" style="font-size:.78rem">${cf.revenue > 0 ? "มีผลผลิตแล้ว" : "รอผลผลิต"}</div></div>
+        <div class="meta-box"><div class="lb">สถานะ</div><div class="vl" style="font-size:.78rem">${cycleHasHarvest(S,c.id) ? "มีผลผลิตแล้ว" : "ยังไม่มีบันทึกผลผลิต"}</div></div>
       </div>
       <div class="actions-row">
         ${c.status === "active" ? `<button class="btn btn-sm btn-primary" onclick="App.modalTask(todayISO(), { cycleId: '${c.id}' })">${ic("plus")} เพิ่มกิจกรรม</button>` : ""}
@@ -8578,9 +8579,19 @@ App.taskToggleCost = function () {
 /* เปิด/ปิดกล่องบันทึกการเก็บเกี่ยว */
 App.taskToggleHarvest = function () {
   const on = document.getElementById("t_useharvest").checked;
+  if (on && document.getElementById('t_useincome')) {
+    document.getElementById('t_useincome').checked=false;
+    document.getElementById('incomeBox').hidden=true;
+  }
   const box = document.getElementById("harvestBox");
   if (box) box.style.display = on ? "" : "none";
   if (on) App.taskCalcHarvest();
+};
+App.taskToggleIncome = function () {
+  const on=document.getElementById('t_useincome').checked;
+  document.getElementById('incomeBox').hidden=!on;
+  if(on){document.getElementById('t_useharvest').checked=false;App.taskToggleHarvest();}
+  if(typeof ConceptWorkflows!=='undefined')ConceptWorkflows.formSummary();
 };
 /* render รายการค่าใช้จ่ายทั้งหมดลงกล่อง */
 App.costRender = function () {
@@ -9370,7 +9381,8 @@ App.modalTask = function (date, preset) {
   const d = completionReview || preset.inspectionCompletion && editing?.status === 'planned' ? todayISO() : editing ? taskRecordDate(editing) : (date || todayISO());
   const status = completionReview || preset.inspectionCompletion ? 'done' : editing ? (["done", "failed"].includes(editing.status) ? editing.status : "planned") : (preset.status === "done" ? "done" : "planned");
   const hasCost = completionReview || (editing ? (editing.cost > 0 || !!editing.stockId || (editing.costItems || []).length > 0) : ["spray", "fertilize", "expense"].includes(type));
-  const hasHarvest = editing ? (editing.revenue > 0 || editing.harvestQty > 0 || !!editing.finishCycle) : type === "harvest";
+  const hasHarvest = editing ? taskIncomeMode(editing)==='harvest' : type === "harvest";
+  const hasGeneralIncome = editing && taskIncomeMode(editing)==='general';
   const activeCycles = !editing && !preset.plotId && !preset.cycleId && !taskMustBelongToPlot(type)
     ? (S.cycles || []).filter(c => c.status === "active" && S.plots.some(p => p.id === c.plotId && p.status !== "inactive")) : [];
   const suggestedCycleId = activeCycles.length === 1 ? activeCycles[0].id : "";
@@ -9454,6 +9466,8 @@ App.modalTask = function (date, preset) {
         <div class="usage-total">รวมต้นทุน <strong id="costSum">0 บาท</strong></div>
       </div>
 
+      <label class="option-box"><input type="checkbox" id="t_useincome" onchange="App.taskToggleIncome()" ${hasGeneralIncome?'checked':''}><span>รายรับทั่วไป เช่น ค่าเช่า / ค่าบริการ</span></label>
+      <div id="incomeBox" class="nested-fields" ${hasGeneralIncome?'':'hidden'}><div class="field"><label for="t_income">รายรับทั่วไป (บาท)</label><input id="t_income" type="number" min="0" step="0.01" value="${hasGeneralIncome?esc(editing.revenue):''}" oninput="if(typeof ConceptWorkflows!=='undefined')ConceptWorkflows.formSummary()"></div><small>ยอดนี้ไม่ใช่ผลผลิตและไม่ปิดรอบปลูก</small></div>
       <label class="option-box" id="taskHarvestOption" ${type !== "harvest" && !hasHarvest ? "hidden" : ""}><input type="checkbox" id="t_useharvest" onchange="App.taskToggleHarvest()" ${hasHarvest ? "checked" : ""}><span>${ic("box")} บันทึกการเก็บเกี่ยว</span></label>
       <div id="harvestBox" class="nested-fields" style="display:${hasHarvest ? "" : "none"}">
         <div class="form-row-2">
@@ -9464,6 +9478,7 @@ App.modalTask = function (date, preset) {
         <label class="option-box inline-option"><input type="checkbox" id="t_finishcycle" ${editing && editing.finishCycle ? "checked" : ""}><span>ติ๊กจบการปลูกรอบนี้ (เก็บเกี่ยวหมดแล้ว)</span></label>
       </div>
 
+      <details class="task-data-review" ${taskDataPending(editing)?'open':''}><summary>ความครบถ้วนของข้อมูล</summary><label class="option-box"><input id="t_data_pending" type="checkbox" ${taskDataPending(editing)?'checked':''}>ข้อมูลยังไม่ครบ / รอตรวจ</label><div class="field"><label for="t_data_note">ข้อมูลที่ต้องเติมหรือตรวจสอบ</label><textarea id="t_data_note" rows="2">${esc(editing?.dataNote || taskDataIssues(editing).join(' · '))}</textarea></div><small>แยกจากสถานะงานที่ทำแล้ว ไม่ถือเป็นงานค้าง</small></details>
       <details class="task-extras" ${editing?.note || taskFormPhotos.length ? 'open' : ''}><summary>${ic('camera')} หมายเหตุและรูปภาพ (ไม่บังคับ)</summary>
       <div class="field"><label for="t_note">สิ่งที่ต้องทำ / รายละเอียดเพิ่มเติม</label>
         <textarea id="t_note" rows="3" placeholder="เช่น ใช้ปุ๋ยสูตร 46-0-0 อัตรา 20 กก./ไร่ รดน้ำตามหลังทันที">${editing ? esc(editing.note || "") : ""}</textarea>
@@ -9694,8 +9709,12 @@ App.submitTask = function (e, editId, validateOnly) {
   const tCycleRaw = scope === "plot" ? (document.getElementById("t_cycle").value || "") : "";
   /* "ยังไม่ปลูกอะไร" = ไม่ผูกกับรอบ แต่ยังเข้ารวมต้นทุนของแปลงที่เลือก */
   const tCycle = tCycleRaw === "__none__" ? null : (tCycleRaw || null);
-  const tRevenue = useHarvest ? Math.round(hqty * hprice) || 0 : 0;
   const existing = editId ? S.tasks.find(x => x.id === editId) : null;
+  const generalInput=document.getElementById('t_useincome'),amountInput=document.getElementById('t_income');
+  const useGeneral=generalInput ? generalInput.checked : (!useHarvest && taskIncomeMode(existing)==='general');
+  let tRevenue;
+  try { tRevenue=taskRevenueInput({useHarvest,qty:document.getElementById('t_hqty').value,price:document.getElementById('t_hprice').value,useGeneral,amount:amountInput?amountInput.value:existing?.revenue,existing}); }
+  catch(error){toast(error.message);return false;}
   const repeatInput = document.getElementById("t_repeat");
   const repeatEveryInput = document.getElementById("t_repeat_every");
   const repeatEvery = Number(repeatEveryInput?.value || 0);
@@ -9779,6 +9798,10 @@ App.submitTask = function (e, editId, validateOnly) {
     unit: useCost && costItems.length ? (costItems.find(it => it.stockId) || costItems[0]).unit : "",
     cost: useCost ? totalCost : 0,
     revenue: tRevenue,
+    incomeMode: useGeneral?'general':useHarvest?'harvest':'none',
+    dataStatus: (document.getElementById('t_data_pending')?.checked ?? taskDataPending(existing))?'pending':'complete',
+    dataNote: document.getElementById('t_data_note')?.value.trim() ?? existing?.dataNote ?? '',
+    missingFields: (document.getElementById('t_data_pending')?.checked ?? taskDataPending(existing))?(existing?.missingFields || ['ข้อมูลรอตรวจ']):[],
     harvestQty: useHarvest ? hqty : 0,
     harvestUnitPrice: useHarvest ? hprice : 0,
     finishCycle: useHarvest && document.getElementById("t_finishcycle").checked,

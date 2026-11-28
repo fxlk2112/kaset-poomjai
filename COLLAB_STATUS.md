@@ -1,5 +1,17 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — PROJECT-RECORDS-FINANCE-20261128
+
+- Owner: Codex for Folk, user-authorized follow-up; SUCHA retains shared integration review.
+- Branch: `codex/project-records-finance`, source `f3f607a`; fetched `origin/develop` verified as ancestor.
+- Task / Scope: Preserve and enter non-harvest income; separate historical work from incomplete data; reviewed activity grouping; project income/completeness reporting; fix harvest state, proposal intent and report contrast.
+- Files / lock: project modules and styles, new historical-record module, focused hooks in `js/app.js`, `js/data.js`, `js/task-wizard.js`, `js/workspace-flows.js`, `js/cycle-notebook.js`, `js/project-workspace.js`, asset wiring `index.html` / `sw.js`, tests, scoped QA and this status file. No other active conflicting owner found.
+- Status: LOCAL_COMPLETE. Preserve original source records, canonical accounting, material confirmation and saved report editions. No production data migration.
+- Commit: Feature commit containing `qa/project-records-finance/HANDOFF.md`.
+- Validation: `npm run check` 750/750; relay 9/9. Desktop/mobile light/dark screenshots and readback, same-origin API persistence, income unchanged edit, historical entry/edit, reviewed grouping/ungrouping, canonical totals, saved editions and downloaded Word verified. See scoped handoff for evidence and limitations.
+- Deployment: NOT_DEPLOYED. DATA_ONLY / SAFE_OFF and same-origin API unchanged.
+- Next action: Submit this scoped change to the integration owner for review into `develop`.
+
 ## Task lock — SYNGENTA-PROJECT-AUDIT-20261127
 
 - Owner: Codex for Folk, user-requested test; SUCHA retains integration review.

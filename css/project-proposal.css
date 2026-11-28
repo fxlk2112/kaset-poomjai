@@ -57,3 +57,20 @@
   .concept .pp-draft-page .pp-stage .btn{min-height:28px;padding:3px 9px}.pp-draft-page .pp-stage>header input{height:26px;padding:2px 0;font-size:14px}.pp-draft-page .pp-stage>header{padding:4px 10px}.pp-draft-page .pp-draft-task{padding:4px 10px}.pp-draft-page .pp-draft-task small{font-size:11px;line-height:1.2;margin-top:2px}
   .pp-draft-page .pp-task-details .pp-field{margin:5px 0;gap:3px;font-size:12px}.pp-draft-page .pp-task-details :is(input,select){min-height:32px;height:32px;padding:4px 8px}.pp-draft-page .pp-task-details hr{margin:12px 0}.pp-draft-page .pp-example-form>div{padding:5px 0;font-size:12px}.pp-draft-page .pp-example-form span{padding:5px 8px}
 }
+/* Document paper stays legible in either app theme; history forms share the green shell. */
+.pp-page .pp-paper { --muted:#566b61; color:#263f35!important; }
+.pp-page .pp-paper :is(p,small,figcaption,td) { color:#263f35; }
+.pp-metrics { color:#234f40; }
+.pp-page .pp-metrics small { color:#466b5b!important; }
+.ph-toolbar { margin:12px 0 18px; }
+.ph-modal { padding:4px; max-width:100%; }
+.ph-choices { display:grid; gap:10px; max-height:45vh; overflow:auto; margin:14px 0; }
+.ph-choices>label,.ph-check { display:flex; align-items:flex-start; gap:10px; padding:10px 0; }
+.ph-choices input[type=checkbox],.ph-check input { width:22px; height:22px; accent-color:#00856f; flex-shrink:0; }
+.ph-choices small { display:block; }
+.ph-expense { display:grid; grid-template-columns:2fr 1fr 1fr 1.4fr auto; gap:8px; border:1px solid var(--pp-border,#cbd9d3); border-radius:8px; padding:10px; margin:10px 0; }
+.ph-expense label { display:grid; gap:5px; min-width:0; font-size:12px; }
+.ph-expense input { width:100%; min-width:0; padding:8px; color:inherit; background:var(--card,#fff); border:1px solid #cbd9d3; border-radius:5px; }
+@media(max-width:600px){ .ph-expense{grid-template-columns:1fr 1fr}.ph-expense>label:first-child{grid-column:1/-1}.ph-toolbar{justify-content:flex-start}.ph-toolbar .btn{flex:1 1 40%}.ph-modal .modal-actions{flex-wrap:wrap} }
+
+@media(max-width:899px){.pp-page .pp-metrics>div:nth-child(3)>span{display:grid;grid-template-columns:1fr;justify-content:start;gap:4px}}

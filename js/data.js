@@ -833,6 +833,51 @@ function taskRecordDate(t) {
 }
 
 /* คำนวณรายรับ/ต้นทุนจากงานตามเงื่อนไข */
+function taskIncomeMode(t) {
+  if (['general','harvest','none'].includes(t?.incomeMode)) return t.incomeMode;
+  if (t?.type === 'harvest' || Number(t?.harvestQty) > 0 || t?.finishCycle) return 'harvest';
+  return Number(t?.revenue) > 0 ? 'general' : 'none';
+}
+function taskRevenueInput({useHarvest=false, qty='', price='', useGeneral=false, amount='', existing=null}) {
+  if (useHarvest && useGeneral) throw new Error('เลือกรายรับทั่วไปหรือรายรับเก็บเกี่ยวอย่างใดอย่างหนึ่ง');
+  if (useGeneral) {
+    if (String(amount).trim()==='' || !Number.isFinite(Number(amount)) || Number(amount)<0) throw new Error('ระบุรายรับทั่วไปตั้งแต่ 0 บาทขึ้นไป');
+    return Math.round(Number(amount)*100)/100;
+  }
+  if (!useHarvest) return 0;
+  if ([qty,price].some(v=>String(v).trim()==='' || !Number.isFinite(Number(v)) || Number(v)<0)) {
+    if (Number(existing?.revenue)>0) throw new Error('ข้อมูลเก็บเกี่ยวเดิมไม่ครบ กรุณาตรวจปริมาณและราคา หรือใช้รายรับทั่วไปเพื่อรักษายอดเดิม');
+    throw new Error('ระบุปริมาณและราคาผลผลิตก่อนบันทึก');
+  }
+  return Math.round(Number(qty)*Number(price));
+}
+function taskDataIssues(t) {
+  const fields=Array.isArray(t?.missingFields)?t.missingFields.filter(Boolean):[];
+  return t?.dataStatus==='pending' ? (fields.length?fields:['ข้อมูลรอตรวจ']) : [];
+}
+function taskDataPending(t) { return taskDataIssues(t).length>0; }
+// Group only the display of reviewed source records. The financial ledger keeps every ID.
+function taskActivityRows(tasks) {
+  const groups=new Map(),rows=[];
+  for(const t of tasks){
+    if(!t.activityGroupId || t.status!=='done'){rows.push(t);continue;}
+    const key=JSON.stringify([t.activityGroupId,t.projectId||'',t.plotId||'',t.cycleId||'',t.projectStageId||'',taskRecordDate(t)]);
+    if(!groups.has(key)){const row={...t,activityMembers:[]};groups.set(key,row);rows.push(row);}
+    groups.get(key).activityMembers.push(t);
+  }
+  return rows.map(t=>{
+    const members=t.activityMembers;if(!members)return t;if(members.length===1)return members[0];
+    const issues=[...new Set(members.flatMap(taskDataIssues))];
+    return {...t,title:t.activityTitle || t.title,type:t.activityType || t.type,
+      cost:Math.round(members.reduce((n,m)=>n+(Number(m.cost)||0),0)*100)/100,
+      revenue:Math.round(members.reduce((n,m)=>n+(Number(m.revenue)||0),0)*100)/100,
+      costItems:members.flatMap(m=>m.costItems || []),photos:members.flatMap(m=>m.photos || []),donePhotos:members.flatMap(m=>m.donePhotos || []),
+      note:members.map(m=>m.title+'\n'+(m.doneNote || m.note || '')).join('\n\n'),doneNote:'',dataStatus:issues.length?'pending':'complete',missingFields:issues};
+  });
+}
+function cycleHasHarvest(s,id) {
+  return (s.tasks || []).some(t=>t.cycleId===id && t.status==='done' && taskIncomeMode(t)==='harvest' && Number(t.harvestQty || (t.type==='harvest'?t.qty:0))>0);
+}
 function taskFinance(s, filterFn) {
   let revenue = 0, cost = 0;
   doneTasks(s).forEach(t => {

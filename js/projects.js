@@ -26,8 +26,10 @@ function projectTaskList(p, stageId) {
     .sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999) || String(a.date).localeCompare(String(b.date)));
 }
 function projectCounts(p) {
-  const tasks = projectTaskList(p);
+  const tasks = taskActivityRows(projectTaskList(p));
   return { total: tasks.length, done: tasks.filter(t => t.status === "done").length,
+    pendingData:tasks.filter(t=>t.status==='done' && taskDataPending(t)).length,
+    ready:tasks.filter(t=>t.status==='done' && !taskDataPending(t)).length,
     planned: tasks.filter(t => t.status === "planned").length, failed: tasks.filter(t => t.status === "failed").length };
 }
 function projectProgress(p) {
