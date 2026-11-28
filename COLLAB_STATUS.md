@@ -1,5 +1,16 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — SYNGENTA-BATCH-EXAMPLE-20261128
+
+- Owner: Codex for Folk, user-requested workbook example; SUCHA retains integration review.
+- Branch: `codex/syngenta-batch-example`, source `b9f8cb9`; `origin/develop` is an ancestor.
+- Task / Scope: Rebuild the Sheet A example using the new batch entry workflow in a separate local account, reconcile source rows and sponsorship, preserve missing inputs explicitly.
+- Files / lock: `qa/syngenta-batch-example/**` and this status file. Source-derived data, screenshots and private runtime stay ignored; no original workbook or prior example overwrite.
+- Status: LOCAL_COMPLETE. Rebuilt the example in an isolated local account, with source-derived artifacts kept private.
+- Validation: `npm run check` 793/793 PASS; relay 9/9. All source rows reconciled, two batch UI saves and reload verified; project/plot/cycle totals agree without duplicate rows. Desktop/mobile readback and labelled sample photos verified. See `qa/syngenta-batch-example/HANDOFF.md` for evidence and limits.
+- Deployment: NOT_DEPLOYED. No production, hardware or external-service write.
+- Next action: Review the new local example and identify missing source dates/quantities.
+
 ## Task lock — BATCH-WORK-ENTRY-20261128
 
 - Owner: Codex for Folk, explicitly requested Farm/Project entry follow-up; SUCHA retains integration review.
