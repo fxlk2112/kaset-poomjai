@@ -111,6 +111,8 @@ const TaskWizard = {
     document.getElementById('t_title').dataset.autoTitle=d.autoTitle || 'false';
     document.getElementById('inspectionBox').outerHTML=Inspection.begin({inspection:d.inspection});
     App.taskTypeChange();App.taskToggleCost();App.taskToggleHarvest();App.taskToggleIncome?.();App.taskRepeatToggle();App.taskProjectChange(d.fields.t_project_stage?.value);App.waterSessionsRender();App.costRender();
+    // Legacy stock-created drafts can retain autoTitle=true; hydration must keep their saved title.
+    if(d.fields.t_title)document.getElementById('t_title').value=d.fields.t_title.value;
     renderTaskPhotoPreview('form');Inspection.contextRefresh();Inspection.pointsRender();
     labelFormFields(this.form);ConceptWorkflows.formSummary();
     this.renderPlots();

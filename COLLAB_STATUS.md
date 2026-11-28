@@ -1,5 +1,16 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — RELEASE-DAILY-ENTRY-20261128
+
+- Owner: Codex for Folk, explicit production release requested in this chat; SUCHA retains integration review.
+- Branch: `codex/release-daily-entry-20261128`, source `5a24672`.
+- Task / Scope: Publish the latest approved frontend to `farmultimate-solutions.pages.dev`, preserve its existing same-origin backend, and verify entry/history/cost views on production without submitting test records.
+- Files / lock: this status file and scoped release evidence; production readback exposed legacy auto-title restoration, so lock also covers `js/task-wizard.js`, its regression test and `index.html` / `sw.js` cache wiring for that narrow fix.
+- Status: RELEASE_IN_PROGRESS. User supplied `APPROVE_PRODUCTION_DEPLOY` on 2026-11-28, naming the canonical site and production readback.
+- Validation: fresh `npm run check` 772/772; relay 9/9. Worker and Pages Function source unchanged from prior approved deployed runtime `845ea5b`.
+- Deployment: APPROVED / PENDING. Existing direct Pages release path; no Git master/develop push or merge, no database migration or hardware action.
+- Next action: Deploy the verified source assets and inspect the canonical production site.
+
 ## Task lock — DAILY-ENTRY-HISTORY-CLARITY-20261128
 
 - Owner: Codex for Folk, user-authorized farm/project follow-up; SUCHA retains shared integration review.

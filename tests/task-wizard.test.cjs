@@ -45,6 +45,24 @@ test('forward jumps cannot bypass an invalid earlier step',()=>{
 test('broken and unsupported drafts do not crash opening the form',()=>{
   const {w,storage}=setup();for(const raw of ['{','null','{"version":2,"fields":{},"items":[]}']){storage.set(w.key(),raw);assert.equal(w.read(),null);}
 });
+
+test('resuming legacy stock drafts preserves the saved title through type hydration',()=>{
+  for(const autoTitle of ['true','false']){
+    const {c,w}=setup();
+    const title={tagName:'INPUT',value:'',dataset:{}},inspection={outerHTML:''};
+    c.document.getElementById=id=>id==='t_title'?title:id==='inspectionBox'?inspection:null;
+    w.form.querySelector=selector=>selector==='#t_title'?title:null;
+    c.App.taskTypeChange=()=>{if(title.dataset.autoTitle==='true')title.value='ใส่ปุ๋ย';};
+    for(const name of ['taskToggleCost','taskToggleHarvest','taskToggleIncome','taskRepeatToggle','taskProjectChange','waterSessionsRender','costRender','taskProjectRefresh'])c.App[name]=()=>{};
+    Object.assign(c.Inspection,{begin:()=>'',contextRefresh(){},pointsRender(){}});
+    c.renderTaskPhotoPreview=()=>{};c.labelFormFields=()=>{};c.ConceptWorkflows={formSummary(){}};
+    w.renderPlots=()=>{};w.show=()=>{};let persisted='';w.persist=()=>{persisted=title.value;};
+    const draft={fields:{t_title:{value:'ใช้ ปุ๋ยตัวอย่าง A'}},items:[{stockId:'sample',usageQty:2,totalCost:0}],autoTitle,step:0};
+    const before=JSON.stringify(draft);w.restore(draft);
+    assert.equal(title.value,'ใช้ ปุ๋ยตัวอย่าง A');assert.equal(persisted,'ใช้ ปุ๋ยตัวอย่าง A');
+    assert.equal(JSON.stringify(draft),before);assert.equal(title.dataset.autoTitle,autoTitle);
+  }
+});
 test('review validation exits before task mutation and draft deletion follows save',()=>{
   const app=read('js/app.js');const submit=app.slice(app.indexOf('App.submitTask ='),app.indexOf('App.submitTask =')+19000);
   assert.ok(submit.indexOf('if (validateOnly) return true;')<submit.indexOf('const data ='));
