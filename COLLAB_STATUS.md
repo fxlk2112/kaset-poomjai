@@ -1,5 +1,16 @@
 # FARMULTIMATE Collaboration Status
 
+## Task lock — SYNGENTA-PROJECT-AUDIT-20261127
+
+- Owner: Codex for Folk, user-requested test; SUCHA retains integration review.
+- Branch: `codex/syngenta-project-audit`, source `2d515c4`; `origin/develop` verified as ancestor.
+- Task / Scope: Read the supplied A sheet, populate a project in isolated loopback QA, attach clearly labelled sample images, reconcile data and document reproducible website defects.
+- Files / lock: `qa/syngenta-project/`, local ignored runtime artifacts and this status file. No product changes or shared contract changes planned.
+- Status: AUDIT_COMPLETE; confirmed P1 non-harvest income loss remains unfixed. QA data restored after reproduction. Source workbook remains unchanged; private workbook contents and screenshots stay in ignored storage.
+- Validation: 33 source rows mapped; two labelled sample images; project/plot/cycle/notebook accounting reconciled; medicine quantity guard and Word export checked. `npm run check` 733/733; relay 9/9. Desktop/mobile screenshot evidence retained privately. See `qa/syngenta-project/README.md`.
+- Deployment: NOT_DEPLOYED. DATA_ONLY / SAFE_OFF preserved.
+- Next action: Fix preservation and entry of non-harvest income before release review.
+
 ## Task lock — PROJECT-SETUP-RELEASE-CHECKS-20261127
 
 - Owner: Codex for Folk, explicitly requested in this chat; SUCHA retains integration review.
