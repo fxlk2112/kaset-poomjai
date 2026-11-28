@@ -1,0 +1,577 @@
+{
+  "files": 114,
+  "totalBytes": 6225357,
+  "highConfidenceFindings": [],
+  "manifest": [
+    {
+      "file": "COLLAB_STATUS.md",
+      "bytes": 12306,
+      "sha256": "74351e2bb4a1e68598abe9d39f3cf1636319c5f876c808faa62261a290ebaf5c"
+    },
+    {
+      "file": "css/cycle-notebook.css",
+      "bytes": 20354,
+      "sha256": "d8c8509a8bfdc0ab9aba6ef275e946849da7b542949fb03129a1b16d96cb5962"
+    },
+    {
+      "file": "css/project-workspace.css",
+      "bytes": 40802,
+      "sha256": "508e2b1773701e43f60f83569c137b62cafe06b5a9ee7d757a3daef1ff7256a2"
+    },
+    {
+      "file": "css/workspace.css",
+      "bytes": 51084,
+      "sha256": "7353a3e32f385471041ac939b219a02b282d5bdb3cfd39c7f5b298848557a6c2"
+    },
+    {
+      "file": "design-qa.md",
+      "bytes": 18151,
+      "sha256": "89e127731d89fbcd2137ec64f7f38964dcd639808a492c497e1935804c7a3063"
+    },
+    {
+      "file": "index.html",
+      "bytes": 36955,
+      "sha256": "2ea39c621110f69574bac922686e81454160fb6aebc9d004b1bb50f383996153"
+    },
+    {
+      "file": "js/app.js",
+      "bytes": 738298,
+      "sha256": "521d0a881d68274f5a8a735787fea49e02be4660ad4bbf4b6cf1e6df84fac35b"
+    },
+    {
+      "file": "js/cycle-notebook.js",
+      "bytes": 33191,
+      "sha256": "4f60957314c9c0867ead149158e9adebc94d034bda2492ad0901486a2a4000e6"
+    },
+    {
+      "file": "js/data.js",
+      "bytes": 119235,
+      "sha256": "92f972ae0b6456ac3c07c5c8dd5022d0ddf17da02862f7f5abbd058193c826ce"
+    },
+    {
+      "file": "js/inspection.js",
+      "bytes": 43455,
+      "sha256": "ba6ba0a6f8d404fc939369a3535fb20113f4c97048f18c994b1c4e4b1f2fe220"
+    },
+    {
+      "file": "js/notify.js",
+      "bytes": 4412,
+      "sha256": "25e27ea96ef35996c2d6017b72d32e5e6f5780f42ca23ede2f3ad56ce76cf5df"
+    },
+    {
+      "file": "js/project-workspace.js",
+      "bytes": 25993,
+      "sha256": "8795adcbfc636b2ba6ea6bdd4adc3b8ed34f8af8b16eaebc5dd96eaed069512b"
+    },
+    {
+      "file": "js/projects.js",
+      "bytes": 29012,
+      "sha256": "1acdf2cf10f9b39831a0f0a919b3398007827f2bd6afbf5bf91c22437f7962d5"
+    },
+    {
+      "file": "js/task-wizard.js",
+      "bytes": 28669,
+      "sha256": "7e2e1b6397bf387f0754fe94ce296ca36c80216b6ecf11026fa3fe19ed838c49"
+    },
+    {
+      "file": "js/workspace.js",
+      "bytes": 25360,
+      "sha256": "214db7058f124fd894a74dbd0f8568969a2a7c85272951b2e471b2b3ffcf4187"
+    },
+    {
+      "file": "sw.js",
+      "bytes": 3531,
+      "sha256": "f5107c62a7488508207c0497c87e1bf1fa6ade734cb662616d787f5b08d411f6"
+    },
+    {
+      "file": "tests/cycle-notebook.test.cjs",
+      "bytes": 12847,
+      "sha256": "b16dc26de541ad68095c9ea14ae465977a20b3f6981a6b2a74f08716e859fe07"
+    },
+    {
+      "file": "tests/inspection.test.cjs",
+      "bytes": 18414,
+      "sha256": "c5c4f7289fc4736edef0051ce9918a5437367cbe1b3701a34c0e5c8f1db45903"
+    },
+    {
+      "file": "tests/interior.test.cjs",
+      "bytes": 44090,
+      "sha256": "fbf1f0c581e91d764f4dd7e05cbc86065e6ef3e0787cf1324f34e8387f6b2f31"
+    },
+    {
+      "file": "tests/project-workspace.test.cjs",
+      "bytes": 21654,
+      "sha256": "9a686f42de028684cda876f9d87f527aa4556566e7d95af4f418d578374f0901"
+    },
+    {
+      "file": "worker/src/lark.js",
+      "bytes": 74832,
+      "sha256": "af89b3da5eaa340f3ce61ebd41c717408455480032099fd2bb260322fa1a178f"
+    },
+    {
+      "file": "docs/ALL_TASK_CIRCLES_HANDOFF.md",
+      "bytes": 1993,
+      "sha256": "3af7a62ab892210f0b369d52d71995b775842bd0a231223e49954237a94bd8d1"
+    },
+    {
+      "file": "docs/LINKED_COST_AUDIT_HANDOFF.md",
+      "bytes": 1877,
+      "sha256": "7dbf352ba43742421a880ed97fd921a37f7e6c87376495064aba9a93e2ed2cef"
+    },
+    {
+      "file": "docs/PLOT_HISTORY_HANDOFF.md",
+      "bytes": 1943,
+      "sha256": "c24108844fcb6390ab5b1ce8d85f9c5a0ae742fef017e7f4c3b2bb59b254530d"
+    },
+    {
+      "file": "docs/PROJECTS_TRIALS_REQUIREMENTS_AUDIT.md",
+      "bytes": 27334,
+      "sha256": "4114b53fb1b723a3c339ef28abf6b222e455772a952a9195cdebd3cee618303f"
+    },
+    {
+      "file": "docs/PROJECTS_USABILITY_HANDOFF.md",
+      "bytes": 3073,
+      "sha256": "58fb6a1b04155eee4272c545d6e4e98b4c6b4c4ea69b765d5c635ea46c7eda13"
+    },
+    {
+      "file": "docs/PROJECTS_WORKFLOW_HANDOFF.md",
+      "bytes": 4067,
+      "sha256": "074b6dc1071221a468117d631d0771a4fca21a8ff1e0d5024bafe13656cdbcd1"
+    },
+    {
+      "file": "docs/PROJECT_SUGGESTIONS_HANDOFF.md",
+      "bytes": 1997,
+      "sha256": "63f70fd81155efb4a09b90d020e290dd0c07a18ddd7c9b3b81bb8d8e94b948ca"
+    },
+    {
+      "file": "docs/TASK_CIRCLES_HANDOFF.md",
+      "bytes": 1886,
+      "sha256": "721c3450e103a56514326e00e462336a3f7ef4f8e98a7ee6439323198a14a8a3"
+    },
+    {
+      "file": "js/project-docx.js",
+      "bytes": 9466,
+      "sha256": "aa281315d41dd790cdf34514a13e67c391189b2fc72e187f3af2d8341d8baf86"
+    },
+    {
+      "file": "js/project-planner.js",
+      "bytes": 21623,
+      "sha256": "64d400fe7761ded7bd9401b27eac99bd8b74429a0d84c4150367505e4f62d786"
+    },
+    {
+      "file": "js/project-records.js",
+      "bytes": 43227,
+      "sha256": "21684b49c6b604f5187a460f9fb9f5a42988e2ab37ae56722651c3fde24a6f0a"
+    },
+    {
+      "file": "js/project-report.js",
+      "bytes": 19623,
+      "sha256": "9e8c5e9ce1a4a1578b2686d6d5bd98213844cb1c161a090c56fa05957af9591e"
+    },
+    {
+      "file": "qa/all-task-circles/activities-desktop.jpg",
+      "bytes": 101652,
+      "sha256": "00899c35f342cf916897965b5e400d76a7cbf559f47ff0c447fd145669970411"
+    },
+    {
+      "file": "qa/all-task-circles/activities-history-mobile.jpg",
+      "bytes": 38250,
+      "sha256": "2159de1733c49139840559e78ab27a7b212f9c72cff5025c889effd6662a3cf3"
+    },
+    {
+      "file": "qa/all-task-circles/activities-mobile.jpg",
+      "bytes": 45969,
+      "sha256": "d70043a11af108dd8c320a11f874f38a50ff9f3e8c1f66870b33279850cfac2b"
+    },
+    {
+      "file": "qa/all-task-circles/calendar-desktop.jpg",
+      "bytes": 119806,
+      "sha256": "90bdcd40cb37e3ee3b9d22a830507cd52789519bf69b9cef4c275f249c1a48e8"
+    },
+    {
+      "file": "qa/all-task-circles/calendar-mobile.jpg",
+      "bytes": 40727,
+      "sha256": "480108b659952a6a8b124f1dcb70b11092cca3bc96dde13ce3f27fe73f38b98f"
+    },
+    {
+      "file": "qa/all-task-circles/central-complete.jpg",
+      "bytes": 79386,
+      "sha256": "243943db5d87ad4d779aba6f2b1e319ccd6a88407645b19d085851e516f96f06"
+    },
+    {
+      "file": "qa/all-task-circles/central-pending.jpg",
+      "bytes": 92273,
+      "sha256": "dd2a6230508e1541fab5c1c4f43e4b181de141f2112933437091ef8d10fbdeda"
+    },
+    {
+      "file": "qa/all-task-circles/cycle-calendar.jpg",
+      "bytes": 106885,
+      "sha256": "051897c25db619b44982e0311fed92b5a929b0797757bbd70cba0cd87381873a"
+    },
+    {
+      "file": "qa/all-task-circles/notifications-mobile.jpg",
+      "bytes": 48478,
+      "sha256": "984b95ebe14dda5231b558961c2dae1616f571cb2cfbb2f85996f5cb8e931299"
+    },
+    {
+      "file": "qa/all-task-circles/plot-overview.jpg",
+      "bytes": 80725,
+      "sha256": "db9ac98d6fa6710fd6b47a5309f67ff83593d3a9c92e5503394d93239d262707"
+    },
+    {
+      "file": "qa/all-task-circles/validation.md",
+      "bytes": 6035,
+      "sha256": "bfecb13e1abf64db1b777f3d9868bfd89a7c12130c10e41d2cf26f741d7efecc"
+    },
+    {
+      "file": "qa/home-circles/desktop.jpg",
+      "bytes": 112964,
+      "sha256": "c521e4d6f929089da39cfe658298e409c31ffac3fa51acd952de3b3c600d7e05"
+    },
+    {
+      "file": "qa/home-circles/mobile.jpg",
+      "bytes": 45982,
+      "sha256": "0dc96d596ddce4302f7729a8546160e374411f7db8077db7f74d375df7938bcf"
+    },
+    {
+      "file": "qa/home-circles/validation.md",
+      "bytes": 2472,
+      "sha256": "a53e2e5bda161073b583943de908654fa94b02bda0ffb7a348dbdf9d7825ab30"
+    },
+    {
+      "file": "qa/linked-cost-audit/01-before-save.jpg",
+      "bytes": 61192,
+      "sha256": "addce36953902ed95568001bc27874b054ee7d60a3078489432c883d1da5f893"
+    },
+    {
+      "file": "qa/linked-cost-audit/02-cycle-history.jpg",
+      "bytes": 96509,
+      "sha256": "592a30331bc5a34dd77018910425eaa78d420da0cb2df24fa048e20c80eae672"
+    },
+    {
+      "file": "qa/linked-cost-audit/03-project-300.jpg",
+      "bytes": 84825,
+      "sha256": "e01130a7e56e4aba59f67ebfcbec5546fe5f2b0c78c7094c7ee4493b4a209bf4"
+    },
+    {
+      "file": "qa/linked-cost-audit/04-cycle-after-edit.jpg",
+      "bytes": 108145,
+      "sha256": "1a7da69192709c0cdaec4b521d3cce734c1d8ac7e9ad76475d013ea35dd99ef1"
+    },
+    {
+      "file": "qa/linked-cost-audit/05-plot-history.jpg",
+      "bytes": 95711,
+      "sha256": "7e1a74fef62facb28d558670adc6f22a6f3b5de6d094b1e70d2d2f261f29c771"
+    },
+    {
+      "file": "qa/linked-cost-audit/06-linked-detail-350.jpg",
+      "bytes": 79292,
+      "sha256": "9cb715248192d76e43d651fe2c57b1dc0bea88ae15a0ab482b6162d8f92aa06e"
+    },
+    {
+      "file": "qa/linked-cost-audit/07-project-final.jpg",
+      "bytes": 89602,
+      "sha256": "49c6fe306da21a7d5a9e5427bf2ca5258daf289bcd797bda992a7aff0660304c"
+    },
+    {
+      "file": "qa/linked-cost-audit/serve-audit.mjs",
+      "bytes": 616,
+      "sha256": "0d3770c7ae5fe2cf7065ed09d61cedc157f2917036b7086dbd88a662ae57a092"
+    },
+    {
+      "file": "qa/linked-cost-audit/validation.md",
+      "bytes": 5547,
+      "sha256": "2b00a5f21b012215392270439769f69164d1322e589197804f632a134840dea3"
+    },
+    {
+      "file": "qa/plot-history/01-recorded-desktop.jpg",
+      "bytes": 115723,
+      "sha256": "8958b38be5ff04b55323899a78802a046215714f683b462cab36d41ee71d9682"
+    },
+    {
+      "file": "qa/plot-history/02-task-detail.jpg",
+      "bytes": 97666,
+      "sha256": "c69946b03751e3566dec88376352202566257fda094c744c13f982dcca9e336f"
+    },
+    {
+      "file": "qa/plot-history/03-planned-desktop.jpg",
+      "bytes": 100687,
+      "sha256": "06fb8a8e163c8f36e72d159acc866011af5e77b4de755ced3b4a4495821a72de"
+    },
+    {
+      "file": "qa/plot-history/04-recorded-mobile.jpg",
+      "bytes": 46423,
+      "sha256": "e1b91e27bddc289a16b98f8a9891ac531fe8ed154af2e258b840abbd36a25405"
+    },
+    {
+      "file": "qa/plot-history/05-planned-mobile.jpg",
+      "bytes": 44992,
+      "sha256": "a09732ebd51796b13416618fd95c646e9706f4bfc4de1ec3b10f1e737c2dc398"
+    },
+    {
+      "file": "qa/plot-history/06-plot-round-history.jpg",
+      "bytes": 86723,
+      "sha256": "6684944e7dfc1433874d37aa6adebbc85aaa645a4ee9d0f28ff5ae6178c56a50"
+    },
+    {
+      "file": "qa/plot-history/validation.md",
+      "bytes": 4682,
+      "sha256": "6c44f0faccac4f977f3c90b1c0e7c48fcb7f9fd8e3d2cffa2ccb40f76206a350"
+    },
+    {
+      "file": "qa/project-suggestions/01-desktop-selected.jpg",
+      "bytes": 65004,
+      "sha256": "e42e608b9157e8e088fba02fc96cfc7e198b6c43c3517972291df6401dce0a37"
+    },
+    {
+      "file": "qa/project-suggestions/02-mobile-restored.jpg",
+      "bytes": 38266,
+      "sha256": "c6d2b2b7e68c2645468fbbe5cc54486bcb852a82d3dda91023ffa9bff9f2876a"
+    },
+    {
+      "file": "qa/project-suggestions/03-mobile-review.jpg",
+      "bytes": 37887,
+      "sha256": "49aea7a480a6173bb51492a5f055404bd8e2f94e6d5f050be573125fbf474d5a"
+    },
+    {
+      "file": "qa/project-suggestions/04-mobile-final.jpg",
+      "bytes": 42763,
+      "sha256": "11551868a6e7879a9d7b1f2ded013e5e312ae68acc086c36a7de0c67f5c4d469"
+    },
+    {
+      "file": "qa/project-suggestions/05-desktop-final.jpg",
+      "bytes": 111964,
+      "sha256": "b6fa441052fa0979ba403422c5781160a1135b37d7696b5279578269ba034fcb"
+    },
+    {
+      "file": "qa/project-suggestions/validation.md",
+      "bytes": 5119,
+      "sha256": "8723f4641906e5f777ccae976ed00b4451c5f073c3e5427093ee7e65e7464318"
+    },
+    {
+      "file": "qa/project-usability/01-before-hub.jpg",
+      "bytes": 64477,
+      "sha256": "90f7b5b50c0ea95b657a6ea4d83eb21b62170155584d80a5e9f5988118f2a2d1"
+    },
+    {
+      "file": "qa/project-usability/02-before-misclassified.jpg",
+      "bytes": 67511,
+      "sha256": "d8c1fcb17cfd89f20f89391f906f18a6938158d2135688671ccae5c40896d10f"
+    },
+    {
+      "file": "qa/project-usability/03-simple-draft.jpg",
+      "bytes": 72268,
+      "sha256": "f33005aa3ac13e0ab8b41df26745027987a10d2533400fba0f88b09a1803cbc8"
+    },
+    {
+      "file": "qa/project-usability/04-create-from-cycle.jpg",
+      "bytes": 69984,
+      "sha256": "97cd4ab514acaf9372fc4ca4d15813b72aba0e05121d63e463160cc11ae2a6ee"
+    },
+    {
+      "file": "qa/project-usability/05-empty-project.jpg",
+      "bytes": 58714,
+      "sha256": "6e071a87bb483e118ef38f8ca6e43de2eea3f028cf9091bd79d9573147e18be9"
+    },
+    {
+      "file": "qa/project-usability/06-record-work.jpg",
+      "bytes": 60505,
+      "sha256": "b9990ead4f6e482c6b5bdb527e2f71eb2360ae55dbd52a93b9bfd60ebea25409"
+    },
+    {
+      "file": "qa/project-usability/07-general-project-desktop.jpg",
+      "bytes": 63414,
+      "sha256": "7b674f678fb3c1c1afc180bb57b61cb78863e5b955d014726ed378f6280acf2b"
+    },
+    {
+      "file": "qa/project-usability/08-general-project-mobile.jpg",
+      "bytes": 37571,
+      "sha256": "dbf2266d8efeb822aad536a1aa89009bcef8a2327528badc9aa7e4d7ad235d37"
+    },
+    {
+      "file": "qa/project-usability/09-general-booklet.jpg",
+      "bytes": 80933,
+      "sha256": "9d46efd985af461838fa45639a738a9646731c5d241ff4239594c2589d08a6a2"
+    },
+    {
+      "file": "qa/project-usability/audit.md",
+      "bytes": 6047,
+      "sha256": "e03c2dd37fb87a7b9db0f246557f3979e748f97084277cc768b2bdd0de241df7"
+    },
+    {
+      "file": "qa/projects-workflow/01-draft-desktop.jpg",
+      "bytes": 88505,
+      "sha256": "9fcdd62cb064c88325507d7e5bdf96d0f295d9205157ec12f0566b604de7258e"
+    },
+    {
+      "file": "qa/projects-workflow/02-record-desktop.jpg",
+      "bytes": 103030,
+      "sha256": "92357120f550de23be3da355dfcf2a6b566c6d48b956f784b2505329f1ef6236"
+    },
+    {
+      "file": "qa/projects-workflow/03-booklet-desktop.jpg",
+      "bytes": 98406,
+      "sha256": "d8edb13f7a971146f690a317578e52a05e2533e336d8b5dee5c1998cff4e4ccb"
+    },
+    {
+      "file": "qa/projects-workflow/04-record-mobile.jpg",
+      "bytes": 38453,
+      "sha256": "ade753b783bd5936d8be67a32e1a7d8f9acbf0864157fc6c5d9d14f60ed5e3d5"
+    },
+    {
+      "file": "qa/projects-workflow/04b-evidence-mobile.jpg",
+      "bytes": 37130,
+      "sha256": "9745ff52b6b0e8bb7d7a289387afaae3b3030b41571275ca3dd69b87be092dc8"
+    },
+    {
+      "file": "qa/projects-workflow/05-activity-mobile.jpg",
+      "bytes": 35657,
+      "sha256": "cfdb344a6cdb036e7f9262dd206c0579568c13002d15df1d8d15476ce5a75c7c"
+    },
+    {
+      "file": "qa/projects-workflow/05b-materials-mobile.jpg",
+      "bytes": 34345,
+      "sha256": "00961d1bf389bd02ce2565f23bbbbd13d0660736b26296f514d9df641612e270"
+    },
+    {
+      "file": "qa/projects-workflow/06-activity-review-mobile.jpg",
+      "bytes": 33122,
+      "sha256": "9de211bd3c975dc1b02405efcf3862e5fb06871d5ba0fcefa62ea4f91e27c00c"
+    },
+    {
+      "file": "qa/projects-workflow/07-document-appendix.jpg",
+      "bytes": 96812,
+      "sha256": "70140862be518026c68b2fedd17f3afbf598fbc214c56744b6220774cf536591"
+    },
+    {
+      "file": "qa/projects-workflow/booklet-before.jpg",
+      "bytes": 101776,
+      "sha256": "ed56f3d3113c6eb1eba3b0edbb14c1a9c770c5069683fa9569fe460eac2a98fb"
+    },
+    {
+      "file": "qa/projects-workflow/sample-readings.csv",
+      "bytes": 53,
+      "sha256": "1e64aaec3397982522091904321f6edbae36e13255a8a20177eaf11cd6cf6643"
+    },
+    {
+      "file": "qa/projects-workflow/validation.md",
+      "bytes": 4883,
+      "sha256": "36aae123b9c9d98b1e81d7401f2050d6b29c94364f807ba7a175eff0c76e3fd9"
+    },
+    {
+      "file": "qa/requirements-audit/01-project-hub.jpg",
+      "bytes": 57934,
+      "sha256": "11941cf641c1cb755ef63bf9fa4889fa15356d1a47f3c0845d90baa56bed5763"
+    },
+    {
+      "file": "qa/requirements-audit/02-draft.jpg",
+      "bytes": 72136,
+      "sha256": "9e69ee3bf14ca8bfc12de3fbda29ffabbf0d81d14bb87a2055c5bd231ff2843a"
+    },
+    {
+      "file": "qa/requirements-audit/03-project-work.jpg",
+      "bytes": 76787,
+      "sha256": "11f5fbc58965c9443157de74dcd58726754e82c5c6f0b5dd51b4ee086c46870e"
+    },
+    {
+      "file": "qa/requirements-audit/04-measurement.jpg",
+      "bytes": 71491,
+      "sha256": "5907d481c2cc7dd289ca6cad177e232602d22e1846d4a702c0a0479a993f0470"
+    },
+    {
+      "file": "qa/requirements-audit/04b-unsaved-warning.jpg",
+      "bytes": 54512,
+      "sha256": "034379c7bfe4a19c386e03ed8f9333fc3219bbbb084a7b080ea7a25fd666d3bf"
+    },
+    {
+      "file": "qa/requirements-audit/05-report.jpg",
+      "bytes": 69727,
+      "sha256": "ea14333d9fa17ea3da63a50f73e455fcaa43eddf368ac847fa85b3276b4bb3cf"
+    },
+    {
+      "file": "qa/requirements-audit/06-mobile-measurement.jpg",
+      "bytes": 28650,
+      "sha256": "4ddc4032c716f443f36baee1e8546e0b2adea386755f17112510ac41c0ea705f"
+    },
+    {
+      "file": "qa/requirements-audit/07-reschedule.jpg",
+      "bytes": 57021,
+      "sha256": "d6bbc9e26558634880b01374df135aea5d4354eead901cd22e46654bc8f51219"
+    },
+    {
+      "file": "qa/requirements-audit/08-cycle-materials.jpg",
+      "bytes": 124986,
+      "sha256": "818549cd481dc7c3cdc776c30759a420b13ffa9184e7efdd6e5649470cea1261"
+    },
+    {
+      "file": "qa/requirements-audit/09-mobile-activity.jpg",
+      "bytes": 27928,
+      "sha256": "0ef8fcee24bba9d34fa92e08c8db640340007ac055ae25f499dcc557af91ac57"
+    },
+    {
+      "file": "qa/requirements-audit/read-model-check.json",
+      "bytes": 1230,
+      "sha256": "f512a843a48ff5e117c6dad218bccf1303446589beaf4f67f0b070c89826fdfb"
+    },
+    {
+      "file": "qa/task-circles/history-desktop.jpg",
+      "bytes": 91010,
+      "sha256": "b43efe78c674466b43cbf33acc47e6fb00ec4ca5bf97e6e664f0edd712e18228"
+    },
+    {
+      "file": "qa/task-circles/history-mobile.jpg",
+      "bytes": 41245,
+      "sha256": "e1727290b60dd4aa37839c6a1614158ae10bcfad373aa7341aeb1e090763c8a5"
+    },
+    {
+      "file": "qa/task-circles/material-saved-detail.jpg",
+      "bytes": 60406,
+      "sha256": "2dd00c6037635a87ae094e81ec1977143fef491777b1de3ed730c3009a347b2c"
+    },
+    {
+      "file": "qa/task-circles/plot-history-desktop.jpg",
+      "bytes": 71034,
+      "sha256": "e9c241d6860f6c652753f87c44cd615fc2640d6c6b2767cc9020ec4b734818da"
+    },
+    {
+      "file": "qa/task-circles/project-desktop.jpg",
+      "bytes": 73690,
+      "sha256": "ebc91459fc9c84399254424ac2af3ff2021eb78fa869693bb540af71c5549e4c"
+    },
+    {
+      "file": "qa/task-circles/project-mobile.jpg",
+      "bytes": 40869,
+      "sha256": "ff51371e348b660980358e2f137f6ba7200592b5d34b689ac0d62a7c4b01309b"
+    },
+    {
+      "file": "qa/task-circles/review-mobile.jpg",
+      "bytes": 40413,
+      "sha256": "a6b9396ed87e437a212151c8033b78380c858ca4fd57eade67fac65cae70d79b"
+    },
+    {
+      "file": "qa/task-circles/validation.md",
+      "bytes": 4460,
+      "sha256": "f9ed4450eccf55bd301d81db85adeec73e89bb46e5c3f3b51f24a886fcd8915b"
+    },
+    {
+      "file": "tests/project-cost-reconciliation.test.cjs",
+      "bytes": 4020,
+      "sha256": "08fd09423614ace6cdc200018a0c9bd20092c4856d40f943130058cd5ba6abb1"
+    },
+    {
+      "file": "tests/project-suggestions.test.cjs",
+      "bytes": 3782,
+      "sha256": "89849829a5ae85377ee8127f58755a33c4bf551b1330ef836a806b86693b55bb"
+    },
+    {
+      "file": "tests/project-sync-integration.test.cjs",
+      "bytes": 10681,
+      "sha256": "a32af3f162eccd93eaeb49b2b85c3f9596ca79cef8781fc98c883b6b801e69ef"
+    },
+    {
+      "file": "tests/task-circle-completion.test.cjs",
+      "bytes": 6053,
+      "sha256": "1814ec4ceeb86be1641dc311c822d6097bb0d2ed498b510700ceed588587985c"
+    }
+  ]
+}
