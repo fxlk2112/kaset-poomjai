@@ -6,10 +6,11 @@
 - Branch: `codex/release-daily-entry-20261128`, source `5a24672`.
 - Task / Scope: Publish the latest approved frontend to `farmultimate-solutions.pages.dev`, preserve its existing same-origin backend, and verify entry/history/cost views on production without submitting test records.
 - Files / lock: this status file and scoped release evidence; production readback exposed legacy auto-title restoration, so lock also covers `js/task-wizard.js`, its regression test and `index.html` / `sw.js` cache wiring for that narrow fix.
-- Status: RELEASE_IN_PROGRESS. User supplied `APPROVE_PRODUCTION_DEPLOY` on 2026-11-28, naming the canonical site and production readback.
-- Validation: fresh `npm run check` 772/772; relay 9/9. Worker and Pages Function source unchanged from prior approved deployed runtime `845ea5b`.
-- Deployment: APPROVED / PENDING. Existing direct Pages release path; no Git master/develop push or merge, no database migration or hardware action.
-- Next action: Deploy the verified source assets and inspect the canonical production site.
+- Status: DEPLOYED_AND_VERIFIED. User supplied `APPROVE_PRODUCTION_DEPLOY` on 2026-11-28, naming the canonical site and production readback. Final runtime `2988cc9` includes a narrow legacy draft-title restoration fix discovered during live inspection.
+- Validation: fresh `npm run check` 773/773; relay 9/9; production asset hashes, API health, desktop/mobile entry/history/cost readback and unchanged existing totals passed. Worker and Pages Function source unchanged from prior approved deployed runtime `845ea5b`.
+- Deployment: DEPLOYED to `farmultimate-solutions.pages.dev`, production deployment `8189927f-12d1-4fde-b48a-9d55e869eb8d`. No Git master/develop push or merge, database migration or hardware action. See `qa/daily-entry-history/DEPLOYMENT-20261128.md`.
+- Blocked / Risks: Source published to `folk/daily-entry-history`. PR creation is blocked by GitHub integration 403; automatic approval review rejected the proposed credential-manager fallback, which did not run. Production writes were not exercised with real farm data.
+- Next action: Integration owner opens/reviews the published feature branch into `develop` using normal GitHub access.
 
 ## Task lock — DAILY-ENTRY-HISTORY-CLARITY-20261128
 

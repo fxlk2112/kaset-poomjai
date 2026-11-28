@@ -1,5 +1,7 @@
 # Daily entry, history and progress clarity — 2026-11-28
 
+**Release update:** This work is now deployed with draft-title patch `2988cc9`. See [approved production evidence](DEPLOYMENT-20261128.md). The `NOT_DEPLOYED` statements below describe the original development checkpoint.
+
 - Owner: Codex for Folk, user-authorized farm/project follow-up. SUCHA retains shared integration review.
 - Branch: `codex/daily-entry-history-clarity`, based on `6f5fdc6`; refreshed `origin/develop` is an ancestor.
 - Task / Scope: Three approved workflow improvements: easier daily entry, table history, and accurate material/labor classification and planned progress.
